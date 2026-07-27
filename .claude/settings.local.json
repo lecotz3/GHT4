@@ -10,7 +10,8 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8765/data.js)",
       "PowerShell(Start-Process \"http://localhost:8765/\"; Write-Output \"Aberto no navegador padrao: http://localhost:8765/\")",
       "Bash(curl -s http://localhost:8765/)",
-      "mcp__claude_ai_Gamma__get_generation_status"
+      "mcp__claude_ai_Gamma__get_generation_status",
+      "PowerShell(Start-Process \"http://localhost:8765/\"; Write-Output \"Reaberto: http://localhost:8765/ \\(ou apenas atualize a aba ja aberta com F5\\)\"2)"
     ]
   }
 }

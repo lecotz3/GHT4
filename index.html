@@ -3,254 +3,314 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>GHT4 · Agente de Prospecção M&A — Demonstração</title>
+<title>GHT4 · Livro-razão de Prospecção M&A — Demonstração</title>
 <style>
   :root{
-    --ink:#12202e;          /* azul-tinta profundo */
-    --ink-soft:#33475b;
-    --muted:#6b7c8e;
-    --line:#e2e6ea;
-    --line-strong:#cfd6dd;
-    --bg:#f4f2ee;           /* neutro quente */
-    --card:#ffffff;
-    --accent:#9a7b45;       /* bronze/ouro discreto */
-    --accent-deep:#7c6234;
-    /* papéis */
-    --alvo:#1f6feb;      --alvo-bg:#eaf1fd;
-    --comprador:#0f8a6a; --comprador-bg:#e6f4ef;
-    --vendedora:#b06a12; --vendedora-bg:#fbf0e2;
-    --demo:#b23a48;      --demo-bg:#fbe9eb;
-    --radius:12px;
-    --shadow:0 1px 2px rgba(18,32,46,.06), 0 6px 20px rgba(18,32,46,.06);
+    /* tinta e papel */
+    --ink:#16211C;         /* tinta pinho (verde-quase-preto) */
+    --ink-2:#33403A;
+    --muted:#5C665E;       /* sálvia acinzentada */
+    --paper:#E7E0D0;       /* papel manila envelhecido */
+    --paper-2:#EFEADE;     /* papel de painel */
+    --card:#F5F1E8;        /* ficha */
+    --rule:#CFC6B2;        /* fio fino */
+    --rule-strong:#B7AC93;
+    /* metais e lacre */
+    --oxblood:#7C2B29;     /* vermelho de lacre / confidencial */
+    --oxblood-deep:#5E1F1E;
+    --brass:#9A7B45;
+    /* papéis (carimbos de tinta) */
+    --alvo:#2E5A46;        --alvo-bg:#E1E7DC;
+    --comprador:#2C4A6E;   --comprador-bg:#DFE4EA;
+    --vendedora:#8A5320;   --vendedora-bg:#EEE4D2;
+    /* fontes */
+    --serif:"Iowan Old Style","Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;
+    --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:"Cascadia Code","SFMono-Regular",Consolas,"Roboto Mono",ui-monospace,monospace;
     font-synthesis:none;
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
   body{
-    background:var(--bg); color:var(--ink);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    line-height:1.5; -webkit-font-smoothing:antialiased;
+    background:var(--paper); color:var(--ink);
+    font-family:var(--sans); line-height:1.5; -webkit-font-smoothing:antialiased;
   }
-  h1,h2,h3,.serif{font-family:Georgia,"Times New Roman",serif}
-  a{color:var(--accent-deep)}
+  h1,h2,h3{font-family:var(--serif);font-weight:600}
+  a{color:var(--oxblood-deep)}
+  ::selection{background:rgba(124,43,41,.16)}
 
-  /* ---------- Faixa de demonstração ---------- */
-  .demo-bar{
-    background:var(--demo); color:#fff; text-align:center;
-    font-size:12.5px; letter-spacing:.02em; padding:7px 16px; font-weight:600;
-  }
+  /* rótulos em versalete espaçado */
+  .eyebrow{font:600 10px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
 
-  /* ---------- Cabeçalho ---------- */
-  header.topbar{
-    background:var(--ink); color:#fff; padding:18px 28px;
-    display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+  /* ---------- Tarja de confidencialidade ---------- */
+  .confid-strip{
+    background:var(--oxblood); color:#F1E7D6; padding:6px 20px;
+    font:600 10.5px/1.3 var(--sans); letter-spacing:.14em; text-transform:uppercase;
+    display:flex; gap:12px; align-items:center; justify-content:center; text-align:center; flex-wrap:wrap;
   }
-  .brand{display:flex; align-items:center; gap:14px}
-  .logo{
-    width:44px;height:44px;border-radius:9px;flex:0 0 auto;
-    background:linear-gradient(135deg,var(--accent),#c8a45f);
+  .confid-strip b{color:#fff;letter-spacing:.22em}
+  .confid-strip .sep{color:rgba(241,231,214,.5)}
+
+  /* ---------- Masthead ---------- */
+  header.masthead{
+    padding:22px 30px 0; display:flex; align-items:flex-start; gap:18px; flex-wrap:wrap;
+  }
+  .seal-mono{
+    width:52px;height:52px;border-radius:50%;flex:0 0 auto;
+    background:radial-gradient(circle at 35% 30%,#94322f,var(--oxblood-deep));
     display:flex;align-items:center;justify-content:center;
-    font-family:Georgia,serif;font-weight:700;font-size:20px;color:var(--ink);
-    box-shadow:inset 0 0 0 1px rgba(255,255,255,.15);
+    font-family:var(--serif);font-weight:600;font-size:21px;color:#F1E7D6;
+    box-shadow:inset 0 0 0 1.5px rgba(241,231,214,.35), inset 0 0 0 4px var(--oxblood);
   }
-  .brand h1{font-size:19px;margin:0;line-height:1.15;letter-spacing:.01em}
-  .brand .sub{font-size:12.5px;color:#a9b7c4;margin-top:2px}
-  .topbar .spacer{flex:1}
-  .topbar .disclaimer-mini{
-    font-size:11.5px;color:#9fb0bf;max-width:340px;text-align:right;line-height:1.35
+  .mh-title h1{font-size:23px;margin:0;line-height:1.1;letter-spacing:.005em}
+  .mh-title .eyebrow{margin-bottom:7px}
+  .mh-title .desc{font-size:12.5px;color:var(--muted);margin-top:4px;max-width:520px}
+  .mh-spacer{flex:1}
+  .confid-stamp{
+    align-self:flex-start;transform:rotate(-3deg);color:var(--oxblood);
+    border:2px solid var(--oxblood);border-radius:3px;padding:5px 11px;
+    font:700 11px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;opacity:.85;
   }
+  .mh-rule{height:0;border-top:1px solid var(--rule-strong);margin:18px 30px 0;position:relative}
+  .mh-rule::after{content:"";position:absolute;left:0;top:-1px;width:120px;border-top:2px solid var(--brass)}
 
   /* ---------- Layout ---------- */
-  .layout{display:grid;grid-template-columns:300px 1fr;gap:0;align-items:start}
+  .layout{display:grid;grid-template-columns:288px 1fr;align-items:start}
   @media (max-width:960px){.layout{grid-template-columns:1fr}}
 
-  /* ---------- Filtros ---------- */
+  /* ---------- Filtros (guia do razão) ---------- */
   aside.filters{
-    padding:22px 20px; border-right:1px solid var(--line);
-    position:sticky; top:0; align-self:start; background:var(--bg);
+    padding:22px 22px 30px; border-right:1px solid var(--rule);
+    position:sticky; top:0; align-self:start; background:var(--paper-2);
+    min-height:calc(100vh - 0px);
   }
-  @media (max-width:960px){aside.filters{position:static;border-right:none;border-bottom:1px solid var(--line)}}
-  .filters h2{font-size:14px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 14px}
-  .fgroup{margin-bottom:16px}
-  .fgroup label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:5px}
-  .fgroup .val{float:right;font-weight:400;color:var(--accent-deep);font-variant-numeric:tabular-nums}
+  @media (max-width:960px){aside.filters{position:static;border-right:none;border-bottom:1px solid var(--rule);min-height:0}}
+  .filters .eyebrow{display:flex;align-items:center;gap:8px;margin:0 0 16px}
+  .filters .eyebrow::after{content:"";flex:1;border-top:1px solid var(--rule)}
+  .fgroup{margin-bottom:15px}
+  .fgroup > label{display:block;font:600 11px/1.3 var(--sans);letter-spacing:.06em;color:var(--ink-2);margin-bottom:6px;text-transform:uppercase}
+  .fgroup .val{float:right;font-family:var(--mono);font-weight:600;color:var(--oxblood-deep);font-size:11.5px}
   select,input[type="text"]{
-    width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:8px;
-    background:#fff;font-size:13.5px;color:var(--ink);font-family:inherit;
+    width:100%;padding:8px 2px;border:none;border-bottom:1.5px solid var(--rule-strong);
+    background:transparent;font-size:13.5px;color:var(--ink);font-family:inherit;border-radius:0;
   }
-  input[type="range"]{width:100%;accent-color:var(--accent)}
-  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+  select:focus,input[type="text"]:focus{outline:none;border-bottom-color:var(--oxblood)}
+  select{cursor:pointer}
+  input[type="range"]{width:100%;accent-color:var(--oxblood);margin:3px 0}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:3px}
   .chip-toggle{
-    font-size:12px;padding:4px 9px;border-radius:999px;border:1px solid var(--line-strong);
-    background:#fff;cursor:pointer;color:var(--ink-soft);user-select:none
+    font:600 11px/1 var(--sans);letter-spacing:.04em;padding:6px 10px;border-radius:2px;
+    border:1px solid var(--rule-strong);background:transparent;cursor:pointer;color:var(--muted);user-select:none;
+    transition:background .12s,color .12s,border-color .12s;
   }
-  .chip-toggle.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .chip-toggle:hover{border-color:var(--ink-2)}
+  .chip-toggle.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
   .btn-reset{
-    width:100%;margin-top:4px;padding:8px;border:1px solid var(--line-strong);border-radius:8px;
-    background:#fff;color:var(--ink-soft);font-size:12.5px;cursor:pointer;font-weight:600
+    width:100%;margin-top:8px;padding:9px;border:1px solid var(--rule-strong);border-radius:2px;
+    background:transparent;color:var(--ink-2);font:600 11.5px/1 var(--sans);letter-spacing:.08em;
+    text-transform:uppercase;cursor:pointer;transition:border-color .12s;
   }
-  .btn-reset:hover{background:#fff;border-color:var(--muted)}
+  .btn-reset:hover{border-color:var(--ink)}
 
   /* ---------- Conteúdo ---------- */
-  main{padding:22px 26px 60px}
-  .toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
-  .toolbar .search{flex:1;min-width:180px;max-width:340px;position:relative}
-  .toolbar .count{font-size:13px;color:var(--muted)}
+  main{padding:22px 30px 64px;min-width:0}
+  .toolbar{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+  .toolbar .search{flex:1;min-width:200px;max-width:360px}
+  .toolbar .search label{display:block;margin-bottom:3px}
+  .toolbar .count{font-family:var(--mono);font-size:12px;color:var(--muted);padding-bottom:4px;white-space:nowrap}
   .btn-export{
-    margin-left:auto;padding:9px 16px;border-radius:8px;border:1px solid var(--accent);
-    background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer;
-    display:inline-flex;align-items:center;gap:7px
+    margin-left:auto;padding:10px 16px;border-radius:2px;border:1.5px solid var(--oxblood);
+    background:transparent;color:var(--oxblood-deep);font:600 11.5px/1 var(--sans);letter-spacing:.1em;
+    text-transform:uppercase;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:background .12s,color .12s;
   }
-  .btn-export:hover{background:var(--accent-deep);border-color:var(--accent-deep)}
+  .btn-export:hover{background:var(--oxblood);color:#F1E7D6}
 
   .intro-note{
-    background:#fff;border:1px solid var(--line);border-left:3px solid var(--demo);
-    border-radius:10px;padding:12px 16px;font-size:12.8px;color:var(--ink-soft);
-    margin:14px 0 18px;line-height:1.5
+    background:var(--paper-2);border:1px solid var(--rule);border-left:3px solid var(--oxblood);
+    padding:13px 16px;font-size:12.8px;color:var(--ink-2);margin:0 0 22px;line-height:1.55;border-radius:2px;
   }
-  .intro-note strong{color:var(--demo)}
+  .intro-note strong{color:var(--oxblood-deep)}
+  .intro-note code{font-family:var(--mono);font-size:11.5px;background:rgba(124,43,41,.06);padding:1px 5px;border-radius:2px}
 
-  /* stat row */
-  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px}
+  /* resumo da varredura */
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-bottom:26px;border:1px solid var(--rule);border-radius:2px;overflow:hidden;background:var(--paper-2)}
   @media (max-width:640px){.stats{grid-template-columns:1fr}}
-  .stat{
-    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-    padding:14px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden
+  .stat{padding:14px 18px;position:relative;display:flex;align-items:baseline;gap:12px}
+  .stat + .stat{border-left:1px solid var(--rule)}
+  @media (max-width:640px){.stat + .stat{border-left:none;border-top:1px solid var(--rule)}}
+  .stat .n{font-family:var(--serif);font-size:30px;font-weight:600;line-height:1;color:var(--ink)}
+  .stat .meta{display:flex;flex-direction:column;gap:3px}
+  .stat .tick{width:22px;height:3px;border-radius:1px}
+  .stat.alvo .tick{background:var(--alvo)} .stat.comprador .tick{background:var(--comprador)} .stat.vendedora .tick{background:var(--vendedora)}
+  .stat .t{font:600 10px/1.1 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+
+  /* carimbo de classificação (assinatura) */
+  .stamp{
+    display:inline-flex;align-items:center;gap:8px;font:700 11px/1 var(--sans);letter-spacing:.15em;text-transform:uppercase;
+    padding:6px 11px;border:1.5px solid currentColor;border-radius:2px;background:transparent;
   }
-  .stat::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px}
-  .stat.alvo::before{background:var(--alvo)}
-  .stat.comprador::before{background:var(--comprador)}
-  .stat.vendedora::before{background:var(--vendedora)}
-  .stat .n{font-size:26px;font-weight:700;font-family:Georgia,serif;line-height:1}
-  .stat .t{font-size:12.5px;color:var(--muted);margin-top:4px}
+  .stamp::before{content:"";width:7px;height:7px;background:currentColor;border-radius:1px;transform:rotate(45deg)}
+  .stamp.alvo{color:var(--alvo)} .stamp.comprador{color:var(--comprador)} .stamp.vendedora{color:var(--vendedora)}
 
-  /* grupos */
-  .group{margin-bottom:26px}
-  .group-head{display:flex;align-items:center;gap:10px;margin:0 0 12px}
-  .group-head .dot{width:11px;height:11px;border-radius:3px}
-  .group-head h2{font-size:17px;margin:0}
-  .group-head .g-count{font-size:12.5px;color:var(--muted);background:#fff;border:1px solid var(--line);
-    padding:1px 8px;border-radius:999px}
-  .group-head .g-desc{font-size:12px;color:var(--muted);margin-left:auto;max-width:46%;text-align:right}
-  .dot.alvo{background:var(--alvo)} .dot.comprador{background:var(--comprador)} .dot.vendedora{background:var(--vendedora)}
+  /* divisórias do razão */
+  .group{margin-bottom:30px;border-top:1px solid var(--rule);padding-top:16px}
+  .group-head{display:flex;align-items:center;gap:14px;margin:0 0 16px}
+  .g-index{font-family:var(--serif);font-size:22px;font-weight:600;color:var(--oxblood);line-height:1;font-style:italic;min-width:26px}
+  .g-count{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .g-desc{font-size:12px;color:var(--muted);margin-left:auto;max-width:44%;text-align:right;font-style:italic}
+  @media (max-width:640px){.g-desc{display:none}}
 
-  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
   .card{
-    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-    padding:15px 16px;box-shadow:var(--shadow);cursor:pointer;transition:transform .08s,box-shadow .12s,border-color .12s;
-    display:flex;flex-direction:column;gap:9px
+    background:var(--card);border:1px solid var(--rule);border-radius:2px;
+    padding:16px 17px;cursor:pointer;display:flex;flex-direction:column;gap:11px;position:relative;
+    box-shadow:0 1px 0 rgba(22,33,28,.03);transition:border-color .14s,box-shadow .14s,transform .1s;
   }
-  .card:hover{transform:translateY(-2px);box-shadow:0 3px 8px rgba(18,32,46,.1),0 12px 28px rgba(18,32,46,.1);border-color:var(--line-strong)}
-  .card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-  .card .name{font-size:15.5px;font-weight:700;font-family:Georgia,serif;line-height:1.2}
-  .card .sub{font-size:12px;color:var(--muted);margin-top:2px}
-  .score-ring{
-    --v:0; flex:0 0 auto;width:52px;height:52px;border-radius:50%;
-    background:conic-gradient(var(--rc) calc(var(--v)*1%), #edf0f3 0);
-    display:flex;align-items:center;justify-content:center;position:relative
-  }
-  .score-ring::after{content:"";position:absolute;inset:5px;background:#fff;border-radius:50%}
-  .score-ring span{position:relative;z-index:1;font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
-  .card .metrics{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11.8px;color:var(--ink-soft)}
-  .card .metrics b{color:var(--ink);font-variant-numeric:tabular-nums}
-  .signals{display:flex;flex-wrap:wrap;gap:5px}
-  .sig{font-size:11px;padding:2px 8px;border-radius:999px;background:#eef1f4;color:var(--ink-soft);white-space:nowrap}
-  .sig.positivo{background:#e9f3ee;color:#0f6a52}
-  .sig.atencao{background:#fbf1e3;color:#96560c}
-  .sig.neutro{background:#eef0f3;color:#4a5b6b}
-  .card-desc{font-size:12px;color:var(--ink-soft);line-height:1.4;margin-top:-2px}
-  .card-contato{display:flex;align-items:center;gap:9px;padding-top:9px;border-top:1px dashed var(--line)}
-  .cc-avatar{width:30px;height:30px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
-    font-weight:700;font-family:Georgia,serif;font-size:12px;color:#fff;background:linear-gradient(135deg,var(--ink-soft),var(--ink))}
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--rc);opacity:.85}
+  .card:hover{border-color:var(--rule-strong);box-shadow:0 6px 22px rgba(22,33,28,.10);transform:translateY(-2px)}
+  .card:focus-visible{outline:2px solid var(--oxblood);outline-offset:2px}
+  .card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .card .name{font-family:var(--serif);font-size:17px;font-weight:600;line-height:1.15;letter-spacing:.005em}
+  .card .sub{font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.02em}
+
+  /* índice engravado (score) */
+  .score-index{flex:0 0 auto;text-align:right;line-height:1}
+  .si-num{font-family:var(--serif);font-size:33px;font-weight:600;color:var(--ink);letter-spacing:-.01em}
+  .si-num sup{font-family:var(--mono);font-size:10px;color:var(--muted);font-weight:400;margin-left:1px}
+  .si-rule{height:2px;width:36px;margin:3px 0 0 auto;background:var(--rc)}
+  .si-cap{font:600 8.5px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-top:5px}
+
+  .card-desc{font-size:12.5px;color:var(--ink-2);line-height:1.45}
+
+  /* linha de cifras estilo livro-razão */
+  .figs{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--rule);border-radius:2px;background:var(--paper-2);overflow:hidden}
+  .fig{padding:7px 11px;display:flex;justify-content:space-between;align-items:baseline;gap:10px;border-bottom:1px solid var(--rule)}
+  .fig:nth-child(odd){border-right:1px solid var(--rule)}
+  .fig:nth-last-child(-n+2){border-bottom:none}
+  .fk{font:600 9px/1 var(--sans);letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+  .fv{font-family:var(--mono);font-size:12px;color:var(--ink);font-weight:600;text-align:right}
+
+  .signals{display:flex;flex-wrap:wrap;gap:6px}
+  .sig{font:600 10.5px/1 var(--sans);letter-spacing:.02em;padding:4px 8px;border-radius:2px;white-space:nowrap;border:1px solid transparent}
+  .sig.positivo{background:var(--alvo-bg);color:#204636;border-color:#c7d3c6}
+  .sig.atencao{background:var(--vendedora-bg);color:#7a4a1c;border-color:#dcccae}
+  .sig.neutro{background:#e6e2d6;color:var(--ink-2);border-color:var(--rule)}
+
+  /* contato — selo de lacre */
+  .card-contato{display:flex;align-items:center;gap:10px;padding-top:11px;border-top:1px solid var(--rule)}
+  .cc-avatar,.ct-avatar{flex:0 0 auto;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-family:var(--serif);font-weight:600;color:#F1E7D6;
+    background:radial-gradient(circle at 35% 30%,#94322f,var(--oxblood-deep));
+    box-shadow:inset 0 0 0 1px rgba(241,231,214,.3);}
+  .cc-avatar{width:32px;height:32px;font-size:12px}
   .cc-info{min-width:0}
   .cc-nome{font-size:12.5px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .cc-cargo{font-weight:400;color:var(--muted)}
-  .cc-links{display:flex;flex-direction:column;gap:1px;font-size:11px;margin-top:1px}
-  .cc-links a{color:var(--accent-deep);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .cc-links{display:flex;flex-direction:column;gap:1px;font-family:var(--mono);font-size:10.5px;margin-top:2px}
+  .cc-links a{color:var(--oxblood-deep);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
   .cc-links a:hover{text-decoration:underline}
-  .prov{display:flex;align-items:center;gap:6px;font-size:10.8px;color:var(--muted);margin-top:auto;padding-top:9px;border-top:1px dashed var(--line);flex-wrap:wrap}
-  .prov .tag{padding:1px 6px;border-radius:5px;background:var(--demo-bg);color:var(--demo);font-weight:600}
-  .prov .conf{padding:1px 6px;border-radius:5px;background:#eef1f4}
-  .role-badge{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:5px}
-  .role-badge.alvo{background:var(--alvo-bg);color:var(--alvo)}
-  .role-badge.comprador{background:var(--comprador-bg);color:var(--comprador)}
-  .role-badge.vendedora{background:var(--vendedora-bg);color:var(--vendedora)}
 
-  .empty{padding:26px;text-align:center;color:var(--muted);font-size:13px;border:1px dashed var(--line-strong);border-radius:10px;background:#fff}
+  .prov{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:auto;padding-top:10px;border-top:1px dashed var(--rule-strong);flex-wrap:wrap}
+  .prov .tag{padding:1px 6px;border-radius:2px;border:1px solid var(--oxblood);color:var(--oxblood-deep);letter-spacing:.06em;text-transform:uppercase;font-weight:600;font-size:9px}
+  .prov .conf{color:var(--ink-2)}
 
-  /* ---------- Modal ---------- */
-  .overlay{position:fixed;inset:0;background:rgba(18,32,46,.5);display:none;z-index:50;
-    align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
+  .empty{padding:40px;text-align:center;color:var(--muted);font-size:13px;border:1px dashed var(--rule-strong);border-radius:2px;background:var(--paper-2);font-style:italic}
+
+  /* ---------- Detalhe (dossiê) ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(22,33,28,.55);display:none;z-index:50;
+    align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;backdrop-filter:blur(2px)}
   .overlay.open{display:flex}
-  .modal{background:#fff;border-radius:16px;max-width:720px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);
-    overflow:hidden;animation:pop .16s ease}
-  @keyframes pop{from{transform:translateY(8px);opacity:.6}to{transform:none;opacity:1}}
-  .modal-head{padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
-  .modal-head h2{margin:0;font-size:21px}
-  .modal-head .sub{font-size:13px;color:var(--muted);margin-top:3px}
-  .modal-close{background:none;border:none;font-size:24px;color:var(--muted);cursor:pointer;line-height:1;padding:2px 6px}
-  .modal-body{padding:20px 24px;max-height:66vh;overflow:auto}
-  .m-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
-  @media(max-width:560px){.m-grid{grid-template-columns:repeat(2,1fr)}}
-  .kpi{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px 12px}
-  .kpi .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
-  .kpi .v{font-size:16px;font-weight:700;font-family:Georgia,serif;margin-top:2px;font-variant-numeric:tabular-nums}
-  .m-section-title{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:20px 0 10px;font-weight:700}
-  .role-score-row{display:flex;align-items:center;gap:12px;margin-bottom:12px}
-  .role-score-row .lbl{width:190px;flex:0 0 auto;font-size:13px;font-weight:600}
-  .role-score-row .lbl small{display:block;font-weight:400;color:var(--muted);font-size:11px}
-  .bar{flex:1;height:10px;border-radius:6px;background:#edf0f3;overflow:hidden}
-  .bar > i{display:block;height:100%;border-radius:6px}
-  .role-score-row .pct{width:40px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;font-size:13px}
-  .contrib{margin:6px 0 0 0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:6px}
-  .contrib li{font-size:11.5px;padding:2px 8px;border-radius:999px;background:#f0f2f5;color:var(--ink-soft)}
-  .contrib li b{color:var(--accent-deep)}
-  .sig-detail{margin:0;padding:0;list-style:none}
-  .sig-detail li{padding:9px 0;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:flex-start}
-  .sig-detail li:last-child{border-bottom:none}
-  .sig-detail .b{width:9px;height:9px;border-radius:50%;margin-top:6px;flex:0 0 auto}
-  .sig-detail .b.positivo{background:var(--comprador)} .sig-detail .b.atencao{background:var(--vendedora)} .sig-detail .b.neutro{background:var(--muted)}
-  .sig-detail .st{font-weight:600;font-size:13px}
-  .sig-detail .sd{font-size:12.5px;color:var(--ink-soft)}
-  .modal-foot{padding:14px 24px;background:var(--bg);border-top:1px solid var(--line);font-size:11.5px;color:var(--muted);line-height:1.5}
-  .prov-line{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:12.5px;color:var(--ink-soft);margin-top:6px}
-  .prov-line b{color:var(--ink)}
-  .contato-card{display:flex;gap:14px;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
-  .ct-avatar{width:44px;height:44px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
-    font-weight:700;font-family:Georgia,serif;font-size:16px;color:#fff;background:linear-gradient(135deg,var(--ink-soft),var(--ink))}
-  .ct-nome{font-weight:700;font-size:14.5px}
-  .ct-cargo{font-size:12.5px;color:var(--muted);margin-bottom:4px}
-  .ct-links{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px}
-  .ct-links a{color:var(--accent-deep);text-decoration:none;white-space:nowrap}
-  .ct-links a:hover{text-decoration:underline}
+  .modal{background:var(--card);border-radius:3px;max-width:740px;width:100%;
+    box-shadow:0 24px 70px rgba(22,33,28,.4);overflow:hidden;animation:pop .18s ease;
+    border-top:4px solid var(--oxblood)}
+  @keyframes pop{from{transform:translateY(10px);opacity:.5}to{transform:none;opacity:1}}
+  .modal-head{padding:22px 26px;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;gap:18px;align-items:flex-start;background:var(--paper-2)}
+  .mh-left .stamp{margin-bottom:10px}
+  .modal-head h2{margin:0;font-size:24px;line-height:1.1}
+  .modal-head .sub{font-size:12px;color:var(--muted);margin-top:5px;font-family:var(--mono);letter-spacing:.01em}
+  .seal{width:80px;height:80px;flex:0 0 auto;border-radius:50%;border:2px solid var(--rc);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--ink);
+    box-shadow:inset 0 0 0 4px var(--card),inset 0 0 0 5px color-mix(in srgb,var(--rc) 30%,transparent);
+    animation:stampin .3s ease}
+  @keyframes stampin{0%{opacity:0;transform:scale(1.18) rotate(-5deg)}100%{opacity:1;transform:none}}
+  .seal .sn{font-family:var(--serif);font-size:27px;font-weight:600;line-height:1}
+  .seal .sn sup{font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:400}
+  .seal .sl{font:600 8px/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+  .modal-close{background:none;border:none;font-size:26px;color:var(--muted);cursor:pointer;line-height:1;padding:0 4px;align-self:flex-start}
+  .modal-close:hover{color:var(--oxblood)}
+  .modal-body{padding:22px 26px;max-height:64vh;overflow:auto}
+  .m-section-title{font:700 10px/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--muted);
+    margin:24px 0 12px;display:flex;align-items:center;gap:10px}
+  .m-section-title::after{content:"";flex:1;border-top:1px solid var(--rule)}
+  .m-section-title:first-child{margin-top:0}
+  .m-lead{margin:0 0 4px;font-size:14.5px;color:var(--ink);font-family:var(--serif);line-height:1.4}
+  .m-sit{margin:0;font-size:12.5px;color:var(--muted);font-style:italic}
 
-  footer.pagefoot{padding:22px 28px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;text-align:center;line-height:1.6}
+  .m-grid{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--rule);border-radius:2px;overflow:hidden;background:var(--paper-2)}
+  @media(max-width:560px){.m-grid{grid-template-columns:repeat(2,1fr)}}
+  .kpi{padding:11px 13px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+  .kpi .k{font:600 9px/1 var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .kpi .v{font-family:var(--mono);font-size:15px;font-weight:600;margin-top:5px;color:var(--ink)}
+
+  .role-score-row{display:flex;align-items:center;gap:14px;margin-bottom:10px}
+  .role-score-row .lbl{width:200px;flex:0 0 auto;font-size:12.5px;font-weight:700}
+  .role-score-row .lbl small{display:block;font-weight:400;color:var(--muted);font-size:11px;font-style:italic}
+  .bar{flex:1;height:8px;border-radius:2px;background:#e0dbcd;overflow:hidden;border:1px solid var(--rule)}
+  .bar > i{display:block;height:100%}
+  .role-score-row .pct{width:44px;text-align:right;font-family:var(--mono);font-weight:600;font-size:13px}
+  .contrib{margin:5px 0 16px 0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:6px}
+  .contrib li{font:600 10.5px/1 var(--sans);padding:4px 8px;border-radius:2px;background:var(--paper-2);color:var(--ink-2);border:1px solid var(--rule)}
+  .contrib li b{font-family:var(--mono);color:var(--oxblood-deep)}
+  .sig-detail{margin:0;padding:0;list-style:none}
+  .sig-detail li{padding:11px 0;border-bottom:1px solid var(--rule);display:flex;gap:12px;align-items:flex-start}
+  .sig-detail li:last-child{border-bottom:none}
+  .sig-detail .b{width:8px;height:8px;margin-top:5px;flex:0 0 auto;transform:rotate(45deg)}
+  .sig-detail .b.positivo{background:var(--alvo)} .sig-detail .b.atencao{background:var(--vendedora)} .sig-detail .b.neutro{background:var(--muted)}
+  .sig-detail .st{font-weight:700;font-size:13px}
+  .sig-detail .sd{font-size:12.5px;color:var(--ink-2)}
+
+  .contato-card{display:flex;gap:15px;align-items:center;background:var(--paper-2);border:1px solid var(--rule);border-radius:2px;padding:14px 16px}
+  .ct-avatar{width:46px;height:46px;font-size:16px}
+  .ct-nome{font-weight:700;font-size:14.5px}
+  .ct-cargo{font-size:12.5px;color:var(--muted);margin-bottom:5px}
+  .ct-links{display:flex;flex-wrap:wrap;gap:5px 18px;font-family:var(--mono);font-size:12px}
+  .ct-links a{color:var(--oxblood-deep);text-decoration:none;white-space:nowrap}
+  .ct-links a:hover{text-decoration:underline}
+  .prov-line{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:12.5px;color:var(--ink-2);margin-top:4px}
+  .prov-line b{color:var(--ink);font-family:var(--mono)}
+
+  .modal-foot{padding:15px 26px;background:var(--paper-2);border-top:1px solid var(--rule);font-size:11.5px;color:var(--muted);line-height:1.55}
+  .modal-foot b{color:var(--oxblood-deep)}
+
+  footer.pagefoot{padding:24px 30px;border-top:1px solid var(--rule);color:var(--muted);font-size:11.5px;text-align:center;line-height:1.7;font-family:var(--mono)}
+
+  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
 
-<div class="demo-bar">
-  ⚠️ DEMONSTRAÇÃO — Todos os dados são fictícios e os scores são ilustrativos. Este protótipo não prevê transações e não substitui análise humana.
+<div class="confid-strip">
+  <b>Confidencial</b><span class="sep">·</span>
+  <span>Demonstração — dados fictícios e índices ilustrativos</span><span class="sep">·</span>
+  <span>não prevê transações · não substitui análise humana</span>
 </div>
 
-<header class="topbar">
-  <div class="brand">
-    <div class="logo">G4</div>
-    <div>
-      <h1>GHT4 · Agente de Prospecção M&amp;A</h1>
-      <div class="sub">Protótipo conceitual para levantamento de requisitos</div>
-    </div>
+<header class="masthead">
+  <div class="seal-mono">G4</div>
+  <div class="mh-title">
+    <div class="eyebrow">GHT4 · Fusões &amp; Aquisições</div>
+    <h1>Livro-razão de Prospecção</h1>
+    <div class="desc">Agente que organiza e prioriza oportunidades de originação — estruturando o funil com transparência. A decisão é sempre humana.</div>
   </div>
-  <div class="spacer"></div>
-  <div class="disclaimer-mini">
-    Ferramenta de <b>organização e priorização</b> de oportunidades — a decisão é sempre humana.
-  </div>
+  <div class="mh-spacer"></div>
+  <div class="confid-stamp">Protótipo</div>
 </header>
+<div class="mh-rule"></div>
 
 <div class="layout">
   <!-- ============ FILTROS ============ -->
   <aside class="filters">
-    <h2>Filtros ilustrativos</h2>
+    <div class="eyebrow">Critérios de triagem</div>
 
     <div class="fgroup">
       <label for="f-setor">Setor</label>
@@ -298,28 +358,29 @@
       <div class="chips" id="f-papel">
         <span class="chip-toggle on" data-papel="alvo">Alvos</span>
         <span class="chip-toggle on" data-papel="comprador">Compradores</span>
-        <span class="chip-toggle on" data-papel="vendedora">Candidatas a venda</span>
+        <span class="chip-toggle on" data-papel="vendedora">À venda</span>
       </div>
     </div>
 
-    <button class="btn-reset" id="btn-reset">Limpar filtros</button>
+    <button class="btn-reset" id="btn-reset">Limpar critérios</button>
   </aside>
 
   <!-- ============ CONTEÚDO ============ -->
   <main>
     <div class="toolbar">
       <div class="search">
-        <input type="text" id="f-busca" placeholder="Buscar por nome ou subsetor…" />
+        <label class="eyebrow" for="f-busca">Buscar</label>
+        <input type="text" id="f-busca" placeholder="Nome, subsetor ou praça…" />
       </div>
       <span class="count" id="count"></span>
-      <button class="btn-export" id="btn-export">⬇ Exportar CSV (demo)</button>
+      <button class="btn-export" id="btn-export">Exportar razão (CSV)</button>
     </div>
 
     <div class="intro-note">
-      <strong>Como ler esta tela:</strong> o agente organiza empresas <em>fictícias</em> em três papéis de M&amp;A,
-      atribui um <em>score de atratividade ilustrativo</em> (0–100) e explica os sinais que o influenciaram.
-      Pesos e critérios são propositalmente simples e ficam em <code>scoring.js</code>, para serem
-      ajustados junto com os sócios após o levantamento de requisitos.
+      <strong>Como ler este razão:</strong> o agente organiza empresas <em>fictícias</em> em três papéis de M&amp;A,
+      atribui um <em>índice de atratividade ilustrativo</em> (0–100) e explica os sinais que o influenciaram.
+      Pesos e critérios são propositalmente simples e ficam em <code>scoring.js</code>, para ajuste
+      junto com os sócios após o levantamento de requisitos.
     </div>
 
     <div class="stats" id="stats"></div>
@@ -329,11 +390,11 @@
 </div>
 
 <footer class="pagefoot">
-  GHT4 — Boutique de Fusões e Aquisições · Protótipo de demonstração sem integração com fontes reais.<br/>
-  Dados fictícios gerados apenas para ilustrar o conceito. Nenhuma informação representa empresas reais.
+  GHT4 — Boutique de Fusões e Aquisições · Protótipo de demonstração, sem integração com fontes reais.<br/>
+  Dados e contatos fictícios, gerados apenas para ilustrar o conceito. Nenhuma informação representa empresas ou pessoas reais.
 </footer>
 
-<!-- ============ MODAL ============ -->
+<!-- ============ DOSSIÊ (modal) ============ -->
 <div class="overlay" id="overlay">
   <div class="modal" id="modal" role="dialog" aria-modal="true"></div>
 </div>
@@ -349,6 +410,7 @@
   const BASE = window.MOTOR.avaliarBase(window.EMPRESAS_DEMO);
   const CFG  = window.MOTOR.CONFIG_PAPEIS;
   const fmtBR = (n)=> n.toLocaleString('pt-BR');
+  const ROMANOS = {alvo:'I', comprador:'II', vendedora:'III'};
 
   // preencher UFs e perfis
   const ufs = [...new Set(BASE.map(e=>e.uf))].sort();
@@ -432,21 +494,21 @@
   // ---- render ----
   function render(){
     const lista=filtrar().sort((a,b)=>b.scorePrincipal-a.scorePrincipal);
-    $('#count').textContent = lista.length+' empresa'+(lista.length!==1?'s':'')+' (demo)';
+    $('#count').textContent = lista.length+' registro'+(lista.length!==1?'s':'')+' · demo';
 
-    // stats
+    // resumo da varredura
     const stats=$('#stats'); stats.innerHTML='';
     ['alvo','comprador','vendedora'].forEach(p=>{
       const n=lista.filter(e=>e.classificacao===p).length;
       const d=document.createElement('div'); d.className='stat '+p;
-      d.innerHTML=`<div class="n">${n}</div><div class="t">${CFG[p].rotulo}s</div>`;
+      d.innerHTML=`<div class="n">${n}</div><div class="meta"><span class="tick"></span><span class="t">${CFG[p].rotulo}</span></div>`;
       stats.appendChild(d);
     });
 
     // grupos
     const box=$('#groups'); box.innerHTML='';
     if(lista.length===0){
-      box.innerHTML='<div class="empty">Nenhuma empresa (fictícia) atende aos filtros selecionados.</div>';
+      box.innerHTML='<div class="empty">Nenhum registro (fictício) atende aos critérios de triagem selecionados.</div>';
       return;
     }
     ['alvo','comprador','vendedora'].forEach(p=>{
@@ -456,9 +518,9 @@
       const sec=document.createElement('section'); sec.className='group';
       sec.innerHTML=`
         <div class="group-head">
-          <span class="dot ${p}"></span>
-          <h2>${CFG[p].rotulo}s</h2>
-          <span class="g-count">${grupo.length}</span>
+          <span class="g-index">${ROMANOS[p]}</span>
+          <span class="stamp ${p}">${CFG[p].rotulo}</span>
+          <span class="g-count">${grupo.length} reg.</span>
           <span class="g-desc">${CFG[p].descricao}</span>
         </div>
         <div class="cards"></div>`;
@@ -470,6 +532,9 @@
 
   function cardEl(e){
     const el=document.createElement('div'); el.className='card';
+    el.tabIndex=0; el.setAttribute('role','button');
+    el.setAttribute('aria-label',`Abrir dossiê de ${e.nome}`);
+    el.style.setProperty('--rc',corPapel[e.classificacao]);
     const topSig=e.papeis[e.classificacao].contribuicoes.slice(0,3);
     el.innerHTML=`
       <div class="card-top">
@@ -477,16 +542,18 @@
           <div class="name">${e.nome}</div>
           <div class="sub">${e.setor} · ${e.subsetor} · ${e.cidade}/${e.uf}</div>
         </div>
-        <div class="score-ring" style="--v:${e.scorePrincipal};--rc:${corPapel[e.classificacao]}">
-          <span>${e.scorePrincipal}</span>
+        <div class="score-index" style="--rc:${corPapel[e.classificacao]}">
+          <div class="si-num">${e.scorePrincipal}<sup>/100</sup></div>
+          <div class="si-rule"></div>
+          <div class="si-cap">Índice</div>
         </div>
       </div>
       <div class="card-desc">${e.oQueFazem}</div>
-      <div class="metrics">
-        <span>Receita <b>R$ ${fmtBR(e.receita)} mi</b></span>
-        <span>Cresc. <b>${e.crescimento}%</b></span>
-        <span>EBITDA <b>${e.margemEbitda}%</b></span>
-        <span>Perfil <b>${e.perfil}</b></span>
+      <div class="figs">
+        <div class="fig"><span class="fk">Receita</span><span class="fv">R$ ${fmtBR(e.receita)} mi</span></div>
+        <div class="fig"><span class="fk">Cresc.</span><span class="fv">${e.crescimento}%</span></div>
+        <div class="fig"><span class="fk">EBITDA</span><span class="fv">${e.margemEbitda}%</span></div>
+        <div class="fig"><span class="fk">Perfil</span><span class="fv">${e.perfil}</span></div>
       </div>
       <div class="signals">
         ${topSig.map(s=>`<span class="sig ${s.tipo}">${s.rotulo}</span>`).join('')}
@@ -503,10 +570,13 @@
       </div>
       <div class="prov">
         <span class="tag">${e.origem}</span>
-        <span>· ${dataBR(e.dataAtualizacao)}</span>
-        <span class="conf">Confiança: ${e.confianca}</span>
+        <span>${dataBR(e.dataAtualizacao)}</span>
+        <span class="conf">· Confiança: ${e.confianca}</span>
       </div>`;
     el.addEventListener('click',()=>abrirModal(e));
+    el.addEventListener('keydown',ev=>{
+      if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();abrirModal(e);}
+    });
     return el;
   }
 
@@ -518,19 +588,21 @@
       .map(p=>p[0]).slice(0,2).join('').toUpperCase();
   }
 
-  // ---- modal ----
+  // ---- dossiê (modal) ----
   const overlay=$('#overlay'), modal=$('#modal');
+  let ultimoFoco=null;
   overlay.addEventListener('click',e=>{if(e.target===overlay)fecharModal();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')fecharModal();});
 
   function abrirModal(e){
+    ultimoFoco=document.activeElement;
     const rolesOrder=['alvo','comprador','vendedora'];
     const barras=rolesOrder.map(p=>{
       const r=e.papeis[p];
       const contrib=r.contribuicoes.length
         ? `<ul class="contrib">${r.contribuicoes.map(c=>`<li>${c.rotulo} <b>+${c.peso}</b></li>`).join('')}</ul>`
         : `<ul class="contrib"><li>Sem sinais para este papel</li></ul>`;
-      return `<div style="margin-bottom:14px">
+      return `<div>
         <div class="role-score-row">
           <div class="lbl">${CFG[p].rotulo}<small>${CFG[p].descricao}</small></div>
           <div class="bar"><i style="width:${r.score}%;background:${corPapel[p]}"></i></div>
@@ -544,19 +616,25 @@
 
     modal.innerHTML=`
       <div class="modal-head">
-        <div>
-          <span class="role-badge ${e.classificacao}">${CFG[e.classificacao].rotulo}</span>
-          <h2 style="margin-top:6px">${e.nome}</h2>
+        <div class="mh-left">
+          <span class="stamp ${e.classificacao}">${CFG[e.classificacao].rotulo}</span>
+          <h2>${e.nome}</h2>
           <div class="sub">${e.setor} · ${e.subsetor} · ${e.cidade}/${e.uf} · ${e.perfil}</div>
         </div>
-        <button class="modal-close" aria-label="Fechar">×</button>
+        <div style="display:flex;gap:14px;align-items:flex-start">
+          <div class="seal" style="--rc:${corPapel[e.classificacao]}">
+            <div class="sn">${e.scorePrincipal}<sup>/100</sup></div>
+            <div class="sl">Índice</div>
+          </div>
+          <button class="modal-close" aria-label="Fechar">×</button>
+        </div>
       </div>
       <div class="modal-body">
         <div class="m-section-title">O que fazem</div>
-        <p style="margin:0 0 4px;font-size:14px;color:var(--ink)">${e.oQueFazem}</p>
-        <p style="margin:0 0 4px;font-size:12.5px;color:var(--muted);font-style:italic">Situação relevante (M&amp;A): ${e.descricao}</p>
+        <p class="m-lead">${e.oQueFazem}</p>
+        <p class="m-sit">Situação relevante (M&amp;A): ${e.descricao}</p>
 
-        <div class="m-section-title">Contato <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--demo)">· fictício (demonstração)</span></div>
+        <div class="m-section-title">Contato · fictício (demonstração)</div>
         <div class="contato-card">
           <div class="ct-avatar">${iniciais(e.contato.nome)}</div>
           <div class="ct-info">
@@ -569,20 +647,20 @@
           </div>
         </div>
 
-        <div class="m-section-title" style="margin-top:20px">Indicadores</div>
+        <div class="m-section-title">Indicadores</div>
         <div class="m-grid">
           <div class="kpi"><div class="k">Receita est.</div><div class="v">R$ ${fmtBR(e.receita)} mi</div></div>
           <div class="kpi"><div class="k">Crescimento</div><div class="v">${e.crescimento}%</div></div>
           <div class="kpi"><div class="k">Margem EBITDA</div><div class="v">${e.margemEbitda}%</div></div>
           <div class="kpi"><div class="k">Funcionários</div><div class="v">${fmtBR(e.funcionarios)}</div></div>
-          <div class="kpi"><div class="k">Score principal</div><div class="v">${e.scorePrincipal}/100</div></div>
-          <div class="kpi"><div class="k">Perfil societário</div><div class="v" style="font-size:14px">${e.perfil}</div></div>
+          <div class="kpi"><div class="k">Índice principal</div><div class="v">${e.scorePrincipal}/100</div></div>
+          <div class="kpi"><div class="k">Perfil</div><div class="v" style="font-size:12px">${e.perfil}</div></div>
         </div>
 
-        <div class="m-section-title">Score ilustrativo por papel</div>
+        <div class="m-section-title">Índice ilustrativo por papel</div>
         ${barras}
 
-        <div class="m-section-title">Sinais que influenciaram o score</div>
+        <div class="m-section-title">Sinais que influenciaram o índice</div>
         <ul class="sig-detail">${sinaisDet}</ul>
 
         <div class="m-section-title">Origem e transparência dos dados</div>
@@ -593,21 +671,25 @@
         </div>
       </div>
       <div class="modal-foot">
-        ⚠️ <b>Dados fictícios e score ilustrativo.</b> Este detalhamento demonstra apenas como o agente
+        ⚠️ <b>Dados fictícios e índice ilustrativo.</b> Este dossiê demonstra apenas como o agente
         poderia explicar uma priorização. Não constitui recomendação de transação, avaliação (valuation)
         ou due diligence, e não substitui a análise dos profissionais da GHT4.
       </div>`;
     $('.modal-close',modal).addEventListener('click',fecharModal);
     overlay.classList.add('open');
     document.body.style.overflow='hidden';
+    $('.modal-close',modal).focus();
   }
-  function fecharModal(){overlay.classList.remove('open');document.body.style.overflow='';}
+  function fecharModal(){
+    overlay.classList.remove('open');document.body.style.overflow='';
+    if(ultimoFoco&&ultimoFoco.focus)ultimoFoco.focus();
+  }
 
   // ---- CSV ----
   function exportarCSV(){
     const lista=filtrar().sort((a,b)=>b.scorePrincipal-a.scorePrincipal);
     const cols=['id','nome','o_que_fazem','setor','subsetor','cidade','uf','receita_R$mi','crescimento_%',
-      'margem_ebitda_%','funcionarios','perfil','classificacao','score_ilustrativo',
+      'margem_ebitda_%','funcionarios','perfil','classificacao','indice_ilustrativo',
       'sinais','contato_nome_FICTICIO','contato_cargo','contato_email_FICTICIO','contato_telefone_FICTICIO',
       'origem_dado','data_referencia','confianca'];
     const esc=(v)=>{const s=String(v).replace(/"/g,'""');return /[;"\n]/.test(s)?`"${s}"`:s;};
@@ -621,8 +703,7 @@
         e.origem,e.dataAtualizacao,e.confianca
       ].map(esc).join(';'));
     });
-    // cabeçalho de aviso + BOM p/ Excel PT-BR
-    const aviso='DEMONSTRACAO - dados ficticios e scores ilustrativos - nao representa empresas reais nem recomendacao de transacao';
+    const aviso='DEMONSTRACAO - dados e contatos ficticios, indices ilustrativos - nao representa empresas/pessoas reais nem recomendacao de transacao';
     const csv='﻿'+aviso+'\n'+linhas.join('\n');
     const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
     const url=URL.createObjectURL(blob);
