@@ -12,7 +12,7 @@ criado para apoiar a conversa de levantamento de requisitos com os sócios da **
 
 ## O que a demonstração faz
 
-- **Seleção de setor** (Saúde, Tecnologia, Varejo, Energia — ilustrativos).
+- **Seleção de setor** (Saúde, Tecnologia, Varejo, Energia — ilustrativos)
 - **Filtros ilustrativos**: localização (UF), receita mínima, crescimento, margem EBITDA,
   nº de funcionários, perfil societário e classificação.
 - **Lista de empresas fictícias**, claramente marcadas como dados de demonstração.
