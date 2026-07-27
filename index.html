@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GHT4 · Agente de Prospecção M&A — Demonstração</title>
+<style>
+  :root{
+    --ink:#12202e;          /* azul-tinta profundo */
+    --ink-soft:#33475b;
+    --muted:#6b7c8e;
+    --line:#e2e6ea;
+    --line-strong:#cfd6dd;
+    --bg:#f4f2ee;           /* neutro quente */
+    --card:#ffffff;
+    --accent:#9a7b45;       /* bronze/ouro discreto */
+    --accent-deep:#7c6234;
+    /* papéis */
+    --alvo:#1f6feb;      --alvo-bg:#eaf1fd;
+    --comprador:#0f8a6a; --comprador-bg:#e6f4ef;
+    --vendedora:#b06a12; --vendedora-bg:#fbf0e2;
+    --demo:#b23a48;      --demo-bg:#fbe9eb;
+    --radius:12px;
+    --shadow:0 1px 2px rgba(18,32,46,.06), 0 6px 20px rgba(18,32,46,.06);
+    font-synthesis:none;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.serif{font-family:Georgia,"Times New Roman",serif}
+  a{color:var(--accent-deep)}
+
+  /* ---------- Faixa de demonstração ---------- */
+  .demo-bar{
+    background:var(--demo); color:#fff; text-align:center;
+    font-size:12.5px; letter-spacing:.02em; padding:7px 16px; font-weight:600;
+  }
+
+  /* ---------- Cabeçalho ---------- */
+  header.topbar{
+    background:var(--ink); color:#fff; padding:18px 28px;
+    display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+  }
+  .brand{display:flex; align-items:center; gap:14px}
+  .logo{
+    width:44px;height:44px;border-radius:9px;flex:0 0 auto;
+    background:linear-gradient(135deg,var(--accent),#c8a45f);
+    display:flex;align-items:center;justify-content:center;
+    font-family:Georgia,serif;font-weight:700;font-size:20px;color:var(--ink);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.15);
+  }
+  .brand h1{font-size:19px;margin:0;line-height:1.15;letter-spacing:.01em}
+  .brand .sub{font-size:12.5px;color:#a9b7c4;margin-top:2px}
+  .topbar .spacer{flex:1}
+  .topbar .disclaimer-mini{
+    font-size:11.5px;color:#9fb0bf;max-width:340px;text-align:right;line-height:1.35
+  }
+
+  /* ---------- Layout ---------- */
+  .layout{display:grid;grid-template-columns:300px 1fr;gap:0;align-items:start}
+  @media (max-width:960px){.layout{grid-template-columns:1fr}}
+
+  /* ---------- Filtros ---------- */
+  aside.filters{
+    padding:22px 20px; border-right:1px solid var(--line);
+    position:sticky; top:0; align-self:start; background:var(--bg);
+  }
+  @media (max-width:960px){aside.filters{position:static;border-right:none;border-bottom:1px solid var(--line)}}
+  .filters h2{font-size:14px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 14px}
+  .fgroup{margin-bottom:16px}
+  .fgroup label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:5px}
+  .fgroup .val{float:right;font-weight:400;color:var(--accent-deep);font-variant-numeric:tabular-nums}
+  select,input[type="text"]{
+    width:100%;padding:8px 10px;border:1px solid var(--line-strong);border-radius:8px;
+    background:#fff;font-size:13.5px;color:var(--ink);font-family:inherit;
+  }
+  input[type="range"]{width:100%;accent-color:var(--accent)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+  .chip-toggle{
+    font-size:12px;padding:4px 9px;border-radius:999px;border:1px solid var(--line-strong);
+    background:#fff;cursor:pointer;color:var(--ink-soft);user-select:none
+  }
+  .chip-toggle.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .btn-reset{
+    width:100%;margin-top:4px;padding:8px;border:1px solid var(--line-strong);border-radius:8px;
+    background:#fff;color:var(--ink-soft);font-size:12.5px;cursor:pointer;font-weight:600
+  }
+  .btn-reset:hover{background:#fff;border-color:var(--muted)}
+
+  /* ---------- Conteúdo ---------- */
+  main{padding:22px 26px 60px}
+  .toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+  .toolbar .search{flex:1;min-width:180px;max-width:340px;position:relative}
+  .toolbar .count{font-size:13px;color:var(--muted)}
+  .btn-export{
+    margin-left:auto;padding:9px 16px;border-radius:8px;border:1px solid var(--accent);
+    background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer;
+    display:inline-flex;align-items:center;gap:7px
+  }
+  .btn-export:hover{background:var(--accent-deep);border-color:var(--accent-deep)}
+
+  .intro-note{
+    background:#fff;border:1px solid var(--line);border-left:3px solid var(--demo);
+    border-radius:10px;padding:12px 16px;font-size:12.8px;color:var(--ink-soft);
+    margin:14px 0 18px;line-height:1.5
+  }
+  .intro-note strong{color:var(--demo)}
+
+  /* stat row */
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px}
+  @media (max-width:640px){.stats{grid-template-columns:1fr}}
+  .stat{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden
+  }
+  .stat::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px}
+  .stat.alvo::before{background:var(--alvo)}
+  .stat.comprador::before{background:var(--comprador)}
+  .stat.vendedora::before{background:var(--vendedora)}
+  .stat .n{font-size:26px;font-weight:700;font-family:Georgia,serif;line-height:1}
+  .stat .t{font-size:12.5px;color:var(--muted);margin-top:4px}
+
+  /* grupos */
+  .group{margin-bottom:26px}
+  .group-head{display:flex;align-items:center;gap:10px;margin:0 0 12px}
+  .group-head .dot{width:11px;height:11px;border-radius:3px}
+  .group-head h2{font-size:17px;margin:0}
+  .group-head .g-count{font-size:12.5px;color:var(--muted);background:#fff;border:1px solid var(--line);
+    padding:1px 8px;border-radius:999px}
+  .group-head .g-desc{font-size:12px;color:var(--muted);margin-left:auto;max-width:46%;text-align:right}
+  .dot.alvo{background:var(--alvo)} .dot.comprador{background:var(--comprador)} .dot.vendedora{background:var(--vendedora)}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:15px 16px;box-shadow:var(--shadow);cursor:pointer;transition:transform .08s,box-shadow .12s,border-color .12s;
+    display:flex;flex-direction:column;gap:9px
+  }
+  .card:hover{transform:translateY(-2px);box-shadow:0 3px 8px rgba(18,32,46,.1),0 12px 28px rgba(18,32,46,.1);border-color:var(--line-strong)}
+  .card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .card .name{font-size:15.5px;font-weight:700;font-family:Georgia,serif;line-height:1.2}
+  .card .sub{font-size:12px;color:var(--muted);margin-top:2px}
+  .score-ring{
+    --v:0; flex:0 0 auto;width:52px;height:52px;border-radius:50%;
+    background:conic-gradient(var(--rc) calc(var(--v)*1%), #edf0f3 0);
+    display:flex;align-items:center;justify-content:center;position:relative
+  }
+  .score-ring::after{content:"";position:absolute;inset:5px;background:#fff;border-radius:50%}
+  .score-ring span{position:relative;z-index:1;font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
+  .card .metrics{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11.8px;color:var(--ink-soft)}
+  .card .metrics b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .signals{display:flex;flex-wrap:wrap;gap:5px}
+  .sig{font-size:11px;padding:2px 8px;border-radius:999px;background:#eef1f4;color:var(--ink-soft);white-space:nowrap}
+  .sig.positivo{background:#e9f3ee;color:#0f6a52}
+  .sig.atencao{background:#fbf1e3;color:#96560c}
+  .sig.neutro{background:#eef0f3;color:#4a5b6b}
+  .card-desc{font-size:12px;color:var(--ink-soft);line-height:1.4;margin-top:-2px}
+  .card-contato{display:flex;align-items:center;gap:9px;padding-top:9px;border-top:1px dashed var(--line)}
+  .cc-avatar{width:30px;height:30px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-family:Georgia,serif;font-size:12px;color:#fff;background:linear-gradient(135deg,var(--ink-soft),var(--ink))}
+  .cc-info{min-width:0}
+  .cc-nome{font-size:12.5px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cc-cargo{font-weight:400;color:var(--muted)}
+  .cc-links{display:flex;flex-direction:column;gap:1px;font-size:11px;margin-top:1px}
+  .cc-links a{color:var(--accent-deep);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .cc-links a:hover{text-decoration:underline}
+  .prov{display:flex;align-items:center;gap:6px;font-size:10.8px;color:var(--muted);margin-top:auto;padding-top:9px;border-top:1px dashed var(--line);flex-wrap:wrap}
+  .prov .tag{padding:1px 6px;border-radius:5px;background:var(--demo-bg);color:var(--demo);font-weight:600}
+  .prov .conf{padding:1px 6px;border-radius:5px;background:#eef1f4}
+  .role-badge{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:5px}
+  .role-badge.alvo{background:var(--alvo-bg);color:var(--alvo)}
+  .role-badge.comprador{background:var(--comprador-bg);color:var(--comprador)}
+  .role-badge.vendedora{background:var(--vendedora-bg);color:var(--vendedora)}
+
+  .empty{padding:26px;text-align:center;color:var(--muted);font-size:13px;border:1px dashed var(--line-strong);border-radius:10px;background:#fff}
+
+  /* ---------- Modal ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(18,32,46,.5);display:none;z-index:50;
+    align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
+  .overlay.open{display:flex}
+  .modal{background:#fff;border-radius:16px;max-width:720px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);
+    overflow:hidden;animation:pop .16s ease}
+  @keyframes pop{from{transform:translateY(8px);opacity:.6}to{transform:none;opacity:1}}
+  .modal-head{padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
+  .modal-head h2{margin:0;font-size:21px}
+  .modal-head .sub{font-size:13px;color:var(--muted);margin-top:3px}
+  .modal-close{background:none;border:none;font-size:24px;color:var(--muted);cursor:pointer;line-height:1;padding:2px 6px}
+  .modal-body{padding:20px 24px;max-height:66vh;overflow:auto}
+  .m-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+  @media(max-width:560px){.m-grid{grid-template-columns:repeat(2,1fr)}}
+  .kpi{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px 12px}
+  .kpi .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .kpi .v{font-size:16px;font-weight:700;font-family:Georgia,serif;margin-top:2px;font-variant-numeric:tabular-nums}
+  .m-section-title{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:20px 0 10px;font-weight:700}
+  .role-score-row{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+  .role-score-row .lbl{width:190px;flex:0 0 auto;font-size:13px;font-weight:600}
+  .role-score-row .lbl small{display:block;font-weight:400;color:var(--muted);font-size:11px}
+  .bar{flex:1;height:10px;border-radius:6px;background:#edf0f3;overflow:hidden}
+  .bar > i{display:block;height:100%;border-radius:6px}
+  .role-score-row .pct{width:40px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;font-size:13px}
+  .contrib{margin:6px 0 0 0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:6px}
+  .contrib li{font-size:11.5px;padding:2px 8px;border-radius:999px;background:#f0f2f5;color:var(--ink-soft)}
+  .contrib li b{color:var(--accent-deep)}
+  .sig-detail{margin:0;padding:0;list-style:none}
+  .sig-detail li{padding:9px 0;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:flex-start}
+  .sig-detail li:last-child{border-bottom:none}
+  .sig-detail .b{width:9px;height:9px;border-radius:50%;margin-top:6px;flex:0 0 auto}
+  .sig-detail .b.positivo{background:var(--comprador)} .sig-detail .b.atencao{background:var(--vendedora)} .sig-detail .b.neutro{background:var(--muted)}
+  .sig-detail .st{font-weight:600;font-size:13px}
+  .sig-detail .sd{font-size:12.5px;color:var(--ink-soft)}
+  .modal-foot{padding:14px 24px;background:var(--bg);border-top:1px solid var(--line);font-size:11.5px;color:var(--muted);line-height:1.5}
+  .prov-line{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:12.5px;color:var(--ink-soft);margin-top:6px}
+  .prov-line b{color:var(--ink)}
+  .contato-card{display:flex;gap:14px;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .ct-avatar{width:44px;height:44px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-family:Georgia,serif;font-size:16px;color:#fff;background:linear-gradient(135deg,var(--ink-soft),var(--ink))}
+  .ct-nome{font-weight:700;font-size:14.5px}
+  .ct-cargo{font-size:12.5px;color:var(--muted);margin-bottom:4px}
+  .ct-links{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px}
+  .ct-links a{color:var(--accent-deep);text-decoration:none;white-space:nowrap}
+  .ct-links a:hover{text-decoration:underline}
+
+  footer.pagefoot{padding:22px 28px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;text-align:center;line-height:1.6}
+</style>
+</head>
+<body>
+
+<div class="demo-bar">
+  ⚠️ DEMONSTRAÇÃO — Todos os dados são fictícios e os scores são ilustrativos. Este protótipo não prevê transações e não substitui análise humana.
+</div>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">G4</div>
+    <div>
+      <h1>GHT4 · Agente de Prospecção M&amp;A</h1>
+      <div class="sub">Protótipo conceitual para levantamento de requisitos</div>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <div class="disclaimer-mini">
+    Ferramenta de <b>organização e priorização</b> de oportunidades — a decisão é sempre humana.
+  </div>
+</header>
+
+<div class="layout">
+  <!-- ============ FILTROS ============ -->
+  <aside class="filters">
+    <h2>Filtros ilustrativos</h2>
+
+    <div class="fgroup">
+      <label for="f-setor">Setor</label>
+      <select id="f-setor">
+        <option value="">Todos os setores</option>
+        <option>Saúde</option>
+        <option>Tecnologia</option>
+        <option>Varejo</option>
+        <option>Energia</option>
+      </select>
+    </div>
+
+    <div class="fgroup">
+      <label for="f-uf">Localização (UF)</label>
+      <select id="f-uf"><option value="">Todas as UFs</option></select>
+    </div>
+
+    <div class="fgroup">
+      <label>Receita mínima <span class="val" id="v-receita">R$ 0 mi</span></label>
+      <input type="range" id="f-receita" min="0" max="800" step="10" value="0" />
+    </div>
+
+    <div class="fgroup">
+      <label>Crescimento mínimo <span class="val" id="v-cresc">0%</span></label>
+      <input type="range" id="f-cresc" min="0" max="70" step="1" value="0" />
+    </div>
+
+    <div class="fgroup">
+      <label>Margem EBITDA mínima <span class="val" id="v-margem">-10%</span></label>
+      <input type="range" id="f-margem" min="-10" max="45" step="1" value="-10" />
+    </div>
+
+    <div class="fgroup">
+      <label>Funcionários (mínimo) <span class="val" id="v-func">0</span></label>
+      <input type="range" id="f-func" min="0" max="4000" step="50" value="0" />
+    </div>
+
+    <div class="fgroup">
+      <label>Perfil societário</label>
+      <div class="chips" id="f-perfil"></div>
+    </div>
+
+    <div class="fgroup">
+      <label>Classificação</label>
+      <div class="chips" id="f-papel">
+        <span class="chip-toggle on" data-papel="alvo">Alvos</span>
+        <span class="chip-toggle on" data-papel="comprador">Compradores</span>
+        <span class="chip-toggle on" data-papel="vendedora">Candidatas a venda</span>
+      </div>
+    </div>
+
+    <button class="btn-reset" id="btn-reset">Limpar filtros</button>
+  </aside>
+
+  <!-- ============ CONTEÚDO ============ -->
+  <main>
+    <div class="toolbar">
+      <div class="search">
+        <input type="text" id="f-busca" placeholder="Buscar por nome ou subsetor…" />
+      </div>
+      <span class="count" id="count"></span>
+      <button class="btn-export" id="btn-export">⬇ Exportar CSV (demo)</button>
+    </div>
+
+    <div class="intro-note">
+      <strong>Como ler esta tela:</strong> o agente organiza empresas <em>fictícias</em> em três papéis de M&amp;A,
+      atribui um <em>score de atratividade ilustrativo</em> (0–100) e explica os sinais que o influenciaram.
+      Pesos e critérios são propositalmente simples e ficam em <code>scoring.js</code>, para serem
+      ajustados junto com os sócios após o levantamento de requisitos.
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div id="groups"></div>
+  </main>
+</div>
+
+<footer class="pagefoot">
+  GHT4 — Boutique de Fusões e Aquisições · Protótipo de demonstração sem integração com fontes reais.<br/>
+  Dados fictícios gerados apenas para ilustrar o conceito. Nenhuma informação representa empresas reais.
+</footer>
+
+<!-- ============ MODAL ============ -->
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal" role="dialog" aria-modal="true"></div>
+</div>
+
+<script src="data.js"></script>
+<script src="scoring.js"></script>
+<script>
+(function(){
+  "use strict";
+  const $ = (s,el=document)=>el.querySelector(s);
+  const $$ = (s,el=document)=>[...el.querySelectorAll(s)];
+
+  const BASE = window.MOTOR.avaliarBase(window.EMPRESAS_DEMO);
+  const CFG  = window.MOTOR.CONFIG_PAPEIS;
+  const fmtBR = (n)=> n.toLocaleString('pt-BR');
+
+  // preencher UFs e perfis
+  const ufs = [...new Set(BASE.map(e=>e.uf))].sort();
+  const selUf = $('#f-uf');
+  ufs.forEach(u=>{const o=document.createElement('option');o.textContent=u;selUf.appendChild(o);});
+  const perfilBox = $('#f-perfil');
+  window.PERFIS.forEach(p=>{
+    const c=document.createElement('span');
+    c.className='chip-toggle on'; c.dataset.perfil=p; c.textContent=p;
+    perfilBox.appendChild(c);
+  });
+
+  // estado dos filtros
+  const state = {
+    setor:'', uf:'', receita:0, cresc:0, margem:-10, func:0,
+    perfis:new Set(window.PERFIS), papeis:new Set(['alvo','comprador','vendedora']), busca:''
+  };
+
+  // ---- listeners ----
+  $('#f-setor').addEventListener('change',e=>{state.setor=e.target.value;render();});
+  selUf.addEventListener('change',e=>{state.uf=e.target.value;render();});
+  bindRange('#f-receita','#v-receita',v=>{state.receita=+v;return 'R$ '+fmtBR(+v)+' mi';});
+  bindRange('#f-cresc','#v-cresc',v=>{state.cresc=+v;return v+'%';});
+  bindRange('#f-margem','#v-margem',v=>{state.margem=+v;return v+'%';});
+  bindRange('#f-func','#v-func',v=>{state.func=+v;return fmtBR(+v);});
+  $('#f-busca').addEventListener('input',e=>{state.busca=e.target.value.toLowerCase().trim();render();});
+
+  perfilBox.addEventListener('click',e=>{
+    const c=e.target.closest('.chip-toggle'); if(!c)return;
+    c.classList.toggle('on');
+    c.classList.contains('on')?state.perfis.add(c.dataset.perfil):state.perfis.delete(c.dataset.perfil);
+    render();
+  });
+  $('#f-papel').addEventListener('click',e=>{
+    const c=e.target.closest('.chip-toggle'); if(!c)return;
+    c.classList.toggle('on');
+    c.classList.contains('on')?state.papeis.add(c.dataset.papel):state.papeis.delete(c.dataset.papel);
+    render();
+  });
+  $('#btn-reset').addEventListener('click',resetFilters);
+  $('#btn-export').addEventListener('click',exportarCSV);
+
+  function bindRange(sel,valSel,fn){
+    const el=$(sel), lbl=$(valSel);
+    lbl.textContent=fn(el.value);
+    el.addEventListener('input',()=>{lbl.textContent=fn(el.value);render();});
+  }
+
+  function resetFilters(){
+    state.setor='';state.uf='';state.receita=0;state.cresc=0;state.margem=-10;state.func=0;
+    state.perfis=new Set(window.PERFIS);state.papeis=new Set(['alvo','comprador','vendedora']);state.busca='';
+    $('#f-setor').value='';selUf.value='';$('#f-busca').value='';
+    $('#f-receita').value=0;$('#f-cresc').value=0;$('#f-margem').value=-10;$('#f-func').value=0;
+    $('#v-receita').textContent='R$ 0 mi';$('#v-cresc').textContent='0%';$('#v-margem').textContent='-10%';$('#v-func').textContent='0';
+    $$('#f-perfil .chip-toggle').forEach(c=>c.classList.add('on'));
+    $$('#f-papel .chip-toggle').forEach(c=>c.classList.add('on'));
+    render();
+  }
+
+  // ---- filtragem ----
+  function filtrar(){
+    return BASE.filter(e=>{
+      if(state.setor && e.setor!==state.setor) return false;
+      if(state.uf && e.uf!==state.uf) return false;
+      if(e.receita < state.receita) return false;
+      if(e.crescimento < state.cresc) return false;
+      if(e.margemEbitda < state.margem) return false;
+      if(e.funcionarios < state.func) return false;
+      if(!state.perfis.has(e.perfil)) return false;
+      if(!state.papeis.has(e.classificacao)) return false;
+      if(state.busca){
+        const hay=(e.nome+' '+e.subsetor+' '+e.setor+' '+e.cidade).toLowerCase();
+        if(!hay.includes(state.busca)) return false;
+      }
+      return true;
+    });
+  }
+
+  const corPapel={alvo:'var(--alvo)',comprador:'var(--comprador)',vendedora:'var(--vendedora)'};
+
+  // ---- render ----
+  function render(){
+    const lista=filtrar().sort((a,b)=>b.scorePrincipal-a.scorePrincipal);
+    $('#count').textContent = lista.length+' empresa'+(lista.length!==1?'s':'')+' (demo)';
+
+    // stats
+    const stats=$('#stats'); stats.innerHTML='';
+    ['alvo','comprador','vendedora'].forEach(p=>{
+      const n=lista.filter(e=>e.classificacao===p).length;
+      const d=document.createElement('div'); d.className='stat '+p;
+      d.innerHTML=`<div class="n">${n}</div><div class="t">${CFG[p].rotulo}s</div>`;
+      stats.appendChild(d);
+    });
+
+    // grupos
+    const box=$('#groups'); box.innerHTML='';
+    if(lista.length===0){
+      box.innerHTML='<div class="empty">Nenhuma empresa (fictícia) atende aos filtros selecionados.</div>';
+      return;
+    }
+    ['alvo','comprador','vendedora'].forEach(p=>{
+      if(!state.papeis.has(p)) return;
+      const grupo=lista.filter(e=>e.classificacao===p);
+      if(grupo.length===0) return;
+      const sec=document.createElement('section'); sec.className='group';
+      sec.innerHTML=`
+        <div class="group-head">
+          <span class="dot ${p}"></span>
+          <h2>${CFG[p].rotulo}s</h2>
+          <span class="g-count">${grupo.length}</span>
+          <span class="g-desc">${CFG[p].descricao}</span>
+        </div>
+        <div class="cards"></div>`;
+      const cards=$('.cards',sec);
+      grupo.forEach(e=>cards.appendChild(cardEl(e)));
+      box.appendChild(sec);
+    });
+  }
+
+  function cardEl(e){
+    const el=document.createElement('div'); el.className='card';
+    const topSig=e.papeis[e.classificacao].contribuicoes.slice(0,3);
+    el.innerHTML=`
+      <div class="card-top">
+        <div>
+          <div class="name">${e.nome}</div>
+          <div class="sub">${e.setor} · ${e.subsetor} · ${e.cidade}/${e.uf}</div>
+        </div>
+        <div class="score-ring" style="--v:${e.scorePrincipal};--rc:${corPapel[e.classificacao]}">
+          <span>${e.scorePrincipal}</span>
+        </div>
+      </div>
+      <div class="card-desc">${e.oQueFazem}</div>
+      <div class="metrics">
+        <span>Receita <b>R$ ${fmtBR(e.receita)} mi</b></span>
+        <span>Cresc. <b>${e.crescimento}%</b></span>
+        <span>EBITDA <b>${e.margemEbitda}%</b></span>
+        <span>Perfil <b>${e.perfil}</b></span>
+      </div>
+      <div class="signals">
+        ${topSig.map(s=>`<span class="sig ${s.tipo}">${s.rotulo}</span>`).join('')}
+      </div>
+      <div class="card-contato" title="Contato fictício (demonstração)">
+        <div class="cc-avatar">${iniciais(e.contato.nome)}</div>
+        <div class="cc-info">
+          <div class="cc-nome">${e.contato.nome} <span class="cc-cargo">· ${e.contato.cargo}</span></div>
+          <div class="cc-links">
+            <a href="mailto:${e.contato.email}" onclick="event.stopPropagation()">✉ ${e.contato.email}</a>
+            <a href="tel:${e.contato.telefone.replace(/[^+\d]/g,'')}" onclick="event.stopPropagation()">☎ ${e.contato.telefone}</a>
+          </div>
+        </div>
+      </div>
+      <div class="prov">
+        <span class="tag">${e.origem}</span>
+        <span>· ${dataBR(e.dataAtualizacao)}</span>
+        <span class="conf">Confiança: ${e.confianca}</span>
+      </div>`;
+    el.addEventListener('click',()=>abrirModal(e));
+    return el;
+  }
+
+  function dataBR(iso){
+    const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`;
+  }
+  function iniciais(nome){
+    return nome.replace(/^(Dr\.|Dra\.)\s*/,'').split(/\s+/).filter(Boolean)
+      .map(p=>p[0]).slice(0,2).join('').toUpperCase();
+  }
+
+  // ---- modal ----
+  const overlay=$('#overlay'), modal=$('#modal');
+  overlay.addEventListener('click',e=>{if(e.target===overlay)fecharModal();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')fecharModal();});
+
+  function abrirModal(e){
+    const rolesOrder=['alvo','comprador','vendedora'];
+    const barras=rolesOrder.map(p=>{
+      const r=e.papeis[p];
+      const contrib=r.contribuicoes.length
+        ? `<ul class="contrib">${r.contribuicoes.map(c=>`<li>${c.rotulo} <b>+${c.peso}</b></li>`).join('')}</ul>`
+        : `<ul class="contrib"><li>Sem sinais para este papel</li></ul>`;
+      return `<div style="margin-bottom:14px">
+        <div class="role-score-row">
+          <div class="lbl">${CFG[p].rotulo}<small>${CFG[p].descricao}</small></div>
+          <div class="bar"><i style="width:${r.score}%;background:${corPapel[p]}"></i></div>
+          <div class="pct">${r.score}</div>
+        </div>${contrib}</div>`;
+    }).join('');
+
+    const sinaisDet = e.sinais.length
+      ? e.sinais.map(s=>`<li><span class="b ${s.tipo}"></span><div><div class="st">${s.rotulo}</div><div class="sd">${s.detalhe}</div></div></li>`).join('')
+      : '<li>Nenhum sinal relevante detectado nos dados (fictícios) disponíveis.</li>';
+
+    modal.innerHTML=`
+      <div class="modal-head">
+        <div>
+          <span class="role-badge ${e.classificacao}">${CFG[e.classificacao].rotulo}</span>
+          <h2 style="margin-top:6px">${e.nome}</h2>
+          <div class="sub">${e.setor} · ${e.subsetor} · ${e.cidade}/${e.uf} · ${e.perfil}</div>
+        </div>
+        <button class="modal-close" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="m-section-title">O que fazem</div>
+        <p style="margin:0 0 4px;font-size:14px;color:var(--ink)">${e.oQueFazem}</p>
+        <p style="margin:0 0 4px;font-size:12.5px;color:var(--muted);font-style:italic">Situação relevante (M&amp;A): ${e.descricao}</p>
+
+        <div class="m-section-title">Contato <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--demo)">· fictício (demonstração)</span></div>
+        <div class="contato-card">
+          <div class="ct-avatar">${iniciais(e.contato.nome)}</div>
+          <div class="ct-info">
+            <div class="ct-nome">${e.contato.nome}</div>
+            <div class="ct-cargo">${e.contato.cargo}</div>
+            <div class="ct-links">
+              <a href="mailto:${e.contato.email}">✉ ${e.contato.email}</a>
+              <a href="tel:${e.contato.telefone.replace(/[^+\d]/g,'')}">☎ ${e.contato.telefone}</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="m-section-title" style="margin-top:20px">Indicadores</div>
+        <div class="m-grid">
+          <div class="kpi"><div class="k">Receita est.</div><div class="v">R$ ${fmtBR(e.receita)} mi</div></div>
+          <div class="kpi"><div class="k">Crescimento</div><div class="v">${e.crescimento}%</div></div>
+          <div class="kpi"><div class="k">Margem EBITDA</div><div class="v">${e.margemEbitda}%</div></div>
+          <div class="kpi"><div class="k">Funcionários</div><div class="v">${fmtBR(e.funcionarios)}</div></div>
+          <div class="kpi"><div class="k">Score principal</div><div class="v">${e.scorePrincipal}/100</div></div>
+          <div class="kpi"><div class="k">Perfil societário</div><div class="v" style="font-size:14px">${e.perfil}</div></div>
+        </div>
+
+        <div class="m-section-title">Score ilustrativo por papel</div>
+        ${barras}
+
+        <div class="m-section-title">Sinais que influenciaram o score</div>
+        <ul class="sig-detail">${sinaisDet}</ul>
+
+        <div class="m-section-title">Origem e transparência dos dados</div>
+        <div class="prov-line">
+          <span>Natureza: <b>${e.origem}</b></span>
+          <span>Data de referência: <b>${dataBR(e.dataAtualizacao)}</b></span>
+          <span>Nível de confiança: <b>${e.confianca}</b></span>
+        </div>
+      </div>
+      <div class="modal-foot">
+        ⚠️ <b>Dados fictícios e score ilustrativo.</b> Este detalhamento demonstra apenas como o agente
+        poderia explicar uma priorização. Não constitui recomendação de transação, avaliação (valuation)
+        ou due diligence, e não substitui a análise dos profissionais da GHT4.
+      </div>`;
+    $('.modal-close',modal).addEventListener('click',fecharModal);
+    overlay.classList.add('open');
+    document.body.style.overflow='hidden';
+  }
+  function fecharModal(){overlay.classList.remove('open');document.body.style.overflow='';}
+
+  // ---- CSV ----
+  function exportarCSV(){
+    const lista=filtrar().sort((a,b)=>b.scorePrincipal-a.scorePrincipal);
+    const cols=['id','nome','o_que_fazem','setor','subsetor','cidade','uf','receita_R$mi','crescimento_%',
+      'margem_ebitda_%','funcionarios','perfil','classificacao','score_ilustrativo',
+      'sinais','contato_nome_FICTICIO','contato_cargo','contato_email_FICTICIO','contato_telefone_FICTICIO',
+      'origem_dado','data_referencia','confianca'];
+    const esc=(v)=>{const s=String(v).replace(/"/g,'""');return /[;"\n]/.test(s)?`"${s}"`:s;};
+    const linhas=[cols.join(';')];
+    lista.forEach(e=>{
+      linhas.push([
+        e.id,e.nome,e.oQueFazem,e.setor,e.subsetor,e.cidade,e.uf,e.receita,e.crescimento,
+        e.margemEbitda,e.funcionarios,e.perfil,CFG[e.classificacao].rotulo,e.scorePrincipal,
+        e.sinais.map(s=>s.rotulo).join(' | '),
+        e.contato.nome,e.contato.cargo,e.contato.email,e.contato.telefone,
+        e.origem,e.dataAtualizacao,e.confianca
+      ].map(esc).join(';'));
+    });
+    // cabeçalho de aviso + BOM p/ Excel PT-BR
+    const aviso='DEMONSTRACAO - dados ficticios e scores ilustrativos - nao representa empresas reais nem recomendacao de transacao';
+    const csv='﻿'+aviso+'\n'+linhas.join('\n');
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download='GHT4_prospeccao_DEMO_'+new Date().toISOString().slice(0,10)+'.csv';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
