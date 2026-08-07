@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+/* =============================================================================
+ *  GHT4 · tokens de design da v1
+ * -----------------------------------------------------------------------------
+ *  Esta é a razão de existir do arquivo: componentes de terceiros (21st.dev,
+ *  shadcn) vêm com a paleta padrão do Tailwind. Declarando os tokens da GHT4
+ *  aqui, no @theme, eles passam a existir como utilitários (bg-alvo, text-tinta)
+ *  e QUALQUER componente colado no projeto pode vestir a identidade da casa em
+ *  vez do visual genérico de SaaS.
+ *
+ *  PALETA VALIDADA — não trocar sem revalidar
+ *  ------------------------------------------
+ *  As cores de papel (alvo/comprador/vendedora) passaram pelo validador de
+ *  paleta contra as superfícies do projeto: banda de luminosidade, piso de
+ *  croma, separação para daltonismo e piso de visão normal (ΔE >= 15).
+ *  As cores anteriores reprovavam — verde e azul ficavam a ΔE 9,7, difíceis de
+ *  distinguir mesmo sem daltonismo.
+ *
+ *  Duas famílias por papel, e a distinção importa:
+ *    --color-*        MARCA — barras, selos, filetes, blocos de cor.
+ *    --color-*-tinta  TEXTO — rótulos e carimbos, em corpo pequeno.
+ * ========================================================================== */
+
+@theme {
+  /* tinta e papel */
+  --color-tinta:        #16211C;
+  --color-tinta-2:      #33403A;
+  --color-suave:        #5C665E;
+  --color-papel:        #E7E0D0;
+  --color-papel-2:      #EFEADE;
+  --color-ficha:        #F5F1E8;
+  --color-fio:          #CFC6B2;
+  --color-fio-forte:    #B7AC93;
+
+  /* lacre e confidencialidade */
+  --color-lacre:        #7C2B29;
+  --color-lacre-fundo:  #5E1F1E;
+  --color-latao:        #9A7B45;
+
+  /* papéis de M&A — marca (validada) + tinta (texto) */
+  --color-alvo:            #127A4F;
+  --color-alvo-tinta:      #2E5A46;
+  --color-alvo-fundo:      #E1E7DC;
+  --color-comprador:       #2E6BD6;
+  --color-comprador-tinta: #2C4A6E;
+  --color-comprador-fundo: #DFE4EA;
+  --color-vendedora:       #C07C0A;
+  --color-vendedora-tinta: #8A5320;
+  --color-vendedora-fundo: #EEE4D2;
+
+  /* marca do trecho "inferido, sem fonte" na barra de lastro */
+  --color-inferido:     #C0392F;
+
+  /* uma família só; hierarquia por peso e tamanho */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --radius-ficha: 2px;
+}
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    background: var(--color-papel);
+    color: var(--color-tinta);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums; /* alinha as cifras */
+    font-synthesis: none;
+  }
+  ::selection { background: rgb(22 33 28 / 0.12); }
+
+  /* Textura de papel — fibra fina, quase no limite da percepção.
+     Não é enfeite: superfície chapada denuncia "tela de software", e a v1 quer
+     parecer um documento em cima de uma mesa. Fica numa camada fixa, sem
+     eventos de ponteiro, para não interferir em nada que seja clicável. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.5;
+    background-image:
+      repeating-linear-gradient(
+        94deg,
+        rgb(22 33 28 / 0.014) 0 1px,
+        transparent 1px 3px
+      ),
+      repeating-linear-gradient(
+        4deg,
+        rgb(22 33 28 / 0.012) 0 1px,
+        transparent 1px 4px
+      ),
+      radial-gradient(120% 80% at 50% 0%, rgb(255 255 255 / 0.35), transparent 60%);
+  }
+  /* O conteúdo sobe acima da textura. */
+  #root { position: relative; z-index: 1; }
+
+  /* Barra de rolagem no tom do papel, para não abrir um rasgo cinza do
+     navegador na lateral de uma interface bege. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-fio-forte) transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
