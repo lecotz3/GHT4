@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>GHT4 · Livro-razão de Prospecção M&A — Demonstração</title>
+<title>GHT4 · Livro-razão de Prospecção M&A</title>
+<!-- Selo G4 embutido como data URI: mantém o projeto autocontido e evita o 404
+     de /favicon.ico, que aparecia na console durante a apresentação. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%237C2B29'/%3E%3Ctext x='16' y='21.5' font-family='system-ui,sans-serif' font-size='14' font-weight='600' fill='%23F1E7D6' text-anchor='middle'%3EG4%3C/text%3E%3C/svg%3E" />
 <style>
   :root{
     /* tinta e papel */
@@ -19,10 +22,26 @@
     --oxblood:#7C2B29;     /* vermelho de lacre / confidencial */
     --oxblood-deep:#5E1F1E;
     --brass:#9A7B45;
-    /* papéis (carimbos de tinta) */
-    --alvo:#2E5A46;        --alvo-bg:#E1E7DC;
-    --comprador:#2C4A6E;   --comprador-bg:#DFE4EA;
-    --vendedora:#8A5320;   --vendedora-bg:#EEE4D2;
+    /* papéis (carimbos de tinta) ------------------------------------------
+       Duas famílias por papel, e a distinção importa:
+         --*        COR DE MARCA — barras, selos, filetes, blocos de cor.
+                    Validada contra as superfícies do projeto (#F5F1E8 e
+                    #EFEADE) pelo validador de paleta: banda de luminosidade,
+                    piso de croma, separação para daltonismo, piso de visão
+                    normal (ΔE ≥ 15) e contraste ≥ 3:1.
+         --*-ink    COR DE TEXTO — carimbos, rótulos, etiquetas. Passo mais
+                    escuro da mesma família, para legibilidade em corpo pequeno.
+
+       As cores de marca anteriores (hoje usadas como -ink) reprovavam: verde e
+       azul ficavam a ΔE 9,7 em visão normal — abaixo do piso de 15, ou seja,
+       difíceis de distinguir mesmo sem daltonismo. Como o papel é o principal
+       eixo de leitura do razão, isso era um defeito real, não estética.
+       Nota: o âmbar de marca fica em 2,85:1 sobre o papel de painel; por isso
+       o papel "candidata a venda" nunca aparece só como cor — sempre com rótulo. */
+    --alvo:#127A4F;        --alvo-ink:#2E5A46;      --alvo-bg:#E1E7DC;
+    --comprador:#2E6BD6;   --comprador-ink:#2C4A6E; --comprador-bg:#DFE4EA;
+    --vendedora:#C07C0A;   --vendedora-ink:#8A5320; --vendedora-bg:#EEE4D2;
+    --inferido:#C0392F;    /* marca do trecho "sem fonte" na barra de lastro */
     /* tipografia — UMA família só (minimalista); hierarquia por peso/tamanho/espaçamento.
        --serif e --mono são apelidos da mesma sans para manter o restante do CSS estável. */
     --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -152,7 +171,7 @@
     padding:6px 11px;border:1.5px solid currentColor;border-radius:2px;background:transparent;
   }
   .stamp::before{content:"";width:7px;height:7px;background:currentColor;border-radius:1px;transform:rotate(45deg)}
-  .stamp.alvo{color:var(--alvo)} .stamp.comprador{color:var(--comprador)} .stamp.vendedora{color:var(--vendedora)}
+  .stamp.alvo{color:var(--alvo-ink)} .stamp.comprador{color:var(--comprador-ink)} .stamp.vendedora{color:var(--vendedora-ink)}
 
   /* divisórias do razão */
   .group{margin-bottom:30px;border-top:1px solid var(--rule);padding-top:16px}
@@ -195,7 +214,7 @@
   .signals{display:flex;flex-wrap:wrap;gap:6px}
   .sig{font:600 10.5px/1 var(--sans);letter-spacing:.02em;padding:4px 8px;border-radius:2px;white-space:nowrap;border:1px solid transparent}
   .sig.positivo{background:var(--alvo-bg);color:#204636;border-color:#c7d3c6}
-  .sig.atencao{background:var(--vendedora-bg);color:#7a4a1c;border-color:#dcccae}
+  .sig.atencao{background:var(--vendedora-bg);color:var(--vendedora-ink);border-color:#dcccae}
   .sig.neutro{background:#e6e2d6;color:var(--ink-2);border-color:var(--rule)}
 
   /* contato — selo de lacre */
@@ -258,7 +277,7 @@
   .role-score-row .lbl{width:200px;flex:0 0 auto;font-size:12.5px;font-weight:700}
   .role-score-row .lbl small{display:block;font-weight:400;color:var(--muted);font-size:11px;font-style:italic}
   .bar{flex:1;height:8px;border-radius:2px;background:#e0dbcd;overflow:hidden;border:1px solid var(--rule)}
-  .bar > i{display:block;height:100%}
+  .bar > i{display:block;height:100%;border-radius:0 3px 3px 0} /* extremidade do dado arredondada, base ancorada */
   .role-score-row .pct{width:44px;text-align:right;font-family:var(--mono);font-weight:600;font-size:13px}
   .contrib{margin:5px 0 16px 0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:6px}
   .contrib li{font:600 10.5px/1 var(--sans);padding:4px 8px;border-radius:2px;background:var(--paper-2);color:var(--ink-2);border:1px solid var(--rule)}
@@ -286,14 +305,118 @@
 
   footer.pagefoot{padding:24px 30px;border-top:1px solid var(--rule);color:var(--muted);font-size:11.5px;text-align:center;line-height:1.7;font-family:var(--mono)}
 
+  /* ================= LASTRO DE EVIDÊNCIA =================
+     Mostra quanto do índice se apoia em fonte documental. Nunca embutido no
+     número — sempre ao lado dele, para o usuário julgar. */
+  .lastro{display:inline-flex;align-items:center;gap:6px;font:600 10px/1 var(--sans);letter-spacing:.02em;
+    padding:3px 7px;border-radius:2px;border:1px solid;white-space:nowrap}
+  .lastro .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto}
+  /* O caso comum é o lastro parcial — se ele usar cor de alerta, a cor de alerta
+     deixa de significar alerta. Parcial fica neutro; a tinta é reservada para o
+     que pede ação: bem documentado (bom) e frágil (risco). */
+  .lastro.forte{color:var(--alvo-ink);border-color:#b9cbbd;background:var(--alvo-bg)}
+  .lastro.medio{color:var(--muted);border-color:var(--rule-strong);background:transparent}
+  .lastro.medio .dot{background:var(--rule-strong)}
+  .lastro.fraco{color:var(--oxblood);border-color:#d5b3b0;background:#f2e2e0;font-weight:700}
+
+  /* barra de composição do lastro — segmentos separados por 2px de superfície,
+     para que as fatias não se colem (o par verde↔vermelho fica na banda de alerta
+     para daltonismo, então a barra sempre vem com a legenda rotulada abaixo) */
+  .lastro-bar{display:flex;gap:2px;height:8px;margin:9px 0 8px}
+  .lastro-bar i{display:block;height:100%;border-radius:1px}
+  .lastro-bar .doc{background:var(--alvo)} .lastro-bar .est{background:var(--comprador)} .lastro-bar .inf{background:var(--inferido)}
+  .lastro-key{display:flex;flex-wrap:wrap;gap:5px 16px;font-size:11px;color:var(--muted)}
+  .lastro-key span{display:inline-flex;align-items:center;gap:5px}
+  .lastro-key i{width:8px;height:8px;border-radius:1px;flex:0 0 auto}
+
+  /* ================= PAINEL DE EVIDÊNCIA (padrão Freshfields) =================
+     A afirmação de um lado, o documento de origem do outro. */
+  .ev-item{border:1px solid var(--rule);border-radius:2px;background:var(--paper-2);margin-bottom:10px;overflow:hidden}
+  .ev-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr)}
+  @media(max-width:620px){.ev-split{grid-template-columns:1fr}}
+  .ev-claim{padding:12px 14px;background:var(--card);border-right:1px solid var(--rule)}
+  @media(max-width:620px){.ev-claim{border-right:none;border-bottom:1px solid var(--rule)}}
+  .ev-claim .ec-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .ev-claim .b{width:8px;height:8px;flex:0 0 auto;transform:rotate(45deg)}
+  .ev-claim .b.positivo{background:var(--alvo)} .ev-claim .b.atencao{background:var(--vendedora)} .ev-claim .b.neutro{background:var(--muted)}
+  .ev-claim .ec-t{font-weight:700;font-size:13px;line-height:1.2}
+  .ev-claim .ec-d{font-size:12px;color:var(--ink-2);line-height:1.45}
+  .ev-claim .ec-w{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:7px}
+
+  .ev-source{padding:12px 14px;min-width:0}
+  .ev-src-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:7px}
+  .ev-nat{font:700 9.5px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;padding:3px 6px;border-radius:2px;border:1px solid}
+  .ev-nat.documental{color:var(--alvo-ink);border-color:#b9cbbd;background:var(--alvo-bg)}
+  .ev-nat.estruturado{color:var(--comprador-ink);border-color:#c2ccd8;background:var(--comprador-bg)}
+  .ev-nat.cadastral{color:var(--brass);border-color:#d8c8a8;background:#efe7d6}
+  .ev-nat.lacuna{color:var(--oxblood);border-color:#d5b3b0;background:#f2e2e0}
+  .ev-src-meta{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+  .ev-titulo{font-weight:700;font-size:12.5px;line-height:1.3;margin-bottom:5px}
+  .ev-trecho{font-size:12px;line-height:1.55;color:var(--ink-2);border-left:2px solid var(--rule-strong);padding-left:11px;font-style:italic}
+  .ev-item.is-lacuna{border-color:#d5b3b0}
+  .ev-item.is-lacuna .ev-trecho{border-left-color:var(--oxblood);font-style:normal;color:var(--oxblood-deep)}
+
+  /* ================= TRIAGEM HUMANA (human-in-the-loop) ================= */
+  .hitl{border:1px solid var(--rule-strong);border-radius:2px;background:var(--paper-2);padding:14px 16px}
+  .hitl-lead{font-size:12.5px;color:var(--ink-2);line-height:1.5;margin:0 0 12px}
+  .hitl-lead b{color:var(--ink)}
+  .hitl-row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+  .hitl-f{flex:1;min-width:150px}
+  .hitl-f > label{display:block;font:600 10.5px/1.2 var(--sans);color:var(--muted);margin-bottom:5px}
+  .hitl-f select,.hitl-f input{width:100%;padding:7px 2px;border:none;border-bottom:1.5px solid var(--rule-strong);
+    background:transparent;font-size:13px;color:var(--ink);font-family:inherit;border-radius:0}
+  .hitl-f select:focus,.hitl-f input:focus{outline:none;border-bottom-color:var(--ink)}
+  .btn-registrar{padding:9px 16px;border-radius:2px;border:1.5px solid var(--ink-2);background:var(--ink);
+    color:var(--paper);font:600 12px/1 var(--sans);cursor:pointer;transition:opacity .12s}
+  .btn-registrar:hover{opacity:.85}
+  .btn-registrar:disabled{opacity:.4;cursor:not-allowed}
+
+  /* estados de triagem */
+  .tri{display:inline-flex;align-items:center;gap:5px;font:600 10px/1 var(--sans);letter-spacing:.04em;
+    padding:3px 7px;border-radius:2px;border:1px solid;white-space:nowrap}
+  .tri.novo{color:var(--muted);border-color:var(--rule-strong);background:transparent}
+  .tri.analise{color:var(--comprador-ink);border-color:#c2ccd8;background:var(--comprador-bg)}
+  .tri.priorizado{color:var(--alvo-ink);border-color:#b9cbbd;background:var(--alvo-bg)}
+  .tri.descartado{color:var(--oxblood);border-color:#d5b3b0;background:#f2e2e0}
+
+  /* trilha de auditoria */
+  .trilha{margin:12px 0 0;padding:12px 0 0;list-style:none;border-top:1px dashed var(--rule-strong)}
+  .trilha li{display:flex;gap:11px;padding:6px 0;font-size:11.5px;color:var(--ink-2);align-items:flex-start}
+  .trilha .ts{font-family:var(--mono);font-size:10.5px;color:var(--muted);flex:0 0 auto;padding-top:1px}
+  .trilha .tx b{color:var(--ink)}
+  .trilha-vazia{font-size:11.5px;color:var(--muted);font-style:italic;padding-top:11px;margin-top:11px;border-top:1px dashed var(--rule-strong)}
+
+  /* fita de estado no card */
+  .card-flags{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+
+  /* sinais não avaliáveis por ausência de fonte */
+  .indisp{border:1px dashed var(--rule-strong);border-radius:2px;background:var(--paper-2)}
+  .indisp-i{padding:11px 14px;border-bottom:1px dashed var(--rule)}
+  .indisp-i:last-child{border-bottom:none}
+  .indisp-t{font-weight:700;font-size:12.5px;color:var(--muted);margin-bottom:3px}
+  .indisp-t::before{content:"—  ";color:var(--rule-strong)}
+  .indisp-m{font-size:12px;line-height:1.5;color:var(--ink-2)}
+
+  /* seletor de base */
+  .base-switch{padding-bottom:14px;margin-bottom:16px;border-bottom:1px solid var(--rule)}
+  .base-nota{font-size:11px;line-height:1.5;color:var(--muted);margin:9px 0 0}
+  .base-nota b{color:var(--ink-2)}
+
+  /* link para os fundamentos */
+  .mh-link{font:600 11.5px/1 var(--sans);color:var(--ink-2);text-decoration:none;border-bottom:1.5px solid var(--rule-strong);padding-bottom:3px;white-space:nowrap}
+  .mh-link:hover{border-bottom-color:var(--ink);color:var(--ink)}
+
   @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
 
+<!-- A natureza do dado muda com a base carregada. Um aviso de "dados fictícios"
+     sobre dados reais é tão errado quanto o contrário — e mais perigoso, porque
+     leva a descartar informação verdadeira. -->
 <div class="confid-strip">
   <b>Confidencial</b><span class="sep">·</span>
-  <span>Demonstração — dados fictícios e índices ilustrativos</span><span class="sep">·</span>
+  <span id="strip-natureza">Demonstração — dados fictícios e índices ilustrativos</span><span class="sep">·</span>
   <span>não prevê transações · não substitui análise humana</span>
 </div>
 
@@ -305,6 +428,7 @@
     <div class="desc">Agente que organiza e prioriza oportunidades de originação — estruturando o funil com transparência. A decisão é sempre humana.</div>
   </div>
   <div class="mh-spacer"></div>
+  <a class="mh-link" href="fundamentos.html">Fundamentos da pesquisa &rarr;</a>
   <div class="confid-stamp">Protótipo</div>
 </header>
 <div class="mh-rule"></div>
@@ -312,17 +436,20 @@
 <div class="layout">
   <!-- ============ FILTROS ============ -->
   <aside class="filters">
+    <div class="eyebrow">Base de dados</div>
+    <div class="fgroup base-switch">
+      <div class="chips" id="f-base">
+        <span class="chip-toggle on" data-base="demo">Demonstração</span>
+        <span class="chip-toggle" data-base="cvm">Real · CVM</span>
+      </div>
+      <p class="base-nota" id="base-nota"></p>
+    </div>
+
     <div class="eyebrow">Critérios de triagem</div>
 
     <div class="fgroup">
       <label for="f-setor">Setor</label>
-      <select id="f-setor">
-        <option value="">Todos os setores</option>
-        <option>Saúde</option>
-        <option>Tecnologia</option>
-        <option>Varejo</option>
-        <option>Energia</option>
-      </select>
+      <select id="f-setor"><option value="">Todos os setores</option></select>
     </div>
 
     <div class="fgroup">
@@ -336,13 +463,16 @@
     </div>
 
     <div class="fgroup">
-      <label>Crescimento mínimo <span class="val" id="v-cresc">0%</span></label>
-      <input type="range" id="f-cresc" min="0" max="70" step="1" value="0" />
+      <!-- O mínimo do curso vale "sem mínimo". Antes o piso era 0%, o que escondia
+           silenciosamente toda empresa em retração — justamente as mais relevantes
+           para uma tese de venda. -->
+      <label>Crescimento mínimo <span class="val" id="v-cresc">sem mínimo</span></label>
+      <input type="range" id="f-cresc" min="-60" max="70" step="1" value="-60" />
     </div>
 
     <div class="fgroup">
-      <label>Margem EBITDA mínima <span class="val" id="v-margem">-10%</span></label>
-      <input type="range" id="f-margem" min="-10" max="45" step="1" value="-10" />
+      <label>Margem EBITDA mínima <span class="val" id="v-margem">sem mínimo</span></label>
+      <input type="range" id="f-margem" min="-100" max="45" step="1" value="-100" />
     </div>
 
     <div class="fgroup">
@@ -364,6 +494,25 @@
       </div>
     </div>
 
+    <div class="fgroup">
+      <label>Estado da triagem</label>
+      <div class="chips" id="f-triagem">
+        <span class="chip-toggle on" data-tri="novo">Não triado</span>
+        <span class="chip-toggle on" data-tri="analise">Em análise</span>
+        <span class="chip-toggle on" data-tri="priorizado">Priorizado</span>
+        <span class="chip-toggle on" data-tri="descartado">Descartado</span>
+      </div>
+    </div>
+
+    <div class="fgroup">
+      <label>Lastro da evidência</label>
+      <div class="chips" id="f-lastro">
+        <span class="chip-toggle on" data-lastro="forte">Bem documentado</span>
+        <span class="chip-toggle on" data-lastro="medio">Parcial</span>
+        <span class="chip-toggle on" data-lastro="fraco">Frágil</span>
+      </div>
+    </div>
+
     <button class="btn-reset" id="btn-reset">Limpar critérios</button>
   </aside>
 
@@ -379,10 +528,11 @@
     </div>
 
     <div class="intro-note">
-      <strong>Como ler este razão:</strong> o agente organiza empresas <em>fictícias</em> em três papéis de M&amp;A,
-      atribui um <em>índice de atratividade ilustrativo</em> (0–100) e explica os sinais que o influenciaram.
-      Pesos e critérios são propositalmente simples e ficam em <code>scoring.js</code>, para ajuste
-      junto com os sócios após o levantamento de requisitos.
+      <span id="intro-natureza"></span><br/>
+      <strong>O índice é uma recomendação, não uma decisão.</strong> Cada sinal abre a fonte que o sustenta,
+      e o <em>lastro</em> ao lado do índice mostra quanto dele se apoia em documento verificável — o que está
+      inferido aparece marcado em vermelho. Quem tria, decide e assina é sempre uma pessoa.
+      <a href="fundamentos.html" style="color:var(--ink);font-weight:600">Ver o porquê de cada escolha &rarr;</a>
     </div>
 
     <div class="stats" id="stats"></div>
@@ -392,8 +542,8 @@
 </div>
 
 <footer class="pagefoot">
-  GHT4 — Boutique de Fusões e Aquisições · Protótipo de demonstração, sem integração com fontes reais.<br/>
-  Dados e contatos fictícios, gerados apenas para ilustrar o conceito. Nenhuma informação representa empresas ou pessoas reais.
+  GHT4 — Boutique de Fusões e Aquisições · Protótipo de apoio ao levantamento de requisitos.<br/>
+  <span id="rodape-natureza"></span>
 </footer>
 
 <!-- ============ DOSSIÊ (modal) ============ -->
@@ -402,6 +552,10 @@
 </div>
 
 <script src="data.js"></script>
+<!-- Base real. Gerada por `node ferramentas/importar-cvm.mjs`; se o arquivo não
+     existir, o seletor de base some sozinho e o razão segue na base fictícia. -->
+<script src="data-real.js" onerror="console.info('data-real.js ausente — rode: node ferramentas/importar-cvm.mjs')"></script>
+<script src="evidencias.js"></script>
 <script src="scoring.js"></script>
 <script>
 (function(){
@@ -409,35 +563,200 @@
   const $ = (s,el=document)=>el.querySelector(s);
   const $$ = (s,el=document)=>[...el.querySelectorAll(s)];
 
-  const BASE = window.MOTOR.avaliarBase(window.EMPRESAS_DEMO);
   const CFG  = window.MOTOR.CONFIG_PAPEIS;
-  const fmtBR = (n)=> n.toLocaleString('pt-BR');
+
+  /* ============================================================
+     DUAS BASES, LADO A LADO
+     ------------------------------------------------------------
+     A base de DEMONSTRAÇÃO tem empresas inventadas, mas o conjunto completo de
+     sinais — inclusive eventos societários, que é o que de fato antecipa uma
+     transação. A base REAL tem 386 companhias abertas de verdade, com números
+     auditados, mas quase nenhum evento: dado público brasileiro publica
+     demonstração financeira, não acontecimento.
+
+     Ver as duas lado a lado é o argumento: mostra exatamente qual camada de
+     dados a GHT4 precisaria comprar ou construir para o agente funcionar sobre
+     o mercado real, e quanto do índice fica sem lastro sem ela.
+     ============================================================ */
+  const BASES = {
+    demo: {
+      rotulo: 'Demonstração',
+      empresas: window.EMPRESAS_DEMO,
+      perfis: window.PERFIS,
+      nota: '<b>32 empresas fictícias.</b> Conjunto completo de sinais, inclusive eventos '
+          + 'societários. Serve para discutir o modelo, não o mercado.',
+      strip: 'Demonstração — empresas fictícias e índices ilustrativos',
+      intro: '<strong>Como ler este razão:</strong> o agente organiza empresas <em>fictícias</em> em três '
+           + 'papéis de M&A, atribui um <em>índice de atratividade ilustrativo</em> (0–100) e explica os '
+           + 'sinais que o influenciaram. Pesos e critérios são propositalmente simples e ficam em '
+           + '<code>scoring.js</code>, para ajuste junto com os sócios após o levantamento de requisitos.',
+      rodape: 'Dados e contatos fictícios, gerados apenas para ilustrar o conceito. '
+            + 'Nenhuma informação representa empresas ou pessoas reais.',
+      dossie: '<b>Dados, contatos e fontes fictícios; índice ilustrativo.</b> Este dossiê demonstra apenas '
+            + 'como o agente poderia explicar uma priorização e registrar a decisão humana.',
+      avisoCsv: 'DEMONSTRACAO - dados, contatos e fontes ficticios, indices ilustrativos - nao representa '
+              + 'empresas/pessoas reais nem recomendacao de transacao',
+      sufixoContagem: 'demo',
+    },
+    cvm: {
+      rotulo: 'Real · CVM',
+      empresas: window.EMPRESAS_CVM || [],
+      perfis: window.PERFIS_CVM || [],
+      nota: '<b>386 companhias abertas reais</b>, com demonstrações auditadas entregues à CVM. '
+          + 'Sem eventos societários — não existe fonte pública aberta para isso.',
+      strip: 'Empresas e números REAIS (CVM) · índice de priorização ilustrativo',
+      intro: '<strong>Atenção — esta base é real.</strong> São 386 companhias abertas brasileiras, com '
+           + 'receita, margem e número de empregados extraídos das demonstrações financeiras entregues à '
+           + 'CVM e auditadas. Os nomes são de empresas existentes. O que continua ilustrativo é o '
+           + '<em>índice</em>: os pesos de <code>scoring.js</code> ainda não foram calibrados pelos sócios. '
+           + 'Repare no lastro: quase todo o índice se apoia em indicador financeiro, porque dado público '
+           + 'brasileiro publica <em>números</em>, não <em>eventos societários</em>.',
+      rodape: 'Empresas e demonstrações financeiras reais, obtidas do Portal de Dados Abertos da CVM '
+            + '(informação pública de divulgação obrigatória). Contato = canal institucional de RI '
+            + 'publicado pela própria companhia. O índice de priorização segue ilustrativo.',
+      dossie: '<b>Empresa e números reais (CVM); índice ilustrativo.</b> Os indicadores vêm de demonstração '
+            + 'financeira auditada. O índice e os pesos ainda não foram calibrados com os sócios.',
+      avisoCsv: 'DADOS REAIS - empresas e demonstracoes financeiras da CVM (dados abertos) - indice de '
+              + 'priorizacao ilustrativo, nao calibrado - nao constitui recomendacao de transacao',
+      sufixoContagem: 'base CVM',
+    },
+  };
+
+  const CHAVE_BASE = 'ght4.demo.base.v1';
+  let baseAtual = 'demo';
+  try { const s = localStorage.getItem(CHAVE_BASE); if (s && BASES[s] && BASES[s].empresas.length) baseAtual = s; } catch(_) {}
+  if (!BASES.cvm.empresas.length) {
+    // data-real.js ausente: some com a opção em vez de oferecer uma base vazia
+    const chip = document.querySelector('#f-base [data-base="cvm"]');
+    if (chip) { chip.style.display = 'none'; }
+    baseAtual = 'demo';
+  }
+
+  let BASE = window.MOTOR.avaliarBase(BASES[baseAtual].empresas);
+  const fmtBR = (n)=> (n===null||n===undefined) ? '—' : n.toLocaleString('pt-BR');
+  const pct   = (n)=> (n===null||n===undefined) ? '—' : n.toLocaleString('pt-BR')+'%';
+  const rs    = (n)=> (n===null||n===undefined) ? '—' : 'R$ '+n.toLocaleString('pt-BR')+' mi';
   const ROMANOS = {alvo:'I', comprador:'II', vendedora:'III'};
 
-  // preencher UFs e perfis
-  const ufs = [...new Set(BASE.map(e=>e.uf))].sort();
-  const selUf = $('#f-uf');
-  ufs.forEach(u=>{const o=document.createElement('option');o.textContent=u;selUf.appendChild(o);});
-  const perfilBox = $('#f-perfil');
-  window.PERFIS.forEach(p=>{
-    const c=document.createElement('span');
-    c.className='chip-toggle on'; c.dataset.perfil=p; c.textContent=p;
-    perfilBox.appendChild(c);
-  });
+  /* ============================================================
+     TRIAGEM HUMANA (human-in-the-loop) + TRILHA DE AUDITORIA
+     ------------------------------------------------------------
+     A pesquisa Datasite/FT (2026) mostra que 58% dos dealmakers aplicam
+     revisão humana aos outputs e 45% estabelecem accountability explícita
+     para decisões informadas por IA — e 0% dizem não tomar nenhuma medida.
+     Por isso toda mudança de estado exige um responsável nomeado e fica
+     registrada, com data e hora, numa trilha que não pode ser editada.
+
+     Persistência: localStorage (demonstração). Numa v1 real isso vira
+     registro no CRM/base da GHT4, com identidade autenticada.
+     ============================================================ */
+  const ESTADOS = {
+    novo:       {rotulo:'Não triado',  classe:'novo'},
+    analise:    {rotulo:'Em análise',  classe:'analise'},
+    priorizado: {rotulo:'Priorizado',  classe:'priorizado'},
+    descartado: {rotulo:'Descartado',  classe:'descartado'},
+  };
+  const CHAVE_TRIAGEM = 'ght4.demo.triagem.v1';
+
+  function lerTriagem(){
+    try{ return JSON.parse(localStorage.getItem(CHAVE_TRIAGEM)) || {}; }
+    catch(_){ return {}; }
+  }
+  function gravarTriagem(t){
+    try{ localStorage.setItem(CHAVE_TRIAGEM, JSON.stringify(t)); }catch(_){}
+  }
+  let TRIAGEM = lerTriagem();
+
+  function triagemDe(id){
+    return TRIAGEM[id] || {estado:'novo', responsavel:'', trilha:[]};
+  }
+
+  /** Registra uma decisão humana. Só acrescenta à trilha — nunca reescreve. */
+  function registrarDecisao(id, estado, responsavel, nota){
+    const atual = triagemDe(id);
+    const evento = {
+      quando: new Date().toISOString(),
+      de: atual.estado,
+      para: estado,
+      quem: responsavel,
+      nota: nota || '',
+    };
+    TRIAGEM[id] = {
+      estado,
+      responsavel,
+      trilha: [...(atual.trilha || []), evento],
+    };
+    gravarTriagem(TRIAGEM);
+  }
+
+  function dataHoraBR(iso){
+    const d = new Date(iso);
+    const p = (n)=>String(n).padStart(2,'0');
+    return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+
+  const selUf = $('#f-uf'), selSetor = $('#f-setor'), perfilBox = $('#f-perfil');
 
   // estado dos filtros
   const state = {
-    setor:'', uf:'', receita:0, cresc:0, margem:-10, func:0,
-    perfis:new Set(window.PERFIS), papeis:new Set(['alvo','comprador','vendedora']), busca:''
+    setor:'', uf:'', receita:null, cresc:null, margem:null, func:null,
+    perfis:new Set(), papeis:new Set(['alvo','comprador','vendedora']), busca:'',
+    triagens:new Set(['novo','analise','priorizado','descartado']),
+    lastros:new Set(['forte','medio','fraco'])
   };
+
+  /* Setores, UFs e perfis saem da base carregada — as duas bases têm listas
+     completamente diferentes, então nada aqui pode ser fixo no HTML. */
+  function montarFiltrosDaBase(){
+    const cfg = BASES[baseAtual];
+
+    selSetor.innerHTML = '<option value="">Todos os setores</option>';
+    [...new Set(BASE.map(e=>e.setor))].sort((a,b)=>a.localeCompare(b,'pt-BR'))
+      .forEach(s=>{const o=document.createElement('option');o.textContent=s;selSetor.appendChild(o);});
+
+    selUf.innerHTML = '<option value="">Todas as UFs</option>';
+    [...new Set(BASE.map(e=>e.uf))].filter(Boolean).sort()
+      .forEach(u=>{const o=document.createElement('option');o.textContent=u;selUf.appendChild(o);});
+
+    perfilBox.innerHTML = '';
+    cfg.perfis.forEach(p=>{
+      const c=document.createElement('span');
+      c.className='chip-toggle on'; c.dataset.perfil=p; c.textContent=p;
+      perfilBox.appendChild(c);
+    });
+    state.perfis = new Set(cfg.perfis);
+
+    $('#base-nota').innerHTML = cfg.nota;
+    $('#strip-natureza').textContent = cfg.strip;
+    $('#intro-natureza').innerHTML = cfg.intro;
+    $('#rodape-natureza').innerHTML = cfg.rodape;
+    $$('#f-base .chip-toggle').forEach(c=>c.classList.toggle('on', c.dataset.base===baseAtual));
+  }
+
+  function trocarBase(nova){
+    if(!BASES[nova] || nova===baseAtual || !BASES[nova].empresas.length) return;
+    baseAtual = nova;
+    try{ localStorage.setItem(CHAVE_BASE, nova); }catch(_){}
+    BASE = window.MOTOR.avaliarBase(BASES[nova].empresas);
+    montarFiltrosDaBase();
+    resetFilters();
+  }
+
+  $('#f-base').addEventListener('click',e=>{
+    const c=e.target.closest('.chip-toggle'); if(!c)return;
+    trocarBase(c.dataset.base);
+  });
 
   // ---- listeners ----
   $('#f-setor').addEventListener('change',e=>{state.setor=e.target.value;render();});
   selUf.addEventListener('change',e=>{state.uf=e.target.value;render();});
-  bindRange('#f-receita','#v-receita',v=>{state.receita=+v;return 'R$ '+fmtBR(+v)+' mi';});
-  bindRange('#f-cresc','#v-cresc',v=>{state.cresc=+v;return v+'%';});
-  bindRange('#f-margem','#v-margem',v=>{state.margem=+v;return v+'%';});
-  bindRange('#f-func','#v-func',v=>{state.func=+v;return fmtBR(+v);});
+  /* Em todos os cursos, a ponta esquerda significa "sem mínimo" — o filtro sai
+     de cena em vez de virar um corte invisível. */
+  const SEM_MIN = null;
+  bindRange('#f-receita','#v-receita',(v,min)=>{state.receita=+v===+min?SEM_MIN:+v;return +v===+min?'sem mínimo':'R$ '+fmtBR(+v)+' mi';});
+  bindRange('#f-cresc','#v-cresc',(v,min)=>{state.cresc=+v===+min?SEM_MIN:+v;return +v===+min?'sem mínimo':v+'%';});
+  bindRange('#f-margem','#v-margem',(v,min)=>{state.margem=+v===+min?SEM_MIN:+v;return +v===+min?'sem mínimo':v+'%';});
+  bindRange('#f-func','#v-func',(v,min)=>{state.func=+v===+min?SEM_MIN:+v;return +v===+min?'sem mínimo':fmtBR(+v);});
   $('#f-busca').addEventListener('input',e=>{state.busca=e.target.value.toLowerCase().trim();render();});
 
   perfilBox.addEventListener('click',e=>{
@@ -452,23 +771,39 @@
     c.classList.contains('on')?state.papeis.add(c.dataset.papel):state.papeis.delete(c.dataset.papel);
     render();
   });
+  $('#f-triagem').addEventListener('click',e=>{
+    const c=e.target.closest('.chip-toggle'); if(!c)return;
+    c.classList.toggle('on');
+    c.classList.contains('on')?state.triagens.add(c.dataset.tri):state.triagens.delete(c.dataset.tri);
+    render();
+  });
+  $('#f-lastro').addEventListener('click',e=>{
+    const c=e.target.closest('.chip-toggle'); if(!c)return;
+    c.classList.toggle('on');
+    c.classList.contains('on')?state.lastros.add(c.dataset.lastro):state.lastros.delete(c.dataset.lastro);
+    render();
+  });
   $('#btn-reset').addEventListener('click',resetFilters);
   $('#btn-export').addEventListener('click',exportarCSV);
 
   function bindRange(sel,valSel,fn){
     const el=$(sel), lbl=$(valSel);
-    lbl.textContent=fn(el.value);
-    el.addEventListener('input',()=>{lbl.textContent=fn(el.value);render();});
+    lbl.textContent=fn(el.value,el.min);
+    el.addEventListener('input',()=>{lbl.textContent=fn(el.value,el.min);render();});
   }
 
   function resetFilters(){
-    state.setor='';state.uf='';state.receita=0;state.cresc=0;state.margem=-10;state.func=0;
-    state.perfis=new Set(window.PERFIS);state.papeis=new Set(['alvo','comprador','vendedora']);state.busca='';
-    $('#f-setor').value='';selUf.value='';$('#f-busca').value='';
-    $('#f-receita').value=0;$('#f-cresc').value=0;$('#f-margem').value=-10;$('#f-func').value=0;
-    $('#v-receita').textContent='R$ 0 mi';$('#v-cresc').textContent='0%';$('#v-margem').textContent='-10%';$('#v-func').textContent='0';
+    state.setor='';state.uf='';state.receita=null;state.cresc=null;state.margem=null;state.func=null;
+    state.perfis=new Set(BASES[baseAtual].perfis);state.papeis=new Set(['alvo','comprador','vendedora']);state.busca='';
+    state.triagens=new Set(['novo','analise','priorizado','descartado']);
+    state.lastros=new Set(['forte','medio','fraco']);
+    selSetor.value='';selUf.value='';$('#f-busca').value='';
+    ['#f-receita','#f-cresc','#f-margem','#f-func'].forEach(s=>{const el=$(s);el.value=el.min;});
+    ['#v-receita','#v-cresc','#v-margem','#v-func'].forEach(s=>{$(s).textContent='sem mínimo';});
     $$('#f-perfil .chip-toggle').forEach(c=>c.classList.add('on'));
     $$('#f-papel .chip-toggle').forEach(c=>c.classList.add('on'));
+    $$('#f-triagem .chip-toggle').forEach(c=>c.classList.add('on'));
+    $$('#f-lastro .chip-toggle').forEach(c=>c.classList.add('on'));
     render();
   }
 
@@ -477,12 +812,18 @@
     return BASE.filter(e=>{
       if(state.setor && e.setor!==state.setor) return false;
       if(state.uf && e.uf!==state.uf) return false;
-      if(e.receita < state.receita) return false;
-      if(e.crescimento < state.cresc) return false;
-      if(e.margemEbitda < state.margem) return false;
-      if(e.funcionarios < state.func) return false;
+      /* Nulo não é zero. Um indicador ausente não pode ser tratado como valor
+         baixo — a empresa fica na lista e o dossiê declara a ausência.
+         Mínimo nulo = filtro desligado. */
+      const abaixo=(v,min)=> min!==null && v!==null && v!==undefined && v<min;
+      if(abaixo(e.receita,state.receita)) return false;
+      if(abaixo(e.crescimento,state.cresc)) return false;
+      if(abaixo(e.margemEbitda,state.margem)) return false;
+      if(abaixo(e.funcionarios,state.func)) return false;
       if(!state.perfis.has(e.perfil)) return false;
       if(!state.papeis.has(e.classificacao)) return false;
+      if(!state.triagens.has(triagemDe(e.id).estado)) return false;
+      if(!state.lastros.has(e.rotuloLastro.chave)) return false;
       if(state.busca){
         const hay=(e.nome+' '+e.subsetor+' '+e.setor+' '+e.cidade).toLowerCase();
         if(!hay.includes(state.busca)) return false;
@@ -496,7 +837,12 @@
   // ---- render ----
   function render(){
     const lista=filtrar().sort((a,b)=>b.scorePrincipal-a.scorePrincipal);
-    $('#count').textContent = lista.length+' registro'+(lista.length!==1?'s':'')+' · demo';
+    const triados = lista.filter(e=>triagemDe(e.id).estado!=='novo').length;
+    const fragil  = lista.filter(e=>e.rotuloLastro.chave==='fraco').length;
+    $('#count').textContent = lista.length+' registro'+(lista.length!==1?'s':'')
+      + ' · '+triados+' triado'+(triados!==1?'s':'')
+      + (fragil? ' · '+fragil+' com lastro frágil' : '')
+      + ' · '+BASES[baseAtual].sufixoContagem;
 
     // resumo da varredura
     const stats=$('#stats'); stats.innerHTML='';
@@ -538,6 +884,7 @@
     el.setAttribute('aria-label',`Abrir dossiê de ${e.nome}`);
     el.style.setProperty('--rc',corPapel[e.classificacao]);
     const topSig=e.papeis[e.classificacao].contribuicoes.slice(0,3);
+    const tri=triagemDe(e.id);
     el.innerHTML=`
       <div class="card-top">
         <div>
@@ -552,22 +899,23 @@
       </div>
       <div class="card-desc">${e.oQueFazem}</div>
       <div class="figs">
-        <div class="fig"><span class="fk">Receita</span><span class="fv">R$ ${fmtBR(e.receita)} mi</span></div>
-        <div class="fig"><span class="fk">Cresc.</span><span class="fv">${e.crescimento}%</span></div>
-        <div class="fig"><span class="fk">EBITDA</span><span class="fv">${e.margemEbitda}%</span></div>
+        <div class="fig"><span class="fk">Receita</span><span class="fv">${rs(e.receita)}</span></div>
+        <div class="fig"><span class="fk">Cresc.</span><span class="fv">${pct(e.crescimento)}</span></div>
+        <div class="fig"><span class="fk">EBITDA</span><span class="fv">${pct(e.margemEbitda)}</span></div>
         <div class="fig"><span class="fk">Perfil</span><span class="fv">${e.perfil}</span></div>
       </div>
       <div class="signals">
         ${topSig.map(s=>`<span class="sig ${s.tipo}">${s.rotulo}</span>`).join('')}
       </div>
+      <div class="card-flags">
+        <span class="lastro ${e.rotuloLastro.chave}" title="${tituloLastro(e)}"><span class="dot"></span>${e.rotuloLastro.rotulo}</span>
+        ${tri.estado!=='novo' ? `<span class="tri ${ESTADOS[tri.estado].classe}">${ESTADOS[tri.estado].rotulo}${tri.responsavel?' · '+tri.responsavel:''}</span>` : ''}
+      </div>
       <div class="card-contato" title="Contato fictício (demonstração)">
         <div class="cc-avatar">${iniciais(e.contato.nome)}</div>
         <div class="cc-info">
           <div class="cc-nome">${e.contato.nome} <span class="cc-cargo">· ${e.contato.cargo}</span></div>
-          <div class="cc-links">
-            <a href="mailto:${e.contato.email}" onclick="event.stopPropagation()">✉ ${e.contato.email}</a>
-            <a href="tel:${e.contato.telefone.replace(/[^+\d]/g,'')}" onclick="event.stopPropagation()">☎ ${e.contato.telefone}</a>
-          </div>
+          <div class="cc-links">${linksContato(e.contato,true)}</div>
         </div>
       </div>
       <div class="prov">
@@ -588,6 +936,123 @@
   function iniciais(nome){
     return nome.replace(/^(Dr\.|Dra\.)\s*/,'').split(/\s+/).filter(Boolean)
       .map(p=>p[0]).slice(0,2).join('').toUpperCase();
+  }
+  const esc = (s)=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  /* Contato pode vir incompleto na base real (26 companhias sem e-mail público).
+     Campo ausente vira "não informado", nunca um mailto: para "null". */
+  function linksContato(ct, parar){
+    const stop = parar ? ' onclick="event.stopPropagation()"' : '';
+    const linhas = [];
+    if(ct.email)    linhas.push(`<a href="mailto:${esc(ct.email)}"${stop}>✉ ${esc(ct.email)}</a>`);
+    else            linhas.push('<span style="color:var(--muted)">✉ e-mail não informado</span>');
+    if(ct.telefone) linhas.push(`<a href="tel:${esc(ct.telefone.replace(/[^+\d]/g,''))}"${stop}>☎ ${esc(ct.telefone)}</a>`);
+    else            linhas.push('<span style="color:var(--muted)">☎ telefone não informado</span>');
+    return linhas.join('');
+  }
+
+  /* ---- lastro ---- */
+  function tituloLastro(e){
+    const l=e.lastroPrincipal;
+    return `${l.pctDocumentado}% do índice vem de fonte documental · `
+         + `${l.pctEstruturado}% de indicadores · ${l.pctInferido}% inferido sem fonte`;
+  }
+
+  function lastroBloco(lastro){
+    const {pctDocumentado:d,pctEstruturado:s,pctInferido:i}=lastro;
+    const alerta = lastro.lacunas.length
+      ? `<div style="font-size:11.5px;color:var(--oxblood);margin-top:8px;line-height:1.5">
+           <b>Atenção:</b> ${lastro.lacunas.length===1?'o sinal':'os sinais'}
+           <b>${lastro.lacunas.map(esc).join(', ')}</b>
+           ${lastro.lacunas.length===1?'pesa':'pesam'} no índice mas não ${lastro.lacunas.length===1?'tem':'têm'}
+           fonte documental anexada. Confirmar antes de levar ao cliente.
+         </div>`
+      : '';
+    return `
+      <div class="lastro-bar" role="img" aria-label="Composição do lastro do índice">
+        ${d?`<i class="doc" style="width:${d}%"></i>`:''}
+        ${s?`<i class="est" style="width:${s}%"></i>`:''}
+        ${i?`<i class="inf" style="width:${i}%"></i>`:''}
+      </div>
+      <div class="lastro-key">
+        <span><i style="background:var(--alvo)"></i>${d}% documentado</span>
+        <span><i style="background:var(--comprador)"></i>${s}% indicador estruturado</span>
+        <span><i style="background:var(--oxblood)"></i>${i}% inferido, sem fonte</span>
+      </div>
+      ${alerta}`;
+  }
+
+  /* ---- painel de evidência: a afirmação de um lado, a fonte do outro ----
+     Padrão descrito no relatório Datasite/FT a partir do Freshfields Lab e da
+     Blueflame AI: mostrar o trecho exato de onde a informação veio. */
+  function evidenciaItem(sinal, peso){
+    const ev = sinal.evidencia;
+    if(!ev){
+      return `<div class="ev-item"><div class="ev-split">
+        <div class="ev-claim"><div class="ec-head"><span class="b ${sinal.tipo}"></span><span class="ec-t">${esc(sinal.rotulo)}</span></div>
+          <div class="ec-d">${esc(sinal.detalhe)}</div></div>
+        <div class="ev-source"><span class="ev-nat lacuna">sem evidência</span></div>
+      </div></div>`;
+    }
+    const lac = ev.natureza==='lacuna';
+    const dataTxt = ev.data ? dataBR(ev.data) : 'sem data';
+    return `
+      <div class="ev-item${lac?' is-lacuna':''}">
+        <div class="ev-split">
+          <div class="ev-claim">
+            <div class="ec-head"><span class="b ${sinal.tipo}"></span><span class="ec-t">${esc(sinal.rotulo)}</span></div>
+            <div class="ec-d">${esc(sinal.detalhe)}</div>
+            ${peso!=null?`<div class="ec-w">peso no índice: +${peso}</div>`:''}
+          </div>
+          <div class="ev-source">
+            <div class="ev-src-top">
+              <span class="ev-nat ${ev.natureza}">${ev.natureza==='lacuna'?'lacuna':ev.natureza}</span>
+              <span class="ev-src-meta">${esc(ev.tipo)} · ${dataTxt} · confiança ${esc(ev.confianca)}</span>
+            </div>
+            ${!lac?`<div class="ev-titulo">${esc(ev.titulo)}</div>`:''}
+            <div class="ev-trecho">${esc(ev.trecho)}</div>
+            ${!lac?`<div class="ev-src-meta" style="margin-top:7px">Fonte: ${esc(ev.veiculo)}${ev.escopo==='setorial'?' · evidência do setor, não da empresa':''}</div>`:''}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  /* ---- o que a base não teve como avaliar ----
+     Sinal desligado é ambíguo: pode ser "verifiquei e não há" ou "não tenho como
+     verificar". Só o segundo caso é uma lacuna de fonte — e é ele que responde
+     à pergunta "que dados a GHT4 precisa comprar?". */
+  function blocoIndisponiveis(e){
+    const faltando = window.EVIDENCIA ? window.EVIDENCIA.sinaisIndisponiveis(e) : [];
+    if(!faltando.length) return '';
+    const SIN = window.MOTOR.SINAIS;
+    return `
+      <div class="m-section-title">Não avaliado · sem fonte disponível</div>
+      <p class="m-sit" style="margin-bottom:12px">
+        Estes sinais não foram avaliados — não porque a empresa não os tenha, mas porque
+        <b>não existe fonte pública que os publique</b>. É a camada de dados que faltaria
+        para o agente operar sobre o mercado real.
+      </p>
+      <div class="indisp">
+        ${faltando.map(f=>`
+          <div class="indisp-i">
+            <div class="indisp-t">${esc(SIN[f.chave] ? SIN[f.chave].rotulo : f.chave)}</div>
+            <div class="indisp-m">${esc(f.motivo)}</div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  /* ---- trilha de auditoria ---- */
+  function trilhaBloco(tri){
+    if(!tri.trilha || !tri.trilha.length){
+      return `<div class="trilha-vazia">Nenhuma decisão humana registrada para este registro ainda.</div>`;
+    }
+    const itens = [...tri.trilha].reverse().map(ev=>`
+      <li>
+        <span class="ts">${dataHoraBR(ev.quando)}</span>
+        <span class="tx"><b>${esc(ev.quem)}</b> moveu de <b>${ESTADOS[ev.de]?ESTADOS[ev.de].rotulo:ev.de}</b>
+        para <b>${ESTADOS[ev.para]?ESTADOS[ev.para].rotulo:ev.para}</b>${ev.nota?` — “${esc(ev.nota)}”`:''}</span>
+      </li>`).join('');
+    return `<ul class="trilha">${itens}</ul>`;
   }
 
   // ---- dossiê (modal) ----
@@ -612,9 +1077,20 @@
         </div>${contrib}</div>`;
     }).join('');
 
-    const sinaisDet = e.sinais.length
-      ? e.sinais.map(s=>`<li><span class="b ${s.tipo}"></span><div><div class="st">${s.rotulo}</div><div class="sd">${s.detalhe}</div></div></li>`).join('')
-      : '<li>Nenhum sinal relevante detectado nos dados (fictícios) disponíveis.</li>';
+    // pesos do papel principal, para anotar cada evidência
+    const pesoPorSinal = {};
+    e.papeis[e.classificacao].contribuicoes.forEach(c=>{pesoPorSinal[c.chave]=c.peso;});
+
+    // sinais que pesam no papel principal primeiro, depois os demais
+    const sinaisOrdenados = [...e.sinais].sort((a,b)=>
+      (pesoPorSinal[b.chave]||0)-(pesoPorSinal[a.chave]||0));
+
+    const evidenciaDet = e.sinais.length
+      ? sinaisOrdenados.map(s=>evidenciaItem(s, pesoPorSinal[s.chave]??null)).join('')
+      : '<div class="empty">Nenhum sinal relevante detectado nos dados (fictícios) disponíveis.</div>';
+
+    const tri = triagemDe(e.id);
+    const cob = e.cobertura;
 
     modal.innerHTML=`
       <div class="modal-head">
@@ -642,28 +1118,68 @@
           <div class="ct-info">
             <div class="ct-nome">${e.contato.nome}</div>
             <div class="ct-cargo">${e.contato.cargo}</div>
-            <div class="ct-links">
-              <a href="mailto:${e.contato.email}">✉ ${e.contato.email}</a>
-              <a href="tel:${e.contato.telefone.replace(/[^+\d]/g,'')}">☎ ${e.contato.telefone}</a>
-            </div>
+            <div class="ct-links">${linksContato(e.contato,false)}</div>
           </div>
         </div>
 
         <div class="m-section-title">Indicadores</div>
         <div class="m-grid">
-          <div class="kpi"><div class="k">Receita est.</div><div class="v">R$ ${fmtBR(e.receita)} mi</div></div>
-          <div class="kpi"><div class="k">Crescimento</div><div class="v">${e.crescimento}%</div></div>
-          <div class="kpi"><div class="k">Margem EBITDA</div><div class="v">${e.margemEbitda}%</div></div>
+          <div class="kpi"><div class="k">Receita est.</div><div class="v">${rs(e.receita)}</div></div>
+          <div class="kpi"><div class="k">Crescimento</div><div class="v">${pct(e.crescimento)}</div></div>
+          <div class="kpi"><div class="k">Margem EBITDA</div><div class="v">${pct(e.margemEbitda)}</div>${
+            e.margemObservacao?`<div style="font-size:10.5px;color:var(--oxblood);line-height:1.45;margin-top:5px">${esc(e.margemObservacao)}</div>`:''}</div>
           <div class="kpi"><div class="k">Funcionários</div><div class="v">${fmtBR(e.funcionarios)}</div></div>
           <div class="kpi"><div class="k">Índice principal</div><div class="v">${e.scorePrincipal}/100</div></div>
           <div class="kpi"><div class="k">Perfil</div><div class="v" style="font-size:12px">${e.perfil}</div></div>
         </div>
 
+        <div class="m-section-title">Lastro do índice</div>
+        ${lastroBloco(e.lastroPrincipal)}
+        <div class="prov-line" style="margin-top:10px">
+          <span>Sinais ativos: <b>${cob.total}</b></span>
+          <span>Com fonte documental: <b>${cob.documentados}</b></span>
+          <span>De indicador/cadastro: <b>${cob.estruturados}</b></span>
+          <span>Sem fonte: <b>${cob.lacunas}</b></span>
+        </div>
+
         <div class="m-section-title">Índice ilustrativo por papel</div>
         ${barras}
 
-        <div class="m-section-title">Sinais que influenciaram o índice</div>
-        <ul class="sig-detail">${sinaisDet}</ul>
+        <div class="m-section-title">Evidência · cada sinal e a fonte que o sustenta</div>
+        <p class="m-sit" style="margin-bottom:14px">
+          À esquerda, o que o sistema afirma. À direita, de onde a afirmação veio. Onde não há
+          documento, o sistema declara a lacuna em vez de omiti-la.
+        </p>
+        ${evidenciaDet}
+        ${blocoIndisponiveis(e)}
+
+        <div class="m-section-title">Decisão humana · triagem</div>
+        <div class="hitl">
+          <p class="hitl-lead">
+            O índice acima é uma <b>recomendação</b>. Quem decide o que fazer com este registro é uma
+            pessoa, identificada e registrada. Toda mudança de estado entra na trilha abaixo e
+            <b>não pode ser apagada</b>.
+          </p>
+          <div class="hitl-row">
+            <div class="hitl-f">
+              <label for="hitl-estado">Estado</label>
+              <select id="hitl-estado">
+                ${Object.keys(ESTADOS).map(k=>
+                  `<option value="${k}"${k===tri.estado?' selected':''}>${ESTADOS[k].rotulo}</option>`).join('')}
+              </select>
+            </div>
+            <div class="hitl-f">
+              <label for="hitl-quem">Responsável</label>
+              <input type="text" id="hitl-quem" placeholder="Nome do sócio ou analista" value="${esc(tri.responsavel||'')}" />
+            </div>
+            <div class="hitl-f">
+              <label for="hitl-nota">Justificativa (opcional)</label>
+              <input type="text" id="hitl-nota" placeholder="Por que esta decisão?" />
+            </div>
+            <button class="btn-registrar" id="hitl-btn">Registrar decisão</button>
+          </div>
+          <div id="hitl-trilha">${trilhaBloco(tri)}</div>
+        </div>
 
         <div class="m-section-title">Origem e transparência dos dados</div>
         <div class="prov-line">
@@ -673,48 +1189,102 @@
         </div>
       </div>
       <div class="modal-foot">
-        ⚠️ <b>Dados fictícios e índice ilustrativo.</b> Este dossiê demonstra apenas como o agente
-        poderia explicar uma priorização. Não constitui recomendação de transação, avaliação (valuation)
+        ⚠️ ${BASES[baseAtual].dossie} Não constitui recomendação de transação, avaliação (valuation)
         ou due diligence, e não substitui a análise dos profissionais da GHT4.
       </div>`;
     $('.modal-close',modal).addEventListener('click',fecharModal);
+
+    // ---- registrar decisão humana ----
+    const btn=$('#hitl-btn',modal), selEstado=$('#hitl-estado',modal),
+          inpQuem=$('#hitl-quem',modal), inpNota=$('#hitl-nota',modal);
+
+    function validar(){
+      const mudou = selEstado.value !== triagemDe(e.id).estado;
+      btn.disabled = !inpQuem.value.trim() || !mudou;
+      btn.title = !inpQuem.value.trim()
+        ? 'Informe quem está decidindo — toda decisão precisa de um responsável.'
+        : (!mudou ? 'Escolha um estado diferente do atual.' : '');
+    }
+    selEstado.addEventListener('change',validar);
+    inpQuem.addEventListener('input',validar);
+    validar();
+
+    btn.addEventListener('click',()=>{
+      const quem=inpQuem.value.trim();
+      if(!quem) return;
+      registrarDecisao(e.id, selEstado.value, quem, inpNota.value.trim());
+      inpNota.value='';
+      $('#hitl-trilha',modal).innerHTML = trilhaBloco(triagemDe(e.id));
+      validar();
+      render();
+    });
+
     overlay.classList.add('open');
     document.body.style.overflow='hidden';
     $('.modal-close',modal).focus();
   }
   function fecharModal(){
     overlay.classList.remove('open');document.body.style.overflow='';
+    if(location.hash.startsWith('#empresa=')) history.replaceState(null,'',location.pathname);
     if(ultimoFoco&&ultimoFoco.focus)ultimoFoco.focus();
   }
+
+  /* Link direto para um dossiê: index.html#empresa=tec07
+     Permite mandar a um sócio o registro exato em discussão, em vez de
+     "abre a ferramenta e procura a EduPlay". */
+  function abrirPorHash(){
+    const m = /^#empresa=(.+)$/.exec(location.hash);
+    if(!m) return;
+    const alvo = BASE.find(e=>e.id===decodeURIComponent(m[1]));
+    if(alvo) abrirModal(alvo);
+  }
+  window.addEventListener('hashchange',abrirPorHash);
 
   // ---- CSV ----
   function exportarCSV(){
     const lista=filtrar().sort((a,b)=>b.scorePrincipal-a.scorePrincipal);
     const cols=['id','nome','o_que_fazem','setor','subsetor','cidade','uf','receita_R$mi','crescimento_%',
       'margem_ebitda_%','funcionarios','perfil','classificacao','indice_ilustrativo',
-      'sinais','contato_nome_FICTICIO','contato_cargo','contato_email_FICTICIO','contato_telefone_FICTICIO',
+      'lastro','pct_documentado','pct_indicador','pct_inferido','sinais_sem_fonte',
+      'sinais','fontes_citadas',
+      'triagem_estado','triagem_responsavel','triagem_ultima_decisao','triagem_n_decisoes',
+      'contato_nome_FICTICIO','contato_cargo','contato_email_FICTICIO','contato_telefone_FICTICIO',
       'origem_dado','data_referencia','confianca'];
     const esc=(v)=>{const s=String(v).replace(/"/g,'""');return /[;"\n]/.test(s)?`"${s}"`:s;};
     const linhas=[cols.join(';')];
     lista.forEach(e=>{
+      const l=e.lastroPrincipal, t=triagemDe(e.id);
+      const ultima = t.trilha && t.trilha.length ? t.trilha[t.trilha.length-1] : null;
+      // fontes documentais efetivamente citadas — o CSV carrega a rastreabilidade junto
+      const fontes = e.sinais
+        .filter(s=>s.evidencia && s.evidencia.natureza==='documental')
+        .map(s=>`${s.rotulo}: ${s.evidencia.veiculo}, ${s.evidencia.data}`)
+        .join(' | ');
       linhas.push([
         e.id,e.nome,e.oQueFazem,e.setor,e.subsetor,e.cidade,e.uf,e.receita,e.crescimento,
         e.margemEbitda,e.funcionarios,e.perfil,CFG[e.classificacao].rotulo,e.scorePrincipal,
+        e.rotuloLastro.rotulo,l.pctDocumentado,l.pctEstruturado,l.pctInferido,
+        l.lacunas.join(' | ') || '-',
         e.sinais.map(s=>s.rotulo).join(' | '),
+        fontes || '-',
+        ESTADOS[t.estado].rotulo, t.responsavel || '-',
+        ultima ? ultima.quando : '-', (t.trilha||[]).length,
         e.contato.nome,e.contato.cargo,e.contato.email,e.contato.telefone,
         e.origem,e.dataAtualizacao,e.confianca
       ].map(esc).join(';'));
     });
-    const aviso='DEMONSTRACAO - dados e contatos ficticios, indices ilustrativos - nao representa empresas/pessoas reais nem recomendacao de transacao';
+    const aviso=BASES[baseAtual].avisoCsv;
     const csv='﻿'+aviso+'\n'+linhas.join('\n');
     const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
-    a.href=url; a.download='GHT4_prospeccao_DEMO_'+new Date().toISOString().slice(0,10)+'.csv';
+    a.href=url; a.download='GHT4_prospeccao_'+(baseAtual==='cvm'?'CVM':'DEMO')+'_'+new Date().toISOString().slice(0,10)+'.csv';
     document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   }
 
+  montarFiltrosDaBase();
   render();
+  abrirPorHash();
 })();
 </script>
 </body>

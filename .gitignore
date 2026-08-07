@@ -1,0 +1,4 @@
+# Downloads brutos da CVM (~22 MB), recriados por:
+#   node ferramentas/importar-cvm.mjs
+# O resultado convertido (data-real.js) é versionado; a matéria-prima não.
+ferramentas/.cache-cvm/

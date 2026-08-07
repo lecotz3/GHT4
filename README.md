@@ -14,20 +14,32 @@ criado para apoiar a conversa de levantamento de requisitos com os sócios da **
 
 - **Seleção de setor** (Saúde, Tecnologia, Varejo, Energia — ilustrativos)
 - **Filtros ilustrativos**: localização (UF), receita mínima, crescimento, margem EBITDA,
-  nº de funcionários, perfil societário e classificação.
+  nº de funcionários, perfil societário, classificação, **estado da triagem** e **lastro da evidência**.
 - **Lista de empresas fictícias**, claramente marcadas como dados de demonstração.
 - **Classificação em 3 grupos**: possíveis alvos de aquisição, potenciais compradores e
   possíveis candidatas a venda.
 - **Score de atratividade ilustrativo** (0–100) por empresa.
 - **Explicação dos sinais** que influenciaram o score (crescimento relevante, mercado
-  fragmentado, margem baixa, rodada de investimento, mudança de controle, expansão geográfica,
+  fragmentado, margem comprimida, prejuízo operacional, rodada de investimento,
+  mudança de controle, expansão geográfica,
   sucessão familiar, escala, etc.).
+- **Painel de evidência**: cada sinal aparece com a fonte que o sustenta — veículo, data,
+  confiança e o trecho citado — no padrão “afirmação de um lado, documento do outro”.
+- **Lastro do índice**: quanto do score se apoia em documento, em indicador financeiro e
+  quanto está **inferido sem fonte**. O que não tem lastro é declarado, não escondido.
+- **Triagem humana com trilha de auditoria**: nenhum registro muda de estado sem um
+  responsável nomeado; nome, data, estado anterior e justificativa ficam registrados.
 - **Origem e data dos dados**, com nível de confiança e sinalização de dado simulado,
   incompleto ou hipótese.
 - **Página de detalhes** de cada empresa (painel/modal), com: o que a empresa faz, situação
   relevante para M&A, um **contato fictício** (nome, cargo, e-mail e telefone — apenas demonstração),
-  os indicadores e o desdobramento do score por papel.
-- **Exportação em CSV** da lista filtrada (com cabeçalho de aviso e compatível com Excel PT-BR).
+  os indicadores, o desdobramento do score por papel, a evidência de cada sinal e a triagem.
+- **Link direto para um dossiê**: `index.html#empresa=tec07` abre o registro específico.
+- **Exportação em CSV** da lista filtrada, carregando junto as fontes citadas, o lastro, os
+  sinais sem documentação e o histórico de triagem (com cabeçalho de aviso, compatível com
+  Excel PT-BR).
+- **Página de fundamentos** (`fundamentos.html`): cada decisão de produto ancorada num número
+  da pesquisa Datasite/FT — material de apoio para a reunião com os sócios.
 
 ---
 
@@ -49,15 +61,78 @@ Não há instalação, dependências ou build. É um site estático que roda off
 
 ---
 
+## Duas interfaces
+
+| Pasta | O que é | Como roda |
+|---|---|---|
+| raiz | **Protótipo** — HTML/CSS/JS puro, zero dependência | duplo-clique no `index.html`, funciona offline |
+| `v1/` | **Aplicação React + Tailwind**, para receber componentes do 21st.dev | `cd v1 && npm install && npm run dev` |
+
+As duas **compartilham o mesmo motor**. A v1 importa `scoring.js`, `evidencias.js`,
+`data.js` e `data-real.js` da raiz — os mesmos arquivos que o protótipo carrega por
+`<script>`. Mexeu na regra de negócio, mexe num lugar só.
+
+Isso funciona porque esses arquivos não usam sintaxe de módulo: o Vite executa o corpo
+deles e as atribuições em `window.*` acontecem normalmente. Convertê-los para ESM
+**quebraria o protótipo** — navegador bloqueia módulos ES em `file://`, e é justamente
+o duplo-clique que faz ele funcionar numa sala de reunião sem rede.
+
+A paleta validada está no `@theme` de `v1/src/index.css`, como tokens do Tailwind
+(`bg-alvo`, `text-tinta`). Assim qualquer componente de terceiro colado no projeto veste
+a identidade da GHT4 em vez do visual genérico de SaaS.
+
+---
+
+## Duas bases, lado a lado
+
+O seletor no alto da coluna esquerda troca entre:
+
+| Base | O que é | O que ela prova |
+|---|---|---|
+| **Demonstração** | 32 empresas **fictícias** | O modelo completo: tem eventos societários (rodada, mudança de controle, expansão), que é o que de fato antecipa uma transação. |
+| **Real · CVM** | 386 **companhias abertas brasileiras reais**, com demonstrações auditadas | O que dá para fazer hoje com dado público — e, sobretudo, **o que não dá**. |
+
+A base real vem do Portal de Dados Abertos da CVM. Para gerá-la ou atualizá-la:
+
+```
+node ferramentas/importar-cvm.mjs
+```
+
+O script baixa, cruza e converte os dados públicos, e escreve `data-real.js`. Não tem
+dependência de npm — usa só a biblioteca padrão do Node. Se o arquivo não existir, o
+seletor de base some sozinho e o razão funciona normalmente com a base fictícia.
+
+**A descoberta que a base real entrega para a reunião:** dado público brasileiro publica
+**números**, não **eventos**. Receita, margem, crescimento e empregados vêm auditados e com
+citação da conta contábil exata. Já rodada de investimento, mudança de controle, expansão
+geográfica e fragmentação setorial **não existem em nenhuma fonte aberta** — o dossiê lista
+esses sinais em "não avaliado · sem fonte disponível", com o motivo de cada um. É a lista de
+compras de dados da GHT4, escrita pelo próprio sistema.
+
+Duas ressalvas que os sócios precisam ouvir: só **39 das 386** empresas estão na faixa de
+R$ 30–250 mi que o modelo trata como alvo consolidável — 275 passam de R$ 1 bi e outras 5
+ficam abaixo de R$ 30 mi — e o
+middle market de capital fechado — o cliente típico de uma boutique — **não aparece aqui**,
+porque não tem obrigação de publicar demonstração.
+
+---
+
 ## Estrutura dos arquivos
 
 | Arquivo | Papel |
 |---|---|
-| `index.html` | A aplicação: interface, filtros, listas, modal de detalhes e exportação CSV. |
+| `index.html` | A aplicação: interface, filtros, listas, dossiê, triagem e exportação CSV. |
+| `data-real.js` | **Base real** gerada pelo importador. Não editar à mão. |
+| `ferramentas/importar-cvm.mjs` | Baixa e converte os dados abertos da CVM. |
+| `fundamentos.html` | Peça de apresentação: por que o agente é assim, com os dados da pesquisa. |
 | `data.js` | Base de **empresas fictícias** com metadados de origem/data/confiança. **Trocar por dados validados no futuro.** |
-| `scoring.js` | **Motor de scoring** — limiares, catálogo de sinais e pesos por papel. **Este é o ponto de edição após as reuniões.** |
+| `evidencias.js` | **Camada de evidência** — fontes fictícias por empresa e por sinal, e a regra que decide o que sustenta cada afirmação. **Aqui entram as fontes reais no futuro.** |
+| `scoring.js` | **Motor de scoring** — limiares, catálogo de sinais, pesos por papel e cálculo do lastro. **Este é o ponto de edição após as reuniões.** |
+| `PESQUISA-DATASITE-FT.md` | Resumo estruturado da pesquisa Datasite/FT que embasa o desenho, com todos os números. |
 | `PERGUNTAS-DESCOBERTA.md` | Roteiro de perguntas para os sócios (usuários, setores, fontes, critérios, fluxo, confidencialidade, métricas). |
 | `README.md` | Este arquivo. |
+
+Continua sem instalação, sem dependências e sem build — cinco arquivos estáticos.
 
 ---
 
@@ -66,22 +141,55 @@ Não há instalação, dependências ou build. É um site estático que roda off
 O protótipo foi feito para ser fácil de alterar:
 
 - **Mudar critérios/pesos do score** → edite `scoring.js`:
-  - `LIMIARES` (ex.: a partir de quanto o crescimento "conta", o que é margem baixa/alta, o que é "escala").
+  - `LIMIARES` (ex.: a partir de quanto o crescimento "conta", o que é margem comprimida/alta,
+    onde fica o piso do prejuízo operacional, o que é "escala").
   - `CONFIG_PAPEIS` → o objeto `pesos` de cada papel (`alvo`, `comprador`, `vendedora`).
-  - Para criar um **novo sinal**, adicione uma entrada em `SINAIS` e referencie-a nos `pesos`.
+  - Para criar um **novo sinal**, adicione uma entrada em `SINAIS` (com sua `natureza`) e
+    referencie-a nos `pesos`. Se a natureza for `documental`, acrescente também a regra
+    correspondente em `evidenciaDe()` no `evidencias.js`.
 - **Adicionar/editar empresas ou setores** → edite a lista em `data.js`
   (mantendo os campos de `origem`, `dataAtualizacao` e `confianca` para preservar a transparência).
+- **Anexar ou trocar fontes** → edite `evidencias.js`. Sinal documental sem fonte vira lacuna
+  explícita na interface — é o comportamento desejado, não um bug.
 - **Ajustar textos, cores e rótulos** → estão no topo do `<style>` e nos rótulos de `CONFIG_PAPEIS`.
+  Atenção às cores dos papéis: existem duas famílias, `--alvo` (marca: barras e selos) e
+  `--alvo-ink` (texto). As cores de marca foram validadas para contraste e para distinção por
+  quem tem daltonismo — se trocá-las, revalide.
 
 ---
 
 ## Transparência (decisões de design importantes)
 
+Estas escolhas não são estéticas: cada uma responde a um achado da pesquisa Datasite/FT
+(“The New Deal Team”, 2026, 1.000 dealmakers). O detalhamento está em `fundamentos.html`
+e os números em `PESQUISA-DATASITE-FT.md`.
+
 - Faixa fixa no topo e rodapés reforçam que os dados são fictícios e os scores ilustrativos.
 - Cada empresa exibe **origem**, **data de referência** e **nível de confiança**.
-- O modal separa claramente *sinais*, *score por papel* e *transparência dos dados*, e repete
-  o aviso de que não é recomendação de transação.
-- O CSV exportado inclui um cabeçalho de aviso de demonstração.
+- **Cada sinal abre a fonte que o sustenta** — padrão que 43% dos dealmakers citam como passo
+  para confiar em IA, e que Freshfields e Blueflame implementam da mesma forma.
+- **O sistema declara o que não sabe.** Sinal sem fonte vira lacuna vermelha e alerta.
+  Três lacunas são propositais na base de demonstração (EduPlay, MercaBom, ComerLuz) —
+  existem para mostrar o comportamento diante da ausência de evidência.
+- **O lastro fica ao lado do índice, nunca embutido nele.** Quem interpreta é a pessoa.
+- **"Margem comprimida" tem piso.** A tese de margem baixa num alvo é upside de eficiência:
+  uma empresa de 4% pode chegar a 12% sob gestão nova. Essa tese não sobrevive a EBITDA
+  negativo. Abaixo de zero o sinal vira **prejuízo operacional**, que pontua para *candidata
+  a venda*, não para *alvo*. Sem esse piso o motor colocava a OSX Brasil (recuperação
+  judicial, 8 empregados) como alvo de aquisição nº 1 da base real, exibindo "possível upside
+  de eficiência" ao lado de uma margem de −293,9%.
+- **Nenhuma decisão sem responsável nomeado**, e a trilha não pode ser apagada — 58% aplicam
+  revisão humana, 45% exigem accountability explícita, e 0% dizem não tomar medida alguma.
+- O modal separa claramente *sinais*, *score por papel*, *evidência*, *triagem* e
+  *transparência dos dados*, e repete o aviso de que não é recomendação de transação.
+- O CSV exportado inclui cabeçalho de aviso e **carrega a rastreabilidade junto** — fontes,
+  lastro, sinais sem documentação e histórico de triagem.
+
+### O que o protótipo deliberadamente não faz
+
+Não recomenda transação, não faz valuation, não sugere preço nem estrutura, não redige
+aproximação ao alvo. A aceitação de liderança da IA cai de 46% (montar listas) para 22%
+(decidir assinar) — o produto para onde o mercado para.
 
 ---
 
@@ -93,6 +201,13 @@ Tudo abaixo é **hipótese do protótipo**, não decisão de negócio:
 2. **Filtros e faixas** — quais fazem sentido para a originação real da GHT4.
 3. **Definição dos 3 papéis** — se essa é a taxonomia certa (ou se há outras categorias).
 4. **Sinais e pesos do score** — quais sinais antecipam transações e quanto cada um vale.
+   - **A GHT4 faz distressed?** É a pergunta que decide o item seguinte. Hoje o papel *alvo*
+     ainda pontua `situação especial` (+12) e `crescimento` (+22), então empresas em
+     recuperação judicial continuam aparecendo entre os primeiros alvos da base real — a OSX
+     e a Bardella ficam em 57, empatadas com a TS Agro, que é saudável. Isso está **certo**
+     se a casa faz distressed e **errado** se não faz. O protótipo não decide isso sozinho:
+     se a resposta for "não fazemos", tire `situacao_especial` dos pesos de `alvo` e
+     considere exigir EBITDA positivo para o sinal de crescimento contar como consolidação.
 5. **Escala do score** — número (0–100), faixas (A/B/C) ou apenas ranqueamento.
 6. **Fontes de dados** — quais alimentarão o sistema e com que frequência/confiança.
 7. **Significado de "confiança" e "origem"** — padronizar os rótulos com o time.

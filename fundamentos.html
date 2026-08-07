@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GHT4 · Fundamentos — por que o agente é assim</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%237C2B29'/%3E%3Ctext x='16' y='21.5' font-family='system-ui,sans-serif' font-size='14' font-weight='600' fill='%23F1E7D6' text-anchor='middle'%3EG4%3C/text%3E%3C/svg%3E" />
+<style>
+  :root{
+    --ink:#16211C; --ink-2:#33403A; --muted:#5C665E;
+    --paper:#E7E0D0; --paper-2:#EFEADE; --card:#F5F1E8;
+    --rule:#CFC6B2; --rule-strong:#B7AC93;
+    --oxblood:#7C2B29; --oxblood-deep:#5E1F1E; --brass:#9A7B45;
+
+    /* Marcas de dado — mesma paleta validada do razão (ver index.html).
+       Aqui os gráficos são de série única (magnitude), então usam UM hue. */
+    --alvo:#127A4F;       --alvo-ink:#2E5A46;      --alvo-bg:#E1E7DC;
+    --comprador:#2E6BD6;  --comprador-ink:#2C4A6E; --comprador-bg:#DFE4EA;
+    --vendedora:#C07C0A;  --vendedora-ink:#8A5320; --vendedora-bg:#EEE4D2;
+    --inferido:#C0392F;
+
+    --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-synthesis:none;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.5;
+    -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+  h1,h2,h3{font-weight:600;margin:0}
+  ::selection{background:rgba(22,33,28,.12)}
+  .eyebrow{font:600 11px/1.2 var(--sans);letter-spacing:.03em;color:var(--muted)}
+
+  .confid-strip{background:var(--oxblood);color:#F1E7D6;padding:7px 20px;
+    font:500 11px/1.4 var(--sans);display:flex;gap:10px;align-items:center;justify-content:center;
+    text-align:center;flex-wrap:wrap}
+  .confid-strip b{color:#fff;font-weight:700}
+  .confid-strip .sep{color:rgba(241,231,214,.5)}
+
+  header.masthead{padding:22px 30px 0;display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap}
+  .seal-mono{width:52px;height:52px;border-radius:50%;flex:0 0 auto;
+    background:radial-gradient(circle at 35% 30%,#94322f,var(--oxblood-deep));
+    display:flex;align-items:center;justify-content:center;font-weight:600;font-size:21px;color:#F1E7D6;
+    box-shadow:inset 0 0 0 1.5px rgba(241,231,214,.35),inset 0 0 0 4px var(--oxblood)}
+  .mh-title h1{font-size:23px;line-height:1.1}
+  .mh-title .eyebrow{margin-bottom:7px}
+  .mh-title .desc{font-size:12.5px;color:var(--muted);margin-top:4px;max-width:560px}
+  .mh-spacer{flex:1}
+  .mh-link{font:600 11.5px/1 var(--sans);color:var(--ink-2);text-decoration:none;
+    border-bottom:1.5px solid var(--rule-strong);padding-bottom:3px;white-space:nowrap}
+  .mh-link:hover{border-bottom-color:var(--ink);color:var(--ink)}
+  .mh-rule{height:0;border-top:1px solid var(--rule-strong);margin:18px 30px 0;position:relative}
+  .mh-rule::after{content:"";position:absolute;left:0;top:-1px;width:120px;border-top:2px solid var(--ink)}
+
+  main{max-width:1000px;margin:0 auto;padding:30px 30px 70px}
+  section{margin-bottom:46px}
+  .sec-title{font:700 12px/1 var(--sans);letter-spacing:.01em;color:var(--ink-2);
+    margin:0 0 16px;display:flex;align-items:center;gap:12px}
+  .sec-title::after{content:"";flex:1;border-top:1px solid var(--rule)}
+  .sec-title .num{font-size:16px;font-weight:600;color:var(--muted);min-width:22px}
+
+  .lead{font-size:16.5px;line-height:1.55;color:var(--ink);max-width:62ch;margin:0 0 14px}
+  .lead b{font-weight:600}
+  p.body{font-size:13.5px;line-height:1.65;color:var(--ink-2);max-width:68ch;margin:0 0 12px}
+  p.body b{color:var(--ink)}
+
+  .quote{border-left:3px solid var(--rule-strong);padding:2px 0 2px 18px;margin:18px 0;max-width:62ch}
+  .quote .q{font-size:15px;line-height:1.5;font-style:italic;color:var(--ink)}
+  .quote .a{font-size:11.5px;color:var(--muted);margin-top:7px}
+
+  /* ---- painéis de número (nenhum gráfico: um número é um número) ---- */
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:0;
+    border:1px solid var(--rule);border-radius:2px;overflow:hidden;background:var(--paper-2)}
+  .tile{padding:17px 19px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+  .tile .n{font-size:34px;font-weight:600;line-height:1;color:var(--ink);letter-spacing:-.01em}
+  .tile .t{font-size:12.5px;color:var(--ink-2);margin-top:9px;line-height:1.45}
+
+  /* ---- gráfico de barras: série única, magnitude, um hue ---- */
+  .chart{border:1px solid var(--rule);border-radius:2px;background:var(--card);padding:18px 20px 14px;margin-bottom:16px}
+  .chart-h{font-size:13.5px;font-weight:600;line-height:1.35;margin-bottom:3px}
+  .chart-sub{font-size:11.5px;color:var(--muted);margin-bottom:16px}
+  .row{display:grid;grid-template-columns:minmax(120px,210px) 1fr;gap:14px;align-items:center;padding:5px 0}
+  @media(max-width:620px){.row{grid-template-columns:1fr;gap:3px;padding:7px 0}}
+  .row .rl{font-size:12px;color:var(--ink-2);line-height:1.3}
+  .row.hi .rl{font-weight:700;color:var(--ink)}
+  .track{position:relative;height:19px;display:flex;align-items:center}
+  .track::before{content:"";position:absolute;left:0;right:0;top:50%;border-top:1px solid var(--rule);opacity:.55}
+  .barw{position:relative;display:flex;align-items:center;gap:9px;width:100%}
+  .barf{height:11px;border-radius:0 3px 3px 0;background:var(--alvo);flex:0 0 auto;
+    transition:filter .12s}
+  .row:hover .barf{filter:brightness(1.12)}
+  .barv{font-size:12px;font-weight:600;color:var(--ink);flex:0 0 auto}
+  .row.hi .barv{color:var(--alvo-ink)}
+  .note-scope{grid-column:1/-1;font-size:11.5px;color:var(--alvo-ink);background:var(--alvo-bg);
+    border:1px solid #b9cbbd;border-radius:2px;padding:7px 11px;margin:5px 0 9px;line-height:1.45}
+  .note-scope b{font-weight:700}
+  /* Eixo em escala 0–100%: a largura da barra é a própria porcentagem, então a
+     escala precisa ir até 100. Rotular o eixo com o valor máximo da série faria
+     uma barra de 60% ocupar a largura toda e sugerir 100%. */
+  .axis{display:grid;grid-template-columns:minmax(120px,210px) 1fr;gap:14px;
+    font-size:10.5px;color:var(--muted);margin-top:11px}
+  @media(max-width:620px){.axis{grid-template-columns:1fr}}
+  .axis-scale{display:flex;justify-content:space-between;border-top:1px solid var(--rule-strong);padding-top:5px}
+
+  /* ---- tabela de decisões ---- */
+  .dec{border:1px solid var(--rule);border-radius:2px;overflow:hidden;background:var(--card)}
+  .dec-item{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--rule)}
+  @media(max-width:720px){.dec-item{grid-template-columns:1fr}}
+  .dec-item:last-child{border-bottom:none}
+  .dec-l{padding:15px 18px;border-right:1px solid var(--rule)}
+  @media(max-width:720px){.dec-l{border-right:none;border-bottom:1px dashed var(--rule)}}
+  .dec-r{padding:15px 18px;background:var(--paper-2)}
+  .dec-k{font:700 9.5px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+  .dec-t{font-size:13.5px;font-weight:600;line-height:1.35;margin-bottom:5px}
+  .dec-d{font-size:12.5px;color:var(--ink-2);line-height:1.55}
+  .dec-d b{color:var(--ink)}
+  .dec-stat{display:inline-block;font-size:15px;font-weight:600;color:var(--alvo-ink);margin-right:7px}
+
+  /* ---- tensão / caixa de alerta ---- */
+  .warnbox{border:1px solid #d5b3b0;border-left:3px solid var(--oxblood);border-radius:2px;
+    background:#f6eae8;padding:17px 20px}
+  .warnbox h3{font-size:14.5px;margin-bottom:9px;color:var(--oxblood-deep)}
+  .warnbox p{font-size:13px;line-height:1.6;color:var(--ink-2);margin:0 0 10px;max-width:70ch}
+  .warnbox p:last-child{margin-bottom:0}
+  .warnbox b{color:var(--ink)}
+
+  /* ---- perguntas abertas ---- */
+  .qs{list-style:none;padding:0;margin:0;counter-reset:q}
+  /* Sem flex aqui: o <li> tem texto e <b> soltos como filhos, e num container
+     flex cada <b> viraria uma coluna. O contador vai posicionado. */
+  .qs li{counter-increment:q;position:relative;padding:11px 0 11px 32px;
+    border-bottom:1px solid var(--rule);font-size:13.5px;line-height:1.55;color:var(--ink-2)}
+  .qs li:last-child{border-bottom:none}
+  .qs li::before{content:counter(q);position:absolute;left:0;top:13px;
+    font-weight:600;color:var(--muted);font-size:12.5px}
+  .qs li b{color:var(--ink)}
+
+  .method{font-size:11.5px;color:var(--muted);line-height:1.7;border-top:1px solid var(--rule);
+    padding-top:16px;margin-top:8px}
+  .method b{color:var(--ink-2)}
+
+  footer.pagefoot{padding:24px 30px;border-top:1px solid var(--rule);color:var(--muted);
+    font-size:11.5px;text-align:center;line-height:1.7}
+
+  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="confid-strip">
+  <b>Confidencial</b><span class="sep">·</span>
+  <span>Documento de apoio à reunião de levantamento</span><span class="sep">·</span>
+  <span>dados de pesquisa reais · protótipo com empresas fictícias</span>
+</div>
+
+<header class="masthead">
+  <div class="seal-mono">G4</div>
+  <div class="mh-title">
+    <div class="eyebrow">GHT4 · Fusões &amp; Aquisições</div>
+    <h1>Fundamentos</h1>
+    <div class="desc">Por que o agente de prospecção foi desenhado assim — cada escolha
+      ancorada no que 1.000 dealmakers responderam.</div>
+  </div>
+  <div class="mh-spacer"></div>
+  <a class="mh-link" href="index.html">&larr; Voltar ao razão</a>
+</header>
+<div class="mh-rule"></div>
+
+<main>
+
+  <!-- ============ 1. A TESE ============ -->
+  <section>
+    <div class="sec-title"><span class="num">I</span> A tese</div>
+    <p class="lead">
+      A IA absorve a primeira metade do negócio. <b>A última milha continua humana — e ficou mais
+      valiosa, não menos.</b>
+    </p>
+    <p class="body">
+      Esta é a conclusão central de <b>“The New Deal Team”</b>, pesquisa que a Datasite encomendou
+      à FT Longitude em março de 2026 com 1.000 dealmakers de nível C-suite e C-1, todos com papel
+      de decisão em pelo menos três operações nos últimos dois anos. O protótipo da GHT4 foi
+      construído a partir dela: o que segue não é opinião de quem desenhou a ferramenta, é o que
+      o mercado respondeu.
+    </p>
+
+    <div class="quote">
+      <div class="q">“A IA é tão poderosa que corta os primeiros 50% de cada negócio e me deixa
+        focar esses mesmos dias nos últimos 50% — e é ali que eu realmente faço diferença. É onde
+        se discute quanto vamos pagar, como estruturar, como trazer um fundador para a mesa.”</div>
+      <div class="a">Chine Mmegwa · Head of Strategy, Corporate Development &amp; Operations, Match Group</div>
+    </div>
+
+    <div class="tiles">
+      <div class="tile"><div class="n">71%</div><div class="t">acreditam que quem ignorar IA não conseguirá competir em cinco anos</div></div>
+      <div class="tile"><div class="n">62%</div><div class="t">dizem que decisão exclusivamente humana já não é defensável em operações complexas</div></div>
+      <div class="tile"><div class="n">66%</div><div class="t">veem o uso de IA no ciclo do negócio como forma crucial de reduzir risco</div></div>
+      <div class="tile"><div class="n">24%</div><div class="t">temem que o <b>mau</b> uso de IA destrua operações de alto valor até 2031</div></div>
+    </div>
+  </section>
+
+  <!-- ============ 2. POR QUE ESTA ETAPA ============ -->
+  <section>
+    <div class="sec-title"><span class="num">II</span> Por que atacar a originação primeiro</div>
+    <p class="body">
+      O agente não tenta cobrir o negócio inteiro. Ele ataca <b>sourcing &amp; screening</b> — a
+      etapa de encontrar e filtrar alvos. A pesquisa mostra que essa é a escolha de maior retorno
+      disponível para uma boutique.
+    </p>
+
+    <div class="chart">
+      <div class="chart-h">Retorno sobre investimento em IA, por etapa do negócio</div>
+      <div class="chart-sub">% que ranqueou a etapa entre as três de melhor retorno · n=1.000 · Datasite/FT Longitude, 2026</div>
+      <div class="row hi"><div class="rl">Due diligence</div><div class="track"><div class="barw"><div class="barf" style="width:60%"></div><span class="barv">60%</span></div></div></div>
+      <div class="row hi"><div class="rl">Sourcing &amp; screening</div><div class="track"><div class="barw"><div class="barf" style="width:56%"></div><span class="barv">56%</span></div></div></div>
+      <div class="note-scope">
+        <b>O escopo do protótipo.</b> Due diligence exige acesso a data room e mandato firmado —
+        não é originação. Sourcing &amp; screening é a etapa de maior retorno que uma boutique
+        consegue atacar <b>antes</b> de ter o mandato. É onde este agente atua.
+      </div>
+      <div class="row"><div class="rl">Deal marketing</div><div class="track"><div class="barw"><div class="barf" style="width:46%"></div><span class="barv">46%</span></div></div></div>
+      <div class="row"><div class="rl">Preparação do negócio</div><div class="track"><div class="barw"><div class="barf" style="width:46%"></div><span class="barv">46%</span></div></div></div>
+      <div class="row"><div class="rl">Estratégia &amp; ideação</div><div class="track"><div class="barw"><div class="barf" style="width:42%"></div><span class="barv">42%</span></div></div></div>
+      <div class="row"><div class="rl">Reporte ao conselho</div><div class="track"><div class="barw"><div class="barf" style="width:29%"></div><span class="barv">29%</span></div></div></div>
+      <div class="row"><div class="rl">Fechamento</div><div class="track"><div class="barw"><div class="barf" style="width:19%"></div><span class="barv">19%</span></div></div></div>
+      <div class="axis"><span></span><div class="axis-scale"><span>0%</span><span>50%</span><span>100%</span></div></div>
+    </div>
+
+    <p class="body">
+      O outro lado do mesmo dado: <b>96% dos dealmakers já usam ou exploram IA em sourcing &amp;
+      screening</b> — só 4% não usam de forma alguma. Já no fechamento, 31% não usam nada. A
+      tecnologia entrou onde o trabalho é de leitura, pesquisa e checagem contra critérios; não
+      entrou onde o trabalho é relação humana. O protótipo respeita essa fronteira: <b>ele para na
+      priorização</b> e entrega a lista para uma pessoa trabalhar.
+    </p>
+  </section>
+
+  <!-- ============ 3. QUEM DECIDE ============ -->
+  <section>
+    <div class="sec-title"><span class="num">III</span> Quem decide o quê</div>
+    <p class="body">
+      Esta é a pergunta que define a arquitetura do produto. A pesquisa perguntou onde a autoridade
+      de decisão <b>deveria</b> estar, em sete situações do negócio.
+    </p>
+
+    <div class="chart">
+      <div class="chart-h">Situações em que se aceita que a IA lidere a decisão</div>
+      <div class="chart-sub">% que aceita “IA recomenda, humano aprova” ou “decisão só da IA” · Datasite/FT Longitude, 2026</div>
+      <div class="row hi"><div class="rl">Identificar alvos e montar listas</div><div class="track"><div class="barw"><div class="barf" style="width:46%"></div><span class="barv">46%</span></div></div></div>
+      <div class="note-scope">
+        <b>É exatamente o que o agente faz.</b> Montar listas de alvos é a tarefa do negócio inteiro
+        com maior aceitação de liderança da IA — e a única em que uma parcela não trivial (7%)
+        aceitaria decisão totalmente automatizada. Mesmo assim, <b>84% querem uma pessoa no
+        circuito.</b> Daí o desenho: a ferramenta recomenda e explica; alguém tria, decide e assina.
+      </div>
+      <div class="row"><div class="rl">Apontar sinais de alerta na diligência</div><div class="track"><div class="barw"><div class="barf" style="width:45%"></div><span class="barv">45%</span></div></div></div>
+      <div class="row"><div class="rl">Avaliar se um risco afeta o valuation</div><div class="track"><div class="barw"><div class="barf" style="width:35%"></div><span class="barv">35%</span></div></div></div>
+      <div class="row"><div class="rl">Recomendar estrutura ou termos</div><div class="track"><div class="barw"><div class="barf" style="width:33%"></div><span class="barv">33%</span></div></div></div>
+      <div class="row"><div class="rl">Avançar um alvo de etapa</div><div class="track"><div class="barw"><div class="barf" style="width:30%"></div><span class="barv">30%</span></div></div></div>
+      <div class="row"><div class="rl">Recomendar método de integração</div><div class="track"><div class="barw"><div class="barf" style="width:25%"></div><span class="barv">25%</span></div></div></div>
+      <div class="row"><div class="rl">Decidir assinar o negócio</div><div class="track"><div class="barw"><div class="barf" style="width:22%"></div><span class="barv">22%</span></div></div></div>
+      <div class="axis"><span></span><div class="axis-scale"><span>0%</span><span>50%</span><span>100%</span></div></div>
+    </div>
+
+    <p class="body">
+      A curva é nítida: quanto mais perto da assinatura, menos espaço para a máquina. <b>45% dizem
+      que a decisão de assinar deve ser inteiramente humana</b> — a única situação das sete em que
+      a resposta “inteiramente humana” é a maioria relativa. É por isso que o agente da GHT4 não
+      tem nenhuma função que se aproxime de recomendar uma transação.
+    </p>
+  </section>
+
+  <!-- ============ 4. O QUE A MÁQUINA NÃO FAZ ============ -->
+  <section>
+    <div class="sec-title"><span class="num">IV</span> O que a máquina não faz</div>
+    <p class="body">
+      A pesquisa perguntou quais atributos humanos são mais difíceis de replicar. A lista é, na
+      prática, a descrição do trabalho que continua sendo dos sócios da GHT4.
+    </p>
+
+    <div class="chart">
+      <div class="chart-h">Atributos humanos mais difíceis de a IA replicar</div>
+      <div class="chart-sub">% que apontou o atributo · Datasite/FT Longitude, 2026</div>
+      <div class="row"><div class="rl">Negociação e relacionamento</div><div class="track"><div class="barw"><div class="barf" style="width:52%"></div><span class="barv">52%</span></div></div></div>
+      <div class="row"><div class="rl">Julgamento estratégico e priorização</div><div class="track"><div class="barw"><div class="barf" style="width:49%"></div><span class="barv">49%</span></div></div></div>
+      <div class="row"><div class="rl">Decidir sob incerteza e informação incompleta</div><div class="track"><div class="barw"><div class="barf" style="width:47%"></div><span class="barv">47%</span></div></div></div>
+      <div class="row"><div class="rl">Avaliar confiança e intenção da contraparte</div><div class="track"><div class="barw"><div class="barf" style="width:40%"></div><span class="barv">40%</span></div></div></div>
+      <div class="row"><div class="rl">Responder por decisões de alto risco</div><div class="track"><div class="barw"><div class="barf" style="width:39%"></div><span class="barv">39%</span></div></div></div>
+      <div class="row"><div class="rl">Interpretar nuance e risco não óbvio</div><div class="track"><div class="barw"><div class="barf" style="width:39%"></div><span class="barv">39%</span></div></div></div>
+      <div class="row"><div class="rl">Julgamento ético e responsabilidade</div><div class="track"><div class="barw"><div class="barf" style="width:34%"></div><span class="barv">34%</span></div></div></div>
+      <div class="axis"><span></span><div class="axis-scale"><span>0%</span><span>50%</span><span>100%</span></div></div>
+    </div>
+
+    <div class="quote">
+      <div class="q">“A IA só consegue te dar um resumo de tudo que já existiu, não a nuance por
+        trás. Ela sabe quais são os pontos do negócio, mas não por que alguém brigou por um deles
+        ou deixou outro passar. Isso eu só descubro conversando com o fundador.”</div>
+      <div class="a">Chine Mmegwa · Match Group</div>
+    </div>
+  </section>
+
+  <!-- ============ 5. DECISÕES DE PRODUTO ============ -->
+  <section>
+    <div class="sec-title"><span class="num">V</span> Cada decisão do produto, e o número que a sustenta</div>
+    <p class="body">
+      O que está construído no protótipo, e por quê. À esquerda, o que a ferramenta faz. À direita,
+      o dado que motivou a escolha.
+    </p>
+
+    <div class="dec">
+
+      <div class="dec-item">
+        <div class="dec-l">
+          <div class="dec-k">O que a ferramenta faz</div>
+          <div class="dec-t">Cada sinal abre a fonte que o sustenta</div>
+          <div class="dec-d">No dossiê de cada empresa, a afirmação aparece de um lado e o documento
+            de origem do outro — veículo, data, nível de confiança e o trecho citado.</div>
+        </div>
+        <div class="dec-r">
+          <div class="dec-k">Por quê</div>
+          <div class="dec-d"><span class="dec-stat">43%</span> apontam transparência sobre como o
+            resultado foi gerado como passo para confiar em IA. Os dois casos de referência do
+            relatório — <b>Freshfields Lab</b> e <b>Blueflame AI</b> — implementam a mesma tela:
+            resposta de um lado, documento original do outro.</div>
+        </div>
+      </div>
+
+      <div class="dec-item">
+        <div class="dec-l">
+          <div class="dec-k">O que a ferramenta faz</div>
+          <div class="dec-t">Declara o que <em>não</em> sabe</div>
+          <div class="dec-d">Quando um sinal pesa no índice mas ninguém anexou fonte, o sistema
+            marca a lacuna em vermelho e alerta antes que o registro vá ao cliente. Não omite.</div>
+        </div>
+        <div class="dec-r">
+          <div class="dec-k">Por quê</div>
+          <div class="dec-d"><span class="dec-stat">24%</span> acreditam que o mau uso de IA vai
+            destruir operações de alto valor. O risco citado nas entrevistas é sempre o mesmo:
+            resultado não verificado sendo apresentado como fato.</div>
+        </div>
+      </div>
+
+      <div class="dec-item">
+        <div class="dec-l">
+          <div class="dec-k">O que a ferramenta faz</div>
+          <div class="dec-t">Mostra o lastro ao lado do índice</div>
+          <div class="dec-d">Uma barra revela quanto do índice vem de documento, quanto de
+            indicador financeiro e quanto está inferido sem fonte. O lastro fica <b>ao lado</b> do
+            número, nunca embutido nele — quem interpreta é a pessoa.</div>
+        </div>
+        <div class="dec-r">
+          <div class="dec-k">Por quê</div>
+          <div class="dec-d"><span class="dec-stat">71%</span> colocam acurácia como o atributo
+            mais importante ao trabalhar com IA — acima de segurança (70%), confiabilidade (58%) e
+            velocidade (57%). Um índice alto sobre boato não vale o mesmo que um índice alto sobre
+            registro público.</div>
+        </div>
+      </div>
+
+      <div class="dec-item">
+        <div class="dec-l">
+          <div class="dec-k">O que a ferramenta faz</div>
+          <div class="dec-t">Exige um responsável nomeado</div>
+          <div class="dec-d">Nenhum registro muda de estado sem alguém assinar a decisão. O nome, a
+            data, o estado anterior e a justificativa entram numa trilha que não pode ser apagada.</div>
+        </div>
+        <div class="dec-r">
+          <div class="dec-k">Por quê</div>
+          <div class="dec-d"><span class="dec-stat">58%</span> aplicam revisão humana aos resultados
+            e <span class="dec-stat">45%</span> estabelecem responsabilização explícita por decisões
+            informadas por IA. <b>Nenhum respondente — 0% — disse não tomar medida alguma.</b></div>
+        </div>
+      </div>
+
+      <div class="dec-item">
+        <div class="dec-l">
+          <div class="dec-k">O que a ferramenta faz</div>
+          <div class="dec-t">Para na priorização</div>
+          <div class="dec-d">O agente organiza, pontua e explica. Não recomenda transação, não faz
+            valuation, não sugere preço nem estrutura, não redige aproximação ao alvo.</div>
+        </div>
+        <div class="dec-r">
+          <div class="dec-k">Por quê</div>
+          <div class="dec-d">A aceitação de IA despenca conforme o negócio avança: <b>46%</b> na
+            montagem de listas, <b>30%</b> para avançar um alvo de etapa, <b>22%</b> para decidir
+            assinar. O produto para onde o mercado para.</div>
+        </div>
+      </div>
+
+      <div class="dec-item">
+        <div class="dec-l">
+          <div class="dec-k">O que a ferramenta faz</div>
+          <div class="dec-t">O CSV carrega a rastreabilidade junto</div>
+          <div class="dec-d">A exportação leva as fontes citadas, o lastro, os sinais sem
+            documentação e o histórico de triagem — não só nome e nota.</div>
+        </div>
+        <div class="dec-r">
+          <div class="dec-k">Por quê</div>
+          <div class="dec-d">Uma lista que sai da ferramenta e perde a origem vira afirmação sem
+            lastro na mão de quem a recebe. <span class="dec-stat">52%</span> só usam IA em ambiente
+            controlado; a rastreabilidade precisa viajar com o dado.</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ 6. A TENSÃO ============ -->
+  <section>
+    <div class="sec-title"><span class="num">VI</span> A questão a decidir com os sócios</div>
+    <div class="warnbox">
+      <h3>Este agente não usa IA generativa — e isso é uma escolha</h3>
+      <p>
+        O motor que pontua as empresas é <b>determinístico</b>: regras explícitas com pesos fixos,
+        editáveis em um arquivo. Não há modelo de linguagem em lugar nenhum do cálculo. É preciso
+        dizer isso com todas as letras, porque a palavra “agente” cria outra expectativa.
+      </p>
+      <p>
+        A favor da escolha: um motor de regras <b>não alucina</b> e é auditável linha a linha — dá
+        para reconstituir exatamente por que cada empresa recebeu seu índice. Isso responde
+        diretamente ao risco que 24% dos dealmakers apontam e ao atributo que 71% classificam como
+        mais importante. Num setor onde uma recomendação mal fundamentada custa reputação, ser
+        explicável é posicionamento, não limitação.
+      </p>
+      <p>
+        Contra: <b>não escala</b>. As 32 empresas do protótipo estão escritas à mão. O benefício
+        que os dealmakers mais esperam da IA em sourcing até 2030 é justamente <b>dar conta de um
+        volume maior</b> (23%). Com trinta empresas digitadas, não há volume.
+      </p>
+      <p>
+        <b>O caminho que a pesquisa sugere:</b> a IA generativa entra na <b>coleta</b> — ler
+        notícias, atas, registros de junta comercial, editais e extrair sinais candidatos, sempre
+        com a fonte anexada — e o <b>cálculo permanece determinístico</b>. Assim a escala vem da
+        leitura automática e a explicabilidade se mantém no score. É a arquitetura que o Freshfields
+        Lab descreve: a IA monta e cruza o material, a pessoa valida antes de virar conclusão.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ 7. O QUE FALTA DECIDIR ============ -->
+  <section>
+    <div class="sec-title"><span class="num">VII</span> O que só os sócios podem decidir</div>
+    <p class="body">
+      Tudo abaixo é hipótese do protótipo. Nenhuma destas escolhas foi tomada com base na pesquisa —
+      elas dependem da tese da GHT4, e são o objeto da reunião.
+    </p>
+    <ul class="qs">
+      <li><b>Setores e recorte.</b> Os quatro atuais (Saúde, Tecnologia, Varejo, Energia) são
+        ilustrativos. Onde a GHT4 tem tese, relacionamento ou histórico de mandato?</li>
+      <li><b>Os três papéis.</b> Alvo, comprador e candidata a venda é a taxonomia certa? Uma mesma
+        empresa pode ocupar dois papéis ao mesmo tempo?</li>
+      <li><b>Sinais e pesos.</b> Quais sinais realmente antecipam uma transação na experiência de
+        vocês, e quanto cada um vale? Algum é eliminatório?</li>
+      <li><b>Escala do índice.</b> Número de 0 a 100, faixas A/B/C, ou apenas ordenação relativa?</li>
+      <li><b>Fontes.</b> Quais bases alimentam o sistema, com que frequência, e sob quais
+        restrições de licenciamento?</li>
+      <li><b>Confidencialidade.</b> Quem vê o quê, onde os dados residem, e como respeitar barreiras
+        de informação entre mandatos. <b>Entre assessores, segurança é o atributo nº 1</b> — acima
+        de acurácia — justamente por lidarem com dado sensível de clientes.</li>
+      <li><b>Fluxo pós-priorização.</b> A lista vira tarefa, entra no CRM, gera um one-pager?</li>
+      <li><b>Métrica de sucesso.</b> E a pergunta que mais muda o desenho do score: <b>o que custa
+        mais caro — perder tempo com uma empresa irrelevante, ou deixar passar um bom alvo?</b></li>
+    </ul>
+  </section>
+
+  <div class="method">
+    <b>Fonte.</b> Datasite / FT Longitude, <i>“The New Deal Team: What 1,000 dealmakers reveal about
+    AI-driven M&amp;A”</i>, março de 2026. Amostra de 1.000 dealmakers de nível C-suite e C-1, todos
+    com papel de decisão em ao menos três operações nos dois anos anteriores. Américas 40%, EMEA 35%,
+    APAC 25%. Corporates 24%, professional services 25%, escritórios de advocacia 18%, private equity
+    16%, corporates regulados 10%, contabilidade 8%.
+    <b>Ressalva de leitura:</b> o Brasil responde por 23 dos 1.000 respondentes, e a amostra é
+    dominada por mercados maduros e empresas grandes (66% acima de 500 funcionários). As proporções
+    devem ser lidas como direção do mercado global, não como medida do middle market brasileiro —
+    o que reforça a necessidade de calibrar os critérios com a experiência dos sócios.
+    <b>Percentuais</b> podem não somar 100% por arredondamento.
+  </div>
+
+</main>
+
+<footer class="pagefoot">
+  GHT4 — Boutique de Fusões e Aquisições · Documento de apoio ao levantamento de requisitos.<br/>
+  Os dados de pesquisa citados são reais e atribuídos à fonte. As empresas do protótipo são fictícias.
+</footer>
+
+</body>
+</html>
