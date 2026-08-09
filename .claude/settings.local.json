@@ -11,7 +11,21 @@
       "PowerShell(Start-Process \"http://localhost:8765/\"; Write-Output \"Aberto no navegador padrao: http://localhost:8765/\")",
       "Bash(curl -s http://localhost:8765/)",
       "mcp__claude_ai_Gamma__get_generation_status",
-      "PowerShell(Start-Process \"http://localhost:8765/\"; Write-Output \"Reaberto: http://localhost:8765/ \\(ou apenas atualize a aba ja aberta com F5\\)\"2)"
+      "PowerShell(Start-Process \"http://localhost:8765/\"; Write-Output \"Reaberto: http://localhost:8765/ \\(ou apenas atualize a aba ja aberta com F5\\)\"2)",
+      "Bash(python -c \"import pypdf; print\\('pypdf ok'\\)\")",
+      "Bash(python -c \"import fitz; print\\('pymupdf ok'\\)\")",
+      "Bash(python -c \"import pdfplumber; print\\('pdfplumber ok'\\)\")",
+      "Bash(mkdir -p /c/Users/Leonardo/.pdftmp)",
+      "Read(//c/Users/Leonardo/**)",
+      "Bash(npm init *)",
+      "Bash(npm i *)",
+      "PowerShell(Set-Location *)",
+      "Bash(curl -s -o /dev/null -w \"GET %{http_code}\\\\n\" https://21st.dev/api/mcp)",
+      "Bash(curl -s -X POST https://21st.dev/api/mcp -H \"Content-Type: application/json\" -H \"Accept: application/json, text/event-stream\" -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"t\",\"version\":\"1\"}}}' -w \"\\\\n[http %{http_code}]\\\\n\")",
+      "mcp__21st__get_usage",
+      "mcp__21st__search",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
