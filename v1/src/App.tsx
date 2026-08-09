@@ -60,6 +60,15 @@ const MARCA_PAPEL: Record<Papel, string> = {
   vendedora: 'bg-vendedora',
 }
 
+/* Os quatro critérios que mais aparecem em screening de boutique e que a DFP
+   consegue responder. Ligados, viram exigência (AND) — ver `alternarExigencia`. */
+const EXIGENCIAS: [string, string, string][] = [
+  ['balanco_desalavancado', 'Balanço limpo', 'Dívida líquida até 1,5× o EBITDA'],
+  ['conversao_caixa_alta', 'EBITDA vira caixa', '70% ou mais do EBITDA vira caixa operacional'],
+  ['margem_em_expansao', 'Margem subindo', 'Margem EBITDA subiu ao menos 2 p.p. no exercício'],
+  ['sem_ressalvas', 'Sem ressalvas', 'Nenhuma ressalva de triagem ativa'],
+]
+
 export default function App() {
   const [base, setBase] = useState<ChaveBase>('demo')
   const [temReal, setTemReal] = useState(false)
@@ -70,6 +79,11 @@ export default function App() {
   const [faixaReceita, setFaixaReceita] = useState<Faixa>(null)
   const [faixaCrescimento, setFaixaCrescimento] = useState<Faixa>(null)
   const [faixaMargem, setFaixaMargem] = useState<Faixa>(null)
+
+  /* Semântica INVERSA à de `papeisAtivos`: aquele começa cheio e serve para
+     excluir; este começa VAZIO e cada item ligado impõe uma exigência. É o
+     gesto de apertar o funil, não o de filtrar uma lista. */
+  const [exigencias, setExigencias] = useState<Set<string>>(new Set())
 
   /* `selecionada` sobrevive ao fechamento de propósito: se zerasse junto, o
      dossiê ficaria vazio durante a animação de saída da gaveta. */
@@ -128,6 +142,15 @@ export default function App() {
         if (!dentro(e.receita, faixaReceita, limites.receita)) return false
         if (!dentro(e.crescimento, faixaCrescimento, limites.crescimento)) return false
         if (!dentro(e.margemEbitda, faixaMargem, limites.margem)) return false
+        /* Exigência é AND. Empresa sem o dado publicado reprova — dar por
+           atendido o que não foi verificado é o erro que gera falso positivo. */
+        for (const ex of exigencias) {
+          if (ex === 'sem_ressalvas') {
+            if (e.ressalvas.length) return false
+            continue
+          }
+          if (!e.sinais.some((s) => s.chave === ex)) return false
+        }
         if (q) {
           const alvo = `${e.nome} ${e.subsetor} ${e.setor} ${e.cidade}`.toLowerCase()
           if (!alvo.includes(q)) return false
@@ -143,6 +166,7 @@ export default function App() {
     faixaReceita,
     faixaCrescimento,
     faixaMargem,
+    exigencias,
     limites,
   ])
 
@@ -151,7 +175,8 @@ export default function App() {
   const filtrando =
     Boolean(busca || setor) ||
     papeisAtivos.size < PAPEIS.length ||
-    Boolean(faixaReceita || faixaCrescimento || faixaMargem)
+    Boolean(faixaReceita || faixaCrescimento || faixaMargem) ||
+    exigencias.size > 0
 
   function limparFiltros() {
     setBusca('')
@@ -160,6 +185,16 @@ export default function App() {
     setFaixaReceita(null)
     setFaixaCrescimento(null)
     setFaixaMargem(null)
+    setExigencias(new Set())
+  }
+
+  function alternarExigencia(chave: string) {
+    setExigencias((atual) => {
+      const proximo = new Set(atual)
+      if (proximo.has(chave)) proximo.delete(chave)
+      else proximo.add(chave)
+      return proximo
+    })
   }
 
   function abrirDossie(e: EmpresaAvaliada) {
@@ -232,7 +267,7 @@ export default function App() {
                 </button>
               ))}
           </div>
-          <p className="mt-2 max-w-prose text-[11.5px] leading-relaxed text-suave">{def.nota}</p>
+          <p className="mt-2 max-w-prose text-[11.5px] leading-relaxed text-suave">{def.nota()}</p>
           {!temReal && (
             <p className="mt-1 text-[11.5px] text-lacre">
               Base da CVM ausente — rode <code className="rounded bg-tinta/6 px-1">node ferramentas/importar-cvm.mjs</code> na raiz.
@@ -284,6 +319,33 @@ export default function App() {
               ))}
             </div>
           </div>
+
+          {/* Só faz sentido na base da CVM: `data.js` não modela dívida,
+              liquidez nem fluxo de caixa, então exigir "balanço limpo" ali
+              zeraria a lista por ausência de dado, não por reprovação. */}
+          {base === 'cvm' && (
+            <div>
+              <span className="mb-1 block text-[11px] font-semibold tracking-wide text-suave">
+                Exigir · critérios de triagem
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {EXIGENCIAS.map(([chave, rotulo, dica]) => (
+                  <button
+                    key={chave}
+                    type="button"
+                    title={dica}
+                    onClick={() => alternarExigencia(chave)}
+                    className={`rounded-ficha border px-2.5 py-1.5 text-[11px] font-semibold tracking-wide transition
+                      ${exigencias.has(chave)
+                        ? 'border-lacre bg-lacre text-papel'
+                        : 'border-fio-forte text-suave hover:border-tinta-2'}`}
+                  >
+                    {rotulo}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="ml-auto flex items-center gap-3 pb-1.5">
             {filtrando && (

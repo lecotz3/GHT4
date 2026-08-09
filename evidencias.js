@@ -236,7 +236,10 @@ function evidenciaCvm(empresa, chave) {
   const base = {
     natureza: 'estruturado',
     tipo: 'Demonstração financeira (DFP)',
-    veiculo: `CVM · Dados Abertos — DFP consolidada, código CVM ${c.codigo}`,
+    /* Consolidada e individual não descrevem o mesmo perímetro econômico: a
+       primeira soma as controladas, a segunda não. Quem lê o dossiê precisa
+       saber qual das duas está sustentando o número. */
+    veiculo: `CVM · Dados Abertos — DFP ${c.demonstrativo || 'consolidada'}, código CVM ${c.codigo}`,
     data: empresa.dataAtualizacao,
     confianca: empresa.confianca,
   };
@@ -278,6 +281,63 @@ function evidenciaCvm(empresa, chave) {
         data: empresa.dataSituacaoEspecial || empresa.dataAtualizacao,
         trecho: `O regulador registra a companhia como "${empresa.situacaoEspecial}"`
               + (empresa.dataSituacaoEspecial ? `, situação iniciada em ${empresa.dataSituacaoEspecial}.` : '.') };
+
+    /* ---- critérios de triagem: cada um cita a conta que o sustenta -------- */
+    case 'balanco_desalavancado':
+    case 'alavancagem_elevada':
+    case 'caixa_liquido':
+      return { ...base, escopo: 'empresa',
+        titulo: `Contas ${c.dividaContas} e ${c.caixaContas} — endividamento e caixa`,
+        trecho: `Empréstimos e financiamentos (${c.dividaContas}): ${reais(c.dividaBrutaValor)}. `
+              + `Caixa e aplicações financeiras (${c.caixaContas}): ${reais(c.caixaValor)}. `
+              + `Dívida líquida: ${reais(c.dividaLiquidaValor)}, `
+              + `equivalente a ${empresa.alavancagem}× o EBITDA do exercício.` };
+
+    case 'aperto_liquidez':
+      return { ...base, escopo: 'empresa',
+        titulo: `Contas ${c.circulanteContas} — ativo e passivo circulantes`,
+        trecho: `Ativo circulante (1.01): ${reais(c.ativoCirculante)}. `
+              + `Passivo circulante (2.01): ${reais(c.passivoCirculante)}. `
+              + `Liquidez corrente de ${empresa.liquidezCorrente}.` };
+
+    case 'conversao_caixa_alta':
+      return { ...base, escopo: 'empresa',
+        titulo: `Conta ${c.fcoConta} — Caixa Líquido das Atividades Operacionais`,
+        trecho: `Caixa gerado pela operação: ${reais(c.fcoValor)}, `
+              + `contra EBITDA de ${reais((c.ebitValor || 0) + (c.daValor || 0))} `
+              + `→ ${empresa.conversaoCaixa}% de conversão.` };
+
+    case 'capital_intensivo':
+      return { ...base, escopo: 'empresa',
+        titulo: `Conta ${c.investimentoConta} — Caixa Líquido das Atividades de Investimento`,
+        trecho: `Investimento líquido de ${reais(Math.abs(c.investimentoValor || 0))} `
+              + `sobre receita de ${reais(c.receitaValor)} → ${empresa.intensidadeInvestimento}%. `
+              + 'A conta 6.02 agrega imobilizado, intangível, aquisições e aplicações financeiras: '
+              + 'é intensidade de investimento, não capex isolado.' };
+
+    case 'contingencias_relevantes':
+      return { ...base, escopo: 'empresa',
+        titulo: `Contas ${c.contingenciasContas} sobre ${c.plConta}`,
+        trecho: `Obrigações sociais e trabalhistas, obrigações fiscais e provisões somam `
+              + `${reais(c.contingenciasValor)}, contra patrimônio líquido de ${reais(c.plValor)} `
+              + `→ ${empresa.contingenciasSobrePl}%. `
+              + 'Atenção ao alcance: o balanço registra o que já foi provisionado. '
+              + 'Passivo trabalhista e fiscal ainda não reconhecido não aparece em nenhuma conta — '
+              + 'é exatamente o que a due diligence vai procurar.' };
+
+    case 'patrimonio_negativo':
+      return { ...base, escopo: 'empresa',
+        titulo: `Conta ${c.plConta} — Patrimônio Líquido`,
+        trecho: `Patrimônio líquido de ${reais(c.plValor)} no exercício ${c.exercicio}: negativo.` };
+
+    case 'margem_em_expansao':
+    case 'margem_em_deterioracao':
+      return { ...base, escopo: 'empresa',
+        titulo: 'Contas 3.05 e 7.04.01 — dois exercícios',
+        trecho: `Margem EBITDA de ${empresa.margemEbitda}% no exercício ${c.exercicio}, `
+              + `contra ${(empresa.margemEbitda - empresa.variacaoMargem).toFixed(1)}% no anterior `
+              + `→ variação de ${empresa.variacaoMargem > 0 ? '+' : ''}${empresa.variacaoMargem} p.p. `
+              + 'Ambos os exercícios saem da mesma DFP, na mesma base de consolidação.' };
 
     case 'sucessao_familiar':
     case 'backing_pe':
@@ -427,6 +487,66 @@ function sinaisIndisponiveis(empresa) {
   return Object.entries(SINAIS_SEM_FONTE_PUBLICA).map(([chave, motivo]) => ({ chave, motivo }));
 }
 
+/* ---- 4b. CRITÉRIOS DE TRIAGEM QUE NENHUMA BASE PÚBLICA RESPONDE ------------
+ * Os quatro abaixo aparecem em praticamente toda descrição de screening de
+ * boutique e de private equity — e nenhum deles existe em fonte aberta, nem
+ * mesmo para companhia de capital aberto. Diferem dos sinais de EVENTO acima:
+ * aqueles faltam por ausência de registro público de acontecimentos; estes
+ * faltam porque são informação interna, que só chega via data room, entrevista
+ * com o controlador ou base proprietária.
+ *
+ * O agente os exibe declarados, com o motivo e a via de obtenção. Um critério
+ * silenciado parece critério atendido — e é assim que uma triagem gera falso
+ * positivo. Esta lista é, na prática, a pauta da primeira reunião com o alvo.
+ * -------------------------------------------------------------------------- */
+const CRITERIOS_SEM_FONTE = [
+  {
+    chave: 'concentracao_clientes',
+    rotulo: 'Concentração de clientes',
+    peso: 'Cliente único acima de 10% da receita é sinalizado como risco em '
+        + 'quality of earnings; acima de 25% costuma travar ou redesenhar o deal.',
+    motivo: 'A DFP não abre receita por cliente. A nota explicativa de segmentos, quando existe, '
+          + 'agrupa por linha de negócio ou geografia — nunca por cliente.',
+    via: 'Data room: relatório de faturamento por cliente dos últimos 24 meses.',
+  },
+  {
+    chave: 'receita_recorrente',
+    rotulo: 'Receita recorrente e retenção',
+    peso: 'Receita contratada/recorrente acima de 60% muda o múltiplo pago. '
+        + 'Churn e renovação são o que sustenta a projeção do comprador.',
+    motivo: 'A conta 3.01 traz receita total, sem separar contrato recorrente de venda avulsa. '
+          + 'Não há conta padronizada para isso.',
+    via: 'Data room: carteira de contratos, prazo médio, taxa de renovação e churn.',
+  },
+  {
+    chave: 'dependencia_fundador',
+    rotulo: 'Dependência do fundador',
+    peso: 'Operação que gira em torno de uma pessoa vira risco de execução no '
+        + 'pós-transação e costuma virar cláusula de earn-out ou lock-up.',
+    motivo: 'O cadastro da CVM traz o nome do DRI, não o grau de dependência operacional. '
+          + 'Nenhum campo público mede isso.',
+    via: 'Entrevista com o controlador e mapeamento da segunda linha de gestão.',
+  },
+  {
+    chave: 'passivo_oculto',
+    rotulo: 'Passivo trabalhista e fiscal não provisionado',
+    peso: 'Apontado como o principal "deal killer" do middle market brasileiro: '
+        + 'aparece na diligência e é descontado direto do preço.',
+    motivo: 'O balanço registra o que já foi provisionado (contas 2.01.01, 2.01.03, 2.01.06 e '
+          + '2.02.04 — o agente calcula esse pedaço). O não provisionado, por definição, não está lá.',
+    via: 'Diligência trabalhista e fiscal: certidões, processos ativos, parcelamentos '
+       + '(REFIS/PERT), FGTS e INSS dos últimos 5 anos.',
+  },
+];
+
+/**
+ * Critérios de triagem que o agente reconhece como relevantes e declara não ter
+ * como avaliar. Valem para as duas bases: a fictícia também não os modela.
+ */
+function criteriosNaoAvaliados() {
+  return CRITERIOS_SEM_FONTE;
+}
+
 /** Resumo de cobertura: quantos sinais ativos têm fonte documental. */
 function coberturaEvidencia(empresa, sinaisAtivos) {
   let documentados = 0, estruturados = 0, lacunas = 0;
@@ -440,6 +560,6 @@ function coberturaEvidencia(empresa, sinaisAtivos) {
 }
 
 window.EVIDENCIA = {
-  EVIDENCIA_SETORIAL, EVIDENCIA_EMPRESA, SINAIS_SEM_FONTE_PUBLICA,
-  evidenciaDe, coberturaEvidencia, sinaisIndisponiveis,
+  EVIDENCIA_SETORIAL, EVIDENCIA_EMPRESA, SINAIS_SEM_FONTE_PUBLICA, CRITERIOS_SEM_FONTE,
+  evidenciaDe, coberturaEvidencia, sinaisIndisponiveis, criteriosNaoAvaliados,
 };

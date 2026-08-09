@@ -87,6 +87,40 @@ export interface Empresa {
   dataAtualizacao: string
   confianca: string
   descricao: string
+
+  /* Critérios de triagem de boutique. Só a base da CVM os preenche — `data.js`
+     não modela dívida, liquidez nem fluxo de caixa. Todos opcionais e
+     anuláveis: ausente e ruim são coisas diferentes, e o dossiê distingue. */
+  alavancagem?: number | null
+  liquidezCorrente?: number | null
+  conversaoCaixa?: number | null
+  conversaoObservacao?: string | null
+  intensidadeInvestimento?: number | null
+  contingenciasSobrePl?: number | null
+  patrimonioLiquidoNegativo?: boolean | null
+  receitaPorFuncionario?: number | null
+  variacaoMargem?: number | null
+  /* Declarados nulos de propósito: nenhuma fonte pública os responde. */
+  concentracaoClientes?: null
+  receitaRecorrente?: null
+  dependenciaFundador?: null
+}
+
+/** Ressalva de triagem: risco exibido AO LADO do índice, nunca dentro dele. */
+export interface Ressalva {
+  chave: string
+  rotulo: string
+  detalhe: string
+  evidencia: Evidencia | null
+}
+
+/** Critério que a boutique aplica e que nenhuma fonte pública responde. */
+export interface CriterioSemFonte {
+  chave: string
+  rotulo: string
+  peso: string
+  motivo: string
+  via: string
 }
 
 /** Empresa após passar pelo motor. */
@@ -97,6 +131,8 @@ export interface EmpresaAvaliada extends Empresa {
   scorePrincipal: number
   lastroPrincipal: Lastro
   rotuloLastro: { chave: ChaveLastro; rotulo: string }
+  ressalvas: Ressalva[]
+  criteriosNaoAvaliados: CriterioSemFonte[]
   cobertura: { documentados: number; estruturados: number; lacunas: number; total: number } | null
 }
 
@@ -112,11 +148,14 @@ export interface Motor {
   LIMIARES: Record<string, number>
   SINAIS: Record<string, { rotulo: string; tipo: TipoSinal; natureza: NaturezaSinal }>
   CONFIG_PAPEIS: Record<Papel, ConfigPapel>
+  RESSALVAS: string[]
   avaliarBase(empresas: Empresa[]): EmpresaAvaliada[]
   avaliarEmpresa(empresa: Empresa): EmpresaAvaliada
+  ressalvasDe(empresa: Empresa): Ressalva[]
 }
 
 export interface CamadaEvidencia {
   evidenciaDe(empresa: Empresa, chave: string): Evidencia
   sinaisIndisponiveis(empresa: Empresa): { chave: string; motivo: string }[]
+  criteriosNaoAvaliados(): CriterioSemFonte[]
 }
