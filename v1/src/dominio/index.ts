@@ -35,6 +35,7 @@ import '@dominio/scoring.js'
    ficam depois de scoring.js, na sequência em que as camadas se empilham. */
 import '@dominio/configuracao.js'
 import '@dominio/conexoes.js'
+import '@dominio/crm.js'
 import '@dominio/mercado.js'
 import '@dominio/matchmaking.js'
 import '@dominio/exportar-excel.js'
@@ -42,6 +43,7 @@ import '@dominio/exportar-excel.js'
 import type {
   CamadaConfiguracao,
   CamadaConexoes,
+  CamadaCrm,
   CamadaEvidencia,
   CamadaExcel,
   CamadaMatchmaking,
@@ -56,6 +58,7 @@ declare global {
     EVIDENCIA: CamadaEvidencia
     CONFIGURACAO: CamadaConfiguracao
     CONEXOES: CamadaConexoes
+    CRM: CamadaCrm
     MERCADO: CamadaMercado
     MATCHMAKING: CamadaMatchmaking
     EXCEL: CamadaExcel
@@ -104,6 +107,7 @@ export const motor = window.MOTOR
 export const evidencia = window.EVIDENCIA
 export const configuracao = window.CONFIGURACAO
 export const conexoes = window.CONEXOES
+export const crm = window.CRM
 export const mercado = window.MERCADO
 export const matchmaking = window.MATCHMAKING
 export const excel = window.EXCEL

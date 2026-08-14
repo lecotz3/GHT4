@@ -35,7 +35,7 @@
 | 5.2 · Report de mercado | ⬜ A fazer | — |
 | 5.3 · News run | ⬜ A fazer | — |
 | 6 · Listas de compradores/alvos | ✅ Feito | `matchmaking.js`, `Matchmaking.tsx` |
-| 7 · CRM / pipeline | ⬜ A fazer | — |
+| 7 · CRM / pipeline | ✅ Feito | `crm.js`, `Crm.tsx` |
 | 9 · Output Excel | ✅ Feito | `exportar-excel.js` |
 | 9 · Output PDF (report) | ⬜ A fazer | — |
 
@@ -43,12 +43,10 @@
 
 ## Ordem de execução restante
 
-1. **Módulo 7 — CRM/pipeline** (`crm.js` + tela). Funil por colaborador com
-   persistência local, alimentado pelas empresas dos outros módulos.
-2. **Módulo 5.1 — valuation** (`valuation.js` + tela). Ingestão da exportação
+1. **Módulo 5.1 — valuation** (`valuation.js` + tela). Ingestão da exportação
    do Capital IQ (CSV colado ou arquivo), comps e precedentes, com revisão
    humana registrada.
-3. **Módulo 5.2 — report de mercado** (`relatorio.js` + tela) e **5.3 — news
+2. **Módulo 5.2 — report de mercado** (`relatorio.js` + tela) e **5.3 — news
    run**, mais a exportação em PDF.
 
 Cada etapa fecha com: `npm run build` na v1, `npx oxlint`, teste do motor em

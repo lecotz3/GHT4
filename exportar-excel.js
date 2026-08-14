@@ -443,6 +443,11 @@ function gerarPastaDeTrabalho(dados) {
   if (dados.ranking) abas.push(abaRankingSubsegmentos(dados.ranking));
   if (dados.avaliadas) abas.push(abaRankingEmpresas(dados.avaliadas));
   if (dados.avaliadas) abas.push(abaValuation(dados.avaliadas));
+  /* A aba de pipeline só aparece quando há pipeline: planilha com aba vazia
+     sugere que o funil está zerado, e não que ninguém o usou ainda. */
+  if (window.CRM && window.CRM.registros().length) {
+    abas.push({ nome: 'Pipeline', linhas: window.CRM.linhasParaPlanilha() });
+  }
   abas.push(abaMetodologia({
     base: dados.base,
     setor: dados.setor,

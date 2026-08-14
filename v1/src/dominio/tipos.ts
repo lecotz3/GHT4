@@ -462,3 +462,86 @@ export interface CamadaConexoes {
   mesmaEmpresa(a: string, b: string): boolean
   nivelDe(forca: number): NivelConexao
 }
+
+/* =============================================================================
+ *  MÓDULO 7 — CRM / pipeline (crm.js)
+ * ========================================================================== */
+
+export interface EstadoFunil {
+  chave: string
+  rotulo: string
+  ordem: number
+  descricao: string
+  /** Recusada não é etapa avançada, é saída — fica fora da sequência. */
+  saida?: boolean
+}
+
+export interface MovimentoCrm {
+  de: string | null
+  para: string
+  quem: string
+  quando: string
+  nota: string
+}
+
+export interface CallCrm { quem: string; data: string; descricao: string; registradaEm: string }
+export interface RecusaCrm { motivo: string; resposta: string; registradaEm: string }
+
+/** Índice e números congelados no momento em que a empresa entrou no funil. */
+export interface RetratoEntrada {
+  indice: number
+  classificacao: Papel
+  receita: number | null
+  margemEbitda: number | null
+  lastro: string | null
+  origem: string
+  dataDoDado: string
+}
+
+export interface RegistroCrm {
+  empresaId: string
+  nome: string
+  setor: string
+  subsetor: string
+  uf: string
+  contato: Contato | null
+  responsavel: string
+  estado: string
+  criadoEm: string
+  retrato: RetratoEntrada
+  historico: MovimentoCrm[]
+  calls: CallCrm[]
+  recusa: RecusaCrm | null
+}
+
+export interface Funil {
+  responsavel: string
+  total: number
+  contagem: Record<string, number>
+  conversoes: { de: string; para: string; taxa: number | null; absoluto: string }[]
+  ativas: number
+  recusadas: number
+  fechadas: number
+  motivosDeRecusa: { chave: string; rotulo: string; quantidade: number }[]
+}
+
+export interface CamadaCrm {
+  ESTADOS_FUNIL: EstadoFunil[]
+  MOTIVOS_RECUSA: { chave: string; rotulo: string }[]
+  LIMITACOES: Limitacao[]
+  estadoDe(chave: string): EstadoFunil
+  registros(): RegistroCrm[]
+  registroDe(empresaId: string): RegistroCrm | null
+  adicionar(avaliada: EmpresaAvaliada, responsavel?: string): { registro: RegistroCrm; jaExistia: boolean; persistiu: boolean }
+  mover(empresaId: string, estado: string, opcoes?: { quem?: string; nota?: string; motivoRecusa?: string; respostaRecusa?: string }): { registro?: RegistroCrm; persistiu?: boolean; erro?: string }
+  anotarCall(empresaId: string, dados: { quem?: string; data?: string; descricao: string }): { registro?: RegistroCrm; persistiu?: boolean; erro?: string }
+  trocarResponsavel(empresaId: string, responsavel: string): { registro?: RegistroCrm; persistiu?: boolean; erro?: string }
+  remover(empresaId: string): boolean
+  responsaveis(): string[]
+  funil(responsavel?: string): Funil
+  agenda(responsavel?: string): (RegistroCrm & { diasParado: number; ultimoMovimento: MovimentoCrm })[]
+  exportarCrm(): string
+  importarCrm(json: string): { quantidade: number; persistiu: boolean }
+  limparCrm(): boolean
+  linhasParaPlanilha(): unknown[][]
+}

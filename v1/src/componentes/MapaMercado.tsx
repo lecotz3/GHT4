@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { mercado, motor } from '../dominio'
+import { crm, mercado, motor } from '../dominio'
 import type { EmpresaAvaliada, Subsegmento } from '../dominio/tipos'
 import { milhoes, num, pct } from '../formato'
 
@@ -268,18 +268,54 @@ function LinhaSubsegmento({
                 <span className="text-suave">{milhoes(e.receita)}</span>
                 <span className="text-suave">{motor.CONFIG_PAPEIS[e.classificacao].rotulo}</span>
                 <span className="tabular-nums text-suave">índice {e.scorePrincipal}</span>
-                <button
-                  type="button"
-                  onClick={() => aoMontarLista(e)}
-                  className="ml-auto text-[11px] font-semibold text-comprador-tinta hover:underline"
-                >
-                  montar lista de compradores →
-                </button>
+                <span className="ml-auto flex gap-3">
+                  <BotaoPipeline empresa={e} />
+                  <button
+                    type="button"
+                    onClick={() => aoMontarLista(e)}
+                    className="text-[11px] font-semibold text-comprador-tinta hover:underline"
+                  >
+                    montar lista de compradores →
+                  </button>
+                </span>
               </li>
             ))}
           </ul>
         </div>
       )}
     </article>
+  )
+}
+
+/**
+ * Entrada para o Módulo 7. Fica aqui, e não numa tela separada de cadastro,
+ * porque o documento pede que o CRM receba "automaticamente dados das
+ * pesquisas": o momento certo de mandar uma empresa para o funil é aquele em
+ * que o sócio acabou de vê-la no ranking.
+ */
+export function BotaoPipeline({ empresa }: { empresa: EmpresaAvaliada }) {
+  const [estado, setEstado] = useState<'novo' | 'adicionada' | 'jaEstava'>(
+    () => (crm.registroDe(empresa.id) ? 'jaEstava' : 'novo'),
+  )
+
+  if (estado !== 'novo') {
+    return (
+      <span className="text-[11px] text-suave">
+        {estado === 'adicionada' ? 'no pipeline ✓' : 'já no pipeline'}
+      </span>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        const { jaExistia } = crm.adicionar(empresa)
+        setEstado(jaExistia ? 'jaEstava' : 'adicionada')
+      }}
+      className="text-[11px] font-semibold text-suave hover:text-tinta hover:underline"
+    >
+      levar ao pipeline
+    </button>
   )
 }

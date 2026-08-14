@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { matchmaking, motor } from '../dominio'
+import { BotaoPipeline } from './MapaMercado'
 import type { Candidata, EmpresaAvaliada } from '../dominio/tipos'
 import { milhoes, pct } from '../formato'
 
@@ -249,13 +250,16 @@ function LinhaCandidata({
               </li>
             ))}
           </ul>
-          <button
-            type="button"
-            onClick={aoAbrir}
-            className="mt-3 rounded-ficha border border-fio-forte px-2.5 py-1 text-[11px] font-semibold transition hover:border-tinta-2"
-          >
-            Abrir dossiê completo
-          </button>
+          <div className="mt-3 flex flex-wrap items-center gap-4">
+            <button
+              type="button"
+              onClick={aoAbrir}
+              className="rounded-ficha border border-fio-forte px-2.5 py-1 text-[11px] font-semibold transition hover:border-tinta-2"
+            >
+              Abrir dossiê completo
+            </button>
+            <BotaoPipeline empresa={c} />
+          </div>
         </div>
       )}
     </article>
