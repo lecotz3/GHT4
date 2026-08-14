@@ -65,7 +65,8 @@ export type ChaveBase = 'demo' | 'cvm'
 export interface DefinicaoBase {
   chave: ChaveBase
   rotulo: string
-  nota: string
+  /** Função, não string: a contagem é lida da base no momento do render. */
+  nota: () => string
   /** Texto da tarja: a natureza do dado MUDA com a base, e avisar "fictício"
    *  sobre dado real é tão errado quanto o contrário — e mais perigoso. */
   tarja: string
@@ -78,7 +79,11 @@ export const BASES: Record<ChaveBase, DefinicaoBase> = {
   demo: {
     chave: 'demo',
     rotulo: 'Demonstração',
-    nota: '32 empresas fictícias, com o conjunto completo de sinais — inclusive eventos societários. Serve para discutir o modelo, não o mercado.',
+    /* A contagem sai da própria base carregada. Número escrito à mão vira
+       mentira silenciosa no dia em que o importador roda de novo — foi o que
+       aconteceu com "386" quando a base passou a incluir a DFP individual. */
+    nota: () =>
+      `${window.EMPRESAS_DEMO?.length ?? 0} empresas fictícias, com o conjunto completo de sinais — inclusive eventos societários. Serve para discutir o modelo, não o mercado.`,
     tarja: 'Demonstração — empresas fictícias e índices ilustrativos',
     real: false,
     empresas: () => window.EMPRESAS_DEMO ?? [],
@@ -87,7 +92,8 @@ export const BASES: Record<ChaveBase, DefinicaoBase> = {
   cvm: {
     chave: 'cvm',
     rotulo: 'Real · CVM',
-    nota: '386 companhias abertas reais, com demonstrações auditadas entregues à CVM. Sem eventos societários — não existe fonte pública aberta para isso.',
+    nota: () =>
+      `${window.EMPRESAS_CVM?.length ?? 0} companhias abertas reais, com demonstrações auditadas entregues à CVM. Sem eventos societários — não existe fonte pública aberta para isso.`,
     tarja: 'Empresas e números REAIS (CVM) · índice de priorização ilustrativo',
     real: true,
     empresas: () => window.EMPRESAS_CVM ?? [],

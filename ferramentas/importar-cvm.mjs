@@ -14,11 +14,31 @@
  *
  *    cad_cia_aberta.csv ......... cadastro: nome, setor, município/UF, controle
  *                                 acionário, situação do emissor, canal de RI
- *    dfp_..._DRE_con_YYYY ....... demonstração de resultado consolidada
+ *    dfp_..._DRE_{con,ind}_YYYY . demonstração de resultado
  *                                 3.01 receita · 3.05 EBIT
- *    dfp_..._DVA_con_YYYY ....... valor adicionado
+ *    dfp_..._DVA_{con,ind}_YYYY . valor adicionado
  *                                 7.04.01 depreciação/amortização (para o EBITDA)
+ *    dfp_..._BPA_{con,ind}_YYYY . balanço ativo
+ *                                 1.01 circulante · 1.01.01 caixa · 1.01.02 aplicações
+ *    dfp_..._BPP_{con,ind}_YYYY . balanço passivo
+ *                                 2.01/2.02 passivos · 2.03 patrimônio líquido
+ *                                 2.01.04 + 2.02.01 empréstimos e financiamentos
+ *                                 2.01.01 obrigações trabalhistas · 2.01.03 fiscais
+ *                                 2.01.06 + 2.02.04 provisões
+ *    dfp_..._DFC_{MI,MD}_..._YYYY  fluxo de caixa
+ *                                 6.01 caixa operacional · 6.02 investimento
  *    fre_..._empregado_local_... . número de empregados
+ *
+ *  CONSOLIDADA COM QUEDA PARA INDIVIDUAL
+ *  --------------------------------------
+ *  A consolidada descreve o grupo econômico e é sempre preferida. Mas companhia
+ *  sem controladas não publica consolidada — só individual. Ler apenas `_con`
+ *  descartava 217 companhias ATIVAS (de 663 no cadastro), e essas pendem para o
+ *  lado PEQUENO justamente da faixa que interessa a uma boutique: a faixa
+ *  consolidável de R$ 30–250 mi saltou de 39 para 58 companhias ao incluí-las.
+ *  Cada registro carrega em `cvm.demonstrativo` de qual das duas ele veio, e a
+ *  camada de evidência cita isso — individual não é o mesmo documento que
+ *  consolidada, e quem lê precisa saber qual está vendo.
  *
  *  O QUE ESTA BASE **NÃO** TEM (e por que isso importa)
  *  ----------------------------------------------------
@@ -222,6 +242,7 @@ console.log(`\n  cadastro: ${cadastro.size} companhias com registro ATIVO`);
 
 /* ---- 2. contas da DFP (mantendo só a versão mais recente por companhia) ---- */
 function contasDe(nomeArquivo, alvos) {
+  if (!dfpZip.has(nomeArquivo)) return new Map();
   const csv = lerCsv(dfpZip.get(nomeArquivo));
   const i = csv.idx;
   const versaoMax = new Map();
@@ -249,9 +270,41 @@ function contasDe(nomeArquivo, alvos) {
   return out;
 }
 
-const dre = contasDe(`dfp_cia_aberta_DRE_con_${ANO}.csv`, new Set(['3.01', '3.05']));
-const dva = contasDe(`dfp_cia_aberta_DVA_con_${ANO}.csv`, new Set(['7.04.01']));
-console.log(`  DRE consolidada: ${dre.size} companhias · DVA: ${dva.size}`);
+/* Lê vários demonstrativos em ORDEM DE PREFERÊNCIA e mescla por companhia: o
+   primeiro arquivo que trouxer a companhia vence. Consolidada antes de
+   individual; no fluxo de caixa, indireto (majoritário) antes de direto.
+   Devolve também de qual arquivo veio cada companhia, para a proveniência. */
+function mesclar(nomes, alvos) {
+  const mapa = new Map(), origem = new Map();
+  for (const nome of nomes) {
+    for (const [cd, reg] of contasDe(nome, alvos)) {
+      if (mapa.has(cd)) continue;
+      mapa.set(cd, reg);
+      origem.set(cd, nome.includes('_ind_') ? 'individual' : 'consolidada');
+    }
+  }
+  return { mapa, origem };
+}
+const dfpA = (base) => [`dfp_cia_aberta_${base}_con_${ANO}.csv`, `dfp_cia_aberta_${base}_ind_${ANO}.csv`];
+
+const dreCon = contasDe(`dfp_cia_aberta_DRE_con_${ANO}.csv`, new Set(['3.01', '3.05']));
+const { mapa: dre, origem: dreOrigem } = mesclar(dfpA('DRE'), new Set(['3.01', '3.05']));
+const { mapa: dva } = mesclar(dfpA('DVA'), new Set(['7.04.01']));
+
+/* Contas patrimoniais e de caixa — a matéria-prima dos critérios de triagem que
+   uma boutique aplica antes de abrir um alvo: alavancagem, liquidez, conversão
+   de caixa, intensidade de capital e contingências. */
+const { mapa: bpa } = mesclar(dfpA('BPA'), new Set(['1', '1.01', '1.01.01', '1.01.02', '1.02.03', '1.02.04']));
+const { mapa: bpp } = mesclar(dfpA('BPP'), new Set(['2.01', '2.02', '2.03',
+  '2.01.01', '2.01.03', '2.01.04', '2.01.06', '2.02.01', '2.02.04']));
+const { mapa: dfc } = mesclar([
+  `dfp_cia_aberta_DFC_MI_con_${ANO}.csv`, `dfp_cia_aberta_DFC_MD_con_${ANO}.csv`,
+  `dfp_cia_aberta_DFC_MI_ind_${ANO}.csv`, `dfp_cia_aberta_DFC_MD_ind_${ANO}.csv`,
+], new Set(['6.01', '6.02']));
+
+const soInd = [...dreOrigem.values()].filter(v => v === 'individual').length;
+console.log(`  DRE: ${dre.size} companhias (${dreCon.size} consolidada + ${soInd} só individual) · DVA: ${dva.size}`);
+console.log(`  BPA: ${bpa.size} · BPP: ${bpp.size} · DFC: ${dfc.size}`);
 
 /* ---- 3. empregados (FRE) --------------------------------------------------- */
 const empregados = new Map(); // CNPJ -> total
@@ -315,6 +368,81 @@ for (const [cd, contas] of dre) {
     ? ((receita.ultimo - receita.penultimo) / receita.penultimo) * 100
     : null;
 
+  /* ---- critérios de triagem que uma boutique aplica antes de abrir um alvo ---
+     Cada um sai de conta padronizada da própria DFP, então o dossiê consegue
+     citar a linha exata. Onde a conta não veio, o indicador fica NULO — nunca
+     zero: "não informado" e "zero" são afirmações diferentes sobre a empresa. */
+  const cta = (mapa) => (c) => {
+    const reg = mapa.get(cd);
+    return (reg && reg[c] && reg[c].ultimo !== undefined) ? reg[c].ultimo : null;
+  };
+  const A = cta(bpa), P = cta(bpp), F = cta(dfc);
+  const somaOuNulo = (...vs) => vs.every(v => v === null) ? null
+                              : vs.reduce((t, v) => t + (v ?? 0), 0);
+
+  // Alavancagem: dívida líquida / EBITDA — o filtro nº 1 de qualquer comprador.
+  const caixaTotal   = somaOuNulo(A('1.01.01'), A('1.01.02'));
+  const dividaBruta  = somaOuNulo(P('2.01.04'), P('2.02.01'));
+  const dividaLiquida = dividaBruta === null ? null : dividaBruta - (caixaTotal ?? 0);
+  /* Só faz sentido com EBITDA positivo: dividir dívida por EBITDA negativo
+     devolve um número negativo que parece saudável e descreve o oposto. */
+  const alavancagem = (dividaLiquida !== null && ebitda !== null && ebitda > 0)
+    ? dividaLiquida / ebitda : null;
+
+  // Liquidez corrente: ativo circulante / passivo circulante.
+  const ativoCirc = A('1.01'), passivoCirc = P('2.01');
+  const liquidezCorrente = (ativoCirc !== null && passivoCirc !== null && passivoCirc > 0)
+    ? ativoCirc / passivoCirc : null;
+
+  // Conversão de caixa: quanto do EBITDA vira caixa operacional de fato.
+  const fco = F('6.01');
+  let conversaoCaixa = (fco !== null && ebitda !== null && ebitda > 0)
+    ? (fco / ebitda) * 100 : null;
+  /* Mesmo artefato de denominador que derruba a margem das holdings, do outro
+     lado da conta: com EBITDA quase nulo, qualquer caixa operacional produz um
+     quociente enorme que não descreve conversão. A TS Agro aparecia com 1.788%
+     — EBITDA de 2,1% da receita contra um FCO ordinário. Fora da faixa, devolve
+     lacuna com motivo em vez de um número que parece ótimo e não significa nada. */
+  let conversaoObs = null;
+  if (conversaoCaixa !== null && (conversaoCaixa > 300 || conversaoCaixa < -300)) {
+    conversaoObs = `Caixa operacional de ${(fco / 1e6).toFixed(0)} mi sobre EBITDA de `
+                 + `${(ebitda / 1e6).toFixed(0)} mi devolve ${conversaoCaixa.toFixed(0)}%: `
+                 + 'o EBITDA é pequeno demais para servir de denominador. '
+                 + 'O quociente não descreve conversão de caixa.';
+    conversaoCaixa = null;
+  }
+
+  /* Intensidade de investimento: caixa líquido consumido em investimento sobre
+     receita. Não é capex puro — a conta 6.02 também abriga aplicações
+     financeiras e aquisições. Por isso o nome não diz "capex". */
+  const fcInvest = F('6.02');
+  const intensidadeInvestimento = (fcInvest !== null && fcInvest < 0)
+    ? (Math.abs(fcInvest) / receita.ultimo) * 100 : null;
+
+  /* Contingências e obrigações trabalhistas/fiscais sobre o patrimônio líquido.
+     A pesquisa de due diligence brasileira aponta passivo trabalhista oculto
+     como o principal "deal killer" do middle market. O balanço só mostra o que
+     JÁ está provisionado — o oculto, por definição, não aparece aqui. Este
+     indicador mede o que foi reconhecido, e é piso, não teto. */
+  const contingencias = somaOuNulo(P('2.01.01'), P('2.01.03'), P('2.01.06'), P('2.02.04'));
+  const patrimonioLiquido = P('2.03');
+  const contingenciasSobrePl = (contingencias !== null && patrimonioLiquido !== null && patrimonioLiquido > 0)
+    ? (contingencias / patrimonioLiquido) * 100 : null;
+
+  // Produtividade: receita por funcionário (proxy de eficiência operacional).
+  const funcs = empregados.get(c.cnpj) ?? null;
+  const receitaPorFuncionario = (funcs && funcs > 0) ? receita.ultimo / funcs : null;
+
+  // Tendência de margem: o exercício anterior da própria DFP.
+  const ebitAnt = contas['3.05'] ? (contas['3.05'].penultimo ?? null) : null;
+  const daAnt   = dva.get(cd) && dva.get(cd)['7.04.01'] && dva.get(cd)['7.04.01'].penultimo !== undefined
+    ? Math.abs(dva.get(cd)['7.04.01'].penultimo) : null;
+  const ebitdaAnt = (ebitAnt !== null && daAnt !== null) ? ebitAnt + daAnt : null;
+  const margemAnterior = (ebitdaAnt !== null && receita.penultimo && receita.penultimo > 0)
+    ? (ebitdaAnt / receita.penultimo) * 100 : null;
+  const variacaoMargem = (margem !== null && margemAnterior !== null && margemAnterior <= 100)
+    ? margem - margemAnterior : null;
+
   const especial = SIT_ESPECIAIS.test(c.sitEmis || '') ? c.sitEmis : null;
   const nome = nomeBonito(c.comerc || c.social);
   const familia = familiaDe(c.setorCvm);
@@ -331,8 +459,24 @@ for (const [cd, contas] of dre) {
     crescimento: arred(cresc, 1),
     margemEbitda: arred(margem, 1),
     margemObservacao: margemObs,
-    funcionarios: empregados.get(c.cnpj) ?? null,
+    funcionarios: funcs,
     perfil: perfilDe(c.controle),
+    /* ---- critérios de triagem (ver bloco de cálculo acima) ---- */
+    alavancagem:            arred(alavancagem, 2),
+    liquidezCorrente:       arred(liquidezCorrente, 2),
+    conversaoCaixa:         arred(conversaoCaixa, 1),
+    conversaoObservacao:    conversaoObs,
+    intensidadeInvestimento:arred(intensidadeInvestimento, 1),
+    contingenciasSobrePl:   arred(contingenciasSobrePl, 1),
+    patrimonioLiquidoNegativo: patrimonioLiquido !== null ? patrimonioLiquido < 0 : null,
+    receitaPorFuncionario:  arred(receitaPorFuncionario === null ? null : receitaPorFuncionario / 1e3, 0),
+    variacaoMargem:         arred(variacaoMargem, 1),
+    /* Critérios que uma boutique usa e que NENHUMA fonte pública abre. Ficam
+       declarados como nulos para o dossiê listá-los como lacuna com motivo, em
+       vez de simplesmente não mencionar que existem. */
+    concentracaoClientes: null,
+    receitaRecorrente: null,
+    dependenciaFundador: null,
     contato: {
       nome: INCLUIR_NOME_DRI && c.respNome ? nomeBonito(c.respNome) : 'Relações com Investidores',
       cargo: c.respCargo ? nomeBonito(c.respCargo) : 'Canal institucional',
@@ -353,13 +497,23 @@ for (const [cd, contas] of dre) {
       cnpj: c.cnpj,
       razaoSocial: c.social,
       exercicio: receita.fim,
+      demonstrativo: dreOrigem.get(cd) || 'consolidada',
       receitaConta: '3.01', receitaValor: receita.ultimo, receitaAnterior: receita.penultimo ?? null,
       ebitConta: '3.05', ebitValor: ebit,
       daConta: '7.04.01', daValor: da,
+      // contas que sustentam os critérios de triagem, para o dossiê citar a linha
+      dividaContas: '2.01.04 + 2.02.01', dividaBrutaValor: dividaBruta,
+      caixaContas: '1.01.01 + 1.01.02', caixaValor: caixaTotal,
+      dividaLiquidaValor: dividaLiquida,
+      circulanteContas: '1.01 / 2.01', ativoCirculante: ativoCirc, passivoCirculante: passivoCirc,
+      fcoConta: '6.01', fcoValor: fco,
+      investimentoConta: '6.02', investimentoValor: fcInvest,
+      contingenciasContas: '2.01.01 + 2.01.03 + 2.01.06 + 2.02.04', contingenciasValor: contingencias,
+      plConta: '2.03', plValor: patrimonioLiquido,
       controle: c.controle,
     },
     fonteBase: 'cvm',
-    origem: `CVM · DFP ${ANO}`,
+    origem: `CVM · DFP ${ANO} ${dreOrigem.get(cd) === 'individual' ? '(individual)' : '(consolidada)'}`,
     dataAtualizacao: (receita.fim || `${ANO}-12-31`).slice(0, 10),
     confianca: 'Alta',
     descricao: [
@@ -388,6 +542,26 @@ console.log(`     com nº de empregados:         ${comFunc} (${Math.round(comFun
 console.log(`     em situação especial:         ${emCrise}`);
 console.log(`     setores: ${setores.length} · perfis: ${perfis.join(', ')}`);
 
+const daInd = empresas.filter(e => e.cvm.demonstrativo === 'individual').length;
+const naFaixa = empresas.filter(e => e.receita >= 30 && e.receita <= 250).length;
+console.log(`\n  origem do demonstrativo: ${empresas.length - daInd} consolidada · ${daInd} individual`);
+console.log(`  na faixa consolidável R$ 30–250 mi: ${naFaixa}`);
+
+const cob = (campo) => {
+  const n = empresas.filter(e => e[campo] !== null && e[campo] !== undefined).length;
+  return `${String(n).padStart(4)} (${String(Math.round(n / empresas.length * 100)).padStart(3)}%)`;
+};
+console.log(`\n  cobertura dos critérios de triagem:`);
+for (const [campo, rotulo] of [
+  ['alavancagem',             'dívida líquida / EBITDA'],
+  ['liquidezCorrente',        'liquidez corrente'],
+  ['conversaoCaixa',          'conversão de caixa (FCO/EBITDA)'],
+  ['intensidadeInvestimento', 'intensidade de investimento'],
+  ['contingenciasSobrePl',    'contingências / patrimônio'],
+  ['receitaPorFuncionario',   'receita por funcionário'],
+  ['variacaoMargem',          'tendência de margem'],
+]) console.log(`     ${rotulo.padEnd(34)} ${cob(campo)}`);
+
 /* ---- 6. gravação ---------------------------------------------------------- */
 const cabecalho = `/* =============================================================================
  *  GHT4 · BASE REAL — companhias abertas brasileiras (dados da CVM)
@@ -399,10 +573,30 @@ const cabecalho = `/* ==========================================================
  *  financeiras padronizadas (DFP) entregues à CVM e auditadas.
  *  Fonte: dados.cvm.gov.br — informação pública de divulgação obrigatória.
  *
+ *  CRITÉRIOS DE TRIAGEM CALCULADOS (cada um cita a conta que o sustenta)
+ *  ---------------------------------------------------------------------
+ *    alavancagem ............. dívida líquida / EBITDA   (2.01.04+2.02.01 − 1.01.01+1.01.02)
+ *    liquidezCorrente ........ ativo circ. / passivo circ.  (1.01 / 2.01)
+ *    conversaoCaixa .......... caixa operacional / EBITDA   (6.01)
+ *    intensidadeInvestimento . caixa em investimento / receita  (6.02)
+ *    contingenciasSobrePl .... obrigações trabalhistas+fiscais+provisões / PL
+ *                              (2.01.01 + 2.01.03 + 2.01.06 + 2.02.04 sobre 2.03)
+ *    receitaPorFuncionario ... receita / empregados (FRE), em R$ mil
+ *    variacaoMargem .......... margem EBITDA do exercício menos a do anterior
+ *
  *  LIMITES DESTA BASE — ler antes de tirar conclusão
  *  -------------------------------------------------
  *  1. São só companhias ABERTAS (~${empresas.length}). O middle market que uma boutique
  *     assessora é majoritariamente de capital fechado e NÃO aparece aqui.
+ *  1b. Parte vem da DFP INDIVIDUAL (companhias sem controladas não publicam
+ *     consolidada). O campo cvm.demonstrativo diz qual, e o dossiê exibe isso:
+ *     individual e consolidada não descrevem o mesmo perímetro econômico.
+ *  1c. Concentração de clientes, receita recorrente e dependência do fundador
+ *     são critérios centrais de qualquer boutique e NÃO existem em fonte
+ *     pública. Vêm nulos de propósito, para o dossiê declarar a lacuna.
+ *  1d. Contingência trabalhista/fiscal aqui é só a JÁ PROVISIONADA no balanço.
+ *     O passivo oculto — o que a due diligence brasileira aponta como principal
+ *     "deal killer" — por definição não está no balanço. Este número é piso.
  *  2. Não há eventos de mercado. Rodada de investimento, mudança de controle,
  *     expansão geográfica e fragmentação setorial não existem em fonte pública
  *     aberta — ficam desligados, e o razão mostra isso como lastro menor.

@@ -397,6 +397,17 @@
   .indisp-t::before{content:"—  ";color:var(--rule-strong)}
   .indisp-m{font-size:12px;line-height:1.5;color:var(--ink-2)}
 
+  /* ressalvas de triagem — ao lado do índice, nunca embutidas nele */
+  .ressalvas{border:1px solid var(--oxblood);border-left-width:3px;border-radius:2px;background:var(--paper-2)}
+  .ressalva-i{padding:10px 14px;border-bottom:1px solid var(--rule)}
+  .ressalva-i:last-child{border-bottom:none}
+  .ressalva-t{font-weight:700;font-size:12.5px;color:var(--oxblood);margin-bottom:3px}
+  .ressalva-d{font-size:12px;line-height:1.5;color:var(--ink-2)}
+  .ressalva-chip{display:inline-block;font:600 10px/1 var(--sans);letter-spacing:.04em;text-transform:uppercase;
+    color:var(--oxblood);border:1px solid var(--oxblood);border-radius:2px;padding:3px 6px;margin:0 5px 5px 0}
+  .criterio-via{font-size:11.5px;line-height:1.5;color:var(--ink-2);margin-top:5px}
+  .criterio-via b{color:var(--ink)}
+
   /* seletor de base */
   .base-switch{padding-bottom:14px;margin-bottom:16px;border-bottom:1px solid var(--rule)}
   .base-nota{font-size:11px;line-height:1.5;color:var(--muted);margin:9px 0 0}
@@ -513,6 +524,24 @@
       </div>
     </div>
 
+    <!-- Estes chips têm semântica INVERSA aos de cima: os outros começam ligados
+         e servem para excluir; estes começam DESLIGADOS e cada um LIGADO impõe
+         uma exigência. É o gesto de um analista apertando o funil, não o de
+         filtrar uma lista. O rótulo "Exigir" carrega essa diferença. -->
+    <div class="fgroup">
+      <label>Exigir · critérios de triagem</label>
+      <div class="chips" id="f-exigir">
+        <span class="chip-toggle" data-exig="balanco_desalavancado" title="Dívida líquida até 1,5× o EBITDA">Balanço limpo</span>
+        <span class="chip-toggle" data-exig="conversao_caixa_alta" title="70% ou mais do EBITDA vira caixa operacional">EBITDA vira caixa</span>
+        <span class="chip-toggle" data-exig="margem_em_expansao" title="Margem subiu ao menos 2 p.p. no exercício">Margem subindo</span>
+        <span class="chip-toggle" data-exig="sem_ressalvas" title="Nenhuma ressalva de triagem ativa">Sem ressalvas</span>
+      </div>
+      <p class="base-nota">
+        Desligados, não filtram nada. Cada um ligado <b>exige</b> o critério.
+        Empresa sem o dado publicado é reprovada — não verificado não é aprovado.
+      </p>
+    </div>
+
     <button class="btn-reset" id="btn-reset">Limpar critérios</button>
   </aside>
 
@@ -570,7 +599,7 @@
      ------------------------------------------------------------
      A base de DEMONSTRAÇÃO tem empresas inventadas, mas o conjunto completo de
      sinais — inclusive eventos societários, que é o que de fato antecipa uma
-     transação. A base REAL tem 386 companhias abertas de verdade, com números
+     transação. A base REAL tem centenas de companhias abertas de verdade, com números
      auditados, mas quase nenhum evento: dado público brasileiro publica
      demonstração financeira, não acontecimento.
 
@@ -602,10 +631,13 @@
       rotulo: 'Real · CVM',
       empresas: window.EMPRESAS_CVM || [],
       perfis: window.PERFIS_CVM || [],
-      nota: '<b>386 companhias abertas reais</b>, com demonstrações auditadas entregues à CVM. '
+      /* Contagem lida da própria base. Número escrito à mão vira mentira
+         silenciosa quando o importador roda de novo — foi o que aconteceu com
+         "386" no dia em que a base passou a incluir a DFP individual. */
+      nota: '<b>' + (window.EMPRESAS_CVM || []).length + ' companhias abertas reais</b>, com demonstrações auditadas entregues à CVM. '
           + 'Sem eventos societários — não existe fonte pública aberta para isso.',
       strip: 'Empresas e números REAIS (CVM) · índice de priorização ilustrativo',
-      intro: '<strong>Atenção — esta base é real.</strong> São 386 companhias abertas brasileiras, com '
+      intro: '<strong>Atenção — esta base é real.</strong> São ' + (window.EMPRESAS_CVM || []).length + ' companhias abertas brasileiras, com '
            + 'receita, margem e número de empregados extraídos das demonstrações financeiras entregues à '
            + 'CVM e auditadas. Os nomes são de empresas existentes. O que continua ilustrativo é o '
            + '<em>índice</em>: os pesos de <code>scoring.js</code> ainda não foram calibrados pelos sócios. '
@@ -702,7 +734,9 @@
     setor:'', uf:'', receita:null, cresc:null, margem:null, func:null,
     perfis:new Set(), papeis:new Set(['alvo','comprador','vendedora']), busca:'',
     triagens:new Set(['novo','analise','priorizado','descartado']),
-    lastros:new Set(['forte','medio','fraco'])
+    lastros:new Set(['forte','medio','fraco']),
+    // vazio = nenhuma exigência; cada chip ligado impõe uma (ver #f-exigir)
+    exigencias:new Set()
   };
 
   /* Setores, UFs e perfis saem da base carregada — as duas bases têm listas
@@ -783,6 +817,12 @@
     c.classList.contains('on')?state.lastros.add(c.dataset.lastro):state.lastros.delete(c.dataset.lastro);
     render();
   });
+  $('#f-exigir').addEventListener('click',e=>{
+    const c=e.target.closest('.chip-toggle'); if(!c)return;
+    c.classList.toggle('on');
+    c.classList.contains('on')?state.exigencias.add(c.dataset.exig):state.exigencias.delete(c.dataset.exig);
+    render();
+  });
   $('#btn-reset').addEventListener('click',resetFilters);
   $('#btn-export').addEventListener('click',exportarCSV);
 
@@ -797,6 +837,8 @@
     state.perfis=new Set(BASES[baseAtual].perfis);state.papeis=new Set(['alvo','comprador','vendedora']);state.busca='';
     state.triagens=new Set(['novo','analise','priorizado','descartado']);
     state.lastros=new Set(['forte','medio','fraco']);
+    state.exigencias=new Set();
+    $$('#f-exigir .chip-toggle').forEach(c=>c.classList.remove('on'));
     selSetor.value='';selUf.value='';$('#f-busca').value='';
     ['#f-receita','#f-cresc','#f-margem','#f-func'].forEach(s=>{const el=$(s);el.value=el.min;});
     ['#v-receita','#v-cresc','#v-margem','#v-func'].forEach(s=>{$(s).textContent='sem mínimo';});
@@ -824,6 +866,15 @@
       if(!state.papeis.has(e.classificacao)) return false;
       if(!state.triagens.has(triagemDe(e.id).estado)) return false;
       if(!state.lastros.has(e.rotuloLastro.chave)) return false;
+      /* Exigência é AND: cada chip ligado precisa ser satisfeito. Um critério
+         que a empresa não tem COMO responder reprova aqui — e é o comportamento
+         certo: exigir "balanço limpo" e receber de volta quem não publicou
+         dívida seria dar por atendido o que não foi verificado. O dossiê
+         continua explicando a diferença entre ausente e negativo. */
+      for(const ex of state.exigencias){
+        if(ex==='sem_ressalvas'){ if(e.ressalvas && e.ressalvas.length) return false; continue; }
+        if(!e.sinais.some(s=>s.chave===ex)) return false;
+      }
       if(state.busca){
         const hay=(e.nome+' '+e.subsetor+' '+e.setor+' '+e.cidade).toLowerCase();
         if(!hay.includes(state.busca)) return false;
@@ -1021,6 +1072,96 @@
      Sinal desligado é ambíguo: pode ser "verifiquei e não há" ou "não tenho como
      verificar". Só o segundo caso é uma lacuna de fonte — e é ele que responde
      à pergunta "que dados a GHT4 precisa comprar?". */
+  /* Indicadores de triagem de boutique. Só a base da CVM os tem — `data.js` não
+     modela dívida, liquidez nem fluxo de caixa. Onde a conta não veio, mostra
+     "—" com o motivo: indicador ausente não é indicador ruim. */
+  function blocoTriagem(e){
+    const L = window.MOTOR.LIMIARES;
+    const x = function(v,suf,casas){
+      if(v===null||v===undefined) return '—';
+      const c = (casas===undefined) ? 1 : casas;
+      return v.toLocaleString('pt-BR',{minimumFractionDigits:c,maximumFractionDigits:c})+(suf||'');
+    };
+    const linhas = [
+      ['Dívida líq./EBITDA', x(e.alavancagem,'×',2),
+        e.alavancagem===null||e.alavancagem===undefined
+          ? 'Sem conta de dívida na DFP, ou EBITDA não positivo — o quociente não descreveria alavancagem.'
+          : `Referência: acima de ${L.alavancagemElevada}× o comprador herda a dívida.`],
+      ['Liquidez corrente', x(e.liquidezCorrente,'',2),
+        `Abaixo de ${L.liquidezMinima},0 o passivo circulante supera o ativo circulante.`],
+      ['Conversão de caixa', x(e.conversaoCaixa,'%',0),
+        e.conversaoObservacao ? e.conversaoObservacao
+          : `Quanto do EBITDA virou caixa operacional. Referência: ${L.conversaoCaixaBoa}%.`],
+      ['Contingências/PL', x(e.contingenciasSobrePl,'%',0),
+        'Obrigações trabalhistas, fiscais e provisões já reconhecidas. O não provisionado não aparece.'],
+      ['Investimento/receita', x(e.intensidadeInvestimento,'%',1),
+        'Caixa consumido em investimento. Agrega imobilizado, intangível e aquisições.'],
+      ['Receita/funcionário', e.receitaPorFuncionario==null?'—':'R$ '+fmtBR(e.receitaPorFuncionario)+' mil',
+        'Produtividade aparente, para comparar dentro do mesmo setor.'],
+    ];
+    // se nenhum indicador existe (base fictícia), não desenha a seção
+    if(linhas.every(l=>l[1]==='—')) return '';
+    return `
+      <div class="m-section-title">Critérios de triagem · balanço e caixa</div>
+      <p class="m-sit" style="margin-bottom:12px">
+        O screening que uma casa de M&amp;A faz antes de abrir um alvo: o ativo é financiável,
+        o lucro vira caixa, o passivo esconde surpresa. Cada número sai de conta padronizada
+        da DFP — a linha exata está no painel de evidência.
+      </p>
+      <div class="m-grid">
+        ${linhas.map(([k,v,nota])=>`
+          <div class="kpi">
+            <div class="k">${esc(k)}</div><div class="v">${esc(v)}</div>
+            <div style="font-size:10.5px;color:var(--muted);line-height:1.45;margin-top:5px">${esc(nota)}</div>
+          </div>`).join('')}
+      </div>
+      ${blocoRessalvas(e)}`;
+  }
+
+  /* Ressalvas de triagem: os riscos que uma boutique quer ver ANTES de abrir
+     conversa. Ficam fora do índice de propósito — um alvo pode ser excelente e
+     ainda assim carregar alavancagem de 4×. As duas coisas são verdade. */
+  function blocoRessalvas(e){
+    if(!e.ressalvas || !e.ressalvas.length) return '';
+    return `
+      <div class="m-section-title">Ressalvas de triagem</div>
+      <p class="m-sit" style="margin-bottom:12px">
+        Pontos que um comprador levantaria na primeira leitura. <b>Não entram no índice</b> —
+        ficam ao lado dele, como o lastro. O índice diz se vale olhar; a ressalva diz olhando o quê.
+      </p>
+      <div class="ressalvas">
+        ${e.ressalvas.map(r=>`
+          <div class="ressalva-i">
+            <div class="ressalva-t">${esc(r.rotulo)}</div>
+            <div class="ressalva-d">${esc(r.detalhe)}</div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  /* Critérios que a boutique usa e que nenhuma fonte pública responde. Um
+     critério silenciado parece critério atendido — é assim que triagem gera
+     falso positivo. Aqui viram pauta da primeira reunião com o alvo. */
+  function blocoCriteriosSemFonte(e){
+    const cs = e.criteriosNaoAvaliados || [];
+    if(!cs.length) return '';
+    return `
+      <div class="m-section-title">Critérios que exigem acesso ao alvo</div>
+      <p class="m-sit" style="margin-bottom:12px">
+        Toda boutique aplica os critérios abaixo. <b>Nenhum deles existe em fonte pública</b> —
+        nem para companhia aberta. O agente os declara em vez de omiti-los: é a pauta da
+        primeira conversa, e a lista do que só o data room responde.
+      </p>
+      <div class="indisp">
+        ${cs.map(c=>`
+          <div class="indisp-i">
+            <div class="indisp-t">${esc(c.rotulo)}</div>
+            <div class="indisp-m">${esc(c.peso)}</div>
+            <div class="indisp-m" style="margin-top:5px"><i>Por que não está aqui:</i> ${esc(c.motivo)}</div>
+            <div class="criterio-via"><b>Como obter:</b> ${esc(c.via)}</div>
+          </div>`).join('')}
+      </div>`;
+  }
+
   function blocoIndisponiveis(e){
     const faltando = window.EVIDENCIA ? window.EVIDENCIA.sinaisIndisponiveis(e) : [];
     if(!faltando.length) return '';
@@ -1132,6 +1273,7 @@
           <div class="kpi"><div class="k">Índice principal</div><div class="v">${e.scorePrincipal}/100</div></div>
           <div class="kpi"><div class="k">Perfil</div><div class="v" style="font-size:12px">${e.perfil}</div></div>
         </div>
+        ${blocoTriagem(e)}
 
         <div class="m-section-title">Lastro do índice</div>
         ${lastroBloco(e.lastroPrincipal)}
@@ -1152,6 +1294,7 @@
         </p>
         ${evidenciaDet}
         ${blocoIndisponiveis(e)}
+        ${blocoCriteriosSemFonte(e)}
 
         <div class="m-section-title">Decisão humana · triagem</div>
         <div class="hitl">

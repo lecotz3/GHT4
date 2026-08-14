@@ -403,9 +403,185 @@
     </div>
   </section>
 
-  <!-- ============ 6. A TENSÃO ============ -->
+  <!-- ============ 6. A TRIAGEM FINANCEIRA ============
+       Esta seção veio depois das demais. As anteriores respondem "por que o
+       agente é assim" a partir da pesquisa Datasite/FT; esta responde a partir
+       da prática de screening de boutiques e casas de private equity. A fonte é
+       outra, e por isso ela não cita percentuais da pesquisa. -->
   <section>
-    <div class="sec-title"><span class="num">VI</span> A questão a decidir com os sócios</div>
+    <div class="sec-title"><span class="num">VI</span> A triagem financeira que uma boutique faz</div>
+    <p class="lead">
+      Priorizar não é só ordenar por atratividade. Antes de abrir um alvo, uma casa de M&amp;A
+      pergunta se o ativo é <b>financiável</b>, se o lucro <b>vira caixa</b> e se o passivo
+      <b>esconde surpresa</b>. O agente passou a fazer essas três perguntas.
+    </p>
+    <p class="body">
+      Cada critério sai de uma conta padronizada da demonstração financeira entregue à CVM, então o
+      dossiê cita a linha contábil exata — mesmo padrão de “afirmação de um lado, documento do
+      outro” que rege o resto da ferramenta. Nenhum destes números é estimado.
+    </p>
+
+    <div class="tiles" style="margin-bottom:20px">
+      <div class="tile">
+        <div class="n">537</div>
+        <div class="t">companhias abertas na base real, ante 386 na versão anterior</div>
+      </div>
+      <div class="tile">
+        <div class="n">56</div>
+        <div class="t">delas na faixa de R$ 30–250 mi que o modelo trata como alvo consolidável (eram 39)</div>
+      </div>
+      <div class="tile">
+        <div class="n">6</div>
+        <div class="t">critérios de triagem calculados, com cobertura de 71% a 100% da base</div>
+      </div>
+      <div class="tile">
+        <div class="n">4</div>
+        <div class="t">critérios que nenhuma fonte pública responde — declarados, não omitidos</div>
+      </div>
+    </div>
+
+    <p class="body">
+      As 151 companhias que entraram vieram de uma correção de leitura, não de uma fonte nova: o
+      importador lia apenas a demonstração <b>consolidada</b>, e companhia sem controladas publica
+      só a <b>individual</b>. Eram 217 empresas ativas descartadas inteiras — e elas pendem para o
+      lado pequeno, que é justamente o lado que interessa a uma boutique. Cada registro exibe de
+      qual das duas veio: individual e consolidada não descrevem o mesmo perímetro econômico.
+    </p>
+
+    <div class="chart">
+      <div class="chart-h">O funil de exigências, sobre a base real</div>
+      <div class="chart-sub">
+        Cada critério ligado impõe uma exigência ao conjunto. Companhias na base da CVM, agosto de 2026.
+      </div>
+      <div class="row hi">
+        <div class="rl">Base completa</div>
+        <div class="track"><div class="barw">
+          <i class="barf" style="width:100%"></i><span class="barv">537</span>
+        </div></div>
+      </div>
+      <div class="row">
+        <div class="rl">+ balanço limpo<br><span style="font-size:11px;color:var(--muted)">dívida líquida ≤ 1,5× EBITDA</span></div>
+        <div class="track"><div class="barw">
+          <i class="barf" style="width:34%"></i><span class="barv">183</span>
+        </div></div>
+      </div>
+      <div class="row">
+        <div class="rl">+ EBITDA vira caixa<br><span style="font-size:11px;color:var(--muted)">conversão ≥ 70%</span></div>
+        <div class="track"><div class="barw">
+          <i class="barf" style="width:17%"></i><span class="barv">93</span>
+        </div></div>
+      </div>
+      <div class="row">
+        <div class="rl">+ sem ressalvas<br><span style="font-size:11px;color:var(--muted)">nenhum alerta de triagem ativo</span></div>
+        <div class="track"><div class="barw">
+          <i class="barf" style="width:5%"></i><span class="barv">25</span>
+        </div></div>
+      </div>
+      <div class="note-scope">
+        <b>Empresa sem o dado publicado é reprovada, não aprovada.</b> Dar por atendido o que não foi
+        verificado é exatamente como uma triagem produz falso positivo — o dossiê continua
+        distinguindo “ausente” de “negativo”.
+      </div>
+      <div class="axis"><div></div><div class="axis-scale"><span>0</span><span>537</span></div></div>
+    </div>
+
+    <div class="dec">
+
+      <div class="dec-item">
+        <div class="dec-l">
+          <div class="dec-k">O que a ferramenta faz</div>
+          <div class="dec-t">Calcula alavancagem, liquidez e conversão de caixa</div>
+          <div class="dec-d">Dívida líquida sobre EBITDA, ativo circulante sobre passivo circulante,
+            caixa operacional sobre EBITDA — mais intensidade de investimento, contingências sobre
+            patrimônio e tendência de margem. Cada um citando a conta que o sustenta.</div>
+        </div>
+        <div class="dec-r">
+          <div class="dec-k">Por quê</div>
+          <div class="dec-d">São os filtros que aparecem em qualquer descrição de screening de
+            comprador. <b>Acima de 3× de alavancagem</b> o comprador herda a dívida junto com o
+            ativo e a estrutura do negócio muda; abaixo de <b>1,0 de liquidez</b> a operação depende
+            de rolagem. Ordenar por atratividade sem olhar isso produz lista bonita e inservível.</div>
+        </div>
+      </div>
+
+      <div class="dec-item">
+        <div class="dec-l">
+          <div class="dec-k">O que a ferramenta faz</div>
+          <div class="dec-t">Mostra as ressalvas <em>ao lado</em> do índice</div>
+          <div class="dec-d">Alavancagem elevada, aperto de liquidez, patrimônio consumido,
+            contingências e margem em queda aparecem num painel próprio, em vermelho. Não entram
+            no cálculo do índice de alvo.</div>
+        </div>
+        <div class="dec-r">
+          <div class="dec-k">Por quê</div>
+          <div class="dec-d">Mesma decisão de projeto do lastro. Um ativo pode ser <b>excelente alvo
+            e ter 4× de dívida</b> — as duas coisas são verdade ao mesmo tempo, e embutir uma na
+            outra apaga a informação. O índice responde “vale olhar?”; a ressalva responde “olhando
+            o quê?”. Quem pondera é a pessoa.</div>
+        </div>
+      </div>
+
+      <div class="dec-item">
+        <div class="dec-l">
+          <div class="dec-k">O que a ferramenta faz</div>
+          <div class="dec-t">Declara os critérios que exigem acesso ao alvo</div>
+          <div class="dec-d">Concentração de clientes, receita recorrente, dependência do fundador e
+            passivo trabalhista não provisionado aparecem no dossiê com o motivo da ausência e a via
+            de obtenção de cada um.</div>
+        </div>
+        <div class="dec-r">
+          <div class="dec-k">Por quê</div>
+          <div class="dec-d">Nenhum deles existe em fonte pública, nem para companhia aberta.
+            <b>Um critério silenciado parece critério atendido</b> — e é assim que uma triagem
+            aprova o que deveria reprovar. Declarados, viram a pauta da primeira conversa com o
+            alvo e a lista do que só o <i>data room</i> responde.</div>
+        </div>
+      </div>
+
+      <div class="dec-item">
+        <div class="dec-l">
+          <div class="dec-k">O que a ferramenta faz</div>
+          <div class="dec-t">Mede o passivo provisionado — e avisa que é piso</div>
+          <div class="dec-d">Obrigações trabalhistas e fiscais mais provisões, sobre o patrimônio
+            líquido. O dossiê afirma explicitamente que o balanço registra apenas o que já foi
+            reconhecido.</div>
+        </div>
+        <div class="dec-r">
+          <div class="dec-k">Por quê</div>
+          <div class="dec-d">O passivo trabalhista oculto é apontado como o principal
+            <b>“deal killer”</b> do middle market brasileiro: aparece na diligência e é descontado
+            direto do preço. O que a ferramenta calcula é o piso conhecido — dizer isso é mais útil
+            do que exibir um número que sugere completude.</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="warnbox" style="margin-top:20px">
+      <h3>Dois números que pareciam bons e não eram</h3>
+      <p>
+        Um motor de regras não alucina, mas <b>divide</b> — e divisão por denominador quase nulo
+        produz número que parece ótimo e descreve outra coisa. Dois casos foram encontrados e
+        corrigidos, e ambos merecem menção porque explicam por que os limiares deste arquivo têm
+        piso e teto em vez de só um corte.
+      </p>
+      <p>
+        A <b>TS Agro</b> aparecia com 1.788% de conversão de caixa: EBITDA de 2,1% da receita
+        contra um fluxo de caixa ordinário. É o mesmo artefato que já derrubava a margem das
+        holdings, do outro lado da conta. Fora da faixa, o sistema devolve lacuna com o motivo.
+      </p>
+      <p>
+        A <b>OSX Brasil</b> — em recuperação judicial, margem de −293,9% — acendia “margem em
+        expansão” e somava ponto como <i>alvo</i>, porque o exercício anterior fora pior. Melhorar
+        de −400% para −294% é notícia de turnaround, não de margem em expansão. Com o piso de
+        margem positiva, ela caiu da 4ª para a 11ª posição entre os alvos.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ 7. A TENSÃO ============ -->
+  <section>
+    <div class="sec-title"><span class="num">VII</span> A questão a decidir com os sócios</div>
     <div class="warnbox">
       <h3>Este agente não usa IA generativa — e isso é uma escolha</h3>
       <p>
@@ -421,9 +597,18 @@
         explicável é posicionamento, não limitação.
       </p>
       <p>
-        Contra: <b>não escala</b>. As 32 empresas do protótipo estão escritas à mão. O benefício
-        que os dealmakers mais esperam da IA em sourcing até 2030 é justamente <b>dar conta de um
-        volume maior</b> (23%). Com trinta empresas digitadas, não há volume.
+        Contra: <b>escala só até onde o dado é numérico</b>. Esta objeção mudou de forma desde a
+        primeira versão desta página e vale registrar como mudou. Antes, o protótipo tinha 32
+        empresas escritas à mão e o argumento era direto: sem volume, não há originação. Hoje o
+        importador traz <b>537 companhias automaticamente</b> da CVM, com seis critérios de triagem
+        calculados de conta contábil — a barreira de volume caiu para os números.
+      </p>
+      <p>
+        O que <b>não</b> escalou foi a camada de eventos. Rodada de investimento, mudança de
+        controle, expansão geográfica e fragmentação setorial continuam sem fonte pública
+        estruturada, e são justamente os sinais que antecipam uma transação. O benefício que os
+        dealmakers mais esperam da IA em sourcing até 2030 é <b>dar conta de um volume maior</b>
+        (23%) — e é exatamente aí, na leitura de notícia, ata e registro, que o volume ainda falta.
       </p>
       <p>
         <b>O caminho que a pesquisa sugere:</b> a IA generativa entra na <b>coleta</b> — ler
@@ -437,7 +622,7 @@
 
   <!-- ============ 7. O QUE FALTA DECIDIR ============ -->
   <section>
-    <div class="sec-title"><span class="num">VII</span> O que só os sócios podem decidir</div>
+    <div class="sec-title"><span class="num">VIII</span> O que só os sócios podem decidir</div>
     <p class="body">
       Tudo abaixo é hipótese do protótipo. Nenhuma destas escolhas foi tomada com base na pesquisa —
       elas dependem da tese da GHT4, e são o objeto da reunião.

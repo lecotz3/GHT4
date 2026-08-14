@@ -112,6 +112,29 @@ export function Dossie({ e }: { e: EmpresaAvaliada }) {
     ['Perfil societário', e.perfil],
   ]
 
+  /* Cada linha traz a referência que a torna legível: "4,93×" não diz nada a
+     quem não sabe que 3× é o patamar em que o comprador herda a dívida. */
+  const L = motor.LIMIARES
+  const vezes = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${num(v, 2)}×`)
+  const triagem: [string, string, string][] = (
+    [
+      ['Dívida líq./EBITDA', vezes(e.alavancagem),
+        e.alavancagem === null || e.alavancagem === undefined
+          ? 'Sem conta de dívida na DFP, ou EBITDA não positivo.'
+          : `Acima de ${num(L.alavancagemElevada)}× o comprador herda a dívida.`],
+      ['Liquidez corrente', num(e.liquidezCorrente, 2),
+        `Abaixo de ${num(L.liquidezMinima, 1)} o passivo circulante supera o ativo circulante.`],
+      ['Conversão de caixa', pct(e.conversaoCaixa, 0),
+        `Quanto do EBITDA virou caixa. Referência: ${num(L.conversaoCaixaBoa)}%.`],
+      ['Contingências/PL', pct(e.contingenciasSobrePl, 0),
+        'Trabalhistas, fiscais e provisões já reconhecidas. O não provisionado não aparece.'],
+      ['Investimento/receita', pct(e.intensidadeInvestimento),
+        'Agrega imobilizado, intangível e aquisições — não é capex isolado.'],
+      ['Receita/funcionário', e.receitaPorFuncionario == null ? '—' : `R$ ${num(e.receitaPorFuncionario)} mil`,
+        'Produtividade aparente, comparável dentro do mesmo setor.'],
+    ] as [string, string, string][]
+  ).filter(() => e.fonteBase === 'cvm')
+
   return (
     <div className="space-y-5">
       {/* --- índice, em destaque, com o lastro ao lado e nunca embutido nele --- */}
@@ -174,6 +197,50 @@ export function Dossie({ e }: { e: EmpresaAvaliada }) {
         )}
       </Secao>
 
+      {/* --- o screening de balanço que uma casa de M&A faz antes de abrir um
+             alvo. Só a base da CVM preenche isto; na fictícia a seção some. --- */}
+      {triagem.length > 0 && (
+        <Secao titulo="Critérios de triagem" aparte="balanço e caixa">
+          <dl className="grid grid-cols-2 overflow-hidden rounded-ficha border border-fio bg-papel-2 text-[11.5px]">
+            {triagem.map(([k, v, nota], i) => (
+              <div
+                key={k}
+                className={`px-3 py-2 ${i % 2 === 0 ? 'border-r border-fio' : ''} ${i < triagem.length - 2 ? 'border-b border-fio' : ''}`}
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <dt className="font-semibold text-suave">{k}</dt>
+                  <dd className="text-right font-semibold tabular-nums text-tinta">{v}</dd>
+                </div>
+                <p className="mt-1 text-[10px] leading-snug text-suave">{nota}</p>
+              </div>
+            ))}
+          </dl>
+          {e.conversaoObservacao && (
+            <p className="mt-2 text-[11px] italic leading-relaxed text-suave">{e.conversaoObservacao}</p>
+          )}
+
+          {/* Ressalvas ficam AO LADO do índice, como o lastro — nunca dentro
+              dele. Um alvo pode ser excelente e ainda carregar 4× de dívida. */}
+          {e.ressalvas.length > 0 && (
+            <div className="mt-4">
+              <p className="mb-2 text-[11px] italic leading-relaxed text-suave">
+                Pontos que um comprador levantaria na primeira leitura.{' '}
+                <b className="not-italic text-tinta-2">Não entram no índice</b> — o índice diz se
+                vale olhar; a ressalva diz olhando o quê.
+              </p>
+              <ul className="overflow-hidden rounded-ficha border-l-2 border-lacre bg-lacre/6">
+                {e.ressalvas.map((r) => (
+                  <li key={r.chave} className="border-b border-fio px-3 py-2 last:border-b-0">
+                    <p className="text-[11.5px] font-bold text-lacre">{r.rotulo}</p>
+                    <p className="mt-0.5 text-[11.5px] leading-relaxed text-tinta-2">{r.detalhe}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Secao>
+      )}
+
       {/* --- o mesmo registro vale coisas diferentes conforme o papel --- */}
       <Secao titulo="Índice por papel" aparte="o mesmo registro, três leituras">
         <ul className="space-y-2.5">
@@ -227,6 +294,27 @@ export function Dossie({ e }: { e: EmpresaAvaliada }) {
                   <b className="text-tinta-2">{motor.SINAIS[s.chave]?.rotulo ?? s.chave}</b>
                   <span className="text-suave"> — {s.motivo}</span>
                 </span>
+              </li>
+            ))}
+          </ul>
+        </Secao>
+      )}
+
+      {/* --- os critérios que nenhuma fonte pública responde. Declarados, não
+             omitidos: critério silenciado parece critério atendido. --- */}
+      {e.criteriosNaoAvaliados.length > 0 && (
+        <Secao titulo="Critérios que exigem acesso ao alvo" aparte="pauta da primeira conversa">
+          <ul className="space-y-3">
+            {e.criteriosNaoAvaliados.map((c) => (
+              <li key={c.chave} className="border-l-2 border-fio-forte pl-3">
+                <p className="text-[11.5px] font-bold text-tinta-2">{c.rotulo}</p>
+                <p className="mt-0.5 text-[11.5px] leading-relaxed text-suave">{c.peso}</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-suave">
+                  <i>Por que não está aqui:</i> {c.motivo}
+                </p>
+                <p className="mt-1 text-[11px] leading-relaxed text-tinta-2">
+                  <b>Como obter:</b> {c.via}
+                </p>
               </li>
             ))}
           </ul>

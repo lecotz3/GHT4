@@ -90,7 +90,7 @@ O seletor no alto da coluna esquerda troca entre:
 | Base | O que é | O que ela prova |
 |---|---|---|
 | **Demonstração** | 32 empresas **fictícias** | O modelo completo: tem eventos societários (rodada, mudança de controle, expansão), que é o que de fato antecipa uma transação. |
-| **Real · CVM** | 386 **companhias abertas brasileiras reais**, com demonstrações auditadas | O que dá para fazer hoje com dado público — e, sobretudo, **o que não dá**. |
+| **Real · CVM** | 537 **companhias abertas brasileiras reais**, com demonstrações auditadas | O que dá para fazer hoje com dado público — e, sobretudo, **o que não dá**. |
 
 A base real vem do Portal de Dados Abertos da CVM. Para gerá-la ou atualizá-la:
 
@@ -109,11 +109,57 @@ geográfica e fragmentação setorial **não existem em nenhuma fonte aberta** �
 esses sinais em "não avaliado · sem fonte disponível", com o motivo de cada um. É a lista de
 compras de dados da GHT4, escrita pelo próprio sistema.
 
-Duas ressalvas que os sócios precisam ouvir: só **39 das 386** empresas estão na faixa de
-R$ 30–250 mi que o modelo trata como alvo consolidável — 275 passam de R$ 1 bi e outras 5
-ficam abaixo de R$ 30 mi — e o
+Duas ressalvas que os sócios precisam ouvir: só **56 das 537** empresas estão na faixa de
+R$ 30–250 mi que o modelo trata como alvo consolidável, e o
 middle market de capital fechado — o cliente típico de uma boutique — **não aparece aqui**,
 porque não tem obrigação de publicar demonstração.
+
+> **De onde vieram 537.** A versão anterior lia só a DFP **consolidada** e ficava em 386.
+> Companhia sem controladas não publica consolidada, só **individual** — eram 217 companhias
+> ativas descartadas inteiras, e elas pendem para o lado pequeno: a faixa consolidável subiu
+> de 39 para 56 registros. Cada empresa carrega em `cvm.demonstrativo` de qual das duas veio,
+> e o dossiê exibe isso: individual e consolidada não descrevem o mesmo perímetro econômico.
+
+---
+
+## Critérios de triagem de boutique
+
+Além dos sinais de mercado, o agente aplica o **screening financeiro** que uma casa de M&A faz
+antes de abrir um alvo. Cada um sai de conta padronizada da própria DFP, então o dossiê cita a
+linha contábil exata — mesmo padrão de "afirmação de um lado, documento do outro".
+
+| Critério | Conta CVM | Limiar em `scoring.js` |
+|---|---|---|
+| Dívida líquida / EBITDA | `2.01.04` + `2.02.01` − `1.01.01` − `1.01.02` | limpo ≤ 1,5× · alerta ≥ 3× |
+| Liquidez corrente | `1.01` ÷ `2.01` | aperto < 1,0 |
+| Conversão de caixa (FCO/EBITDA) | `6.01` | boa ≥ 70% |
+| Contingências / patrimônio | `2.01.01`+`2.01.03`+`2.01.06`+`2.02.04` ÷ `2.03` | relevante ≥ 30% |
+| Intensidade de investimento | `6.02` ÷ receita | alta ≥ 15% |
+| Tendência de margem | `3.05` e `7.04.01`, dois exercícios | move ≥ 2 p.p. |
+| Patrimônio líquido negativo | `2.03` | negativo |
+
+**Ressalvas de triagem.** Os critérios de risco não entram no índice — aparecem **ao lado**
+dele, como o lastro. Um ativo pode ser excelente alvo *e* ter alavancagem de 4×; as duas coisas
+são verdade ao mesmo tempo. O índice responde "vale olhar?", a ressalva responde "olhando o
+quê?", e quem pondera é a pessoa. Ver `RESSALVAS` em `scoring.js`.
+
+**Filtro "Exigir".** Os chips de exigência têm semântica inversa aos demais filtros: começam
+desligados, e cada um ligado **impõe** o critério. Empresa que não publicou o dado é reprovada —
+dar por atendido o que não foi verificado é exatamente como uma triagem gera falso positivo.
+Na base real o funil vai de 537 para 25 registros com três exigências ligadas.
+
+### O que nenhuma fonte pública responde
+
+Quatro critérios centrais de qualquer boutique **não existem em dado aberto**, nem para
+companhia de capital aberto. O agente os declara com o motivo e a via de obtenção, em vez de
+omiti-los — critério silenciado parece critério atendido. Na prática, é a pauta da primeira
+reunião com o alvo (ver `CRITERIOS_SEM_FONTE` em `evidencias.js`):
+
+- **Concentração de clientes** — a DFP não abre receita por cliente.
+- **Receita recorrente e churn** — a conta `3.01` não separa contrato de venda avulsa.
+- **Dependência do fundador** — nenhum campo público mede isso.
+- **Passivo trabalhista e fiscal não provisionado** — o balanço só mostra o já reconhecido, e é
+  justamente o não reconhecido que a diligência procura.
 
 ---
 

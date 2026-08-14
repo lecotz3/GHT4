@@ -47,6 +47,36 @@ const LIMIARES = {
   porteMedioMin: 30,         // faixa de porte "consolidável" (alvo ideal)
   porteMedioMax: 250,
   retracaoReceita: -5,       // queda de receita (% a.a.) que já conta como sinal
+
+  /* ---- critérios de triagem usados por boutiques de M&A -------------------
+   * Estes limiares vêm da prática de screening descrita por assessorias e casas
+   * de private equity, não de teoria. Os números são o ponto de partida para a
+   * conversa com os sócios — cada um deles é discutível e fácil de mudar.
+   *
+   *   alavancagem ....... 3× dívida líquida/EBITDA é o patamar em que covenants
+   *                       bancários apertam e o comprador passa a herdar a
+   *                       dívida junto com o ativo. Abaixo de 1,5× o balanço é
+   *                       limpo o bastante para o comprador alavancar a compra.
+   *   liquidez .......... abaixo de 1,0 o passivo circulante supera o ativo
+   *                       circulante: a empresa depende de rolagem para operar.
+   *   conversão de caixa. 70% do EBITDA virando caixa operacional é o corte
+   *                       usual entre "lucro contábil" e "lucro com lastro".
+   *   contingências ..... obrigações trabalhistas/fiscais e provisões acima de
+   *                       30% do patrimônio líquido. Passivo trabalhista é
+   *                       apontado como o principal "deal killer" do middle
+   *                       market brasileiro — e o balanço mostra só o que já
+   *                       foi provisionado, então este limiar é conservador.
+   *   margem ............ 2 pontos percentuais de variação já indicam tendência;
+   *                       compradores olham a trajetória, não só o nível.
+   *   investimento ...... acima de 15% da receita, o negócio consome caixa para
+   *                       crescer — muda a estrutura de financiamento do deal. */
+  alavancagemConfortavel: 1.5,
+  alavancagemElevada: 3,
+  liquidezMinima: 1,
+  conversaoCaixaBoa: 70,
+  contingenciasRelevantes: 30,
+  margemEmMovimento: 2,
+  intensidadeInvestimentoAlta: 15,
 };
 
 /* Números dentro dos textos de sinal seguem a convenção pt-BR (vírgula decimal,
@@ -54,6 +84,13 @@ const LIMIARES = {
    sem separador, "R$ 12305 mi" é ilegível. */
 const n = (v, casas = 0) => (v === null || v === undefined) ? '—'
   : v.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+
+/* Indicador ausente NÃO é indicador ruim. Todo sinal numérico passa por aqui
+   antes de comparar: em JavaScript `null < 10` é verdadeiro, e sem esta guarda
+   uma empresa sem o dado acenderia o alerta como se o tivesse. Vale para os
+   critérios de triagem, cuja cobertura na base da CVM vai de 71% a 100% — o
+   restante precisa ficar em silêncio, não virar alarme falso. */
+const tem = (v) => v !== null && v !== undefined;
 
 /* ---- 2. CATÁLOGO DE SINAIS -------------------------------------------------
  * Cada sinal tem:
@@ -193,6 +230,100 @@ const SINAIS = {
                   && e.crescimento <= LIMIARES.retracaoReceita,
     detalhe: (e) => `Receita caiu ${n(Math.abs(e.crescimento), 1)}% no exercício — pressão sobre os controladores.`,
   },
+
+  /* ---- critérios de triagem de boutique ----------------------------------
+   * Os sinais abaixo reproduzem o screening que uma casa de M&A faz antes de
+   * abrir um alvo: o ativo é financiável? o lucro vira caixa? o passivo esconde
+   * surpresa? Todos saem de conta padronizada da DFP, então são `estruturado`
+   * e o dossiê cita a linha contábil exata (ver evidencias.js).
+   *
+   * Os de `tipo: 'atencao'` também alimentam RESSALVAS, exibidas AO LADO do
+   * índice — um alvo pode ser excelente e ainda assim carregar um risco que o
+   * comprador precisa ver antes de abrir conversa. */
+  balanco_desalavancado: {
+    rotulo: 'Balanço desalavancado',
+    tipo: 'positivo',
+    natureza: 'estruturado',
+    ativo: (e) => tem(e.alavancagem) && e.alavancagem <= LIMIARES.alavancagemConfortavel,
+    detalhe: (e) => e.alavancagem < 0
+      ? `Caixa e aplicações superam a dívida (${n(e.alavancagem, 2)}× o EBITDA) — ativo limpo, comprador pode alavancar a compra.`
+      : `Dívida líquida de ${n(e.alavancagem, 2)}× o EBITDA — capacidade de endividamento preservada para financiar a transação.`,
+  },
+  caixa_liquido: {
+    rotulo: 'Caixa líquido',
+    tipo: 'positivo',
+    natureza: 'estruturado',
+    ativo: (e) => tem(e.alavancagem) && e.alavancagem < 0,
+    detalhe: () => 'Caixa e aplicações financeiras superam a dívida — poder de fogo para adquirir sem tomar dívida nova.',
+  },
+  alavancagem_elevada: {
+    rotulo: 'Alavancagem elevada',
+    tipo: 'atencao',
+    natureza: 'estruturado',
+    ativo: (e) => tem(e.alavancagem) && e.alavancagem >= LIMIARES.alavancagemElevada,
+    detalhe: (e) => `Dívida líquida de ${n(e.alavancagem, 2)}× o EBITDA. Acima de ${LIMIARES.alavancagemElevada}× `
+                  + 'o comprador herda a dívida junto com o ativo e a estrutura do deal muda.',
+  },
+  aperto_liquidez: {
+    rotulo: 'Aperto de liquidez',
+    tipo: 'atencao',
+    natureza: 'estruturado',
+    ativo: (e) => tem(e.liquidezCorrente) && e.liquidezCorrente < LIMIARES.liquidezMinima,
+    detalhe: (e) => `Liquidez corrente de ${n(e.liquidezCorrente, 2)} — o passivo circulante supera o ativo circulante, `
+                  + 'a operação depende de rolagem de dívida.',
+  },
+  conversao_caixa_alta: {
+    rotulo: 'EBITDA vira caixa',
+    tipo: 'positivo',
+    natureza: 'estruturado',
+    ativo: (e) => tem(e.conversaoCaixa) && e.conversaoCaixa >= LIMIARES.conversaoCaixaBoa,
+    detalhe: (e) => `${n(e.conversaoCaixa, 0)}% do EBITDA virou caixa operacional — o lucro tem lastro em caixa, `
+                  + 'não em competência contábil.',
+  },
+  contingencias_relevantes: {
+    rotulo: 'Contingências relevantes',
+    tipo: 'atencao',
+    natureza: 'estruturado',
+    ativo: (e) => tem(e.contingenciasSobrePl) && e.contingenciasSobrePl >= LIMIARES.contingenciasRelevantes,
+    detalhe: (e) => `Obrigações trabalhistas, fiscais e provisões somam ${n(e.contingenciasSobrePl, 0)}% do patrimônio líquido. `
+                  + 'E o balanço mostra só o que já foi provisionado — o passivo oculto é justamente o que a diligência procura.',
+  },
+  patrimonio_negativo: {
+    rotulo: 'Patrimônio líquido negativo',
+    tipo: 'atencao',
+    natureza: 'estruturado',
+    ativo: (e) => e.patrimonioLiquidoNegativo === true,
+    detalhe: () => 'O passivo supera o ativo: o capital próprio foi consumido. Reestruturação societária costuma preceder qualquer transação.',
+  },
+  margem_em_expansao: {
+    rotulo: 'Margem em expansão',
+    tipo: 'positivo',
+    natureza: 'estruturado',
+    /* O piso de margem positiva não é detalhe. Sem ele, a OSX Brasil — EBITDA de
+       −293,9% da receita — acendia "Margem em expansão" e somava ponto para
+       ALVO, só porque o exercício anterior tinha sido ainda pior. Melhorar de
+       −400% para −294% é notícia de turnaround, não de margem em expansão; a
+       segunda leitura sugere um ativo saudável ganhando eficiência. Mesma
+       lógica do piso de `margem_baixa`. */
+    ativo: (e) => tem(e.variacaoMargem) && e.variacaoMargem >= LIMIARES.margemEmMovimento
+                  && tem(e.margemEbitda) && e.margemEbitda > LIMIARES.prejuizoOperacional,
+    detalhe: (e) => `Margem EBITDA subiu ${n(e.variacaoMargem, 1)} p.p. sobre o exercício anterior — trajetória, não só nível.`,
+  },
+  margem_em_deterioracao: {
+    rotulo: 'Margem em deterioração',
+    tipo: 'atencao',
+    natureza: 'estruturado',
+    ativo: (e) => tem(e.variacaoMargem) && e.variacaoMargem <= -LIMIARES.margemEmMovimento,
+    detalhe: (e) => `Margem EBITDA caiu ${n(Math.abs(e.variacaoMargem), 1)} p.p. sobre o exercício anterior.`,
+  },
+  capital_intensivo: {
+    rotulo: 'Capital intensivo',
+    tipo: 'neutro',
+    natureza: 'estruturado',
+    ativo: (e) => tem(e.intensidadeInvestimento) && e.intensidadeInvestimento >= LIMIARES.intensidadeInvestimentoAlta,
+    detalhe: (e) => `Investimento consumiu ${n(e.intensidadeInvestimento, 1)}% da receita no exercício — `
+                  + 'o crescimento exige capital, o que muda a estrutura de financiamento do deal.',
+  },
 };
 
 /* ---- 3. PAPÉIS E PESOS -----------------------------------------------------
@@ -208,6 +339,9 @@ const CONFIG_PAPEIS = {
       porte_medio: 25,
       mercado_fragmentado: 22,
       crescimento_relevante: 22,
+      balanco_desalavancado: 18,
+      conversao_caixa_alta: 15,
+      margem_em_expansao: 12,
       margem_baixa: 12,
       situacao_especial: 12,
       expansao_geografica: 10,
@@ -220,8 +354,10 @@ const CONFIG_PAPEIS = {
     cor: 'comprador',
     pesos: {
       escala: 30,
+      caixa_liquido: 25,
       margem_alta: 20,
       backing_pe: 20,
+      conversao_caixa_alta: 15,
       rodada_investimento: 15,
       expansao_geografica: 15,
     },
@@ -234,11 +370,21 @@ const CONFIG_PAPEIS = {
     /* `prejuizo_operacional` entra AQUI e não em `alvo`: EBITDA negativo é
        evidência de que os controladores podem precisar de liquidez, não de que a
        empresa é um alvo limpo de consolidação. */
+    /* Os critérios de balanço entram AQUI, e não em `alvo`, pela mesma lógica
+       de `prejuizo_operacional`: alavancagem alta, aperto de liquidez e
+       patrimônio consumido são evidência de que os controladores podem precisar
+       de liquidez — não de que a empresa é um alvo limpo de consolidação.
+       Como RESSALVA eles aparecem em qualquer papel; como PESO, só neste. */
     pesos: {
       mudanca_controle: 35,
       sucessao_familiar: 30,
       situacao_especial: 28,
+      patrimonio_negativo: 25,
+      alavancagem_elevada: 22,
       prejuizo_operacional: 20,
+      aperto_liquidez: 18,
+      contingencias_relevantes: 15,
+      margem_em_deterioracao: 14,
       rodada_investimento: 12,
       margem_baixa: 12,
       retracao_receita: 12,
@@ -247,12 +393,56 @@ const CONFIG_PAPEIS = {
   },
 };
 
+/* ---- 3b. RESSALVAS DE TRIAGEM ----------------------------------------------
+ * Uma boutique não descarta um alvo porque ele tem risco — ela quer o risco na
+ * mesa antes de abrir conversa. Um ativo pode ser excelente candidato E ter
+ * alavancagem de 4×; as duas coisas são verdade ao mesmo tempo.
+ *
+ * Por isso as ressalvas NÃO entram no índice do papel `alvo`: são exibidas ao
+ * lado dele, como o lastro. Mesma decisão de projeto — o índice responde "vale
+ * olhar?", a ressalva responde "olhando o quê?", e quem pondera é a pessoa.
+ * -------------------------------------------------------------------------- */
+const RESSALVAS = [
+  'patrimonio_negativo',
+  'alavancagem_elevada',
+  'aperto_liquidez',
+  'contingencias_relevantes',
+  'margem_em_deterioracao',
+  'prejuizo_operacional',
+  'retracao_receita',
+  'capital_intensivo',
+];
+
+/** Ressalvas ativas para uma empresa, na ordem de gravidade acima. */
+function ressalvasDe(empresa) {
+  return RESSALVAS
+    .filter((chave) => SINAIS[chave] && SINAIS[chave].ativo(empresa))
+    .map((chave) => ({
+      chave,
+      rotulo: SINAIS[chave].rotulo,
+      detalhe: SINAIS[chave].detalhe(empresa),
+      evidencia: evidenciaDe(empresa, chave),
+    }));
+}
+
 /* NOTA SOBRE A ESCALA (importante ao comparar com versões anteriores)
  * O score é normalizado pelo TOTAL de pesos do papel. Ao acrescentar os dois
  * sinais da base real, o denominador do papel "candidata a venda" subiu de 100
  * para 140, e `prejuizo_operacional` levou-o a 160 — logo, todos os índices
  * desse papel caíram proporcionalmente a cada acréscimo,
  * inclusive na base fictícia, onde esses sinais nunca acendem.
+ *
+ * Os critérios de triagem mexeram de novo nos três denominadores: alvo 103→148,
+ * comprador 100→140, candidata a venda 160→254. ÍNDICES DESTA VERSÃO NÃO SÃO
+ * COMPARÁVEIS COM OS DA ANTERIOR — nem entre si ao longo do tempo, enquanto o
+ * catálogo de sinais estiver sendo ajustado nas reuniões. O que permanece
+ * comparável é a ORDEM dentro de uma mesma execução.
+ *
+ * Efeito colateral a discutir com os sócios: na base da CVM os critérios de
+ * balanço têm cobertura de 71% a 100%, mas na base fictícia eles não existem —
+ * `data.js` não tem dívida, liquidez nem fluxo de caixa. Os índices das duas
+ * bases, portanto, não se comparam entre si. Se isso incomodar, o caminho é
+ * acrescentar esses campos às empresas fictícias (ver README).
  * Isso é consequência da normalização, não um bug: o índice é RELATIVO ao que o
  * modelo considera possível. Se os sócios preferirem índices estáveis no tempo,
  * a alternativa é normalizar por um máximo fixo ou usar ordenação relativa —
@@ -374,6 +564,8 @@ function avaliarEmpresa(empresa) {
     scorePrincipal: papeis[principal].score,
     lastroPrincipal: papeis[principal].lastro,
     rotuloLastro: rotuloLastro(papeis[principal].lastro),
+    ressalvas: ressalvasDe(empresa),
+    criteriosNaoAvaliados: window.EVIDENCIA ? window.EVIDENCIA.criteriosNaoAvaliados(empresa) : [],
     cobertura: window.EVIDENCIA ? window.EVIDENCIA.coberturaEvidencia(empresa, sinais) : null,
   };
 }
@@ -384,7 +576,7 @@ function avaliarBase(empresas) {
 }
 
 window.MOTOR = {
-  LIMIARES, SINAIS, CONFIG_PAPEIS,
+  LIMIARES, SINAIS, CONFIG_PAPEIS, RESSALVAS,
   detectarSinais, scorePapel, avaliarEmpresa, avaliarBase,
-  lastroDoPapel, rotuloLastro,
+  lastroDoPapel, rotuloLastro, ressalvasDe,
 };
