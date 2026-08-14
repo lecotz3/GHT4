@@ -1,13 +1,35 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BASES, carregarBaseReal, motor, type ChaveBase } from './dominio'
-import type { EmpresaAvaliada, Papel } from './dominio/tipos'
+import {
+  BASES,
+  carregarBaseReal,
+  configuracao as camadaConfig,
+  excel,
+  mercado,
+  motor,
+  type ChaveBase,
+} from './dominio'
+import type { Configuracao, EmpresaAvaliada, Papel } from './dominio/tipos'
 import { FichaEmpresa } from './componentes/FichaEmpresa'
 import { FaixaNumerica } from './componentes/FaixaNumerica'
 import { Gaveta } from './componentes/Gaveta'
 import { Dossie } from './componentes/Dossie'
+import { PainelConfiguracao } from './componentes/PainelConfiguracao'
+import { MapaMercado } from './componentes/MapaMercado'
+import { Matchmaking } from './componentes/Matchmaking'
 import { milhoes, num, pct } from './formato'
 
 const PAPEIS: Papel[] = ['alvo', 'comprador', 'vendedora']
+
+/* As três telas seguem a ordem do trabalho de originação, não a ordem dos
+   módulos do documento: primeiro escolhe-se o mercado, depois a empresa dentro
+   dele, e só quando há mandato é que a lista de contrapartes faz sentido. */
+type Vista = 'mercado' | 'empresas' | 'listas'
+
+const VISTAS: [Vista, string, string][] = [
+  ['mercado', 'Mapa de mercado', 'Subsegmentos de um setor, ranqueados por atratividade (Módulos 1 e 2)'],
+  ['empresas', 'Empresas', 'Triagem e priorização dentro do recorte escolhido (Módulo 3)'],
+  ['listas', 'Listas de contrapartes', 'Compradores para um mandato de venda, alvos para um de compra (Módulo 6)'],
+]
 
 /** Uma faixa não escolhida é `null`, e isso é diferente de "faixa inteira":
  *  enquanto ninguém mexeu, registros SEM o indicador continuam na lista. Assim
@@ -90,9 +112,30 @@ export default function App() {
   const [selecionada, setSelecionada] = useState<EmpresaAvaliada | null>(null)
   const [gavetaAberta, setGavetaAberta] = useState(false)
 
+  /* Tela por hash: `#vista=mercado` abre direto o mapa. Mesmo padrão do
+     `index.html#empresa=tec07` do protótipo — quem manda o link por e-mail
+     manda a tela, não a instrução de onde clicar. */
+  const [vista, setVista] = useState<Vista>(() => {
+    const pedida = new URLSearchParams(window.location.hash.slice(1)).get('vista')
+    return VISTAS.some(([chave]) => chave === pedida) ? (pedida as Vista) : 'empresas'
+  })
+  const [mostrarConfig, setMostrarConfig] = useState(false)
+  /* A configuração é estado de PÁGINA, não de componente: ela atravessa as três
+     telas. Um peso ajustado no Módulo 3 muda a contagem de consolidadores que o
+     Módulo 2 exibe, porque essa contagem sai da classificação do motor. */
+  const [config, setConfig] = useState<Configuracao>(() => camadaConfig.configuracaoPadrao())
+  /* Empresa levada do mapa para a tela de listas pelo atalho "montar lista". */
+  const [empresaParaLista, setEmpresaParaLista] = useState<EmpresaAvaliada | null>(null)
+
   useEffect(() => {
     carregarBaseReal().then(setTemReal)
   }, [])
+
+  /* `replaceState` e não `hash =`: trocar de aba não deve empilhar histórico a
+     ponto de o botão "voltar" do navegador virar um desfazer de cliques. */
+  useEffect(() => {
+    window.history.replaceState(null, '', `#vista=${vista}`)
+  }, [vista])
 
   /* `temReal` é dependência de verdade, não enfeite — não remova.
      `BASES[base].empresas()` lê `window.*`, que é estado externo mutável:
@@ -107,8 +150,8 @@ export default function App() {
   const avaliadas = useMemo<EmpresaAvaliada[]>(() => {
     const pronta = base === 'demo' || temReal
     const empresas = pronta ? BASES[base].empresas() : []
-    return empresas.length ? motor.avaliarBase(empresas) : []
-  }, [base, temReal])
+    return empresas.length ? motor.avaliarBase(empresas, config) : []
+  }, [base, temReal, config])
 
   const setores = useMemo(
     () => [...new Set(avaliadas.map((e) => e.setor))].sort((a, b) => a.localeCompare(b, 'pt-BR')),
@@ -172,6 +215,10 @@ export default function App() {
 
   const def = BASES[base]
 
+  /* Alimenta o contador no botão de configuração: o usuário precisa ver que a
+     régua está fora do padrão mesmo com o painel fechado. */
+  const ajustes = useMemo(() => camadaConfig.ajustesAplicados(config), [config])
+
   const filtrando =
     Boolean(busca || setor) ||
     papeisAtivos.size < PAPEIS.length ||
@@ -200,6 +247,35 @@ export default function App() {
   function abrirDossie(e: EmpresaAvaliada) {
     setSelecionada(e)
     setGavetaAberta(true)
+  }
+
+  /** Atalho do mapa para a tela de listas, levando a empresa escolhida junto. */
+  function montarListaPara(e: EmpresaAvaliada) {
+    setEmpresaParaLista(e)
+    setVista('listas')
+  }
+
+  /**
+   * Módulo 9: a pasta de trabalho da consulta corrente.
+   *
+   * Exporta o RECORTE ativo, não a base inteira — se o usuário filtrou por setor
+   * e faixa de receita, é esse conjunto que ele quer levar para a reunião. A aba
+   * de metodologia carrega a configuração aplicada junto, para a planilha não
+   * circular por e-mail como se fosse número absoluto.
+   */
+  function exportarExcel() {
+    const setorAtivo = setor || undefined
+    const bytes = excel.gerarPastaDeTrabalho({
+      mapa: mercado.mapear(avaliadas, setorAtivo),
+      ranking: mercado.ranquearSubsegmentos(avaliadas, { setor: setorAtivo }),
+      avaliadas: lista,
+      configuracao: config,
+      setor: setorAtivo ?? 'todos os setores',
+      base: BASES[base].rotulo,
+    })
+    const carimbo = new Date().toISOString().slice(0, 10)
+    const nome = (setorAtivo ?? 'geral').toLowerCase().replace(/\W+/g, '-')
+    excel.baixar(bytes, `ght4-${nome}-${carimbo}.xlsx`)
   }
 
   function alternarPapel(p: Papel) {
@@ -275,6 +351,75 @@ export default function App() {
           )}
         </section>
 
+        {/* navegação entre os módulos */}
+        <nav className="mb-5 flex flex-wrap items-end gap-x-2 gap-y-2 border-b border-fio-forte">
+          {VISTAS.map(([chave, rotulo, dica]) => (
+            <button
+              key={chave}
+              type="button"
+              title={dica}
+              onClick={() => setVista(chave)}
+              className={`-mb-px border-b-2 px-3 py-2 text-[12.5px] font-semibold transition
+                ${vista === chave
+                  ? 'border-tinta text-tinta'
+                  : 'border-transparent text-suave hover:text-tinta-2'}`}
+            >
+              {rotulo}
+            </button>
+          ))}
+
+          <div className="ml-auto flex items-center gap-2 pb-1.5">
+            <button
+              type="button"
+              onClick={() => setMostrarConfig(!mostrarConfig)}
+              className={`rounded-ficha border px-2.5 py-1 text-[11px] font-semibold transition
+                ${mostrarConfig || ajustes.pesos.length > 0 || ajustes.criterios > 0
+                  ? 'border-tinta bg-tinta text-papel'
+                  : 'border-fio-forte text-suave hover:border-tinta-2'}`}
+            >
+              Critérios e pesos
+              {(ajustes.pesos.length > 0 || ajustes.criterios > 0) &&
+                ` · ${ajustes.pesos.length + ajustes.criterios}`}
+            </button>
+            <button
+              type="button"
+              onClick={exportarExcel}
+              title="Planilha com o mapa de mercado, os rankings, a aba de valuation e a metodologia"
+              className="rounded-ficha border border-fio-forte px-2.5 py-1 text-[11px] font-semibold text-suave transition hover:border-tinta-2"
+            >
+              Exportar Excel
+            </button>
+          </div>
+        </nav>
+
+        {mostrarConfig && (
+          <div className="mb-6">
+            <PainelConfiguracao
+              config={config}
+              aoMudar={setConfig}
+              empresas={avaliadas}
+            />
+          </div>
+        )}
+
+        {vista === 'mercado' && (
+          <MapaMercado
+            avaliadas={avaliadas}
+            aoAbrirEmpresa={abrirDossie}
+            aoMontarLista={montarListaPara}
+          />
+        )}
+
+        {vista === 'listas' && (
+          <Matchmaking
+            avaliadas={avaliadas}
+            empresaInicial={empresaParaLista}
+            aoAbrirEmpresa={abrirDossie}
+          />
+        )}
+
+        {vista === 'empresas' && (
+        <>
         {/* filtros */}
         <section className="mb-6 flex flex-wrap items-end gap-4 border-y border-fio py-4">
           <label className="min-w-[220px] flex-1">
@@ -472,6 +617,8 @@ export default function App() {
               </section>
             )
           })
+        )}
+        </>
         )}
       </main>
 

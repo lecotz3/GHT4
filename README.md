@@ -174,11 +174,57 @@ reunião com o alvo (ver `CRITERIOS_SEM_FONTE` em `evidencias.js`):
 | `data.js` | Base de **empresas fictícias** com metadados de origem/data/confiança. **Trocar por dados validados no futuro.** |
 | `evidencias.js` | **Camada de evidência** — fontes fictícias por empresa e por sinal, e a regra que decide o que sustenta cada afirmação. **Aqui entram as fontes reais no futuro.** |
 | `scoring.js` | **Motor de scoring** — limiares, catálogo de sinais, pesos por papel e cálculo do lastro. **Este é o ponto de edição após as reuniões.** |
+| `configuracao.js` | **Critérios e pesos em tempo de uso** (Mód. 3.2 e 3.3) — catálogo de campos, operadores, critérios ad hoc e templates. |
+| `mercado.js` | **Mapa e ranking de subsegmentos** (Mód. 1 e 2) — HHI, faixa consolidável e os quatro critérios declarados sem fonte. |
+| `matchmaking.js` | **Listas de compradores e alvos** (Mód. 6) — sell-side e buy-side com justificativa por critério. |
+| `exportar-excel.js` | **Saída em .xlsx** (Mód. 9) — ZIP e XML escritos à mão, sem dependência de npm. |
 | `PESQUISA-DATASITE-FT.md` | Resumo estruturado da pesquisa Datasite/FT que embasa o desenho, com todos os números. |
 | `PERGUNTAS-DESCOBERTA.md` | Roteiro de perguntas para os sócios (usuários, setores, fontes, critérios, fluxo, confidencialidade, métricas). |
 | `README.md` | Este arquivo. |
 
-Continua sem instalação, sem dependências e sem build — cinco arquivos estáticos.
+Continua sem instalação, sem dependências e sem build.
+
+---
+
+## Os módulos do documento de requisitos
+
+O documento *"Requisitos — Ferramenta de IA GHT4"* descreve sete módulos. O que existe hoje:
+
+| Módulo | O que pede | Estado |
+|---|---|---|
+| 1 · Mapeamento de mercado | setor → subsegmentos → empresas | **Feito** — `mercado.js`, 13 setores e 46 subsegmentos |
+| 2 · Ranking de subsegmentos | atratividade para M&A, pesos configuráveis | **Feito** — 6 critérios calculáveis, 4 declarados sem fonte |
+| 3 · Ranking de empresas | critérios fixos + ad hoc + templates | **Feito** — `scoring.js` + `configuracao.js` |
+| 4 · Conexões da rede GHT4 | quem da casa conhece quem do alvo | **Fase 2** — decidido usar só material interno |
+| 5.1 · Valuation (Capital IQ) | trading comps e transações precedentes | **Bloqueado** — acesso é login web; caminho é importar a exportação da plataforma |
+| 5.2 e 5.3 · Report e news run | TAM/SAM/SOM, Porter, SWOT, PESTLE, notícias | **Fase 2** — exigem camada de linguagem natural |
+| 6 · Listas de compradores/alvos | matchmaking sobre a base mapeada | **Feito** — `matchmaking.js`, sell-side e buy-side |
+| 7 · CRM / pipeline | funil por colaborador | **Fase 2** — a triagem com trilha é o embrião |
+| 9 · Formato dos outputs | Excel com subsegmento em coluna + aba de valuation | **Feito** — `exportar-excel.js`, 5 abas |
+
+### Como a configuração em tempo de uso funciona
+
+`scorePapel(empresa, papel, config)` aceita uma configuração opcional. **Sem ela, o resultado é
+idêntico ao de antes** — os pesos fixos de `CONFIG_PAPEIS`. Com ela:
+
+- `config.pesos[papel]` substitui o peso de cada sinal do catálogo;
+- `config.criterios` acrescenta critérios criados na hora, sobre qualquer campo de `CAMPOS`.
+
+Duas regras que não são detalhe de implementação:
+
+1. **O denominador cresce junto com os critérios.** Criar um critério novo não infla o índice de
+   toda a base — ele continua significando "que fração do que eu pedi esta empresa atende".
+2. **Critério ad hoc nunca é documental.** Ele entra sem evidência anexada, então o cálculo de
+   lastro o classifica como indicador estruturado. Um critério inventado na hora não consegue
+   elevar o lastro documental do índice.
+
+### O que o Módulo 2 não consegue calcular
+
+Dos quatro critérios que o documento pede para o ranking de subsegmentos, **nenhum existe em dado
+público brasileiro**: volume de transações, múltiplos praticados, interesse de compradores e
+tendências setoriais. Eles aparecem declarados em `CRITERIOS_SEM_FONTE_MERCADO`, com motivo e via de
+obtenção — mesmo padrão de `CRITERIOS_SEM_FONTE` em `evidencias.js`. No lugar do terceiro, a
+ferramenta usa "consolidadores presentes", que é proxy interno e está marcado como tal.
 
 ---
 

@@ -30,13 +30,32 @@
 import '@dominio/data.js'
 import '@dominio/evidencias.js'
 import '@dominio/scoring.js'
+/* A ordem abaixo importa menos do que a de cima — estes quatro só consultam
+   `window.MOTOR` na hora da chamada, nunca no corpo do arquivo. Ainda assim
+   ficam depois de scoring.js, na sequência em que as camadas se empilham. */
+import '@dominio/configuracao.js'
+import '@dominio/mercado.js'
+import '@dominio/matchmaking.js'
+import '@dominio/exportar-excel.js'
 
-import type { CamadaEvidencia, Empresa, Motor } from './tipos'
+import type {
+  CamadaConfiguracao,
+  CamadaEvidencia,
+  CamadaExcel,
+  CamadaMatchmaking,
+  CamadaMercado,
+  Empresa,
+  Motor,
+} from './tipos'
 
 declare global {
   interface Window {
     MOTOR: Motor
     EVIDENCIA: CamadaEvidencia
+    CONFIGURACAO: CamadaConfiguracao
+    MERCADO: CamadaMercado
+    MATCHMAKING: CamadaMatchmaking
+    EXCEL: CamadaExcel
     EMPRESAS_DEMO: Empresa[]
     PERFIS: string[]
     EMPRESAS_CVM?: Empresa[]
@@ -80,6 +99,10 @@ export async function carregarBaseReal(): Promise<boolean> {
 
 export const motor = window.MOTOR
 export const evidencia = window.EVIDENCIA
+export const configuracao = window.CONFIGURACAO
+export const mercado = window.MERCADO
+export const matchmaking = window.MATCHMAKING
+export const excel = window.EXCEL
 
 export type ChaveBase = 'demo' | 'cvm'
 

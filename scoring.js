@@ -474,15 +474,36 @@ function detectarSinais(empresa) {
   return ativos;
 }
 
-/** Calcula o score (0–100) e a contribuição de cada sinal para um papel. */
-function scorePapel(empresa, papel) {
+/**
+ * Calcula o score (0–100) e a contribuição de cada sinal para um papel.
+ *
+ * `config` é opcional e vem de configuracao.js (o painel de critérios do
+ * usuário). Sem ele, o cálculo é exatamente o de antes — os pesos fixos de
+ * CONFIG_PAPEIS. Com ele, dois ajustes entram:
+ *
+ *   config.pesos[papel]  substitui os pesos dos sinais do catálogo;
+ *   config.criterios     acrescenta critérios criados na hora pelo usuário.
+ *
+ * O denominador (`maxPossivel`) cresce junto com os critérios ad hoc. Sem isso,
+ * criar um critério novo inflaria o score de toda a base — o índice tem de
+ * continuar significando "que fração do que EU pedi esta empresa atende".
+ */
+function scorePapel(empresa, papel, config) {
   const cfg = CONFIG_PAPEIS[papel];
-  const maxPossivel = Object.values(cfg.pesos).reduce((a, b) => a + b, 0);
+  const pesos = (config && config.pesos && config.pesos[papel]) || cfg.pesos;
+
+  const criterios = (config && config.criterios ? config.criterios : [])
+    .filter((c) => c.papel === papel && Number(c.peso) > 0);
+
+  let maxPossivel = Object.values(pesos).reduce((a, b) => a + b, 0);
+  for (const c of criterios) maxPossivel += Number(c.peso);
+
   let soma = 0;
   const contribuicoes = [];
-  for (const chave in cfg.pesos) {
-    const peso = cfg.pesos[chave];
-    if (SINAIS[chave] && SINAIS[chave].ativo(empresa)) {
+
+  for (const chave in pesos) {
+    const peso = pesos[chave];
+    if (peso > 0 && SINAIS[chave] && SINAIS[chave].ativo(empresa)) {
       soma += peso;
       contribuicoes.push({
         chave,
@@ -495,6 +516,32 @@ function scorePapel(empresa, papel) {
       });
     }
   }
+
+  /* Critérios ad hoc entram como contribuição normal, mas SEM evidência: eles
+     nascem de indicador ou cadastro, nunca de documento. Como `lastroDoPapel`
+     classifica contribuição sem evidência como estruturada, um critério
+     inventado na hora não consegue elevar o lastro documental do índice — que é
+     precisamente o comportamento desejado. */
+  if (window.CONFIGURACAO) {
+    for (const c of criterios) {
+      const sinal = window.CONFIGURACAO.comoSinal(c);
+      if (sinal.ativo(empresa)) {
+        soma += sinal.peso;
+        contribuicoes.push({
+          chave: sinal.chave,
+          rotulo: sinal.rotulo,
+          tipo: sinal.tipo,
+          natureza: sinal.natureza,
+          peso: sinal.peso,
+          detalhe: sinal.detalhe,
+          fonte: sinal.fonte,
+          adHoc: true,
+          evidencia: null,
+        });
+      }
+    }
+  }
+
   contribuicoes.sort((a, b) => b.peso - a.peso);
   const score = maxPossivel > 0 ? Math.round((soma / maxPossivel) * 100) : 0;
   return { score, contribuicoes, maxPossivel, somaPontos: soma };
@@ -543,10 +590,10 @@ function rotuloLastro(lastro) {
 }
 
 /** Avalia uma empresa em todos os papéis e define a classificação principal. */
-function avaliarEmpresa(empresa) {
+function avaliarEmpresa(empresa, config) {
   const papeis = {};
   for (const p in CONFIG_PAPEIS) {
-    papeis[p] = scorePapel(empresa, p);
+    papeis[p] = scorePapel(empresa, p, config);
     papeis[p].lastro = lastroDoPapel(empresa, papeis[p]);
   }
   // classificação principal = papel de maior score (desempate por ordem definida)
@@ -570,9 +617,9 @@ function avaliarEmpresa(empresa) {
   };
 }
 
-/** Avalia toda a base. */
-function avaliarBase(empresas) {
-  return empresas.map(avaliarEmpresa);
+/** Avalia toda a base, opcionalmente sob a configuração do usuário. */
+function avaliarBase(empresas, config) {
+  return empresas.map((e) => avaliarEmpresa(e, config));
 }
 
 window.MOTOR = {
