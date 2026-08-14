@@ -6,9 +6,12 @@
  *  exatamente os mesmos arquivos que o protótipo carrega por <script>:
  *
  *      ../data.js          empresas fictícias
- *      ../data-real.js     386 companhias abertas (CVM) — pode não existir
  *      ../evidencias.js    de onde vem cada afirmação
  *      ../scoring.js       sinais, pesos, índice e lastro
+ *
+ *  A quarta — ../data-real.js, a base da CVM — entra por <script> em
+ *  `carregarBaseReal()`, não por import: é dado gerado, pode não existir, e não
+ *  tem por que atravessar o bundler. Veja o comentário lá embaixo.
  *
  *  Por que funciona: esses arquivos não usam sintaxe de módulo (nenhum import ou
  *  export). O Vite os trata como módulos cujo corpo é executado por efeito
@@ -41,13 +44,31 @@ declare global {
   }
 }
 
+/* Injeta um <script> e resolve quando ele terminou — ou rejeita se não carregou.
+   Note que "carregou" não é "funcionou": um servidor estático que devolve o
+   index.html no lugar de um 404 dispara onload com HTML no corpo. Por isso quem
+   chama confere o resultado pelo global, não pela promessa. */
+function carregarScript(url: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = url
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error(`falha ao carregar ${url}`))
+    document.head.appendChild(script)
+  })
+}
+
 /* data-real.js é gerado por `node ferramentas/importar-cvm.mjs` e pode
-   legitimamente não existir num clone novo. Import dinâmico com captura para
-   que a ausência degrade em "só a base fictícia", nunca em tela branca. */
+   legitimamente não existir num clone novo. A captura faz a ausência degradar
+   em "só a base fictícia", nunca em tela branca.
+
+   <script> em vez de import(): o arquivo é ~1 MB de DADO e não passa pelo
+   bundler — vite.config.ts o serve e copia como ativo estático, e o comentário
+   de lá explica por quê. É também exatamente como o protótipo o carrega. */
 export async function carregarBaseReal(): Promise<boolean> {
   if (window.EMPRESAS_CVM?.length) return true
   try {
-    await import('@dominio/data-real.js')
+    await carregarScript(`${import.meta.env.BASE_URL}data-real.js`)
     return Boolean(window.EMPRESAS_CVM?.length)
   } catch {
     console.info(
