@@ -103,6 +103,9 @@ matchmaking.js → exportar-excel.js → data-real.js`.
 6. **Nada entra no índice sem entrar também no denominador.**
 7. **Tipos em `v1/src/dominio/tipos.ts`**, uma seção por módulo.
 8. **Paleta validada** (`v1/src/index.css`) — não trocar cor sem revalidar.
+9. **Tela nova entra por `lazy()`** em App.tsx, dentro do `Suspense` que já existe.
+   Componente lazy SEM fronteira de Suspense não renderiza e não busca o chunk —
+   falha silenciosa, sem erro no console.
 
 ---
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import {
   BASES,
   carregarBaseReal,
@@ -11,15 +11,48 @@ import {
 import type { Configuracao, EmpresaAvaliada, Papel } from './dominio/tipos'
 import { FichaEmpresa } from './componentes/FichaEmpresa'
 import { FaixaNumerica } from './componentes/FaixaNumerica'
-import { Gaveta } from './componentes/Gaveta'
-import { Dossie } from './componentes/Dossie'
-import { PainelConfiguracao } from './componentes/PainelConfiguracao'
-import { MapaMercado } from './componentes/MapaMercado'
-import { Matchmaking } from './componentes/Matchmaking'
-import { Conexoes } from './componentes/Conexoes'
-import { Crm } from './componentes/Crm'
-import { Analises } from './componentes/Analises'
 import { milhoes, num, pct } from './formato'
+
+/* =============================================================================
+ *  Telas sob demanda
+ * -----------------------------------------------------------------------------
+ *  Cada tela vira um chunk próprio, buscado no primeiro clique na aba. O motivo
+ *  não é o aviso do bundler — é que ninguém usa as seis telas na mesma sessão.
+ *  Quem abre a ferramenta para conferir um pipeline não deveria baixar o
+ *  interpretador de CSV do Capital IQ nem o painel de configuração.
+ *
+ *  A tela `Empresas` fica de FORA da divisão, de propósito: é a inicial, e
+ *  carregá-la sob demanda trocaria um aviso de build por um piscar na abertura.
+ *
+ *  O .then() existe porque estes são exports nomeados, e lazy() espera um módulo
+ *  com export default.
+ * ========================================================================== */
+const PainelConfiguracao = lazy(() =>
+  import('./componentes/PainelConfiguracao').then((m) => ({ default: m.PainelConfiguracao })),
+)
+const MapaMercado = lazy(() =>
+  import('./componentes/MapaMercado').then((m) => ({ default: m.MapaMercado })),
+)
+const Matchmaking = lazy(() =>
+  import('./componentes/Matchmaking').then((m) => ({ default: m.Matchmaking })),
+)
+const Conexoes = lazy(() => import('./componentes/Conexoes').then((m) => ({ default: m.Conexoes })))
+const Crm = lazy(() => import('./componentes/Crm').then((m) => ({ default: m.Crm })))
+/* A gaveta e o dossiê carregam junto a biblioteca de animação, que é a maior
+   dependência do projeto e só faz sentido quando alguém abre um registro. */
+const Gaveta = lazy(() => import('./componentes/Gaveta').then((m) => ({ default: m.Gaveta })))
+const Dossie = lazy(() => import('./componentes/Dossie').then((m) => ({ default: m.Dossie })))
+const Analises = lazy(() => import('./componentes/Analises').then((m) => ({ default: m.Analises })))
+
+/** Placa de carregamento com a altura aproximada de uma tela, para a troca de
+ *  aba não colapsar o rodapé e empurrar a página para cima. */
+function Carregando() {
+  return (
+    <p className="rounded-ficha border border-dashed border-fio-forte px-4 py-16 text-center text-[12px] text-suave">
+      Carregando…
+    </p>
+  )
+}
 
 const PAPEIS: Papel[] = ['alvo', 'comprador', 'vendedora']
 
@@ -398,6 +431,9 @@ export default function App() {
           </div>
         </nav>
 
+        {/* Um Suspense só para todas as telas sob demanda: elas são mutuamente
+            exclusivas, então nunca há duas carregando ao mesmo tempo. */}
+        <Suspense fallback={<Carregando />}>
         {mostrarConfig && (
           <div className="mb-6">
             <PainelConfiguracao
@@ -435,6 +471,8 @@ export default function App() {
             aoAbrirEmpresa={abrirDossie}
           />
         )}
+
+        </Suspense>
 
         {vista === 'empresas' && (
         <>
@@ -640,21 +678,26 @@ export default function App() {
         )}
       </main>
 
+      {/* `fallback={null}` e não uma placa de carregamento: a gaveta entra
+          animando por cima da página, e um placeholder piscando atrás dela
+          apareceria como um defeito. O atraso é o de baixar 44 kB comprimidos. */}
       {selecionada && (
-        <Gaveta
-          aberta={gavetaAberta}
-          aoMudar={setGavetaAberta}
-          etiqueta={`Dossiê · ${def.rotulo}`}
-          titulo={selecionada.nome}
-          descricao={`${selecionada.setor} · ${selecionada.subsetor} · ${selecionada.cidade}/${selecionada.uf}`}
-          rodape={
-            <p className="text-[10.5px] leading-relaxed text-suave">
-              {def.tarja} · não substitui due diligence nem análise humana.
-            </p>
-          }
-        >
-          <Dossie e={selecionada} />
-        </Gaveta>
+        <Suspense fallback={null}>
+          <Gaveta
+            aberta={gavetaAberta}
+            aoMudar={setGavetaAberta}
+            etiqueta={`Dossiê · ${def.rotulo}`}
+            titulo={selecionada.nome}
+            descricao={`${selecionada.setor} · ${selecionada.subsetor} · ${selecionada.cidade}/${selecionada.uf}`}
+            rodape={
+              <p className="text-[10.5px] leading-relaxed text-suave">
+                {def.tarja} · não substitui due diligence nem análise humana.
+              </p>
+            }
+          >
+            <Dossie e={selecionada} />
+          </Gaveta>
+        </Suspense>
       )}
     </div>
   )
