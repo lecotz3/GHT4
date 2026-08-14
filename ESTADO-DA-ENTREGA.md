@@ -30,7 +30,7 @@
 | 3.1 · Critérios pré-estabelecidos | ✅ Já existia | `scoring.js` |
 | 3.2 · Critérios e pesos na hora | ✅ Feito | `configuracao.js`, `PainelConfiguracao.tsx` |
 | 3.3 · Templates de scoring | ✅ Feito | `configuracao.js` |
-| 4 · Conexões da rede GHT4 | ⬜ A fazer | — |
+| 4 · Conexões da rede GHT4 | ✅ Feito | `conexoes.js`, `Conexoes.tsx` |
 | 5.1 · Valuation (Capital IQ) | ⬜ A fazer | — |
 | 5.2 · Report de mercado | ⬜ A fazer | — |
 | 5.3 · News run | ⬜ A fazer | — |
@@ -43,15 +43,12 @@
 
 ## Ordem de execução restante
 
-1. **Módulo 4 — conexões** (`conexoes.js` + tela). Modelo de pessoas da GHT4,
-   pessoas das companhias, e o grau de conexão entrando como critério no
-   ranking do Módulo 3.
-2. **Módulo 7 — CRM/pipeline** (`crm.js` + tela). Funil por colaborador com
+1. **Módulo 7 — CRM/pipeline** (`crm.js` + tela). Funil por colaborador com
    persistência local, alimentado pelas empresas dos outros módulos.
-3. **Módulo 5.1 — valuation** (`valuation.js` + tela). Ingestão da exportação
+2. **Módulo 5.1 — valuation** (`valuation.js` + tela). Ingestão da exportação
    do Capital IQ (CSV colado ou arquivo), comps e precedentes, com revisão
    humana registrada.
-4. **Módulo 5.2 — report de mercado** (`relatorio.js` + tela) e **5.3 — news
+3. **Módulo 5.2 — report de mercado** (`relatorio.js` + tela) e **5.3 — news
    run**, mais a exportação em PDF.
 
 Cada etapa fecha com: `npm run build` na v1, `npx oxlint`, teste do motor em
@@ -84,6 +81,11 @@ matchmaking.js → exportar-excel.js → data-real.js`.
 
 ## Regras de arquitetura que valem para o que falta
 
+0. **Escopo global é compartilhado entre os .js da raiz.** Eles são carregados por
+   `<script>` no protótipo, então dois `const` de mesmo nome em arquivos
+   diferentes derrubam a página inteira com SyntaxError. Aconteceu com
+   `LIMITACOES` (conexoes.js vs matchmaking.js). Antes de commitar um arquivo
+   novo na raiz, varra os nomes de topo em busca de colisão.
 1. **Motor na raiz, sem sintaxe de módulo.** Nada de `import`/`export` nos `.js`
    da raiz — eles precisam rodar por `<script>` em `file://`. Publicam em
    `window.NOME`. A v1 os carrega por `v1/src/dominio/index.ts`.

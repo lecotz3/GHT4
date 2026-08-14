@@ -16,19 +16,21 @@ import { Dossie } from './componentes/Dossie'
 import { PainelConfiguracao } from './componentes/PainelConfiguracao'
 import { MapaMercado } from './componentes/MapaMercado'
 import { Matchmaking } from './componentes/Matchmaking'
+import { Conexoes } from './componentes/Conexoes'
 import { milhoes, num, pct } from './formato'
 
 const PAPEIS: Papel[] = ['alvo', 'comprador', 'vendedora']
 
-/* As três telas seguem a ordem do trabalho de originação, não a ordem dos
+/* As telas seguem a ordem do trabalho de originação, não a ordem dos
    módulos do documento: primeiro escolhe-se o mercado, depois a empresa dentro
    dele, e só quando há mandato é que a lista de contrapartes faz sentido. */
-type Vista = 'mercado' | 'empresas' | 'listas'
+type Vista = 'mercado' | 'empresas' | 'listas' | 'rede'
 
 const VISTAS: [Vista, string, string][] = [
   ['mercado', 'Mapa de mercado', 'Subsegmentos de um setor, ranqueados por atratividade (Módulos 1 e 2)'],
   ['empresas', 'Empresas', 'Triagem e priorização dentro do recorte escolhido (Módulo 3)'],
   ['listas', 'Listas de contrapartes', 'Compradores para um mandato de venda, alvos para um de compra (Módulo 6)'],
+  ['rede', 'Rede GHT4', 'Quem da casa alcança quais companhias (Módulo 4)'],
 ]
 
 /** Uma faixa não escolhida é `null`, e isso é diferente de "faixa inteira":
@@ -408,6 +410,10 @@ export default function App() {
             aoAbrirEmpresa={abrirDossie}
             aoMontarLista={montarListaPara}
           />
+        )}
+
+        {vista === 'rede' && (
+          <Conexoes avaliadas={avaliadas} aoAbrirEmpresa={abrirDossie} />
         )}
 
         {vista === 'listas' && (

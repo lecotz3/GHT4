@@ -395,3 +395,70 @@ export interface CamadaEvidencia {
   sinaisIndisponiveis(empresa: Empresa): { chave: string; motivo: string }[]
   criteriosNaoAvaliados(): CriterioSemFonte[]
 }
+
+/* =============================================================================
+ *  MÓDULO 4 — conexões da rede GHT4 (conexoes.js)
+ * ========================================================================== */
+
+export interface PassagemProfissional { empresa: string; cargo?: string; de?: string; ate?: string }
+export interface ContatoRede { nome: string; empresa: string; cargo?: string; relacao?: string; cnpj?: string }
+export interface FormacaoRede { instituicao: string; curso?: string; ano?: string }
+
+export interface MembroRede {
+  id: string
+  nome: string
+  cargo: string
+  /** "Cobrir todos os membros da GHT4 (grupo inteiro, não apenas a Advisory)". */
+  area: string
+  uf?: string
+  setores?: string[]
+  historico?: PassagemProfissional[]
+  contatos?: ContatoRede[]
+  formacao?: FormacaoRede[]
+}
+
+export type ForcaVinculo = 'direta' | 'indireta' | 'fraca'
+
+export interface Vinculo {
+  tipo: string
+  rotulo: string
+  membro: string
+  area: string
+  detalhe: string
+  fonte: string
+  forcaVinculo: ForcaVinculo
+  /** Falso quando outro vínculo do mesmo tipo já somou — exibido, mas sem pontuar. */
+  pontuou: boolean
+}
+
+export interface NivelConexao {
+  chave: 'forte' | 'media' | 'fraca' | 'tenue' | 'nenhuma'
+  rotulo: string
+}
+
+export interface AnaliseConexao {
+  forca: number
+  nivel: NivelConexao
+  vinculos: Vinculo[]
+  membrosNaRede?: number
+}
+
+export interface CamadaConexoes {
+  TIPOS_VINCULO: Record<string, { rotulo: string; peso: number; forca: ForcaVinculo; explicacao: string }>
+  NIVEIS: (NivelConexao & { min: number })[]
+  LIMITACOES: Limitacao[]
+  membros(): MembroRede[]
+  adicionarMembro(m: Omit<MembroRede, 'id'>): { membro: MembroRede; persistiu: boolean }
+  removerMembro(id: string): boolean
+  importarRede(json: string, substituir?: boolean): { quantidade: number; persistiu: boolean }
+  exportarRede(): string
+  limparRede(): boolean
+  carregarRedeDemonstracao(): boolean
+  analisar(empresa: Empresa): AnaliseConexao
+  forcaDe(empresa: Empresa): number
+  temVinculoRelevante(empresa: Empresa): boolean
+  ranquearPorConexao(empresas: EmpresaAvaliada[]): (AnaliseConexao & { empresa: EmpresaAvaliada })[]
+  normalizar(texto: string): string
+  mesmaEmpresa(a: string, b: string): boolean
+  nivelDe(forca: number): NivelConexao
+}

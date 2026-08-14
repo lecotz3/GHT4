@@ -189,6 +189,33 @@ const CAMPOS = {
     ler: (e) => (e.cvm ? e.cvm.controle : null),
   },
 
+  /* ---- CAMPOS DA REDE (Módulo 4) ------------------------------------------
+   * "O nível/força da conexão entra como critério no ranking de empresas
+   *  (Módulo 3)" — seção 5 do documento. É por aqui que ela entra: como campo
+   * do catálogo, o usuário pode exigir conexão, pesá-la ou ignorá-la, em vez de
+   * a ferramenta decidir por ele quanto vale conhecer alguém lá dentro.
+   *
+   * Lê de `window.CONEXOES`, que pode não estar carregado (o protótipo da raiz
+   * ainda não o inclui). Sem ele, o campo devolve null — "não sei", que é a
+   * resposta correta quando a rede não foi carregada, e nunca zero. */
+  forcaConexao: {
+    rotulo: 'Força da conexão (rede GHT4)',
+    grupo: 'Rede',
+    tipo: 'numero',
+    unidade: '0–100',
+    natureza: 'cadastral',
+    fonte: 'Cruzamento com currículos e listas de contatos da GHT4',
+    ler: (e) => (window.CONEXOES ? window.CONEXOES.forcaDe(e) : null),
+  },
+  temConexao: {
+    rotulo: 'Tem vínculo nomeável',
+    grupo: 'Rede',
+    tipo: 'booleano',
+    natureza: 'cadastral',
+    fonte: 'Cruzamento com currículos e listas de contatos da GHT4',
+    ler: (e) => (window.CONEXOES ? window.CONEXOES.temVinculoRelevante(e) : null),
+  },
+
   /* ---- CAMPO DERIVADO: foco vs diversificação ------------------------------
    * O documento pede exatamente este eixo (seção 4.1 e 4.2): "se a companhia
    * atua exatamente no setor específico, se é diversificada, se atua em

@@ -34,12 +34,14 @@ import '@dominio/scoring.js'
    `window.MOTOR` na hora da chamada, nunca no corpo do arquivo. Ainda assim
    ficam depois de scoring.js, na sequência em que as camadas se empilham. */
 import '@dominio/configuracao.js'
+import '@dominio/conexoes.js'
 import '@dominio/mercado.js'
 import '@dominio/matchmaking.js'
 import '@dominio/exportar-excel.js'
 
 import type {
   CamadaConfiguracao,
+  CamadaConexoes,
   CamadaEvidencia,
   CamadaExcel,
   CamadaMatchmaking,
@@ -53,6 +55,7 @@ declare global {
     MOTOR: Motor
     EVIDENCIA: CamadaEvidencia
     CONFIGURACAO: CamadaConfiguracao
+    CONEXOES: CamadaConexoes
     MERCADO: CamadaMercado
     MATCHMAKING: CamadaMatchmaking
     EXCEL: CamadaExcel
@@ -100,6 +103,7 @@ export async function carregarBaseReal(): Promise<boolean> {
 export const motor = window.MOTOR
 export const evidencia = window.EVIDENCIA
 export const configuracao = window.CONFIGURACAO
+export const conexoes = window.CONEXOES
 export const mercado = window.MERCADO
 export const matchmaking = window.MATCHMAKING
 export const excel = window.EXCEL
