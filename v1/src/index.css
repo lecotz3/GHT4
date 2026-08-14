@@ -108,3 +108,34 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* =============================================================================
+ *  IMPRESSÃO — o PDF do Módulo 9
+ * -----------------------------------------------------------------------------
+ *  "Análise de mercado: apresentada no chat e exportada em PDF" (seção 9).
+ *  A impressão do navegador É a geração do PDF: sem dependência de npm, com
+ *  fontes e paginação nativas, e o usuário confere antes de salvar. Um gerador
+ *  próprio de PDF custaria uma biblioteca — e o motor da raiz não tem nenhuma,
+ *  por decisão de projeto.
+ *
+ *  A regra abaixo esconde tudo que não é o report: navegação, filtros e painéis
+ *  não pertencem a um documento que vai para o cliente.
+ * ========================================================================== */
+@media print {
+  body { background: #fff; }
+  body::before { display: none; }          /* a textura de papel não imprime */
+  header, nav, .print\:hidden { display: none !important; }
+
+  /* Só o conteúdo marcado como imprimível sobrevive. */
+  body:has(.para-impressao) main > *:not(:has(.para-impressao)) { display: none; }
+
+  .para-impressao {
+    display: block;
+  }
+  .para-impressao section {
+    break-inside: avoid;
+    border-color: #bbb;
+    margin-bottom: 12px;
+  }
+  a { text-decoration: none; color: inherit; }
+}

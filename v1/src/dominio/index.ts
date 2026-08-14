@@ -36,12 +36,14 @@ import '@dominio/scoring.js'
 import '@dominio/configuracao.js'
 import '@dominio/conexoes.js'
 import '@dominio/crm.js'
+import '@dominio/analises.js'
 import '@dominio/mercado.js'
 import '@dominio/matchmaking.js'
 import '@dominio/exportar-excel.js'
 
 import type {
   CamadaConfiguracao,
+  CamadaAnalises,
   CamadaConexoes,
   CamadaCrm,
   CamadaEvidencia,
@@ -59,6 +61,7 @@ declare global {
     CONFIGURACAO: CamadaConfiguracao
     CONEXOES: CamadaConexoes
     CRM: CamadaCrm
+    ANALISES: CamadaAnalises
     MERCADO: CamadaMercado
     MATCHMAKING: CamadaMatchmaking
     EXCEL: CamadaExcel
@@ -108,6 +111,7 @@ export const evidencia = window.EVIDENCIA
 export const configuracao = window.CONFIGURACAO
 export const conexoes = window.CONEXOES
 export const crm = window.CRM
+export const analises = window.ANALISES
 export const mercado = window.MERCADO
 export const matchmaking = window.MATCHMAKING
 export const excel = window.EXCEL

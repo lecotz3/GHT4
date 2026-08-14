@@ -31,26 +31,31 @@
 | 3.2 · Critérios e pesos na hora | ✅ Feito | `configuracao.js`, `PainelConfiguracao.tsx` |
 | 3.3 · Templates de scoring | ✅ Feito | `configuracao.js` |
 | 4 · Conexões da rede GHT4 | ✅ Feito | `conexoes.js`, `Conexoes.tsx` |
-| 5.1 · Valuation (Capital IQ) | ⬜ A fazer | — |
-| 5.2 · Report de mercado | ⬜ A fazer | — |
-| 5.3 · News run | ⬜ A fazer | — |
+| 5.1 · Valuation (Capital IQ) | ✅ Feito | `analises.js`, `Analises.tsx` |
+| 5.2 · Report de mercado | ✅ Feito | `analises.js`, `Analises.tsx` |
+| 5.3 · News run | ✅ Feito | `analises.js`, `Analises.tsx` |
 | 6 · Listas de compradores/alvos | ✅ Feito | `matchmaking.js`, `Matchmaking.tsx` |
 | 7 · CRM / pipeline | ✅ Feito | `crm.js`, `Crm.tsx` |
 | 9 · Output Excel | ✅ Feito | `exportar-excel.js` |
-| 9 · Output PDF (report) | ⬜ A fazer | — |
+| 9 · Output PDF (report) | ✅ Feito | `@media print` em `v1/src/index.css` |
 
 ---
 
 ## Ordem de execução restante
 
-1. **Módulo 5.1 — valuation** (`valuation.js` + tela). Ingestão da exportação
-   do Capital IQ (CSV colado ou arquivo), comps e precedentes, com revisão
-   humana registrada.
-2. **Módulo 5.2 — report de mercado** (`relatorio.js` + tela) e **5.3 — news
-   run**, mais a exportação em PDF.
+**Todos os módulos do documento estão implementados.** O que resta não é código,
+é material e decisão — ver "Pendências que dependem do sócio", abaixo.
 
-Cada etapa fecha com: `npm run build` na v1, `npx oxlint`, teste do motor em
-Node, e **um commit próprio**.
+Se for retomar, os candidatos naturais são:
+
+1. **Calibrar pesos com os sócios** — a régua padrão é hipótese do protótipo, não
+   decisão de negócio. Ver a lista em README.md.
+2. **Ingerir o material real** — currículos e listas para o Módulo 4, exportação
+   do Capital IQ para o 5.1.
+3. **Servidor**, se e quando o CRM e os templates precisarem ser compartilhados
+   entre o time.
+4. **Camada de linguagem natural** — é o que falta para prompt livre (Mód. 3.2 e
+   6) e para o texto analítico do report (Mód. 5.2).
 
 ---
 

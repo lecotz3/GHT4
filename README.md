@@ -173,6 +173,9 @@ reunião com o alvo (ver `CRITERIOS_SEM_FONTE` em `evidencias.js`):
 | `fundamentos.html` | Peça de apresentação: por que o agente é assim, com os dados da pesquisa. |
 | `data.js` | Base de **empresas fictícias** com metadados de origem/data/confiança. **Trocar por dados validados no futuro.** |
 | `evidencias.js` | **Camada de evidência** — fontes fictícias por empresa e por sinal, e a regra que decide o que sustenta cada afirmação. **Aqui entram as fontes reais no futuro.** |
+| `conexoes.js` | **Rede GHT4** (Mód. 4) — cruzamento de currículos e contatos com as companhias. |
+| `crm.js` | **Pipeline** (Mód. 7) — funil por colaborador, trilha append-only, retrato de entrada. |
+| `analises.js` | **Valuation, report e news run** (Mód. 5) — ingestão de CSV, múltiplos, Porter/SWOT/PESTLE com lacunas declaradas. |
 | `scoring.js` | **Motor de scoring** — limiares, catálogo de sinais, pesos por papel e cálculo do lastro. **Este é o ponto de edição após as reuniões.** |
 | `configuracao.js` | **Critérios e pesos em tempo de uso** (Mód. 3.2 e 3.3) — catálogo de campos, operadores, critérios ad hoc e templates. |
 | `mercado.js` | **Mapa e ranking de subsegmentos** (Mód. 1 e 2) — HHI, faixa consolidável e os quatro critérios declarados sem fonte. |
@@ -200,7 +203,8 @@ O documento *"Requisitos — Ferramenta de IA GHT4"* descreve sete módulos. O q
 | 5.2 e 5.3 · Report e news run | TAM/SAM/SOM, Porter, SWOT, PESTLE, notícias | **Fase 2** — exigem camada de linguagem natural |
 | 6 · Listas de compradores/alvos | matchmaking sobre a base mapeada | **Feito** — `matchmaking.js`, sell-side e buy-side |
 | 7 · CRM / pipeline | funil por colaborador | **Fase 2** — a triagem com trilha é o embrião |
-| 9 · Formato dos outputs | Excel com subsegmento em coluna + aba de valuation | **Feito** — `exportar-excel.js`, 5 abas |
+| 9 · Formato dos outputs | Excel com subsegmento em coluna + aba de valuation | **Feito** — `exportar-excel.js`, até 6 abas |
+| 9 · Report em PDF | análise de mercado exportada em PDF | **Feito** — folha de impressão em `v1/src/index.css` |
 
 ### Como a configuração em tempo de uso funciona
 

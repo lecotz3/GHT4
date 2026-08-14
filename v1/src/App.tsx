@@ -18,6 +18,7 @@ import { MapaMercado } from './componentes/MapaMercado'
 import { Matchmaking } from './componentes/Matchmaking'
 import { Conexoes } from './componentes/Conexoes'
 import { Crm } from './componentes/Crm'
+import { Analises } from './componentes/Analises'
 import { milhoes, num, pct } from './formato'
 
 const PAPEIS: Papel[] = ['alvo', 'comprador', 'vendedora']
@@ -25,13 +26,14 @@ const PAPEIS: Papel[] = ['alvo', 'comprador', 'vendedora']
 /* As telas seguem a ordem do trabalho de originação, não a ordem dos
    módulos do documento: primeiro escolhe-se o mercado, depois a empresa dentro
    dele, e só quando há mandato é que a lista de contrapartes faz sentido. */
-type Vista = 'mercado' | 'empresas' | 'listas' | 'rede' | 'pipeline'
+type Vista = 'mercado' | 'empresas' | 'listas' | 'rede' | 'pipeline' | 'analises'
 
 const VISTAS: [Vista, string, string][] = [
   ['mercado', 'Mapa de mercado', 'Subsegmentos de um setor, ranqueados por atratividade (Módulos 1 e 2)'],
   ['empresas', 'Empresas', 'Triagem e priorização dentro do recorte escolhido (Módulo 3)'],
   ['listas', 'Listas de contrapartes', 'Compradores para um mandato de venda, alvos para um de compra (Módulo 6)'],
   ['rede', 'Rede GHT4', 'Quem da casa alcança quais companhias (Módulo 4)'],
+  ['analises', 'Análises', 'Valuation, report de mercado e news run (Módulo 5)'],
   ['pipeline', 'Pipeline', 'Funil de prospecção por colaborador (Módulo 7)'],
 ]
 
@@ -412,6 +414,10 @@ export default function App() {
             aoAbrirEmpresa={abrirDossie}
             aoMontarLista={montarListaPara}
           />
+        )}
+
+        {vista === 'analises' && (
+          <Analises avaliadas={avaliadas} setorPadrao={setor} />
         )}
 
         {vista === 'pipeline' && (

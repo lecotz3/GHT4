@@ -545,3 +545,112 @@ export interface CamadaCrm {
   limparCrm(): boolean
   linhasParaPlanilha(): unknown[][]
 }
+
+/* =============================================================================
+ *  MÓDULO 5 — análises complementares (analises.js)
+ * ========================================================================== */
+
+export interface EstatisticaMultiplo {
+  n: number; minimo: number; mediana: number; maximo: number; q1: number; q3: number
+}
+export interface EstatisticasMultiplos {
+  evEbitda: EstatisticaMultiplo | null
+  evReceita: EstatisticaMultiplo | null
+}
+
+export interface LeituraCsv {
+  registros: Record<string, unknown>[]
+  colunasReconhecidas: string[]
+  colunasAusentes: string[]
+  separador: string
+}
+
+export interface FaixaValor {
+  base: string; referencia: string; minimo: number; central: number; maximo: number
+  multiplos: EstatisticaMultiplo
+}
+
+export interface ValuationAplicado {
+  empresa: string
+  ebitdaEstimado: number | null
+  faixas: FaixaValor[]
+  ressalva: string
+}
+
+export interface Parecer { autor: string; veredito: 'correta' | 'incorreta'; comentario: string; quando: string }
+
+export interface RegistroValuation {
+  empresaId: string
+  comps: EstatisticasMultiplos | null
+  precedentes: unknown | null
+  atualizadoEm: string
+  revisoes: Parecer[]
+}
+
+export interface SecaoDimensionamento {
+  valor: number | null
+  rotulo: string
+  sustentado: boolean
+  aviso?: string
+  oQueFalta?: string
+  fonte: string
+}
+
+export interface ForcaPorter {
+  forca: string
+  indicador: string | null
+  leitura: string | null
+  sustentado: boolean
+  fonte: string
+  oQueFalta?: string
+}
+
+export interface Report {
+  setor: string
+  geradoEm: string
+  universo: {
+    empresas: number; subsegmentos: number; receitaSomada: number
+    crescimentoMediano: number | null; margemMediana: number | null
+    hhi: number | null; concentracaoTop5: number | null
+  }
+  dimensionamento: { titulo: string; tam: SecaoDimensionamento; sam: SecaoDimensionamento; som: SecaoDimensionamento }
+  players: {
+    titulo: string; sustentado: boolean; consolidadores: number; aviso: string
+    lideres: { nome: string; receita: number | null; participacao: number | null; classificacao: Papel; subsetor: string }[]
+  }
+  porter: ForcaPorter[]
+  swot: { titulo: string; sustentadoParcialmente: boolean; forcas: string[]; fraquezas: string[]; oportunidades: string[]; ameacas: string[]; oQueFalta: string }
+  pestle: { dimensao: string; sustentado: boolean; oQueFalta: string; fonte: string }[]
+  trends: { titulo: string; sustentado: boolean; oQueFalta: string; indicadorDisponivel: string | null; fonte: string }
+}
+
+export interface Noticia {
+  id: string; empresaId: string | null; setor: string | null
+  titulo: string; veiculo: string; data: string; link: string | null
+  resumo: string; relevancia: string; registradaEm: string
+}
+
+export interface ResultadoNewsRun {
+  periodo: string
+  total: number
+  noticias: Noticia[]
+  porAno: { ano: string; quantidade: number }[]
+  veiculos: string[]
+}
+
+export interface CamadaAnalises {
+  COLUNAS_COMPS: { chave: string; rotulo: string; sinonimos: string[]; obrigatoria?: boolean }[]
+  COLUNAS_PRECEDENTES: { chave: string; rotulo: string; sinonimos: string[]; obrigatoria?: boolean }[]
+  LIMITACOES: (Limitacao & { modulo: string })[]
+  interpretarCsv(texto: string, colunas: { chave: string; rotulo: string; sinonimos: string[]; obrigatoria?: boolean }[]): LeituraCsv
+  consolidarMultiplos(registros: Record<string, unknown>[]): { registros: Record<string, unknown>[]; estatisticas: EstatisticasMultiplos }
+  aplicarA(empresa: Empresa, estatisticas: EstatisticasMultiplos): ValuationAplicado
+  salvarValuation(empresaId: string, dados: { comps?: EstatisticasMultiplos; precedentes?: unknown; parecer?: Omit<Parecer, 'quando'> }): { registro: RegistroValuation; persistiu: boolean }
+  valuationDe(empresaId: string): RegistroValuation | null
+  removerValuation(empresaId: string): boolean
+  montarReport(avaliadas: EmpresaAvaliada[], setor?: string): Report
+  registrarNoticia(dados: Partial<Noticia>): { noticia: Noticia; persistiu: boolean }
+  removerNoticia(id: string): boolean
+  newsRun(opcoes?: { empresaId?: string; setor?: string; anos?: number }): ResultadoNewsRun
+  importarNoticias(texto: string, contexto?: { empresaId?: string; setor?: string }): { quantidade: number; persistiu: boolean }
+}
