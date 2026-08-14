@@ -2,3 +2,6 @@
 #   node ferramentas/importar-cvm.mjs
 # O resultado convertido (data-real.js) é versionado; a matéria-prima não.
 ferramentas/.cache-cvm/
+
+# Permissoes locais do Claude Code (por maquina, nao versionar)
+.claude/settings.local.json
