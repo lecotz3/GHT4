@@ -4,22 +4,26 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>GHT4 · Fundamentos — por que o agente é assim</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%237C2B29'/%3E%3Ctext x='16' y='21.5' font-family='system-ui,sans-serif' font-size='14' font-weight='600' fill='%23F1E7D6' text-anchor='middle'%3EG4%3C/text%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000000'/%3E%3Cpath d='M24 2h6L14 30H8z' fill='%23FF6E00'/%3E%3C/svg%3E" />
 <style>
   :root{
-    --ink:#16211C; --ink-2:#33403A; --muted:#5C665E;
-    --paper:#E7E0D0; --paper-2:#EFEADE; --card:#F5F1E8;
-    --rule:#CFC6B2; --rule-strong:#B7AC93;
-    --oxblood:#7C2B29; --oxblood-deep:#5E1F1E; --brass:#9A7B45;
+    /* Identidade GHT4 — a mesma paleta validada do razão. Trocou aqui, tem de
+       trocar em index.html e em v1/src/index.css, e rodar
+       `node ferramentas/validar-paleta.mjs`. */
+    --marca:#FF6E00; --preto:#000000; --nevoa:#ECEFF1;
+    --ink:#111111; --ink-2:#3D3D3D; --muted:#6B6B6B;
+    --paper:#FFFFFF; --paper-2:#F7F8F9; --card:#FFFFFF;
+    --rule:#E3E6E8; --rule-strong:#D2D2D2;
+    --lacre:#000000; --lacre-fundo:#000000; --brass:#8A6A3B;
 
     /* Marcas de dado — mesma paleta validada do razão (ver index.html).
        Aqui os gráficos são de série única (magnitude), então usam UM hue. */
-    --alvo:#127A4F;       --alvo-ink:#2E5A46;      --alvo-bg:#E1E7DC;
-    --comprador:#2E6BD6;  --comprador-ink:#2C4A6E; --comprador-bg:#DFE4EA;
-    --vendedora:#C07C0A;  --vendedora-ink:#8A5320; --vendedora-bg:#EEE4D2;
-    --inferido:#C0392F;
+    --alvo:#FF6E00;       --alvo-ink:#9A4200;      --alvo-bg:#FFF1E7;   --alvo-fio:#F5C09A;
+    --comprador:#0F4C81;  --comprador-ink:#0F4C81; --comprador-bg:#E8EEF4;
+    --vendedora:#111111;  --vendedora-ink:#111111; --vendedora-bg:#ECEFF1;
+    --inferido:#C0392F;   --alerta:#C0392F;        --alerta-bg:#FBEDEC; --alerta-fio:#E4B3AE;
 
-    --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --sans:"Inter","Helvetica Neue",Helvetica,Arial,"Segoe UI",system-ui,sans-serif;
     font-synthesis:none;
   }
   *{box-sizing:border-box}
@@ -27,29 +31,31 @@
   body{background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.5;
     -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
   h1,h2,h3{font-weight:600;margin:0}
-  ::selection{background:rgba(22,33,28,.12)}
+  ::selection{background:rgb(255 110 0 / .22)}
   .eyebrow{font:600 11px/1.2 var(--sans);letter-spacing:.03em;color:var(--muted)}
 
-  .confid-strip{background:var(--oxblood);color:#F1E7D6;padding:7px 20px;
+  .confid-strip{background:var(--lacre);color:rgb(255 255 255 / .8);padding:8px 20px;
     font:500 11px/1.4 var(--sans);display:flex;gap:10px;align-items:center;justify-content:center;
     text-align:center;flex-wrap:wrap}
-  .confid-strip b{color:#fff;font-weight:700}
-  .confid-strip .sep{color:rgba(241,231,214,.5)}
+  .confid-strip b{color:var(--marca);font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+  .confid-strip .sep{color:rgb(255 255 255 / .35)}
 
-  header.masthead{padding:22px 30px 0;display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap}
-  .seal-mono{width:52px;height:52px;border-radius:50%;flex:0 0 auto;
-    background:radial-gradient(circle at 35% 30%,#94322f,var(--oxblood-deep));
-    display:flex;align-items:center;justify-content:center;font-weight:600;font-size:21px;color:#F1E7D6;
-    box-shadow:inset 0 0 0 1.5px rgba(241,231,214,.35),inset 0 0 0 4px var(--oxblood)}
-  .mh-title h1{font-size:23px;line-height:1.1}
+  header.masthead{padding:26px 30px 0;display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap}
+  .marca-ght4{flex:0 0 auto;display:block;height:34px;width:auto;margin-top:2px}
+  .marca-ght4 path{fill:var(--preto)}
+  .mh-title h1{font-size:23px;line-height:1.1;letter-spacing:-.012em}
   .mh-title .eyebrow{margin-bottom:7px}
   .mh-title .desc{font-size:12.5px;color:var(--muted);margin-top:4px;max-width:560px}
   .mh-spacer{flex:1}
   .mh-link{font:600 11.5px/1 var(--sans);color:var(--ink-2);text-decoration:none;
-    border-bottom:1.5px solid var(--rule-strong);padding-bottom:3px;white-space:nowrap}
-  .mh-link:hover{border-bottom-color:var(--ink);color:var(--ink)}
-  .mh-rule{height:0;border-top:1px solid var(--rule-strong);margin:18px 30px 0;position:relative}
-  .mh-rule::after{content:"";position:absolute;left:0;top:-1px;width:120px;border-top:2px solid var(--ink)}
+    border-bottom:2px solid var(--marca);padding-bottom:3px;white-space:nowrap}
+  .mh-link:hover{color:var(--marca)}
+  /* A régua termina numa diagonal a 45° — o corte do "4" do logotipo. */
+  .mh-rule{height:0;border-top:1px solid var(--rule-strong);margin:20px 30px 0;position:relative}
+  .mh-rule::after{content:"";position:absolute;left:0;top:-2px;width:120px;border-top:3px solid var(--marca)}
+  .mh-rule::before{content:"";position:absolute;left:120px;top:-2px;width:0;height:0;
+    border-left:10px solid var(--marca);border-bottom:3px solid transparent;
+    transform:skewX(-45deg);transform-origin:left top}
 
   main{max-width:1000px;margin:0 auto;padding:30px 30px 70px}
   section{margin-bottom:46px}
@@ -91,7 +97,7 @@
   .barv{font-size:12px;font-weight:600;color:var(--ink);flex:0 0 auto}
   .row.hi .barv{color:var(--alvo-ink)}
   .note-scope{grid-column:1/-1;font-size:11.5px;color:var(--alvo-ink);background:var(--alvo-bg);
-    border:1px solid #b9cbbd;border-radius:2px;padding:7px 11px;margin:5px 0 9px;line-height:1.45}
+    border:1px solid var(--alvo-fio);border-radius:2px;padding:7px 11px;margin:5px 0 9px;line-height:1.45}
   .note-scope b{font-weight:700}
   /* Eixo em escala 0–100%: a largura da barra é a própria porcentagem, então a
      escala precisa ir até 100. Rotular o eixo com o valor máximo da série faria
@@ -116,9 +122,9 @@
   .dec-stat{display:inline-block;font-size:15px;font-weight:600;color:var(--alvo-ink);margin-right:7px}
 
   /* ---- tensão / caixa de alerta ---- */
-  .warnbox{border:1px solid #d5b3b0;border-left:3px solid var(--oxblood);border-radius:2px;
-    background:#f6eae8;padding:17px 20px}
-  .warnbox h3{font-size:14.5px;margin-bottom:9px;color:var(--oxblood-deep)}
+  .warnbox{border:1px solid var(--alerta-fio);border-left:3px solid var(--alerta);border-radius:2px;
+    background:var(--alerta-bg);padding:17px 20px}
+  .warnbox h3{font-size:14.5px;margin-bottom:9px;color:var(--alerta)}
   .warnbox p{font-size:13px;line-height:1.6;color:var(--ink-2);margin:0 0 10px;max-width:70ch}
   .warnbox p:last-child{margin-bottom:0}
   .warnbox b{color:var(--ink)}
@@ -142,6 +148,58 @@
     font-size:11.5px;text-align:center;line-height:1.7}
 
   @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+  /* ================= IMPRESSÃO / PDF =================
+     A impressão do navegador É a geração do PDF — sem dependência de npm, com
+     fontes e paginação nativas. Sem esta folha, os gráficos e as fichas de
+     decisão partem no meio da página, que é justamente onde eles perdem o
+     sentido: a barra fica numa folha e o número na outra.
+
+     A tarja preta abaixo NÃO se repete nas páginas seguintes: o Chrome pinta
+     elemento `position:fixed` só na primeira folha. Quem carrega o aviso de
+     confidencialidade em toda página é o rodapé corrido do gerador
+     (`footerTemplate` em ferramentas/gerar-pdf.mjs), que o Chrome repete de
+     verdade. Isso importa porque um PDF circula solto, e é a página avulsa que
+     vaza — a que sai da impressora e fica em cima da mesa. */
+  @page{size:A4;margin:14mm 13mm 16mm}
+
+  @media print{
+    body{background:#fff}
+    /* Chrome não imprime cor de fundo por padrão; sem isto a tarja preta some
+       e o laranja da marca vira cinza. */
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+
+    .mh-link{display:none}                 /* link de navegação não serve no papel */
+    header.masthead{padding:0 0 0;gap:16px}
+    .mh-rule{margin:14px 0 0}
+    main{padding:18px 0 0;max-width:none}
+
+    .confid-strip{
+      position:fixed; top:0; left:0; right:0;
+      padding:5px 12px; font-size:9px; z-index:9;
+    }
+    body{padding-top:22px}
+
+    /* Nada que forme uma unidade de leitura pode partir. */
+    section, .chart, .dec-item, .tiles, .warnbox, .quote, .qs li, .method{
+      break-inside:avoid; page-break-inside:avoid;
+    }
+    .sec-title{break-after:avoid; page-break-after:avoid}
+    .lead{break-after:avoid}
+    section{margin-bottom:26px}
+
+    /* O título de seção puxa o conteúdo junto; seção órfã no pé da página é o
+       defeito mais comum de PDF gerado por navegador. */
+    section > *:first-child{break-after:avoid}
+
+    .tile,.dec-l,.dec-r,.chart{background:#fff}
+    footer.pagefoot{border-top:1px solid var(--rule);padding:14px 0 0;font-size:9.5px}
+
+    /* URL depois de cada link some: no papel ela vira ruído, e todos os links
+       desta página apontam para dentro do próprio protótipo. */
+    a[href]::after{content:none}
+    a{color:inherit;text-decoration:none}
+  }
 </style>
 </head>
 <body>
@@ -153,9 +211,12 @@
 </div>
 
 <header class="masthead">
-  <div class="seal-mono">G4</div>
+  <!-- Logotipo oficial da GHT4, em SVG e embutido — o mesmo do index.html. -->
+  <svg class="marca-ght4" viewBox="0 0 176 80" role="img" aria-label="GHT4">
+    <path d="M85.962,47.8V42.351a11.271,11.271,0,0,1-4.423,1.273,2.524,2.524,0,0,1-2.85-2.8V21.891h7.273v-5.3H78.69V8.233H73.306l-.843,8.394-4.3.315v4.95h4.114V42.325c0,4.4,3.068,7.129,8.008,7.129A12.648,12.648,0,0,0,85.962,47.8M112.1,38.756V20.028L99.58,38.756Zm0,5.555H92.4V39.158L113.057,8.233h5.455V38.756h8.627l-3.71,5.555h-4.917v4.8H112.1ZM12.722,22.093a8.03,8.03,0,0,0-2.709.459,5.508,5.508,0,0,0-2.035,1.312,6.432,6.432,0,0,0-1.541,4.584A6.388,6.388,0,0,0,7.975,33a5.522,5.522,0,0,0,2.04,1.317,8.333,8.333,0,0,0,5.449,0A5.5,5.5,0,0,0,17.5,33.007a6.432,6.432,0,0,0,1.542-4.583A6.4,6.4,0,0,0,17.5,23.866a5.537,5.537,0,0,0-2.041-1.315,8.109,8.109,0,0,0-2.737-.458h0Zm-.736-5.445,19.08-.006-3.506,5.25H23.6l.265.418a10.608,10.608,0,0,1,.7,1.425,12.922,12.922,0,0,1,.884,4.681,13.05,13.05,0,0,1-.885,4.724,10.793,10.793,0,0,1-2.945,4.12,11.675,11.675,0,0,1-4.35,2.338,15.5,15.5,0,0,1-3.715.607c-.006,0-1,.024-1.159.024h-.136l-.061.126a14.277,14.277,0,0,0-.584,2.579.713.713,0,0,0,.647.782c.326.033.873.053,1.271.058l.35.011c.878.009,1.956.02,3.085.1a16.2,16.2,0,0,1,4.407.874,8.611,8.611,0,0,1,4.341,3.385,9.43,9.43,0,0,1,1.35,5.04A10.3,10.3,0,0,1,22.7,61.718a12.729,12.729,0,0,1-4.3,1.944,18.833,18.833,0,0,1-4.287.582c-.173,0-.33,0-.484,0A16.464,16.464,0,0,1,5.51,62.421a10.745,10.745,0,0,1-3.724-3.356A11.883,11.883,0,0,1,.2,53.944c-.008-.071-.146-1.4-.2-1.928H6.453l.114,1.333A5.447,5.447,0,0,0,8.6,57.466a8.717,8.717,0,0,0,4.938,1.327q.2,0,.407-.006a8.121,8.121,0,0,0,5.038-1.693,4.353,4.353,0,0,0,1.676-3.567,4.215,4.215,0,0,0-2.306-3.792c-1.3-.626-2.472-.626-4.806-.626h-2.9a5.1,5.1,0,0,1-4.088-1.943,4.506,4.506,0,0,1-.642-3.945l.878-4.142-.141-.063a11.138,11.138,0,0,1-2.805-1.763A10.784,10.784,0,0,1,.907,33.138a12.959,12.959,0,0,1,0-9.406,10.79,10.79,0,0,1,2.945-4.119A11.657,11.657,0,0,1,8.2,17.275a16.1,16.1,0,0,1,3.783-.627M169.435,0,143.168,39.33h-6.685L109.321,80H115.9l26.257-39.33h6.695L176,0ZM62.027,22.958A12.747,12.747,0,0,1,62.9,27.6V49.11H56.487V28.246a6.459,6.459,0,0,0-1.648-4.71,5.93,5.93,0,0,0-2.253-1.261,9.286,9.286,0,0,0-2.73-.377c-.106,0-.213,0-.321,0a9.892,9.892,0,0,0-3.05.571,6.565,6.565,0,0,0-2.294,1.43,6.288,6.288,0,0,0-1.686,4.625V49.11H36.093V1.947h6.412v17.07l.3-.2a12.692,12.692,0,0,1,2.854-1.432,15.921,15.921,0,0,1,4.507-.9c.344-.022.689-.032,1.028-.032a14.928,14.928,0,0,1,3.5.4,10.868,10.868,0,0,1,4.4,2.114,10.016,10.016,0,0,1,2.931,3.989"/>
+  </svg>
   <div class="mh-title">
-    <div class="eyebrow">GHT4 · Fusões &amp; Aquisições</div>
+    <div class="eyebrow">Fusões &amp; Aquisições</div>
     <h1>Fundamentos</h1>
     <div class="desc">Por que o agente de prospecção foi desenhado assim — cada escolha
       ancorada no que 1.000 dealmakers responderam.</div>

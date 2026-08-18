@@ -170,6 +170,7 @@ reunião com o alvo (ver `CRITERIOS_SEM_FONTE` em `evidencias.js`):
 | `index.html` | A aplicação: interface, filtros, listas, dossiê, triagem e exportação CSV. |
 | `data-real.js` | **Base real** gerada pelo importador. Não editar à mão. |
 | `ferramentas/importar-cvm.mjs` | Baixa e converte os dados abertos da CVM. |
+| `ferramentas/validar-paleta.mjs` | **Validador da paleta** — contraste WCAG, ΔE e simulação de daltonismo. Rode antes de commitar qualquer troca de cor. |
 | `fundamentos.html` | Peça de apresentação: por que o agente é assim, com os dados da pesquisa. |
 | `data.js` | Base de **empresas fictícias** com metadados de origem/data/confiança. **Trocar por dados validados no futuro.** |
 | `evidencias.js` | **Camada de evidência** — fontes fictícias por empresa e por sinal, e a regra que decide o que sustenta cada afirmação. **Aqui entram as fontes reais no futuro.** |
@@ -248,9 +249,46 @@ O protótipo foi feito para ser fácil de alterar:
 - **Anexar ou trocar fontes** → edite `evidencias.js`. Sinal documental sem fonte vira lacuna
   explícita na interface — é o comportamento desejado, não um bug.
 - **Ajustar textos, cores e rótulos** → estão no topo do `<style>` e nos rótulos de `CONFIG_PAPEIS`.
-  Atenção às cores dos papéis: existem duas famílias, `--alvo` (marca: barras e selos) e
-  `--alvo-ink` (texto). As cores de marca foram validadas para contraste e para distinção por
-  quem tem daltonismo — se trocá-las, revalide.
+  Atenção às cores dos papéis: existem três famílias, `--alvo` (marca: barras e selos),
+  `--alvo-ink` (texto) e `--alvo-fio` (o limite, que é quem carrega o contraste).
+  Se trocar qualquer uma, rode `node ferramentas/validar-paleta.mjs` antes de commitar —
+  e lembre que a paleta vive em **três** arquivos: `index.html`, `fundamentos.html` e
+  `v1/src/index.css`.
+
+---
+
+## A identidade visual
+
+As cores e o logotipo vêm do kit da marca em **ght4.com** — não são invenção do protótipo:
+
+| | |
+|---|---|
+| Acento | `#FF6E00` — o único acento da marca |
+| Primária | `#000000` |
+| Texto | `#7A7A7A` · superfície `#ECEFF1` · fio `#D2D2D2` |
+| Tipografia | Mena Grotesk (licenciada) |
+| Logotipo | wordmark "ght4" em caixa baixa, com uma **diagonal a 45°** atravessando o "4" |
+
+Três decisões que valem explicar numa reunião:
+
+1. **A diagonal virou linguagem, não enfeite.** O mesmo corte a 45° que atravessa o "4" marca,
+   na barra de lastro, o trecho **inferido, sem fonte** — em hachura, não em cor. A ausência de
+   evidência é a informação mais grave da tela e não pode depender de o leitor enxergar cor:
+   hachura sobrevive ao daltonismo, ao projetor mal calibrado e à impressão em preto e branco.
+2. **O laranja tem UM significado.** Sendo o único acento da marca, ele marca o papel *alvo* e
+   os estados de "onde você está / onde mexer". O resto da tela é preto e branco. Onde a
+   consequência é diferente — os chips de **exigir**, que reprovam quem não publicou o dado —
+   a cor é o laranja justamente para não se confundir com o preto do "selecionado comum".
+3. **Uma ressalva de acessibilidade ficou registrada, não escondida.** `#FF6E00` sobre branco
+   dá 2,81:1, abaixo do piso de 3:1 — nenhum laranja vivo alcança. Em vez de escurecer a cor da
+   GHT4, todo preenchimento laranja sobre claro leva um fio `--alvo-ink`, e é o fio que responde
+   pelo limite do componente (6,66:1). Sobre preto o laranja vai sozinho (7,48:1), e **texto
+   sobre laranja é sempre preto, nunca branco**.
+
+Dos três papéis, só *alvo* usa cor de marca. *Comprador* e *vendedora* são extensão funcional —
+uma paleta de dados não cabe em preto e laranja sozinhos. Estão escolhidos para passar em três
+testes: azul/laranja é o par seguro para daltonismo, e os três degraus de luminosidade
+(L\* 63,7 / 31,5 / 5,1) mantêm a leitura em escala de cinza.
 
 ---
 

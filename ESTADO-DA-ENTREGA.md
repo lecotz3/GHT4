@@ -102,7 +102,20 @@ matchmaking.js → exportar-excel.js → data-real.js`.
 5. **Proxy é rotulado como proxy** na interface e na exportação.
 6. **Nada entra no índice sem entrar também no denominador.**
 7. **Tipos em `v1/src/dominio/tipos.ts`**, uma seção por módulo.
-8. **Paleta validada** (`v1/src/index.css`) — não trocar cor sem revalidar.
+8. **Paleta validada** — é a identidade real da GHT4 (kit de ght4.com: acento
+   `#FF6E00`, primária `#000000`, superfície `#ECEFF1`, fio `#D2D2D2`), e vive
+   em TRÊS arquivos que precisam andar juntos: `index.html`, `fundamentos.html`
+   e `v1/src/index.css`. Não trocar cor sem rodar
+   `node ferramentas/validar-paleta.mjs` — ele checa contraste WCAG, ΔE e os
+   três tipos de daltonismo, e sai com código 1 se algo reprovar.
+   Duas regras que o validador não pega sozinho: **texto sobre o laranja é
+   preto**, nunca branco (branco dá 2,81:1), e **preenchimento laranja sobre
+   superfície clara sempre leva o fio `--alvo-ink`**, que é quem responde pelo
+   limite do componente.
+8b. **Nunca editar os `.html` da raiz com `Get-Content`/`Set-Content` do
+   PowerShell 5.1.** Sem `-Encoding utf8` na LEITURA ele decodifica em CP1252,
+   e regravar em UTF-8 produz duplo-encode ("razão" vira "razÃ£o") no arquivo
+   inteiro. Aconteceu. Use as ferramentas de edição do editor, ou Node.
 9. **Tela nova entra por `lazy()`** em App.tsx, dentro do `Suspense` que já existe.
    Componente lazy SEM fronteira de Suspense não renderiza e não busca o chunk —
    falha silenciosa, sem erro no console.

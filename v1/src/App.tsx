@@ -12,6 +12,10 @@ import type { Configuracao, EmpresaAvaliada, Papel } from './dominio/tipos'
 import { FichaEmpresa } from './componentes/FichaEmpresa'
 import { FaixaNumerica } from './componentes/FaixaNumerica'
 import { milhoes, num, pct } from './formato'
+/* O logotipo entra estático, não por lazy(): ele aparece no primeiro pixel da
+   primeira pintura, e um logo que chega depois é justamente o piscar que a
+   divisão em chunks existe para evitar. */
+import { MarcaGHT4 } from './componentes/MarcaGHT4'
 
 /* =============================================================================
  *  Telas sob demanda
@@ -331,34 +335,42 @@ export default function App() {
       {/* A tarja acompanha a natureza do dado. Avisar "fictício" sobre dado real
           é tão errado quanto o contrário — e mais perigoso, porque leva a
           descartar informação verdadeira. */}
-      <div className="flex flex-wrap items-center justify-center gap-2.5 bg-lacre px-5 py-2 text-center text-[11px] font-medium text-papel">
-        <b className="font-bold text-white">Confidencial</b>
-        <span className="text-papel/50">·</span>
+      {/* Tarja no preto da marca, com "CONFIDENCIAL" no laranja — o único lugar
+          da interface em que o laranja não quer dizer "alvo". Sobre preto ele
+          vai sem fio: 7,48:1. */}
+      <div className="flex flex-wrap items-center justify-center gap-2.5 bg-lacre px-5 py-2 text-center text-[11px] font-medium text-white/80">
+        <b className="font-bold uppercase tracking-[0.08em] text-marca">Confidencial</b>
+        <span className="text-white/35">·</span>
         <span>{def.tarja}</span>
-        <span className="text-papel/50">·</span>
+        <span className="text-white/35">·</span>
         <span>não prevê transações · não substitui análise humana</span>
       </div>
 
-      <header className="flex flex-wrap items-start gap-4 px-8 pt-6">
-        <div className="grid size-13 shrink-0 place-items-center rounded-full bg-radial from-[#94322f] to-lacre-fundo text-[21px] font-semibold text-papel shadow-[inset_0_0_0_1.5px_rgba(241,231,214,.35),inset_0_0_0_4px_var(--color-lacre)]">
-          G4
-        </div>
+      <header className="flex flex-wrap items-start gap-5 px-8 pt-6.5">
+        <MarcaGHT4 />
         <div>
           <p className="text-[11px] font-semibold tracking-wide text-suave">
-            GHT4 · Fusões &amp; Aquisições
+            Fusões &amp; Aquisições
           </p>
-          <h1 className="text-[23px] font-semibold leading-tight">Livro-razão de Prospecção</h1>
+          <h1 className="text-[23px] font-semibold leading-tight tracking-[-0.012em]">
+            Livro-razão de Prospecção
+          </h1>
           <p className="mt-1 max-w-[520px] text-[12.5px] text-suave">
             Agente que organiza e prioriza oportunidades de originação. A decisão é sempre humana.
           </p>
         </div>
-        <div className="ml-auto -rotate-3 self-start rounded-ficha border-[1.5px] border-tinta-2 px-3 py-1.5 text-[10.5px] font-bold uppercase tracking-[0.18em] text-tinta-2 opacity-70">
+        {/* Sem rotação e sem raio: a marca não tem curva nem inclinação fora
+            dos 45° da diagonal. */}
+        <div className="ml-auto self-start rounded-none border-[1.5px] border-tinta px-3 py-1.5 text-[10.5px] font-bold uppercase tracking-[0.18em] text-tinta">
           v1
         </div>
       </header>
 
+      {/* A régua do cabeçalho termina numa diagonal a 45° — o mesmo corte que
+          atravessa o "4" do logotipo, três centímetros acima. */}
       <div className="relative mx-8 mt-5 border-t border-fio-forte">
-        <span className="absolute -top-px left-0 w-30 border-t-2 border-tinta" />
+        <span className="absolute -top-0.5 left-0 h-[3px] w-30 bg-marca" />
+        <span className="absolute -top-0.5 left-30 h-[3px] w-2.5 origin-top-left -skew-x-45 bg-marca" />
       </div>
 
       <main className="px-8 pb-16 pt-6">
@@ -398,9 +410,9 @@ export default function App() {
               type="button"
               title={dica}
               onClick={() => setVista(chave)}
-              className={`-mb-px border-b-2 px-3 py-2 text-[12.5px] font-semibold transition
+              className={`-mb-px border-b-[3px] px-3 py-2 text-[12.5px] font-semibold transition
                 ${vista === chave
-                  ? 'border-tinta text-tinta'
+                  ? 'border-marca text-tinta'
                   : 'border-transparent text-suave hover:text-tinta-2'}`}
             >
               {rotulo}
@@ -536,10 +548,14 @@ export default function App() {
                     type="button"
                     title={dica}
                     onClick={() => alternarExigencia(chave)}
+                    /* Exigência tem semântica inversa (reprova quem não publicou
+                       o dado), então liga no LARANJA e não no preto do
+                       "selecionado comum" — cor diferente porque a consequência
+                       é diferente. Texto preto sobre o laranja: 7,48:1. */
                     className={`rounded-ficha border px-2.5 py-1.5 text-[11px] font-semibold tracking-wide transition
                       ${exigencias.has(chave)
-                        ? 'border-lacre bg-lacre text-papel'
-                        : 'border-fio-forte text-suave hover:border-tinta-2'}`}
+                        ? 'border-alvo-tinta bg-marca text-preto'
+                        : 'border-fio-forte text-suave hover:border-tinta'}`}
                   >
                     {rotulo}
                   </button>

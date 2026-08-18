@@ -4,47 +4,86 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>GHT4 · Livro-razão de Prospecção M&A</title>
-<!-- Selo G4 embutido como data URI: mantém o projeto autocontido e evita o 404
-     de /favicon.ico, que aparecia na console durante a apresentação. -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%237C2B29'/%3E%3Ctext x='16' y='21.5' font-family='system-ui,sans-serif' font-size='14' font-weight='600' fill='%23F1E7D6' text-anchor='middle'%3EG4%3C/text%3E%3C/svg%3E" />
+<!-- Favicon embutido como data URI: mantém o projeto autocontido e evita o 404
+     de /favicon.ico, que aparecia na console durante a apresentação.
+     "ght4" não se lê a 16px, então a aba carrega o dispositivo da marca em vez
+     do nome: a diagonal laranja sobre o preto. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000000'/%3E%3Cpath d='M24 2h6L14 30H8z' fill='%23FF6E00'/%3E%3C/svg%3E" />
 <style>
   :root{
+    /* =====================================================================
+       IDENTIDADE GHT4 — lida do kit da marca em ght4.com
+       ---------------------------------------------------------------------
+       accent  #FF6E00  laranja, o único acento da marca
+       primary #000000  preto
+       text    #7A7A7A  cinza de texto
+               #ECEFF1  superfície clara
+               #D2D2D2  fio
+       Tipografia da marca: Mena Grotesk — licenciada, e um protótipo que roda
+       por file:// não pode embarcar nem buscar fonte. A pilha abaixo é
+       grotesca neutra: mesma família de desenho, mesma cor de voz.
+
+       O DISPOSITIVO da marca é a DIAGONAL A 45°: ela atravessa o "4" do
+       logotipo e reaparece nos cortes dos terminais das letras. Entra aqui
+       como linguagem, não como enfeite — ver `.diag-rule` e `.hachura`, que
+       marca "sem lastro documental" com TEXTURA em vez de cor. A ausência de
+       fonte é a informação mais importante da tela; ela não pode depender de
+       o leitor enxergar cor, nem sumir numa impressão em preto e branco.
+
+       PALETA VALIDADA — não trocar sem rodar
+       `node ferramentas/validar-paleta.mjs`
+       ---------------------------------------------------------------------
+       Duas ressalvas ficaram registradas, com a correção adotada:
+
+       1. #FF6E00 sobre branco dá 2,81:1, abaixo do piso de 3:1 — nenhum
+          laranja vivo alcança. Escurecê-lo seria deixar de usar a cor da
+          GHT4. Como a norma mede a percepção do LIMITE do componente, todo
+          preenchimento laranja sobre claro leva um fio --alvo-ink, e é o fio
+          que responde (6,66:1). Sobre preto o laranja vai sozinho: 7,48:1.
+       2. O cinza de texto da marca (#7A7A7A) dá 4,36:1 em branco e reprova
+          para corpo pequeno. --muted é um passo mais escuro (#6B6B6B,
+          5,33:1); #7A7A7A segue válido em corpo grande.
+       ===================================================================== */
+    /* marca */
+    --marca:#FF6E00;
+    --preto:#000000;
+    --nevoa:#ECEFF1;
     /* tinta e papel */
-    --ink:#16211C;         /* tinta pinho (verde-quase-preto) */
-    --ink-2:#33403A;
-    --muted:#5C665E;       /* sálvia acinzentada */
-    --paper:#E7E0D0;       /* papel manila envelhecido */
-    --paper-2:#EFEADE;     /* papel de painel */
-    --card:#F5F1E8;        /* ficha */
-    --rule:#CFC6B2;        /* fio fino */
-    --rule-strong:#B7AC93;
-    /* metais e lacre */
-    --oxblood:#7C2B29;     /* vermelho de lacre / confidencial */
-    --oxblood-deep:#5E1F1E;
-    --brass:#9A7B45;
-    /* papéis (carimbos de tinta) ------------------------------------------
+    --ink:#111111;
+    --ink-2:#3D3D3D;
+    --muted:#6B6B6B;
+    --paper:#FFFFFF;
+    --paper-2:#F7F8F9;     /* painel lateral */
+    --card:#FFFFFF;        /* ficha: separada por fio, não por preenchimento */
+    --rule:#E3E6E8;        /* fio fino */
+    --rule-strong:#D2D2D2; /* fio da marca */
+    /* confidencialidade — o preto da marca; a palavra em laranja */
+    --lacre:#000000;
+    --lacre-fundo:#000000;
+    --brass:#8A6A3B;       --brass-bg:#F5EFE6;      --brass-fio:#DDCDB3;
+    /* papéis ---------------------------------------------------------------
        Duas famílias por papel, e a distinção importa:
          --*        COR DE MARCA — barras, selos, filetes, blocos de cor.
-                    Validada contra as superfícies do projeto (#F5F1E8 e
-                    #EFEADE) pelo validador de paleta: banda de luminosidade,
-                    piso de croma, separação para daltonismo, piso de visão
-                    normal (ΔE ≥ 15) e contraste ≥ 3:1.
-         --*-ink    COR DE TEXTO — carimbos, rótulos, etiquetas. Passo mais
-                    escuro da mesma família, para legibilidade em corpo pequeno.
+         --*-ink    COR DE TEXTO — carimbos e rótulos em corpo pequeno.
+         --*-fio    LIMITE — é ele que carrega o contraste do componente.
 
-       As cores de marca anteriores (hoje usadas como -ink) reprovavam: verde e
-       azul ficavam a ΔE 9,7 em visão normal — abaixo do piso de 15, ou seja,
-       difíceis de distinguir mesmo sem daltonismo. Como o papel é o principal
-       eixo de leitura do razão, isso era um defeito real, não estética.
-       Nota: o âmbar de marca fica em 2,85:1 sobre o papel de painel; por isso
-       o papel "candidata a venda" nunca aparece só como cor — sempre com rótulo. */
-    --alvo:#127A4F;        --alvo-ink:#2E5A46;      --alvo-bg:#E1E7DC;
-    --comprador:#2E6BD6;   --comprador-ink:#2C4A6E; --comprador-bg:#DFE4EA;
-    --vendedora:#C07C0A;   --vendedora-ink:#8A5320; --vendedora-bg:#EEE4D2;
-    --inferido:#C0392F;    /* marca do trecho "sem fonte" na barra de lastro */
-    /* tipografia — UMA família só (minimalista); hierarquia por peso/tamanho/espaçamento.
-       --serif e --mono são apelidos da mesma sans para manter o restante do CSS estável. */
-    --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       Só uma das três é cor de marca da GHT4: o laranja, que fica com `alvo`
+       porque alvo é o papel que a casa procura. As outras duas são extensão
+       funcional — uma paleta de dados não cabe em preto e laranja sozinhos —
+       e estão escolhidas para sobreviver a três testes: azul/laranja é o par
+       seguro para daltonismo, e os três degraus de luminosidade (L* 63,7 /
+       31,5 / 5,1) mantêm a leitura em escala de cinza. */
+    --alvo:#FF6E00;        --alvo-ink:#9A4200;      --alvo-bg:#FFF1E7;   --alvo-fio:#F5C09A;
+    --comprador:#0F4C81;   --comprador-ink:#0F4C81; --comprador-bg:#E8EEF4; --comprador-fio:#B7C9DA;
+    --vendedora:#111111;   --vendedora-ink:#111111; --vendedora-bg:#ECEFF1; --vendedora-fio:#C6CBCE;
+    /* alerta e lacuna — fora da marca de propósito: é o único vermelho da
+       tela, então nada disputa a atenção com ele. Validado contra o laranja
+       em visão normal e nos três daltonismos (ΔE 28–47). */
+    --inferido:#C0392F;
+    --alerta:#C0392F;      --alerta-bg:#FBEDEC;     --alerta-fio:#E4B3AE;
+    /* tipografia — UMA família só; hierarquia por peso/tamanho/espaçamento.
+       --serif e --mono são apelidos da mesma sans para manter o CSS estável. */
+    --sans:"Inter","Helvetica Neue",Helvetica,Arial,"Segoe UI",system-ui,sans-serif;
     --serif:var(--sans);
     --mono:var(--sans);
     font-synthesis:none;
@@ -58,54 +97,68 @@
   }
   h1,h2,h3{font-family:var(--serif);font-weight:600}
   a{color:var(--ink-2)}
-  ::selection{background:rgba(22,33,28,.12)}
+  ::selection{background:rgb(0 0 0 / .10)}
 
   /* rótulos discretos (caixa normal) */
   .eyebrow{font:600 11px/1.2 var(--sans);letter-spacing:.03em;color:var(--muted)}
 
-  /* ---------- Tarja de confidencialidade ---------- */
+  /* ---------- Tarja de confidencialidade ----------
+     Preto da marca, e a palavra "Confidencial" no laranja — o único lugar da
+     tela onde o laranja não significa "alvo". Sobre preto ele vai sem fio:
+     7,48:1. */
   .confid-strip{
-    background:var(--oxblood); color:#F1E7D6; padding:7px 20px;
-    font:500 11px/1.4 var(--sans); letter-spacing:.01em;
+    background:var(--lacre); color:rgb(255 255 255 / .8); padding:8px 20px;
+    font:500 11px/1.4 var(--sans); letter-spacing:.02em;
     display:flex; gap:10px; align-items:center; justify-content:center; text-align:center; flex-wrap:wrap;
   }
-  .confid-strip b{color:#fff;font-weight:700}
-  .confid-strip .sep{color:rgba(241,231,214,.5)}
+  .confid-strip b{color:var(--marca);font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+  .confid-strip .sep{color:rgb(255 255 255 / .35)}
 
   /* ---------- Masthead ---------- */
   header.masthead{
-    padding:22px 30px 0; display:flex; align-items:flex-start; gap:18px; flex-wrap:wrap;
+    padding:26px 30px 0; display:flex; align-items:flex-start; gap:20px; flex-wrap:wrap;
   }
-  .seal-mono{
-    width:52px;height:52px;border-radius:50%;flex:0 0 auto;
-    background:radial-gradient(circle at 35% 30%,#94322f,var(--oxblood-deep));
-    display:flex;align-items:center;justify-content:center;
-    font-family:var(--serif);font-weight:600;font-size:21px;color:#F1E7D6;
-    box-shadow:inset 0 0 0 1.5px rgba(241,231,214,.35), inset 0 0 0 4px var(--oxblood);
-  }
-  .mh-title h1{font-size:23px;margin:0;line-height:1.1;letter-spacing:.005em}
+  /* O logotipo da GHT4, desenhado em SVG e embutido — nada de disco com
+     iniciais. O arquivo é o wordmark oficial; a diagonal que corta o "4" é o
+     dispositivo que o resto da interface reaproveita. */
+  .marca-ght4{flex:0 0 auto;display:block;height:34px;width:auto;margin-top:2px}
+  .marca-ght4 path{fill:var(--preto)}
+  .mh-title h1{font-size:23px;margin:0;line-height:1.1;letter-spacing:-.012em;font-weight:600}
   .mh-title .eyebrow{margin-bottom:7px}
   .mh-title .desc{font-size:12.5px;color:var(--muted);margin-top:4px;max-width:520px}
   .mh-spacer{flex:1}
   .confid-stamp{
-    align-self:flex-start;transform:rotate(-3deg);color:var(--ink-2);
-    border:1.5px solid var(--ink-2);border-radius:3px;padding:5px 11px;
-    font:700 10.5px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;opacity:.7;
+    align-self:flex-start;color:var(--ink);
+    border:1.5px solid var(--ink);border-radius:0;padding:5px 11px;
+    font:700 10.5px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;
   }
-  .mh-rule{height:0;border-top:1px solid var(--rule-strong);margin:18px 30px 0;position:relative}
-  .mh-rule::after{content:"";position:absolute;left:0;top:-1px;width:120px;border-top:2px solid var(--ink)}
+  /* A régua do cabeçalho termina numa diagonal a 45°, como o corte do "4". */
+  .mh-rule{height:0;border-top:1px solid var(--rule-strong);margin:20px 30px 0;position:relative}
+  .mh-rule::after{content:"";position:absolute;left:0;top:-2px;width:120px;border-top:3px solid var(--marca)}
+  .mh-rule::before{content:"";position:absolute;left:120px;top:-2px;width:0;height:0;
+    border-left:10px solid var(--marca);border-bottom:3px solid transparent;
+    transform:skewX(-45deg);transform-origin:left top}
 
   /* ---------- Layout ---------- */
   .layout{display:grid;grid-template-columns:288px 1fr;align-items:start}
   @media (max-width:960px){.layout{grid-template-columns:1fr}}
 
   /* ---------- Filtros (guia do razão) ---------- */
+  /* Coluna com rolagem própria: os filtros crescem com a base carregada (os
+     chips de "exigir" só existem na CVM) e passavam da altura da tela, deixando
+     os últimos grupos inalcançáveis — sticky prende no topo, não encolhe o
+     conteúdo. Altura fixa de 100vh + overflow próprio resolve; o overscroll
+     contido evita que a rolagem "vaze" para a página ao chegar no fim. */
   aside.filters{
     padding:22px 22px 30px; border-right:1px solid var(--rule);
     position:sticky; top:0; align-self:start; background:var(--paper-2);
-    min-height:calc(100vh - 0px);
+    height:100vh; overflow-y:auto; overscroll-behavior:contain;
+    scrollbar-width:thin; scrollbar-color:var(--rule) transparent;
   }
-  @media (max-width:960px){aside.filters{position:static;border-right:none;border-bottom:1px solid var(--rule);min-height:0}}
+  aside.filters::-webkit-scrollbar{width:8px}
+  aside.filters::-webkit-scrollbar-thumb{background:var(--rule);border-radius:4px}
+  aside.filters::-webkit-scrollbar-track{background:transparent}
+  @media (max-width:960px){aside.filters{position:static;border-right:none;border-bottom:1px solid var(--rule);height:auto;overflow:visible}}
   .filters .eyebrow{display:flex;align-items:center;gap:8px;margin:0 0 16px}
   .filters .eyebrow::after{content:"";flex:1;border-top:1px solid var(--rule)}
   .fgroup{margin-bottom:15px}
@@ -115,17 +168,24 @@
     width:100%;padding:8px 2px;border:none;border-bottom:1.5px solid var(--rule-strong);
     background:transparent;font-size:13.5px;color:var(--ink);font-family:inherit;border-radius:0;
   }
-  select:focus,input[type="text"]:focus{outline:none;border-bottom-color:var(--ink)}
+  /* O laranja é o único acento da marca, então ele tem UM significado nesta
+     interface: "aqui é onde você está / onde mexer". Foco, seleção e ação
+     primária. Fora disso, a tela é preta e branca. */
+  select:focus,input[type="text"]:focus{outline:none;border-bottom-color:var(--marca);border-bottom-width:2px}
   select{cursor:pointer}
-  input[type="range"]{width:100%;accent-color:var(--ink);margin:3px 0}
+  input[type="range"]{width:100%;accent-color:var(--marca);margin:3px 0}
   .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:3px}
   .chip-toggle{
     font:600 11px/1 var(--sans);letter-spacing:.04em;padding:6px 10px;border-radius:2px;
     border:1px solid var(--rule-strong);background:transparent;cursor:pointer;color:var(--muted);user-select:none;
     transition:background .12s,color .12s,border-color .12s;
   }
-  .chip-toggle:hover{border-color:var(--ink-2)}
-  .chip-toggle.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .chip-toggle:hover{border-color:var(--ink)}
+  .chip-toggle.on{background:var(--preto);color:#fff;border-color:var(--preto)}
+  /* Chip de EXIGÊNCIA tem semântica inversa (reprova quem não publicou o dado),
+     então é o laranja que marca o estado ligado — e não o preto do "selecionado
+     comum". Cor diferente porque a consequência é diferente. */
+  #f-exigir .chip-toggle.on{background:var(--marca);color:var(--preto);border-color:var(--alvo-ink)}
   .btn-reset{
     width:100%;margin-top:8px;padding:9px;border:1px solid var(--rule-strong);border-radius:2px;
     background:transparent;color:var(--ink-2);font:600 12px/1 var(--sans);letter-spacing:.01em;
@@ -139,19 +199,22 @@
   .toolbar .search{flex:1;min-width:200px;max-width:360px}
   .toolbar .search label{display:block;margin-bottom:3px}
   .toolbar .count{font-family:var(--mono);font-size:12px;color:var(--muted);padding-bottom:4px;white-space:nowrap}
+  /* Ação primária: laranja com texto PRETO. Laranja com texto branco daria
+     2,81:1 e é o erro mais comum com essa cor — sobre o laranja, quem lê é o
+     preto (7,48:1). */
   .btn-export{
-    margin-left:auto;padding:10px 16px;border-radius:2px;border:1.5px solid var(--ink-2);
+    margin-left:auto;padding:10px 16px;border-radius:2px;border:1.5px solid var(--preto);
     background:transparent;color:var(--ink);font:600 12px/1 var(--sans);letter-spacing:.01em;
     cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:background .12s,color .12s;
   }
-  .btn-export:hover{background:var(--ink);color:var(--paper)}
+  .btn-export:hover{background:var(--marca);color:var(--preto);border-color:var(--alvo-ink)}
 
   .intro-note{
-    background:var(--paper-2);border:1px solid var(--rule);border-left:3px solid var(--ink-2);
+    background:var(--paper-2);border:1px solid var(--rule);border-left:3px solid var(--marca);
     padding:13px 16px;font-size:12.8px;color:var(--ink-2);margin:0 0 22px;line-height:1.55;border-radius:2px;
   }
   .intro-note strong{color:var(--ink)}
-  .intro-note code{font-size:11.5px;background:rgba(22,33,28,.06);padding:1px 5px;border-radius:2px}
+  .intro-note code{font-size:11.5px;background:var(--nevoa);padding:1px 5px;border-radius:2px}
 
   /* resumo da varredura */
   .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-bottom:26px;border:1px solid var(--rule);border-radius:2px;overflow:hidden;background:var(--paper-2)}
@@ -185,10 +248,10 @@
   .card{
     background:var(--card);border:1px solid var(--rule);border-radius:2px;
     padding:16px 17px;cursor:pointer;display:flex;flex-direction:column;gap:11px;position:relative;
-    box-shadow:0 1px 0 rgba(22,33,28,.03);transition:border-color .14s,box-shadow .14s,transform .1s;
+    box-shadow:0 1px 0 rgb(0 0 0 / .03);transition:border-color .14s,box-shadow .14s,transform .1s;
   }
   .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--rc);opacity:.85}
-  .card:hover{border-color:var(--rule-strong);box-shadow:0 6px 22px rgba(22,33,28,.10);transform:translateY(-2px)}
+  .card:hover{border-color:var(--rule-strong);box-shadow:0 6px 22px rgb(0 0 0 / .09);transform:translateY(-2px)}
   .card:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
   .card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
   .card .name{font-family:var(--serif);font-size:17px;font-weight:600;line-height:1.15;letter-spacing:.005em}
@@ -213,16 +276,15 @@
 
   .signals{display:flex;flex-wrap:wrap;gap:6px}
   .sig{font:600 10.5px/1 var(--sans);letter-spacing:.02em;padding:4px 8px;border-radius:2px;white-space:nowrap;border:1px solid transparent}
-  .sig.positivo{background:var(--alvo-bg);color:#204636;border-color:#c7d3c6}
-  .sig.atencao{background:var(--vendedora-bg);color:var(--vendedora-ink);border-color:#dcccae}
-  .sig.neutro{background:#e6e2d6;color:var(--ink-2);border-color:var(--rule)}
+  .sig.positivo{background:var(--alvo-bg);color:var(--alvo-ink);border-color:var(--alvo-fio)}
+  .sig.atencao{background:var(--alerta-bg);color:var(--alerta);border-color:var(--alerta-fio)}
+  .sig.neutro{background:var(--nevoa);color:var(--ink-2);border-color:var(--rule-strong)}
 
-  /* contato — selo de lacre */
+  /* contato — o quadrado preto da marca, não o disco de lacre. A GHT4 não tem
+     forma redonda em lugar nenhum: o logotipo é reto e cortado a 45°. */
   .card-contato{display:flex;align-items:center;gap:10px;padding-top:11px;border-top:1px solid var(--rule)}
-  .cc-avatar,.ct-avatar{flex:0 0 auto;border-radius:50%;display:flex;align-items:center;justify-content:center;
-    font-weight:600;color:var(--paper);
-    background:radial-gradient(circle at 35% 30%,#3d4d45,var(--ink));
-    box-shadow:inset 0 0 0 1px rgba(241,231,214,.22);}
+  .cc-avatar,.ct-avatar{flex:0 0 auto;border-radius:2px;display:flex;align-items:center;justify-content:center;
+    font-weight:600;color:#fff;background:var(--preto);letter-spacing:.02em;}
   .cc-avatar{width:32px;height:32px;font-size:12px}
   .cc-info{min-width:0}
   .cc-nome{font-size:12.5px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -238,11 +300,11 @@
   .empty{padding:40px;text-align:center;color:var(--muted);font-size:13px;border:1px dashed var(--rule-strong);border-radius:2px;background:var(--paper-2);font-style:italic}
 
   /* ---------- Detalhe (dossiê) ---------- */
-  .overlay{position:fixed;inset:0;background:rgba(22,33,28,.55);display:none;z-index:50;
+  .overlay{position:fixed;inset:0;background:rgb(0 0 0 / .58);display:none;z-index:50;
     align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;backdrop-filter:blur(2px)}
   .overlay.open{display:flex}
   .modal{background:var(--card);border-radius:3px;max-width:740px;width:100%;
-    box-shadow:0 24px 70px rgba(22,33,28,.4);overflow:hidden;animation:pop .18s ease;
+    box-shadow:0 24px 70px rgb(0 0 0 / .35);overflow:hidden;animation:pop .18s ease;
     border-top:3px solid var(--ink)}
   @keyframes pop{from{transform:translateY(10px);opacity:.5}to{transform:none;opacity:1}}
   .modal-head{padding:22px 26px;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;gap:18px;align-items:flex-start;background:var(--paper-2)}
@@ -276,8 +338,10 @@
   .role-score-row{display:flex;align-items:center;gap:14px;margin-bottom:10px}
   .role-score-row .lbl{width:200px;flex:0 0 auto;font-size:12.5px;font-weight:700}
   .role-score-row .lbl small{display:block;font-weight:400;color:var(--muted);font-size:11px;font-style:italic}
-  .bar{flex:1;height:8px;border-radius:2px;background:#e0dbcd;overflow:hidden;border:1px solid var(--rule)}
-  .bar > i{display:block;height:100%;border-radius:0 3px 3px 0} /* extremidade do dado arredondada, base ancorada */
+  .bar{flex:1;height:8px;border-radius:0;background:var(--nevoa);overflow:hidden;border:1px solid var(--rule-strong)}
+  /* Reto e sem raio: a marca não tem curva. O fio interno é o que dá limite ao
+     preenchimento laranja, que sozinho fica em 2,81:1 sobre claro. */
+  .bar > i{display:block;height:100%;box-shadow:inset 0 0 0 1px rgb(0 0 0 / .28)}
   .role-score-row .pct{width:44px;text-align:right;font-family:var(--mono);font-weight:600;font-size:13px}
   .contrib{margin:5px 0 16px 0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:6px}
   .contrib li{font:600 10.5px/1 var(--sans);padding:4px 8px;border-radius:2px;background:var(--paper-2);color:var(--ink-2);border:1px solid var(--rule)}
@@ -286,7 +350,7 @@
   .sig-detail li{padding:11px 0;border-bottom:1px solid var(--rule);display:flex;gap:12px;align-items:flex-start}
   .sig-detail li:last-child{border-bottom:none}
   .sig-detail .b{width:8px;height:8px;margin-top:5px;flex:0 0 auto;transform:rotate(45deg)}
-  .sig-detail .b.positivo{background:var(--alvo)} .sig-detail .b.atencao{background:var(--vendedora)} .sig-detail .b.neutro{background:var(--muted)}
+  .sig-detail .b.positivo{background:var(--alvo)} .sig-detail .b.atencao{background:var(--alerta)} .sig-detail .b.neutro{background:var(--muted)}
   .sig-detail .st{font-weight:700;font-size:13px}
   .sig-detail .sd{font-size:12.5px;color:var(--ink-2)}
 
@@ -314,20 +378,36 @@
   /* O caso comum é o lastro parcial — se ele usar cor de alerta, a cor de alerta
      deixa de significar alerta. Parcial fica neutro; a tinta é reservada para o
      que pede ação: bem documentado (bom) e frágil (risco). */
-  .lastro.forte{color:var(--alvo-ink);border-color:#b9cbbd;background:var(--alvo-bg)}
+  .lastro.forte{color:var(--alvo-ink);border-color:var(--alvo-fio);background:var(--alvo-bg)}
   .lastro.medio{color:var(--muted);border-color:var(--rule-strong);background:transparent}
   .lastro.medio .dot{background:var(--rule-strong)}
-  .lastro.fraco{color:var(--oxblood);border-color:#d5b3b0;background:#f2e2e0;font-weight:700}
+  .lastro.fraco{color:var(--alerta);border-color:var(--alerta-fio);background:var(--alerta-bg);font-weight:700}
 
-  /* barra de composição do lastro — segmentos separados por 2px de superfície,
-     para que as fatias não se colem (o par verde↔vermelho fica na banda de alerta
-     para daltonismo, então a barra sempre vem com a legenda rotulada abaixo) */
+  /* Barra de composição do lastro — segmentos separados por 2px de superfície,
+     para que as fatias não se colem.
+
+     O trecho INFERIDO (sem fonte) não é uma cor: é a HACHURA A 45° da marca.
+     Essa é a informação mais grave da tela, e cor sozinha é o canal mais
+     frágil que existe — some no daltonismo, some no projetor mal calibrado da
+     sala de reunião, some na impressão em preto e branco. Textura sobrevive
+     aos três. É também o único lugar onde a diagonal do logotipo carrega
+     significado em vez de decoração. */
   .lastro-bar{display:flex;gap:2px;height:8px;margin:9px 0 8px}
-  .lastro-bar i{display:block;height:100%;border-radius:1px}
-  .lastro-bar .doc{background:var(--alvo)} .lastro-bar .est{background:var(--comprador)} .lastro-bar .inf{background:var(--inferido)}
+  .lastro-bar i{display:block;height:100%}
+  .lastro-bar .doc{background:var(--alvo);box-shadow:inset 0 0 0 1px var(--alvo-ink)}
+  .lastro-bar .est{background:var(--comprador)}
+  .lastro-bar .inf{background:var(--alerta-bg);box-shadow:inset 0 0 0 1px var(--inferido);
+    background-image:repeating-linear-gradient(45deg,var(--inferido) 0 1.5px,transparent 1.5px 5px)}
   .lastro-key{display:flex;flex-wrap:wrap;gap:5px 16px;font-size:11px;color:var(--muted)}
   .lastro-key span{display:inline-flex;align-items:center;gap:5px}
-  .lastro-key i{width:8px;height:8px;border-radius:1px;flex:0 0 auto}
+  /* A legenda herda as mesmas classes da barra, então a hachura do "inferido"
+     aparece igual nos dois — legenda que não bate com a barra é pior do que
+     legenda nenhuma. */
+  .lastro-key i{width:9px;height:9px;flex:0 0 auto;display:block}
+  .lastro-key .doc{background:var(--alvo);box-shadow:inset 0 0 0 1px var(--alvo-ink)}
+  .lastro-key .est{background:var(--comprador)}
+  .lastro-key .inf{background:var(--alerta-bg);box-shadow:inset 0 0 0 1px var(--inferido);
+    background-image:repeating-linear-gradient(45deg,var(--inferido) 0 1.5px,transparent 1.5px 5px)}
 
   /* ================= PAINEL DE EVIDÊNCIA (padrão Freshfields) =================
      A afirmação de um lado, o documento de origem do outro. */
@@ -338,7 +418,7 @@
   @media(max-width:620px){.ev-claim{border-right:none;border-bottom:1px solid var(--rule)}}
   .ev-claim .ec-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
   .ev-claim .b{width:8px;height:8px;flex:0 0 auto;transform:rotate(45deg)}
-  .ev-claim .b.positivo{background:var(--alvo)} .ev-claim .b.atencao{background:var(--vendedora)} .ev-claim .b.neutro{background:var(--muted)}
+  .ev-claim .b.positivo{background:var(--alvo)} .ev-claim .b.atencao{background:var(--alerta)} .ev-claim .b.neutro{background:var(--muted)}
   .ev-claim .ec-t{font-weight:700;font-size:13px;line-height:1.2}
   .ev-claim .ec-d{font-size:12px;color:var(--ink-2);line-height:1.45}
   .ev-claim .ec-w{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:7px}
@@ -346,15 +426,17 @@
   .ev-source{padding:12px 14px;min-width:0}
   .ev-src-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:7px}
   .ev-nat{font:700 9.5px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;padding:3px 6px;border-radius:2px;border:1px solid}
-  .ev-nat.documental{color:var(--alvo-ink);border-color:#b9cbbd;background:var(--alvo-bg)}
-  .ev-nat.estruturado{color:var(--comprador-ink);border-color:#c2ccd8;background:var(--comprador-bg)}
-  .ev-nat.cadastral{color:var(--brass);border-color:#d8c8a8;background:#efe7d6}
-  .ev-nat.lacuna{color:var(--oxblood);border-color:#d5b3b0;background:#f2e2e0}
+  .ev-nat.documental{color:var(--alvo-ink);border-color:var(--alvo-fio);background:var(--alvo-bg)}
+  .ev-nat.estruturado{color:var(--comprador-ink);border-color:var(--comprador-fio);background:var(--comprador-bg)}
+  .ev-nat.cadastral{color:var(--brass);border-color:var(--brass-fio);background:var(--brass-bg)}
+  /* Lacuna também é hachurada: o chip diz "sem fonte" por cor E por textura. */
+  .ev-nat.lacuna{color:var(--alerta);border-color:var(--alerta-fio);background:var(--alerta-bg);
+    background-image:repeating-linear-gradient(45deg,rgb(192 57 47 / .16) 0 2px,transparent 2px 7px)}
   .ev-src-meta{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
   .ev-titulo{font-weight:700;font-size:12.5px;line-height:1.3;margin-bottom:5px}
   .ev-trecho{font-size:12px;line-height:1.55;color:var(--ink-2);border-left:2px solid var(--rule-strong);padding-left:11px;font-style:italic}
-  .ev-item.is-lacuna{border-color:#d5b3b0}
-  .ev-item.is-lacuna .ev-trecho{border-left-color:var(--oxblood);font-style:normal;color:var(--oxblood-deep)}
+  .ev-item.is-lacuna{border-color:var(--alerta-fio)}
+  .ev-item.is-lacuna .ev-trecho{border-left-color:var(--alerta);font-style:normal;color:var(--alerta)}
 
   /* ================= TRIAGEM HUMANA (human-in-the-loop) ================= */
   .hitl{border:1px solid var(--rule-strong);border-radius:2px;background:var(--paper-2);padding:14px 16px}
@@ -375,9 +457,9 @@
   .tri{display:inline-flex;align-items:center;gap:5px;font:600 10px/1 var(--sans);letter-spacing:.04em;
     padding:3px 7px;border-radius:2px;border:1px solid;white-space:nowrap}
   .tri.novo{color:var(--muted);border-color:var(--rule-strong);background:transparent}
-  .tri.analise{color:var(--comprador-ink);border-color:#c2ccd8;background:var(--comprador-bg)}
-  .tri.priorizado{color:var(--alvo-ink);border-color:#b9cbbd;background:var(--alvo-bg)}
-  .tri.descartado{color:var(--oxblood);border-color:#d5b3b0;background:#f2e2e0}
+  .tri.analise{color:var(--comprador-ink);border-color:var(--comprador-fio);background:var(--comprador-bg)}
+  .tri.priorizado{color:var(--alvo-ink);border-color:var(--alvo-fio);background:var(--alvo-bg)}
+  .tri.descartado{color:var(--alerta);border-color:var(--alerta-fio);background:var(--alerta-bg)}
 
   /* trilha de auditoria */
   .trilha{margin:12px 0 0;padding:12px 0 0;list-style:none;border-top:1px dashed var(--rule-strong)}
@@ -398,13 +480,13 @@
   .indisp-m{font-size:12px;line-height:1.5;color:var(--ink-2)}
 
   /* ressalvas de triagem — ao lado do índice, nunca embutidas nele */
-  .ressalvas{border:1px solid var(--oxblood);border-left-width:3px;border-radius:2px;background:var(--paper-2)}
+  .ressalvas{border:1px solid var(--lacre);border-left-width:3px;border-radius:2px;background:var(--paper-2)}
   .ressalva-i{padding:10px 14px;border-bottom:1px solid var(--rule)}
   .ressalva-i:last-child{border-bottom:none}
-  .ressalva-t{font-weight:700;font-size:12.5px;color:var(--oxblood);margin-bottom:3px}
+  .ressalva-t{font-weight:700;font-size:12.5px;color:var(--lacre);margin-bottom:3px}
   .ressalva-d{font-size:12px;line-height:1.5;color:var(--ink-2)}
   .ressalva-chip{display:inline-block;font:600 10px/1 var(--sans);letter-spacing:.04em;text-transform:uppercase;
-    color:var(--oxblood);border:1px solid var(--oxblood);border-radius:2px;padding:3px 6px;margin:0 5px 5px 0}
+    color:var(--lacre);border:1px solid var(--lacre);border-radius:2px;padding:3px 6px;margin:0 5px 5px 0}
   .criterio-via{font-size:11.5px;line-height:1.5;color:var(--ink-2);margin-top:5px}
   .criterio-via b{color:var(--ink)}
 
@@ -414,8 +496,8 @@
   .base-nota b{color:var(--ink-2)}
 
   /* link para os fundamentos */
-  .mh-link{font:600 11.5px/1 var(--sans);color:var(--ink-2);text-decoration:none;border-bottom:1.5px solid var(--rule-strong);padding-bottom:3px;white-space:nowrap}
-  .mh-link:hover{border-bottom-color:var(--ink);color:var(--ink)}
+  .mh-link{font:600 11.5px/1 var(--sans);color:var(--ink-2);text-decoration:none;border-bottom:2px solid var(--marca);padding-bottom:3px;white-space:nowrap}
+  .mh-link:hover{color:var(--marca)}
 
   @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -432,9 +514,15 @@
 </div>
 
 <header class="masthead">
-  <div class="seal-mono">G4</div>
+  <!-- Logotipo oficial da GHT4, em SVG e embutido: o protótipo roda por
+       file:// e não pode buscar arquivo externo. O "ght4" é grotesca pesada em
+       caixa baixa, e a diagonal que atravessa o "4" é o dispositivo da marca —
+       ela reaparece na régua abaixo do cabeçalho e na hachura de "sem fonte". -->
+  <svg class="marca-ght4" viewBox="0 0 176 80" role="img" aria-label="GHT4">
+    <path d="M85.962,47.8V42.351a11.271,11.271,0,0,1-4.423,1.273,2.524,2.524,0,0,1-2.85-2.8V21.891h7.273v-5.3H78.69V8.233H73.306l-.843,8.394-4.3.315v4.95h4.114V42.325c0,4.4,3.068,7.129,8.008,7.129A12.648,12.648,0,0,0,85.962,47.8M112.1,38.756V20.028L99.58,38.756Zm0,5.555H92.4V39.158L113.057,8.233h5.455V38.756h8.627l-3.71,5.555h-4.917v4.8H112.1ZM12.722,22.093a8.03,8.03,0,0,0-2.709.459,5.508,5.508,0,0,0-2.035,1.312,6.432,6.432,0,0,0-1.541,4.584A6.388,6.388,0,0,0,7.975,33a5.522,5.522,0,0,0,2.04,1.317,8.333,8.333,0,0,0,5.449,0A5.5,5.5,0,0,0,17.5,33.007a6.432,6.432,0,0,0,1.542-4.583A6.4,6.4,0,0,0,17.5,23.866a5.537,5.537,0,0,0-2.041-1.315,8.109,8.109,0,0,0-2.737-.458h0Zm-.736-5.445,19.08-.006-3.506,5.25H23.6l.265.418a10.608,10.608,0,0,1,.7,1.425,12.922,12.922,0,0,1,.884,4.681,13.05,13.05,0,0,1-.885,4.724,10.793,10.793,0,0,1-2.945,4.12,11.675,11.675,0,0,1-4.35,2.338,15.5,15.5,0,0,1-3.715.607c-.006,0-1,.024-1.159.024h-.136l-.061.126a14.277,14.277,0,0,0-.584,2.579.713.713,0,0,0,.647.782c.326.033.873.053,1.271.058l.35.011c.878.009,1.956.02,3.085.1a16.2,16.2,0,0,1,4.407.874,8.611,8.611,0,0,1,4.341,3.385,9.43,9.43,0,0,1,1.35,5.04A10.3,10.3,0,0,1,22.7,61.718a12.729,12.729,0,0,1-4.3,1.944,18.833,18.833,0,0,1-4.287.582c-.173,0-.33,0-.484,0A16.464,16.464,0,0,1,5.51,62.421a10.745,10.745,0,0,1-3.724-3.356A11.883,11.883,0,0,1,.2,53.944c-.008-.071-.146-1.4-.2-1.928H6.453l.114,1.333A5.447,5.447,0,0,0,8.6,57.466a8.717,8.717,0,0,0,4.938,1.327q.2,0,.407-.006a8.121,8.121,0,0,0,5.038-1.693,4.353,4.353,0,0,0,1.676-3.567,4.215,4.215,0,0,0-2.306-3.792c-1.3-.626-2.472-.626-4.806-.626h-2.9a5.1,5.1,0,0,1-4.088-1.943,4.506,4.506,0,0,1-.642-3.945l.878-4.142-.141-.063a11.138,11.138,0,0,1-2.805-1.763A10.784,10.784,0,0,1,.907,33.138a12.959,12.959,0,0,1,0-9.406,10.79,10.79,0,0,1,2.945-4.119A11.657,11.657,0,0,1,8.2,17.275a16.1,16.1,0,0,1,3.783-.627M169.435,0,143.168,39.33h-6.685L109.321,80H115.9l26.257-39.33h6.695L176,0ZM62.027,22.958A12.747,12.747,0,0,1,62.9,27.6V49.11H56.487V28.246a6.459,6.459,0,0,0-1.648-4.71,5.93,5.93,0,0,0-2.253-1.261,9.286,9.286,0,0,0-2.73-.377c-.106,0-.213,0-.321,0a9.892,9.892,0,0,0-3.05.571,6.565,6.565,0,0,0-2.294,1.43,6.288,6.288,0,0,0-1.686,4.625V49.11H36.093V1.947h6.412v17.07l.3-.2a12.692,12.692,0,0,1,2.854-1.432,15.921,15.921,0,0,1,4.507-.9c.344-.022.689-.032,1.028-.032a14.928,14.928,0,0,1,3.5.4,10.868,10.868,0,0,1,4.4,2.114,10.016,10.016,0,0,1,2.931,3.989"/>
+  </svg>
   <div class="mh-title">
-    <div class="eyebrow">GHT4 · Fusões &amp; Aquisições</div>
+    <div class="eyebrow">Fusões &amp; Aquisições</div>
     <h1>Livro-razão de Prospecção</h1>
     <div class="desc">Agente que organiza e prioriza oportunidades de originação — estruturando o funil com transparência. A decisão é sempre humana.</div>
   </div>
@@ -1012,7 +1100,7 @@
   function lastroBloco(lastro){
     const {pctDocumentado:d,pctEstruturado:s,pctInferido:i}=lastro;
     const alerta = lastro.lacunas.length
-      ? `<div style="font-size:11.5px;color:var(--oxblood);margin-top:8px;line-height:1.5">
+      ? `<div style="font-size:11.5px;color:var(--lacre);margin-top:8px;line-height:1.5">
            <b>Atenção:</b> ${lastro.lacunas.length===1?'o sinal':'os sinais'}
            <b>${lastro.lacunas.map(esc).join(', ')}</b>
            ${lastro.lacunas.length===1?'pesa':'pesam'} no índice mas não ${lastro.lacunas.length===1?'tem':'têm'}
@@ -1026,9 +1114,9 @@
         ${i?`<i class="inf" style="width:${i}%"></i>`:''}
       </div>
       <div class="lastro-key">
-        <span><i style="background:var(--alvo)"></i>${d}% documentado</span>
-        <span><i style="background:var(--comprador)"></i>${s}% indicador estruturado</span>
-        <span><i style="background:var(--oxblood)"></i>${i}% inferido, sem fonte</span>
+        <span><i class="doc"></i>${d}% documentado</span>
+        <span><i class="est"></i>${s}% indicador estruturado</span>
+        <span><i class="inf"></i>${i}% inferido, sem fonte</span>
       </div>
       ${alerta}`;
   }
@@ -1268,7 +1356,7 @@
           <div class="kpi"><div class="k">Receita est.</div><div class="v">${rs(e.receita)}</div></div>
           <div class="kpi"><div class="k">Crescimento</div><div class="v">${pct(e.crescimento)}</div></div>
           <div class="kpi"><div class="k">Margem EBITDA</div><div class="v">${pct(e.margemEbitda)}</div>${
-            e.margemObservacao?`<div style="font-size:10.5px;color:var(--oxblood);line-height:1.45;margin-top:5px">${esc(e.margemObservacao)}</div>`:''}</div>
+            e.margemObservacao?`<div style="font-size:10.5px;color:var(--lacre);line-height:1.45;margin-top:5px">${esc(e.margemObservacao)}</div>`:''}</div>
           <div class="kpi"><div class="k">Funcionários</div><div class="v">${fmtBR(e.funcionarios)}</div></div>
           <div class="kpi"><div class="k">Índice principal</div><div class="v">${e.scorePrincipal}/100</div></div>
           <div class="kpi"><div class="k">Perfil</div><div class="v" style="font-size:12px">${e.perfil}</div></div>

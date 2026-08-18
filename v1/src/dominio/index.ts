@@ -93,17 +93,32 @@ function carregarScript(url: string): Promise<void> {
    <script> em vez de import(): o arquivo é ~1 MB de DADO e não passa pelo
    bundler — vite.config.ts o serve e copia como ativo estático, e o comentário
    de lá explica por quê. É também exatamente como o protótipo o carrega. */
-export async function carregarBaseReal(): Promise<boolean> {
-  if (window.EMPRESAS_CVM?.length) return true
-  try {
-    await carregarScript(`${import.meta.env.BASE_URL}data-real.js`)
-    return Boolean(window.EMPRESAS_CVM?.length)
-  } catch {
-    console.info(
-      '[GHT4] data-real.js ausente — rode `node ferramentas/importar-cvm.mjs` na raiz para gerar a base da CVM.',
-    )
-    return false
-  }
+/* A carga em voo fica guardada aqui porque conferir `window.EMPRESAS_CVM` não
+   basta: entre a chamada e o global existir há uma janela assíncrona inteira, e
+   duas chamadas dentro dela passam as duas pela guarda. Era o que acontecia —
+   o StrictMode monta o efeito duas vezes em desenvolvimento, o <script> entrava
+   dobrado, e o segundo estourava `Identifier 'EMPRESAS_CVM' has already been
+   declared`, porque data-real.js declara com `const` no escopo global. A base
+   até carregava (o primeiro script vencia), mas a exceção aparecia em vermelho
+   no console — ruim de acontecer no meio de uma apresentação. Guardar a
+   promessa faz a segunda chamada esperar a primeira em vez de repeti-la. */
+let cargaEmVoo: Promise<boolean> | null = null
+
+export function carregarBaseReal(): Promise<boolean> {
+  if (window.EMPRESAS_CVM?.length) return Promise.resolve(true)
+  cargaEmVoo ??= (async () => {
+    try {
+      await carregarScript(`${import.meta.env.BASE_URL}data-real.js`)
+      return Boolean(window.EMPRESAS_CVM?.length)
+    } catch {
+      console.info(
+        '[GHT4] data-real.js ausente — rode `node ferramentas/importar-cvm.mjs` na raiz para gerar a base da CVM.',
+      )
+      cargaEmVoo = null // ausência pode ser transitória; não vale cachear a falha
+      return false
+    }
+  })()
+  return cargaEmVoo
 }
 
 export const motor = window.MOTOR
