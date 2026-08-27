@@ -11,9 +11,10 @@
     "build": "npm run build --prefix v1",
     "lint": "npm run lint --prefix v1",
     "test": "node --test \"tests/**/*.test.mjs\"",
+    "test:server": "npm test --prefix server",
     "test:e2e": "node -e \"console.error('test:e2e ainda nao implementado. Ver docs/architecture/current-state.md, secao Lacunas.'); process.exit(1)\"",
     "validate:data": "node ferramentas/verificar-taxonomia.mjs && node ferramentas/validar-paleta.mjs",
     "validate:data:offline": "node ferramentas/verificar-taxonomia.mjs --sem-rede && node ferramentas/validar-paleta.mjs",
-    "ci": "npm run lint && npm run build && npm run test && npm run validate:data:offline"
+    "ci": "npm run lint && npm run build && npm run test && npm run test:server && npm run validate:data:offline"
   }
 }

@@ -1,0 +1,21 @@
+{
+  "name": "@ght4/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "GHT4 - API, banco, autenticacao e auditoria.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node src/index.mjs",
+    "migrar": "node src/db/migrar.mjs",
+    "test": "node --test \"tests/**/*.test.mjs\""
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.3.10",
+    "@fastify/cookie": "^11.0.2",
+    "fastify": "^5.2.1",
+    "zod": "^3.24.1"
+  }
+}

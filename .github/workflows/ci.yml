@@ -22,6 +22,10 @@ jobs:
       - name: Instalar dependencias da interface
         run: npm ci --prefix v1
 
+      # O servidor tem suas proprias deps (fastify, zod, PGlite).
+      - name: Instalar dependencias do servidor
+        run: npm install --prefix server
+
       # lint + build + testes de dominio + taxonomia + paleta.
       # A verificacao de taxonomia roda em --sem-rede: o job nao depende de o
       # servico do IBGE estar de pe para dar veredito.
