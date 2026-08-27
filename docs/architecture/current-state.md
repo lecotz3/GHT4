@@ -33,22 +33,51 @@ matéria-prima não é versionada, resultado convertido é.
 
 ### Fonte — escrito à mão, é onde se edita
 
+> Mudou na Fase 1. As regras saíram da raiz e viraram módulos ES em
+> `packages/domain`. Os `.js` da raiz que correspondem a elas são **gerados** —
+> ver a tabela seguinte.
+
 | Arquivo | Papel |
 |---|---|
-| `setores.js` | Taxonomia do setor foco: 10 subsetores, 32 CNAEs, adjacências, barreiras, consolidadores, faixa por subsetor. Publica `window.SETORES`. |
-| `fontes.js` | Catálogo de fontes e pipeline de qualificação. Publica `window.FONTES`. |
-| `scoring.js` | Motor determinístico de índice por papel de M&A. |
-| `evidencias.js` | Ligação afirmação ↔ fonte ↔ trecho ↔ confiança. |
-| `configuracao.js` | DSL declarativa de critérios e pesos. |
-| `mercado.js` | Mapa de mercado e ranking de subsegmentos. |
-| `matchmaking.js` | Listas de compradores e alvos. |
-| `conexoes.js`, `crm.js`, `analises.js` | Módulos 4, 7 e 5. |
-| `exportar-excel.js` | Escrita de `.xlsx` à mão, sem dependência de npm. |
+| `packages/domain/taxonomia.mjs` | Taxonomia do setor foco: 10 subsetores, 33 CNAEs de enquadramento, adjacências, barreiras, consolidadores, faixa por subsetor. |
+| `packages/domain/scoring.mjs` | Motor determinístico de índice por papel de M&A. |
+| `packages/domain/evidencias.mjs` | Ligação afirmação ↔ fonte ↔ trecho ↔ confiança. |
+| `packages/domain/configuracao.mjs` | DSL declarativa de critérios e pesos. |
+| `packages/domain/mercado.mjs` | Mapa de mercado e ranking de subsegmentos. |
+| `packages/domain/matchmaking.mjs` | Listas de compradores e alvos. |
+| `packages/domain/conexoes.mjs` | Módulo 4 — rede GHT4. |
+| `packages/domain/armazenamento.mjs` | Porta de persistência local. A Fase 2 troca a implementação por API. |
+| `packages/schemas/dado.mjs` + `.d.ts` | Contrato `Dado<T>`: valor, estado, fonte, unidade, período. |
+| `fontes.js` | Catálogo de fontes e pipeline de qualificação. Ainda na raiz. |
+| `crm.js` | Módulo 7. Ainda na raiz — Fase 7. |
+| `analises.js` | Módulo 5. Ainda na raiz, ainda lê `window.MERCADO` — Fase 7. |
+| `exportar-excel.js` | Escrita de `.xlsx` à mão. Ainda lê 5 globais — Fase 8. |
 | `data.js` | Base de demonstração, empresas fictícias. |
+| `index.html`, `fundamentos.html` | Demonstração legada, roda por duplo-clique. |
 | `v1/src/**` | Interface React 19 + Vite + Tailwind. |
-| `ferramentas/*.mjs` | Ingestão, verificação e utilidades em Node. |
+| `ferramentas/*.mjs` | Ingestão, geração, verificação. |
+| `tests/**` | Suíte em `node --test`. |
 
-### Gerado — não editar à mão, recriar pelo importador
+### Gerado — não editar à mão
+
+Os scripts globais da raiz saem de `packages/domain` por
+`node ferramentas/gerar-globais.mjs`, que reescreve os imports como leitura
+tardia de `window` e fecha cada arquivo numa IIFE. São commitados: quem só quer
+ver a demonstração não roda nada. A CI confere que estão em dia
+(`--conferir`).
+
+| Arquivo | Gerado de |
+|---|---|
+| `setores.js` | `packages/domain/taxonomia.mjs` |
+| `armazenamento.js` | `packages/domain/armazenamento.mjs` |
+| `evidencias.js` | `packages/domain/evidencias.mjs` |
+| `conexoes.js` | `packages/domain/conexoes.mjs` |
+| `scoring.js` | `packages/domain/scoring.mjs` |
+| `configuracao.js` | `packages/domain/configuracao.mjs` |
+| `mercado.js` | `packages/domain/mercado.mjs` |
+| `matchmaking.js` | `packages/domain/matchmaking.mjs` |
+
+As bases saem dos importadores:
 
 | Arquivo | Gerado por | Tamanho |
 |---|---|---|
