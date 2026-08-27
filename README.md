@@ -10,9 +10,29 @@ criado para apoiar a conversa de levantamento de requisitos com os sócios da **
 
 ---
 
+## Setor foco: Químicos
+
+Decisão de diretoria: o agente ataca **um objetivo por vez**, e o primeiro é
+**setor e subsetor**. O grande setor escolhido é **Químicos**, com prioridade no
+subsetor de **Distribuição**. Saúde, Tecnologia, Varejo e Energia **foram
+removidos** — não estão desligados por flag, saíram da base.
+
+O recorte inteiro vive em **`setores.js`**: dez subsetores, cada um com os CNAEs
+que o delimitam (conferidos contra a API oficial do IBGE), a tese de M&A, a
+**faixa consolidável específica do subsetor** e a barreira regulatória que
+incide sobre ele. Dois subsetores estão declarados **sem alvo de boutique**, com
+o motivo escrito — petroquímica básica não tem middle market, e fingir que tem
+produziria lista bonita e reunião vazia.
+
+As adjacências (farmoquímicos, cosmético acabado, combustíveis, plástico
+transformado) ficam listadas como fronteira, com o motivo da exclusão e a
+condição para ligá-las. Decisão de escopo à vista, não filtro escondido.
+
+---
+
 ## O que a demonstração faz
 
-- **Seleção de setor** (Saúde, Tecnologia, Varejo, Energia — ilustrativos)
+- **Seleção de subsetor químico** (10 subsetores, ver `setores.js`)
 - **Filtros ilustrativos**: localização (UF), receita mínima, crescimento, margem EBITDA,
   nº de funcionários, perfil societário, classificação, **estado da triagem** e **lastro da evidência**.
 - **Lista de empresas fictícias**, claramente marcadas como dados de demonstração.
@@ -34,7 +54,7 @@ criado para apoiar a conversa de levantamento de requisitos com os sócios da **
 - **Página de detalhes** de cada empresa (painel/modal), com: o que a empresa faz, situação
   relevante para M&A, um **contato fictício** (nome, cargo, e-mail e telefone — apenas demonstração),
   os indicadores, o desdobramento do score por papel, a evidência de cada sinal e a triagem.
-- **Link direto para um dossiê**: `index.html#empresa=tec07` abre o registro específico.
+- **Link direto para um dossiê**: `index.html#empresa=dis07` abre o registro específico.
 - **Exportação em CSV** da lista filtrada, carregando junto as fontes citadas, o lastro, os
   sinais sem documentação e o histórico de triagem (com cabeçalho de aviso, compatível com
   Excel PT-BR).
@@ -83,42 +103,154 @@ a identidade da GHT4 em vez do visual genérico de SaaS.
 
 ---
 
-## Duas bases, lado a lado
+## Três bases, lado a lado
 
 O seletor no alto da coluna esquerda troca entre:
 
 | Base | O que é | O que ela prova |
 |---|---|---|
-| **Demonstração** | 32 empresas **fictícias** | O modelo completo: tem eventos societários (rodada, mudança de controle, expansão), que é o que de fato antecipa uma transação. |
-| **Real · CVM** | 537 **companhias abertas brasileiras reais**, com demonstrações auditadas | O que dá para fazer hoje com dado público — e, sobretudo, **o que não dá**. |
+| **Demonstração** | 32 empresas **fictícias** do setor químico | O modelo completo: tem eventos societários (rodada, mudança de controle, expansão), que é o que de fato antecipa uma transação. |
+| **Real · CVM** | **6** companhias abertas do setor químico, com demonstrações auditadas | O padrão de qualidade contábil — e o tamanho do buraco: o setor inteiro tem seis listadas. |
+| **Real · CNPJ** | O **universo** do setor químico brasileiro, quase todo de capital fechado | Quem realmente existe no setor. É a base primária do agente. |
 
-A base real vem do Portal de Dados Abertos da CVM. Para gerá-la ou atualizá-la:
+### Por que a base da CVM deixou de ser a principal
+
+Rode `node ferramentas/importar-cvm.mjs` e o terminal diz o problema na cara:
 
 ```
-node ferramentas/importar-cvm.mjs
+RECORTE QUÍMICOS: 602 companhias fora do escopo, 6 dentro.
+na faixa consolidável R$ 30–250 mi: 0
 ```
 
-O script baixa, cruza e converte os dados públicos, e escreve `data-real.js`. Não tem
-dependência de npm — usa só a biblioteca padrão do Node. Se o arquivo não existir, o
-seletor de base some sozinho e o razão funciona normalmente com a base fictícia.
+**Seis companhias, e nenhuma na faixa de alvo de boutique.** Não é base pequena: é
+ausência de base. O middle market químico brasileiro é de capital fechado e não tem
+obrigação de publicar demonstração — a CVM não o enxerga, e nunca vai enxergar.
 
-**A descoberta que a base real entrega para a reunião:** dado público brasileiro publica
-**números**, não **eventos**. Receita, margem, crescimento e empregados vêm auditados e com
-citação da conta contábil exata. Já rodada de investimento, mudança de controle, expansão
-geográfica e fragmentação setorial **não existem em nenhuma fonte aberta** — o dossiê lista
-esses sinais em "não avaliado · sem fonte disponível", com o motivo de cada um. É a lista de
-compras de dados da GHT4, escrita pelo próprio sistema.
+A base da CVM continua no projeto e continua útil, em dois papéis menores: padrão de
+qualidade contra o qual as estimativas de capital fechado são comparadas, e conjunto
+de comparáveis listados locais.
 
-Duas ressalvas que os sócios precisam ouvir: só **56 das 537** empresas estão na faixa de
-R$ 30–250 mi que o modelo trata como alvo consolidável, e o
-middle market de capital fechado — o cliente típico de uma boutique — **não aparece aqui**,
-porque não tem obrigação de publicar demonstração.
+### A base primária: dados abertos do CNPJ
 
-> **De onde vieram 537.** A versão anterior lia só a DFP **consolidada** e ficava em 386.
-> Companhia sem controladas não publica consolidada, só **individual** — eram 217 companhias
-> ativas descartadas inteiras, e elas pendem para o lado pequeno: a faixa consolidável subiu
-> de 39 para 56 registros. Cada empresa carrega em `cvm.demonstrativo` de qual das duas veio,
-> e o dossiê exibe isso: individual e consolidada não descrevem o mesmo perímetro econômico.
+```
+node ferramentas/importar-cnpj.mjs --listar-meses   # o que a RFB publicou
+node ferramentas/importar-cnpj.mjs                  # gera data-quimicos.js
+```
+
+O importador lê o cadastro inteiro das pessoas jurídicas do país, filtra pelos CNAEs
+de `setores.js` e devolve o universo do setor. Sem dependência de npm, e sem gravar
+os 5 GB em disco: o ZIP é inflado direto do fluxo HTTP.
+
+### A segunda testemunha: o RAPP do IBAMA
+
+```
+node ferramentas/cruzar-ibama.mjs --cache     # baixa ~3 GB e cruza
+node ferramentas/cruzar-ibama.mjs --sem-rede  # recruza pelo cache, sem rede
+```
+
+Dois terços do universo do CNPJ entraram por **CNAE secundário**, que é declaração no
+cadastro e não prova de operação. O RAPP resolve por fora: quem exerce atividade
+potencialmente poluidora declara ao IBAMA a **categoria de atividade** que exerce de
+fato, sob obrigação legal e com fiscalização atrás — sem passar pelo CNAE.
+
+Cinco formulários, 7,6 milhões de linhas. Resultado medido em 20/08/2026:
+
+| | |
+|---|---|
+| com pegada viva (RAPP de 2022+) | **5.679** de 38.583 — 14,7% |
+| CNAE **principal** confirmado | 2.843 de 12.933 — **22,0%** |
+| só CNAE **secundário** confirmado | 2.836 de 25.650 — **11,1%** |
+| declaram química ao IBAMA e estão **fora** do nosso universo | **1.225** |
+| CNAE e IBAMA apontam subsetores **diferentes** | 485 |
+
+O CNAE principal confirma **o dobro** do secundário — o filtro por CNAE principal é
+melhor, e agora isso está medido em vez de suposto. Mas a separação não é limpa: 2.836
+empresas de CNAE secundário têm pegada química viva e sumiriam num corte cego.
+
+**Ausência de pegada não é desmentido.** A obrigação de RAPP depende de categoria e
+porte; distribuidora pequena de escritório pode legitimamente não ter. O cruzamento
+rebaixa confiança e declara o motivo — nunca descarta.
+
+**O que essa base tem e nenhuma outra tem:** o universo de capital fechado; o quadro
+societário com **faixa etária** de cada sócio; e as filiais por UF com data de
+abertura.
+
+**O que ela não tem, e sai nulo de propósito:** faturamento, EBITDA, margem e
+funcionários. O cadastro não publica isso, e capital social **não é** proxy de
+receita. Preencher produziria um filtro que funciona na tela e mente no resultado.
+O porte entra na etapa seguinte do pipeline — ver `fontes.js`.
+
+**A única afirmação de porte que o dado público sustenta:** ser optante do Simples
+implica faturamento ≤ R$ 4,8 mi/ano, por definição legal. Não é estimativa, é
+consequência da opção tributária. Serve para cortar, nunca para estimar.
+
+### Quem controla: o perfil societário sai da natureza jurídica
+
+O campo `perfil` responde "quem manda nesta empresa" a partir da **natureza
+jurídica** declarada no cadastro, cruzada com o quadro de sócios. Os códigos vêm
+da tabela oficial da RFB (`Naturezas.zip`), versionada em
+`ferramentas/naturezas-rfb.csv` — o mapeamento fica conferível linha a linha, sem
+rede e sem memória de ninguém.
+
+| Perfil | De onde sai | No universo químico |
+|---|---|---|
+| Founder-led | Empresário Individual, EIRELI, ou sociedade com **um** sócio | 18.223 |
+| Familiar | dois ou mais sócios, todos pessoa física e brasileiros | 13.220 |
+| Holding de participações | há sócio **pessoa jurídica**, consórcio ou grupo | 3.949 |
+| Multinacional | sócio no exterior, ou empresa domiciliada fora | 1.621 |
+| Cooperativa | naturezas 2143 e 2330 | 1.130 |
+| Quadro não informado | sociedade cujo quadro de sócios não veio no arquivo | 187 |
+| Entidade sem fins lucrativos | associação, fundação, entidade sindical, org. religiosa | 184 |
+| Capital aberto | **S.A. Aberta (2046)** — só ela | 56 |
+| Estatal | Empresa Pública, Economia Mista, órgão público | 13 |
+
+**As cooperativas merecem leitura à parte.** São 1.130, das quais 1.030 em
+fertilizantes, e **não são alvo de aquisição**: não têm quotas para vender. Ficam
+na base porque são compradoras e concorrentes reais no subsetor — mas entrar numa
+lista de alvos seria erro de originação, não filtro apertado demais.
+
+> **Correção de 21/08/2026.** Até esta data o mapeamento tratava LTDA (2062) e
+> S.A. Fechada (2054) como "Capital aberto" — 33.268 dos 38.583 registros, o
+> universo de capital fechado carimbado como aberto — e a S.A. Aberta (2046), a
+> única de fato aberta, caía na regra de estatal. O efeito não era cosmético:
+> `sucessao_familiar` em `scoring.js` exige `perfil === 'Familiar'`, então o sinal
+> central da tese ficava **desligado em silêncio** na base primária. Ele acende
+> agora em 13.220 empresas, contra 3.867 antes — e nenhuma das anteriores era
+> LTDA, que é a forma de 86% do universo.
+
+### O sinal que só esta base sustenta: sucessão sem sucessor
+
+Empresa com mais de 20 anos, todos os sócios pessoa física acima de 60, nenhum
+abaixo de 50 no quadro. Não prova que há venda a caminho; prova que a estrutura de
+controle **vai ter de mudar** — e é exatamente isso que abre a conversa de
+originação no middle market industrial brasileiro.
+
+### E os eventos societários, que o projeto declarava impossíveis
+
+A versão anterior deste README afirmava que dado público brasileiro publica
+**números**, não **eventos** — e que rodada, mudança de controle e expansão
+geográfica não existiriam em fonte aberta. **Isso vale para a CVM e não vale para o
+CNPJ.** O cadastro é republicado inteiro todo mês, e a Receita mantém os meses
+anteriores: havia **40 meses publicados**, de 2023-05 em diante.
+
+Comparar dois meses transforma um cadastro estático num registro de acontecimentos:
+
+```
+node ferramentas/importar-cnpj.mjs --mes=2026-02 --arquivar
+node ferramentas/importar-cnpj.mjs --mes=2026-08 --arquivar
+node ferramentas/eventos-cnpj.mjs
+```
+
+| Diferença observada | Sinal |
+|---|---|
+| Troca de sócios | mudança de controle |
+| Entrada de sócio no exterior | comprador estratégico chegou |
+| Salto de capital social | aporte |
+| Filial em UF nova | expansão geográfica |
+
+Cada evento carrega o campo `ambiguidade` preenchido: o registro público afirma o
+**fato**, nunca a **intenção** nem o **valor**. Saída de sócio pode ser venda,
+herança ou briga de família. O sistema nomeia isso em vez de esconder.
 
 ---
 
@@ -146,7 +278,7 @@ quê?", e quem pondera é a pessoa. Ver `RESSALVAS` em `scoring.js`.
 **Filtro "Exigir".** Os chips de exigência têm semântica inversa aos demais filtros: começam
 desligados, e cada um ligado **impõe** o critério. Empresa que não publicou o dado é reprovada —
 dar por atendido o que não foi verificado é exatamente como uma triagem gera falso positivo.
-Na base real o funil vai de 537 para 25 registros com três exigências ligadas.
+Na base do CNPJ o efeito é radical: sem faturamento publicado, qualquer exigência financeira reprova o universo inteiro — e está certo que reprove, porque o dado não existe naquela fonte. É o próprio filtro dizendo em que etapa do pipeline a casa está.
 
 ### O que nenhuma fonte pública responde
 
@@ -168,8 +300,19 @@ reunião com o alvo (ver `CRITERIOS_SEM_FONTE` em `evidencias.js`):
 | Arquivo | Papel |
 |---|---|
 | `index.html` | A aplicação: interface, filtros, listas, dossiê, triagem e exportação CSV. |
-| `data-real.js` | **Base real** gerada pelo importador. Não editar à mão. |
-| `ferramentas/importar-cvm.mjs` | Baixa e converte os dados abertos da CVM. |
+| `setores.js` | **Taxonomia do setor foco** — os 10 subsetores químicos, com CNAE, tese de M&A, faixa consolidável própria, barreira regulatória e adjacências declaradas. **Este é o recorte do produto.** |
+| `fontes.js` | **Catálogo das bases de dados do setor** — o que cada uma entrega, o que não entrega, custo, via de acesso, e a ordem do pipeline (filtrar antes de enriquecer). |
+| `data-quimicos.js` | **Base primária** (CNPJ) gerada pelo importador. Não editar à mão. |
+| `data-eventos.js` | **Eventos societários** por diferença entre dois meses do CNPJ. Não editar à mão. |
+| `data-real.js` | **Base CVM** gerada pelo importador — 6 companhias. Não editar à mão. |
+| `ferramentas/importar-cnpj.mjs` | Lê os dados abertos do CNPJ e monta o universo do setor químico. |
+| `ferramentas/naturezas-rfb.csv` | **Tabela oficial de naturezas jurídicas da RFB**, versionada. É a fonte do mapeamento de perfil societário no importador — código de natureza não se adivinha. |
+| `ferramentas/eventos-cnpj.mjs` | Compara dois meses do cadastro e extrai os eventos societários. |
+| `ferramentas/medir-render.mjs` | Mede quantas fichas e quantos nós de DOM a tela entrega ao navegador. Rode depois de mexer no render. |
+| `ferramentas/cruzar-ibama.mjs` | Cruza o universo do CNPJ com o RAPP do IBAMA. Confirma quem opera de fato, e descobre quem o filtro de CNAE perde. |
+| `data-ibama.js` | **Pegada ambiental** por raiz de CNPJ, gerada pelo cruzamento. Não editar à mão. |
+| `ibama-fora-do-escopo.csv` | Empresas que declaram indústria química ao IBAMA e não estão no universo — entrada da próxima ingestão. |
+| `ferramentas/importar-cvm.mjs` | Baixa e converte os dados abertos da CVM, restrito ao escopo químico. |
 | `ferramentas/validar-paleta.mjs` | **Validador da paleta** — contraste WCAG, ΔE e simulação de daltonismo. Rode antes de commitar qualquer troca de cor. |
 | `fundamentos.html` | Peça de apresentação: por que o agente é assim, com os dados da pesquisa. |
 | `data.js` | Base de **empresas fictícias** com metadados de origem/data/confiança. **Trocar por dados validados no futuro.** |
@@ -196,7 +339,7 @@ O documento *"Requisitos — Ferramenta de IA GHT4"* descreve sete módulos. O q
 
 | Módulo | O que pede | Estado |
 |---|---|---|
-| 1 · Mapeamento de mercado | setor → subsegmentos → empresas | **Feito** — `mercado.js`, 13 setores e 46 subsegmentos |
+| 1 · Mapeamento de mercado | setor → subsegmentos → empresas | **Feito** — `setores.js` (taxonomia) + `mercado.js` (cálculo): 1 setor foco e 10 subsetores |
 | 2 · Ranking de subsegmentos | atratividade para M&A, pesos configuráveis | **Feito** — 6 critérios calculáveis, 4 declarados sem fonte |
 | 3 · Ranking de empresas | critérios fixos + ad hoc + templates | **Feito** — `scoring.js` + `configuracao.js` |
 | 4 · Conexões da rede GHT4 | quem da casa conhece quem do alvo | **Fase 2** — decidido usar só material interno |
@@ -303,7 +446,7 @@ e os números em `PESQUISA-DATASITE-FT.md`.
 - **Cada sinal abre a fonte que o sustenta** — padrão que 43% dos dealmakers citam como passo
   para confiar em IA, e que Freshfields e Blueflame implementam da mesma forma.
 - **O sistema declara o que não sabe.** Sinal sem fonte vira lacuna vermelha e alerta.
-  Três lacunas são propositais na base de demonstração (EduPlay, MercaBom, ComerLuz) —
+  Três lacunas são propositais na base de demonstração (Interquímica, Tecnoquímica, Limpec) —
   existem para mostrar o comportamento diante da ausência de evidência.
 - **O lastro fica ao lado do índice, nunca embutido nele.** Quem interpreta é a pessoa.
 - **"Margem comprimida" tem piso.** A tese de margem baixa num alvo é upside de eficiência:
@@ -331,7 +474,11 @@ aproximação ao alvo. A aceitação de liderança da IA cai de 46% (montar list
 
 Tudo abaixo é **hipótese do protótipo**, não decisão de negócio:
 
-1. **Setores e subsetores** — os 4 atuais são apenas exemplos.
+1. ~~**Setores e subsetores**~~ — **DECIDIDO.** Setor foco: Químicos, prioridade em
+   Distribuição. Os demais setores foram removidos. Taxonomia em `setores.js`.
+   O que ainda precisa de validação dentro dessa decisão: as **faixas consolidáveis
+   por subsetor** (hoje são estimativa do protótipo, não régua da casa) e se as
+   adjacências excluídas — sobretudo farmoquímicos — devem mesmo ficar de fora.
 2. **Filtros e faixas** — quais fazem sentido para a originação real da GHT4.
 3. **Definição dos 3 papéis** — se essa é a taxonomia certa (ou se há outras categorias).
 4. **Sinais e pesos do score** — quais sinais antecipam transações e quanto cada um vale.

@@ -37,177 +37,175 @@
  * O sinal "mercado fragmentado" é uma afirmação sobre o setor, não sobre a
  * empresa. Por isso a fonte é compartilhada por todas as empresas do setor.
  * -------------------------------------------------------------------------- */
+/* Chaveado por SUBSETOR, não por setor. Com um único setor foco, a evidência
+   setorial só é útil se descer ao subsetor — "o setor químico é fragmentado"
+   não é afirmação verificável, e "a distribuição química é fragmentada" é. */
 const EVIDENCIA_SETORIAL = {
-  'Saúde': {
+  'Distribuição e trading químico': {
     tipo: 'Estudo setorial',
-    veiculo: 'Panorama de Consolidação em Saúde (estudo fictício)',
-    titulo: 'Serviços de saúde seguem pulverizados fora dos grandes centros',
-    data: '2026-04-02',
+    veiculo: 'Panorama da Distribuição Química no Brasil (estudo fictício)',
+    titulo: 'Distribuição química segue pulverizada fora do eixo Sudeste',
+    data: '2026-05-14',
     confianca: 'Média',
-    trecho: 'Os cinco maiores grupos respondem por menos de 18% do faturamento do setor de serviços de saúde no país. O restante está distribuído entre operadores regionais de capital fechado, a maioria com faturamento abaixo de R$ 150 milhões — configuração clássica de mercado consolidável.',
+    trecho: 'Os cinco maiores distribuidores respondem por menos de 30% do volume movimentado no país. O restante está distribuído entre mais de novecentos operadores regionais de capital fechado, a maioria com faturamento abaixo de R$ 150 milhões e um único centro de distribuição — configuração que sustentou dezenas de aquisições de consolidadores globais na última década.',
   },
-  'Tecnologia': {
+  'Especialidades e aditivos': {
     tipo: 'Estudo setorial',
-    veiculo: 'Mapa de Software Empresarial Brasil (estudo fictício)',
-    titulo: 'Nichos verticais de software concentram centenas de operações subescala',
-    data: '2026-03-18',
+    veiculo: 'Mapa de Especialidades Químicas (estudo fictício)',
+    titulo: 'Formuladores de nicho concentram centenas de operações subescala',
+    data: '2026-04-22',
     confianca: 'Média',
-    trecho: 'Segmentos verticais de software (logística, saúde, indústria) reúnem mais de 400 empresas com receita entre R$ 20 mi e R$ 100 mi. A ausência de um consolidador claro em cada vertical mantém o mercado fragmentado e sustenta teses de buy-and-build.',
+    trecho: 'O elo de especialidades e aditivos reúne mais de seiscentas empresas com receita entre R$ 20 mi e R$ 250 mi, quase todas de controle familiar ou fundador. A margem média do grupo, de 18%, é a maior da cadeia química brasileira, e nenhum consolidador nacional detém participação de dois dígitos.',
   },
-  'Varejo': {
+  'Tintas, vernizes e revestimentos': {
     tipo: 'Estudo setorial',
-    veiculo: 'Anuário do Varejo Regional (estudo fictício)',
-    titulo: 'Redes regionais ainda dominam formatos de vizinhança',
-    data: '2026-02-25',
+    veiculo: 'Anuário de Tintas e Revestimentos (estudo fictício)',
+    titulo: 'Fora das quatro grandes, o segmento é regional e de marca própria',
+    data: '2026-03-30',
     confianca: 'Média',
-    trecho: 'Nos formatos de vizinhança e especializados, redes regionais de controle familiar detêm participação majoritária. A pressão de margem e a necessidade de investimento em digitalização vêm empurrando esses ativos para a mesa de negociação.',
+    trecho: 'As quatro maiores fabricantes concentram cerca de 60% do volume imobiliário. O restante pertence a fabricantes regionais com marca própria e penetração estadual, e ao segmento industrial de especificação técnica, onde a fragmentação é ainda maior.',
   },
-  'Energia': {
+  'Domissanitários e produtos de limpeza': {
     tipo: 'Estudo setorial',
-    veiculo: 'Boletim de Geração Distribuída (estudo fictício)',
-    titulo: 'Geração distribuída e serviços de energia permanecem atomizados',
-    data: '2026-05-06',
+    veiculo: 'Boletim de Saneantes e Limpeza Profissional (estudo fictício)',
+    titulo: 'Limpeza profissional cresce acima do doméstico e permanece atomizada',
+    data: '2026-05-02',
     confianca: 'Média',
-    trecho: 'O elo de integração e serviços de energia reúne milhares de operadores locais, quase todos com faturamento inferior a R$ 50 milhões. A consolidação começou pelos maiores integradores, mas segue em estágio inicial.',
+    trecho: 'O canal profissional e institucional cresce acima do doméstico e reúne formuladores de pequeno porte com contrato recorrente. O canal doméstico de marca própria, ao contrário, opera com margem estrutural baixa e está exposto ao poder de compra do varejo.',
+  },
+  'Inorgânicos e gases industriais': {
+    tipo: 'Estudo setorial',
+    veiculo: 'Panorama de Gases Industriais (estudo fictício)',
+    titulo: 'Gases industriais se organizam por praça, e a praça é comprável',
+    data: '2026-04-11',
+    confianca: 'Média',
+    trecho: 'O raio econômico de entrega de gases envasados raramente ultrapassa 300 km, o que fragmenta o mercado geograficamente. Operadores regionais independentes mantêm participação relevante fora dos grandes centros, com contratos de fornecimento de longo prazo.',
+  },
+  'Fertilizantes e nutrição vegetal': {
+    tipo: 'Estudo setorial',
+    veiculo: 'Cadeia de Fertilizantes — leitura de estrutura (estudo fictício)',
+    titulo: 'Matéria-prima concentrada, mistura e distribuição pulverizadas',
+    data: '2026-05-20',
+    confianca: 'Média',
+    trecho: 'A oferta de matéria-prima é importada e concentrada em poucos grupos, mas as unidades de mistura e a distribuição regional somam centenas de operadores independentes próximos ao produtor rural. É nesse elo, e não na matéria-prima, que se concentram as transações de porte médio.',
+  },
+  'Defensivos agrícolas': {
+    tipo: 'Estudo setorial',
+    veiculo: 'Boletim de Defensivos Pós-Patente (estudo fictício)',
+    titulo: 'Formuladores independentes ganham espaço no pós-patente',
+    data: '2026-04-27',
+    confianca: 'Média',
+    trecho: 'A expiração de patentes de moléculas de grande volume abriu espaço para formuladores independentes com registro próprio. O custo e o prazo de obtenção do registro no órgão regulador funcionam como barreira de entrada e transformam a carteira de registros no principal ativo dessas empresas.',
+  },
+  'Resinas, elastômeros e fibras': {
+    tipo: 'Estudo setorial',
+    veiculo: 'Leitura do Ciclo Petroquímico (estudo fictício)',
+    titulo: 'Segunda geração é intensiva em escala e sensível ao ciclo',
+    data: '2026-03-12',
+    confianca: 'Média',
+    trecho: 'A produção de resinas exige escala mínima elevada e opera com margem oscilante conforme o spread da nafta e o câmbio. O número de produtores é pequeno, e a consolidação já ocorreu — resta espaço apenas em termofixos e compostos de nicho.',
   },
 };
 
 /* ---- 2. EVIDÊNCIA POR EMPRESA ----------------------------------------------
  * Chaveada por id da empresa e depois pelo campo que a evidência sustenta.
  * Campos sustentados aqui: rodadaRecente, mudancaControle, expansaoGeografica.
+ *
+ * NOTA SOBRE OS VEÍCULOS: em química, os documentos que sustentam evento
+ * societário são diferentes dos de outros setores. Junta comercial, licença
+ * ambiental, registro no MAPA e comunicado de fornecedor sobre carta de
+ * distribuição valem mais do que imprensa de negócios — o setor quase não sai
+ * no jornal. As fontes abaixo refletem isso, mesmo sendo fictícias.
  * -------------------------------------------------------------------------- */
 const EVIDENCIA_EMPRESA = {
-  /* ----------------------------- SAÚDE ----------------------------- */
-  sa01: {
-    expansaoGeografica: { tipo: 'Imprensa', veiculo: 'Diário Regional de Campinas (fictício)', titulo: 'Vitalux abre duas unidades no interior paulista', data: '2026-04-28', confianca: 'Média',
-      trecho: 'A rede inaugurou unidades em Piracicaba e Limeira no primeiro trimestre, elevando para nove o número de clínicas próprias. A diretora-geral afirmou que a companhia avalia "mais duas praças fora da região metropolitana" até o fim do ano.' },
+  /* ------------------- DISTRIBUIÇÃO E TRADING QUÍMICO ------------------- */
+  dis01: {
+    mudancaControle: { tipo: 'Registro público', veiculo: 'Junta Comercial de São Paulo (fictício)', titulo: 'Alteração contratual — administração e cláusula de sucessão', data: '2026-05-28', confianca: 'Média',
+      trecho: 'Averbada alteração que institui administração conjunta e cláusula de preferência entre os quotistas em caso de alienação. O sócio fundador, único administrador desde 1987, deixa de figurar como administrador isolado. Nenhum herdeiro consta do quadro societário.' },
   },
-  sa02: {
-    rodadaRecente: { tipo: 'Comunicado ao mercado', veiculo: 'Assessoria NovaSaúde Gestão (fictício)', titulo: 'NovaSaúde recebe aporte para acelerar plano de add-ons', data: '2026-05-20', confianca: 'Alta',
-      trecho: 'O fundo controlador aprovou aporte adicional destinado exclusivamente a aquisições complementares. Segundo o comunicado, a companhia mapeou "entre seis e oito alvos regionais" em gestão hospitalar.' },
-    expansaoGeografica: { tipo: 'Imprensa', veiculo: 'Caderno de Negócios MG (fictício)', titulo: 'NovaSaúde assume gestão de hospital no Espírito Santo', data: '2026-05-29', confianca: 'Alta',
-      trecho: 'O contrato marca a entrada do grupo mineiro no Espírito Santo, terceiro estado da operação. A empresa opera hoje 14 unidades em MG, BA e ES.' },
+  dis03: {
+    expansaoGeografica: { tipo: 'Registro público', veiculo: 'Cadastro CNPJ — Receita Federal (fictício)', titulo: 'Abertura de estabelecimento filial em Curitiba (PR)', data: '2026-06-16', confianca: 'Alta',
+      trecho: 'Registrada inscrição de estabelecimento filial com CNAE principal 4684-2/99 em Curitiba. É a primeira unidade da empresa fora do Rio Grande do Sul, e a data de início de atividade consta como 02/06/2026.' },
   },
-  sa03: {
-    rodadaRecente: { tipo: 'Imprensa', veiculo: 'Portal de Startups PR (fictício)', titulo: 'OdontoMais capta rodada Série A para dobrar rede de franquias', data: '2026-03-30', confianca: 'Baixa',
-      trecho: 'A rede curitibana anunciou captação com fundo de venture capital nacional. O valor não foi divulgado. O fundador afirmou que o recurso será usado para "abrir 60 unidades em 24 meses". A informação não foi confirmada por fonte independente.' },
+  dis04: {
+    rodadaRecente: { tipo: 'Registro público', veiculo: 'Junta Comercial de São Paulo (fictício)', titulo: 'Aumento de capital social com ingresso de sócio investidor', data: '2026-06-24', confianca: 'Alta',
+      trecho: 'Averbado aumento de capital social de R$ 42 mi para R$ 118 mi, com subscrição integral por fundo de investimento em participações já presente no quadro. A destinação declarada é "aquisição de participações societárias em empresas do mesmo ramo".' },
+    expansaoGeografica: { tipo: 'Imprensa', veiculo: 'Boletim Logístico Portuário (fictício)', titulo: 'Polimix arrenda armazém alfandegado em Itajaí', data: '2026-06-30', confianca: 'Alta',
+      trecho: 'A trading assinou contrato de arrendamento de área alfandegada no complexo portuário de Itajaí, segunda base após Santos. A direção informou que a unidade atenderá clientes do Sul sem passar por São Paulo.' },
   },
-  sa04: {
-    mudancaControle: { tipo: 'Registro público', veiculo: 'Junta Comercial de Pernambuco (fictício)', titulo: 'Alteração contratual — redistribuição de quotas', data: '2026-02-14', confianca: 'Média',
-      trecho: 'Averbada alteração do quadro societário com a saída de dois sócios da primeira geração e o ingresso de três herdeiros. A cláusula de administração passou a exigir deliberação conjunta, sinalizando arranjo sucessório ainda não estabilizado.' },
+  dis06: {
+    expansaoGeografica: { tipo: 'Registro público', veiculo: 'Cadastro CNPJ — Receita Federal (fictício)', titulo: 'Abertura de estabelecimento filial em São José dos Pinhais (PR)', data: '2026-06-11', confianca: 'Alta',
+      trecho: 'Inscrito estabelecimento filial com atividade de comércio atacadista de produtos químicos. É a terceira unidade do grupo e a primeira fora de Santa Catarina.' },
   },
-  sa05: {
-    rodadaRecente: { tipo: 'Imprensa', veiculo: 'Coluna de Tecnologia e Investimentos (fictício)', titulo: 'MedTech Prime fecha Série B de R$ 120 milhões', data: '2026-06-11', confianca: 'Alta',
-      trecho: 'A rodada foi liderada pelo fundo já presente no capital, com participação de um investidor estrangeiro. A companhia informou que os recursos vão para expansão comercial e para a base tecnológica do produto.' },
-    expansaoGeografica: { tipo: 'Site institucional', veiculo: 'medtechprime.com.br — sala de imprensa (fictício)', titulo: 'MedTech Prime abre escritório comercial no Sul', data: '2026-06-24', confianca: 'Média',
-      trecho: 'Nota institucional informa a abertura de operação em Porto Alegre para atender operadoras da região Sul. É a segunda praça da empresa fora de São Paulo.' },
-  },
-  sa06: {
-    expansaoGeografica: { tipo: 'Comunicado ao mercado', veiculo: 'Fato relevante — Grupo CuidarBem (fictício)', titulo: 'Aquisição de operação de home care no Paraná', data: '2026-05-22', confianca: 'Alta',
-      trecho: 'A companhia comunica a aquisição da totalidade das quotas de operadora de atendimento domiciliar sediada em Londrina. É a quarta aquisição do grupo em 18 meses e a primeira fora da Região Sul imediata.' },
-  },
-  sa07: {
-    mudancaControle: { tipo: 'Imprensa', veiculo: 'Economia Centro-Oeste (fictício)', titulo: 'Disputa entre herdeiros trava decisões na Farmácias Reviva', data: '2026-02-11', confianca: 'Baixa',
-      trecho: 'Fontes próximas à família relatam impasse sobre a sucessão do fundador, com dois blocos de herdeiros divergindo sobre a abertura de capital. A empresa não comentou. Informação não confirmada por registro público.' },
-  },
-
-  /* --------------------------- TECNOLOGIA --------------------------- */
-  tec01: {
-    rodadaRecente: { tipo: 'Imprensa', veiculo: 'Portal de Venture Capital (fictício)', titulo: 'CloudNexo levanta rodada para consolidar ERPs verticais', data: '2026-05-30', confianca: 'Alta',
-      trecho: 'A empresa paulista captou junto ao fundo controlador e a um novo investidor. Em entrevista, a CEO afirmou que parte relevante do recurso é destinada a "comprar players de nicho com base instalada".' },
-    expansaoGeografica: { tipo: 'Site institucional', veiculo: 'cloudnexo.com.br — blog (fictício)', titulo: 'CloudNexo inaugura operação em Recife', data: '2026-06-09', confianca: 'Média',
-      trecho: 'Post institucional anuncia novo centro de operações no Nordeste, com meta declarada de atender indústrias de médio porte da região.' },
-  },
-  tec02: {
-    rodadaRecente: { tipo: 'Imprensa', veiculo: 'Caderno de Fintechs (fictício)', titulo: 'PagaFácil capta para acelerar expansão em PMEs', data: '2026-06-19', confianca: 'Média',
-      trecho: 'A adquirente anunciou captação com investidores existentes. O valor não foi confirmado oficialmente; duas fontes de mercado indicam faixa entre R$ 200 mi e R$ 250 mi.' },
-    expansaoGeografica: { tipo: 'Imprensa', veiculo: 'Caderno de Fintechs (fictício)', titulo: 'PagaFácil chega ao Nordeste com operação própria', data: '2026-06-19', confianca: 'Média',
-      trecho: 'Junto com a captação, a companhia informou a abertura de operação comercial em Fortaleza e Salvador, saindo do modelo exclusivamente remoto nessas praças.' },
-  },
-  tec04: {
-    rodadaRecente: { tipo: 'Imprensa', veiculo: 'Boletim de Inovação Campinas (fictício)', titulo: 'DataForge recebe aporte semente de fundo regional', data: '2026-06-14', confianca: 'Baixa',
-      trecho: 'A startup teria recebido aporte de fundo de estágio inicial, segundo relato do próprio fundador em evento do setor. Não houve comunicado formal nem confirmação do investidor.' },
-  },
-  tec05: {
-    mudancaControle: { tipo: 'Registro público', veiculo: 'Junta Comercial do Rio de Janeiro (fictício)', titulo: 'Alteração de acordo de acionistas', data: '2026-05-07', confianca: 'Média',
-      trecho: 'Registrada alteração no acordo de acionistas com inclusão de cláusula de arrastamento (drag-along) e definição de janela de liquidez para o investidor financeiro a partir do segundo semestre — indicativo típico de fim de ciclo de investimento.' },
-    expansaoGeografica: { tipo: 'Imprensa', veiculo: 'Segurança Digital Brasil (fictício)', titulo: 'SegNet abre segundo SOC, agora em São Paulo', data: '2026-05-19', confianca: 'Média',
-      trecho: 'A companhia carioca inaugurou centro de operações de segurança na capital paulista, dobrando a capacidade de monitoramento e aproximando-se de clientes corporativos do eixo SP.' },
-  },
-  /* tec07 (EduPlay) — LACUNA PROPOSITAL.
+  /* dis07 (Interquímica) — LACUNA PROPOSITAL.
      A ficha marca `mudancaControle: true`, mas nenhuma fonte foi anexada. Como
      esse sinal vale 35 pontos no papel "candidata a venda", a empresa aparece
-     na lista com lastro FRÁGIL e alerta explícito. É o caso que os sócios
-     precisam ver: uma classificação forte apoiada em afirmação não documentada.
+     na lista com lastro FRÁGIL e alerta explícito. É o caso que a diretoria
+     precisa ver: uma classificação forte apoiada em afirmação não documentada.
      Não preencher. Existe para demonstrar o comportamento diante da ausência. */
-  tec08: {
-    expansaoGeografica: { tipo: 'Comunicado ao mercado', veiculo: 'Comunicado ao mercado — IndUS Software (fictício)', titulo: 'IndUS anuncia centro de desenvolvimento no México', data: '2026-06-01', confianca: 'Alta',
-      trecho: 'A companhia comunicou a abertura de unidade em Monterrey para atender a indústria automotiva mexicana. É o primeiro movimento internacional do grupo e integra o plano de crescimento anunciado ao mercado.' },
-  },
 
-  /* ----------------------------- VAREJO ----------------------------- */
-  var01: {
-    mudancaControle: { tipo: 'Imprensa', veiculo: 'Caderno de Varejo (fictício)', titulo: 'Família Bernardes contrata assessoria para reorganização societária', data: '2026-04-22', confianca: 'Média',
-      trecho: 'A rede paulista contratou assessoria financeira para estudar a profissionalização da gestão e a eventual venda de participação minoritária. A presidente confirmou o estudo, mas negou processo de venda de controle.' },
+  /* ---------------------- ESPECIALIDADES E ADITIVOS --------------------- */
+  esp02: {
+    rodadaRecente: { tipo: 'Imprensa', veiculo: 'Caderno de Inovação Industrial (fictício)', titulo: 'Catalix recebe aporte de fundo de tecnologia industrial', data: '2026-06-18', confianca: 'Média',
+      trecho: 'A empresa de Paulínia anunciou captação junto a fundo especializado em tecnologia industrial. O valor não foi divulgado. A fundadora afirmou que o recurso será aplicado na ampliação da planta-piloto e no depósito de duas novas patentes.' },
   },
-  /* var02 (MercaBom) — LACUNA PROPOSITAL em `expansaoGeografica`.
+  esp03: {
+    expansaoGeografica: { tipo: 'Comunicado ao mercado', veiculo: 'Comunicado — Adminas Aditivos (fictício)', titulo: 'Adminas conclui aquisição de formulador em Recife', data: '2026-06-27', confianca: 'Alta',
+      trecho: 'A companhia comunica a conclusão da aquisição da totalidade das quotas de formulador de aditivos sediado em Recife. É a terceira aquisição em 20 meses e a primeira no Nordeste, ampliando a operação para cinco estados.' },
+  },
+  esp04: {
+    mudancaControle: { tipo: 'Registro público', veiculo: 'Junta Comercial do Rio Grande do Sul (fictício)', titulo: 'Alteração contratual — redistribuição de quotas entre herdeiros', data: '2026-04-09', confianca: 'Média',
+      trecho: 'Averbada redistribuição de quotas com a saída da sócia fundadora da administração e o ingresso de três herdeiros com participações iguais. A cláusula de administração passou a exigir deliberação conjunta, arranjo que costuma anteceder impasse ou venda.' },
+  },
+  /* esp05 (Tecnoquímica) — LACUNA PROPOSITAL em `expansaoGeografica`.
      Gap leve: o sinal pesa 10 pontos no papel "alvo". Serve para mostrar que
      nem toda lacuna é grave — o sistema sinaliza sem alarmar. Não preencher. */
-  var03: {
-    rodadaRecente: { tipo: 'Imprensa', veiculo: 'Portal de Varejo & Consumo (fictício)', titulo: 'PetLar capta com fundo para dobrar número de lojas', data: '2026-06-17', confianca: 'Alta',
-      trecho: 'A rede de Campinas anunciou captação destinada à abertura de lojas e à integração da operação de e-commerce. A fundadora afirmou que a companhia avalia "aquisições de redes locais de três a cinco lojas".' },
-    expansaoGeografica: { tipo: 'Imprensa', veiculo: 'Portal de Varejo & Consumo (fictício)', titulo: 'PetLar entra em Minas Gerais', data: '2026-06-17', confianca: 'Alta',
-      trecho: 'Com a captação, a rede confirmou a abertura das primeiras unidades em Belo Horizonte e Uberlândia, saindo do estado de São Paulo pela primeira vez.' },
+
+  /* ------------------ TINTAS, VERNIZES E REVESTIMENTOS ------------------ */
+  tin01: {
+    mudancaControle: { tipo: 'Imprensa', veiculo: 'Economia Bahia (fictício)', titulo: 'Família Nascimento contrata assessoria para avaliar venda de participação', data: '2026-05-07', confianca: 'Média',
+      trecho: 'A controladora da Coralina contratou assessoria financeira para estudar a venda de participação minoritária e a profissionalização da gestão. O presidente confirmou o estudo e negou processo de venda de controle.' },
   },
-  var04: {
-    mudancaControle: { tipo: 'Registro público', veiculo: 'Junta Comercial do Rio Grande do Sul (fictício)', titulo: 'Alteração contratual — administração', data: '2026-02-20', confianca: 'Incompleto',
-      trecho: 'Registrada substituição de administrador e alteração da cláusula de representação. O documento não detalha redistribuição de quotas; a leitura de mudança de controle é inferência da equipe e requer confirmação.' },
-  },
-  var05: {
-    rodadaRecente: { tipo: 'Imprensa', veiculo: 'Portal de Varejo & Consumo (fictício)', titulo: 'NutriMarket recebe aporte para plano de expansão nacional', data: '2026-05-28', confianca: 'Média',
-      trecho: 'O fundo controlador aportou recursos para financiar a abertura de lojas próprias fora do estado de São Paulo. A companhia projeta triplicar a rede em três anos.' },
-    expansaoGeografica: { tipo: 'Site institucional', veiculo: 'nutrimarket.com.br — imprensa (fictício)', titulo: 'NutriMarket chega ao Rio de Janeiro e a Brasília', data: '2026-06-04', confianca: 'Média',
-      trecho: 'Nota institucional confirma a inauguração das primeiras unidades fora de São Paulo, em shoppings do Rio de Janeiro e do Distrito Federal.' },
-  },
-  var07: {
-    expansaoGeografica: { tipo: 'Imprensa', veiculo: 'Economia Centro-Oeste (fictício)', titulo: 'BeloAtacado inaugura três unidades em Mato Grosso', data: '2026-05-26', confianca: 'Alta',
-      trecho: 'A rede de atacarejo, controlada por fundo de private equity, abriu três lojas em Cuiabá e Rondonópolis. A direção informou que o plano prevê "entrada em dois novos estados até 2027".' },
-  },
-  var08: {
-    mudancaControle: { tipo: 'Imprensa', veiculo: 'Coluna de Moda e Negócios (fictício)', titulo: 'Fundadora da Boutique Aurora estuda venda para grupo de luxo', data: '2026-04-03', confianca: 'Baixa',
-      trecho: 'Segundo relato de uma fonte do setor, a fundadora teria mantido conversas preliminares com dois grupos internacionais de moda. A marca não comentou. Nenhum registro público confirma tratativas.' },
+  tin02: {
+    expansaoGeografica: { tipo: 'Site institucional', veiculo: 'revestsul.com.br — sala de imprensa (fictício)', titulo: 'RevestSul abre centro de distribuição em Cuiabá', data: '2026-06-13', confianca: 'Média',
+      trecho: 'Nota institucional informa a abertura de centro de distribuição em Cuiabá para atender fabricantes de implementos agrícolas do Centro-Oeste. É a primeira operação da empresa fora da Região Sul.' },
   },
 
-  /* ----------------------------- ENERGIA ----------------------------- */
-  ene01: {
-    rodadaRecente: { tipo: 'Imprensa', veiculo: 'Boletim de Energia Renovável (fictício)', titulo: 'SolarPrime capta para consolidar integradores no Nordeste', data: '2026-06-10', confianca: 'Alta',
-      trecho: 'A integradora cearense anunciou captação com o fundo controlador. O CEO afirmou que a estratégia é "comprar integradores locais de porte médio", com quatro operações já em negociação.' },
-    expansaoGeografica: { tipo: 'Imprensa', veiculo: 'Boletim de Energia Renovável (fictício)', titulo: 'SolarPrime abre filiais em três capitais', data: '2026-06-10', confianca: 'Alta',
-      trecho: 'Junto com a captação, a empresa confirmou operações próprias em Recife, Salvador e Teresina, ampliando a cobertura para seis estados do Nordeste.' },
+  /* --------------- DOMISSANITÁRIOS E PRODUTOS DE LIMPEZA --------------- */
+  dom01: {
+    /* LACUNA PROPOSITAL em `rodadaRecente`: a ficha marca o sinal, e nenhuma
+       fonte o sustenta. Terceira e última lacuna deliberada da base. Aqui ela
+       atinge uma empresa classificada como COMPRADORA — mostra que a ausência
+       de evidência também degrada o lado buy-side, não só a lista de alvos.
+       Não preencher. */
+    expansaoGeografica: { tipo: 'Registro público', veiculo: 'Cadastro CNPJ — Receita Federal (fictício)', titulo: 'Abertura de estabelecimento filial em Goiânia (GO)', data: '2026-06-05', confianca: 'Alta',
+      trecho: 'Inscrito estabelecimento filial com atividade de fabricação de produtos de limpeza e polimento em Goiânia. É a segunda unidade fabril do grupo e a primeira fora do estado de São Paulo.' },
   },
-  ene02: {
-    expansaoGeografica: { tipo: 'Comunicado ao mercado', veiculo: 'Fato relevante — VentoNorte (fictício)', titulo: 'Aquisição de complexo eólico na Bahia', data: '2026-05-08', confianca: 'Alta',
-      trecho: 'A companhia comunica a aquisição de participação majoritária em complexo eólico no oeste baiano. A operação amplia a capacidade instalada em 18% e marca a entrada da empresa no estado.' },
+
+  /* ------------------ INORGÂNICOS E GASES INDUSTRIAIS ------------------ */
+  gas01: {
+    mudancaControle: { tipo: 'Registro público', veiculo: 'Junta Comercial do Rio de Janeiro (fictício)', titulo: 'Alteração de acordo de quotistas — cláusula de arrastamento', data: '2026-05-31', confianca: 'Média',
+      trecho: 'Registrada alteração do acordo de quotistas com inclusão de cláusula de arrastamento (drag-along) e definição de janela de liquidez a partir do segundo semestre de 2027 — arranjo típico de preparação para venda de controle.' },
   },
-  ene03: {
-    rodadaRecente: { tipo: 'Imprensa', veiculo: 'Agro & Energia (fictício)', titulo: 'BioGera capta para novas plantas de biometano', data: '2026-06-16', confianca: 'Média',
-      trecho: 'A empresa mineira anunciou captação junto a fundo de infraestrutura para viabilizar duas novas plantas junto a usinas parceiras. O valor não foi divulgado.' },
+  gas02: {
+    expansaoGeografica: { tipo: 'Imprensa', veiculo: 'Diário do Centro-Oeste (fictício)', titulo: 'OxiCentro inaugura base de envase em Palmas', data: '2026-05-21', confianca: 'Média',
+      trecho: 'A empresa goiana inaugurou base de envase e distribuição em Palmas, ampliando o raio de atendimento para o Tocantins e o sul do Pará. A diretora-geral afirmou que a unidade "reduz em 400 km a distância média de entrega" na região.' },
   },
-  ene04: {
-    mudancaControle: { tipo: 'Registro público', veiculo: 'Junta Comercial do Paraná (fictício)', titulo: 'Alteração contratual — cessão de quotas entre sócios', data: '2026-02-26', confianca: 'Incompleto',
-      trecho: 'Averbada cessão de quotas entre membros da família controladora, com concentração da participação em dois sócios. O registro não esclarece se há terceiros envolvidos; a leitura de desinvestimento é hipótese da equipe.' },
+
+  /* ----------------- FERTILIZANTES E NUTRIÇÃO VEGETAL ------------------ */
+  fer01: {
+    expansaoGeografica: { tipo: 'Imprensa', veiculo: 'Agro Notícias MT (fictício)', titulo: 'NutriCampo inaugura unidade de mistura em Balsas (MA)', data: '2026-06-29', confianca: 'Alta',
+      trecho: 'A misturadora de Rondonópolis inaugurou unidade em Balsas, no Maranhão, para atender a fronteira agrícola do Matopiba. É a primeira operação da empresa fora do Mato Grosso e a quarta unidade de mistura do grupo.' },
   },
-  /* ene05 (ComerLuz) — LACUNA PROPOSITAL em `expansaoGeografica`.
-     A empresa é classificada como potencial COMPRADOR, papel em que esse sinal
-     vale 15 pontos. Demonstra que a lacuna também afeta o lado comprador, não
-     só os alvos. Não preencher. */
-  ene07: {
-    mudancaControle: { tipo: 'Imprensa', veiculo: 'Economia Campinas (fictício)', titulo: 'Grupo Trindade avalia venda do controle da GNVLog', data: '2026-02-05', confianca: 'Média',
-      trecho: 'O grupo familiar contratou assessoria para avaliar a venda do controle da distribuidora, segundo duas fontes com conhecimento do processo. A empresa confirmou apenas que "estuda alternativas de capitalização".' },
+  fer02: {
+    rodadaRecente: { tipo: 'Registro público', veiculo: 'Junta Comercial de Goiás (fictício)', titulo: 'Aumento de capital social com ingresso de fundo', data: '2026-06-20', confianca: 'Alta',
+      trecho: 'Averbado aumento de capital de R$ 28 mi para R$ 96 mi, subscrito por fundo de investimento em participações. O instrumento declara como destinação a "aquisição de unidades de mistura de fertilizantes no Centro-Oeste".' },
   },
-  ene08: {
-    rodadaRecente: { tipo: 'Imprensa', veiculo: 'Portal de Deep Tech (fictício)', titulo: 'StorageX capta rodada para primeira linha de produção', data: '2026-06-30', confianca: 'Baixa',
-      trecho: 'A empresa de São José dos Campos teria captado com um fundo de tecnologia climática, segundo relato em evento setorial. Não houve comunicado formal. Valor e investidor não confirmados.' },
+
+  /* ------------------------ DEFENSIVOS AGRÍCOLAS ----------------------- */
+  def01: {
+    mudancaControle: { tipo: 'Imprensa', veiculo: 'Canal Agro & Insumos (fictício)', titulo: 'Sócios da Defenza negociam entrada de investidor', data: '2026-06-04', confianca: 'Média',
+      trecho: 'Duas fontes com conhecimento do processo relatam que os sócios da formuladora paranaense negociam a venda de participação relevante a um grupo asiático interessado na carteira de registros. A empresa informou apenas que "avalia alternativas de capitalização".' },
   },
 };
 
@@ -417,10 +415,14 @@ function evidenciaDe(empresa, chave) {
 
   switch (chave) {
     case 'mercado_fragmentado': {
-      const s = EVIDENCIA_SETORIAL[empresa.setor];
+      /* Subsetor primeiro, setor como fallback. Com um setor foco único, a
+         evidência que vale é sempre a do subsetor — dizer que "o setor químico
+         é fragmentado" mistura distribuição, que é pulverizada, com petroquímica
+         básica, que tem três donos. */
+      const s = EVIDENCIA_SETORIAL[empresa.subsetor] || EVIDENCIA_SETORIAL[empresa.setor];
       return s
         ? { natureza: 'documental', escopo: 'setorial', ...s }
-        : lacuna('Não há estudo setorial cadastrado para este setor.');
+        : lacuna('Não há estudo setorial cadastrado para este subsetor.');
     }
 
     case 'rodada_investimento':

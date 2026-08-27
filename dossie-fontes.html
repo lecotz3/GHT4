@@ -1,0 +1,634 @@
+<title>Onde Estão as Químicas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;600&display=swap" rel="stylesheet">
+
+<style>
+/* ===========================================================================
+   GHT4 · dossiê de fontes do setor químico
+   ---------------------------------------------------------------------------
+   Marca: #FF6E00 é o único acento. O dispositivo da GHT4 é a DIAGONAL A 45°,
+   e aqui ela faz trabalho de informação, não de enfeite: hachura = "não
+   verificado / sem lastro". Quem imprimir em preto e branco continua vendo
+   a diferença, porque ela é textura, não cor.
+   ======================================================================== */
+
+:root{
+  --marca:#FF6E00;
+  --ink:#111111;
+  --ink-2:#3D3D3D;
+  --muted:#6B6B6B;
+  --paper:#FFFFFF;
+  --paper-2:#F6F7F8;
+  --fio:#DCDFE2;
+  --fio-forte:#B8BDC2;
+  --vivo:#1F6F4A;      /* verificado nesta sessão */
+  --vivo-fundo:#E8F3ED;
+  --morto:#9B2C2C;     /* fonte que deixou de existir */
+  --morto-fundo:#F8EAEA;
+  --frio:#4A5A72;      /* não testado */
+  --frio-fundo:#EDF0F4;
+  --hachura:rgba(17,17,17,.10);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#F2F3F4; --ink-2:#C9CCCF; --muted:#93989D;
+    --paper:#0E1011; --paper-2:#16191B; --fio:#2A2F33; --fio-forte:#454B51;
+    --vivo:#6FD3A0; --vivo-fundo:#12281F;
+    --morto:#F08C8C; --morto-fundo:#2B1616;
+    --frio:#9FB2CC; --frio-fundo:#181D24;
+    --hachura:rgba(242,243,244,.12);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#F2F3F4; --ink-2:#C9CCCF; --muted:#93989D;
+  --paper:#0E1011; --paper-2:#16191B; --fio:#2A2F33; --fio-forte:#454B51;
+  --vivo:#6FD3A0; --vivo-fundo:#12281F;
+  --morto:#F08C8C; --morto-fundo:#2B1616;
+  --frio:#9FB2CC; --frio-fundo:#181D24;
+  --hachura:rgba(242,243,244,.12);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:16px; line-height:1.62; -webkit-font-smoothing:antialiased;
+}
+.envelope{max-width:1100px; margin:0 auto; padding:0 24px 96px}
+
+h1,h2,h3,.rotulo{font-family:Archivo,"IBM Plex Sans",sans-serif}
+h1{font-size:clamp(2.1rem,5.2vw,3.4rem); line-height:1.04; letter-spacing:-.028em;
+   font-weight:700; margin:0 0 .5rem; text-wrap:balance}
+h2{font-size:clamp(1.3rem,2.6vw,1.72rem); line-height:1.2; letter-spacing:-.016em;
+   font-weight:600; margin:0; text-wrap:balance}
+h3{font-size:1.06rem; line-height:1.3; letter-spacing:-.008em; font-weight:600; margin:0}
+p{margin:0 0 1rem; max-width:68ch}
+a{color:inherit; text-decoration-color:var(--marca); text-underline-offset:3px;
+  text-decoration-thickness:1.5px}
+a:hover{color:var(--marca)}
+:focus-visible{outline:2.5px solid var(--marca); outline-offset:3px; border-radius:2px}
+
+.rotulo{font-size:.7rem; font-weight:600; letter-spacing:.13em; text-transform:uppercase;
+  color:var(--muted)}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums}
+
+/* ---- cabeçalho ---------------------------------------------------------- */
+.topo{padding:64px 0 40px; border-bottom:2px solid var(--ink)}
+.marca-fio{display:flex; align-items:center; gap:12px; margin-bottom:28px}
+.marca-fio .quadro{width:26px; height:26px; background:var(--marca); flex:none;
+  border:1px solid var(--ink)}
+.marca-fio .nome{font-family:Archivo,sans-serif; font-weight:700; letter-spacing:-.02em; font-size:1.05rem}
+.marca-fio .sep{flex:1; height:1px; background:var(--fio)}
+.subtitulo{font-size:1.14rem; color:var(--ink-2); max-width:60ch; margin:0}
+.data-linha{margin-top:22px; font-size:.82rem; color:var(--muted)}
+
+/* ---- veredito ----------------------------------------------------------- */
+.veredito{margin:44px 0 0; border:1px solid var(--fio); border-left:4px solid var(--marca);
+  background:var(--paper-2); padding:28px 30px}
+.veredito h2{margin-bottom:14px}
+.veredito p:last-child{margin-bottom:0}
+.veredito strong{font-weight:600}
+
+/* ---- placar ------------------------------------------------------------- */
+.placar{display:grid; gap:1px; background:var(--fio); border:1px solid var(--fio);
+  grid-template-columns:repeat(auto-fit,minmax(168px,1fr)); margin:40px 0 0}
+.cel{background:var(--paper); padding:18px 20px}
+.cel .n{font-family:Archivo,sans-serif; font-weight:700; font-size:1.9rem; line-height:1.05;
+  letter-spacing:-.03em; font-variant-numeric:tabular-nums; display:block}
+.cel .d{font-size:.79rem; color:var(--muted); margin-top:5px; display:block; line-height:1.42}
+.cel.destaque .n{color:var(--marca)}
+
+/* ---- seções ------------------------------------------------------------- */
+section{margin-top:72px}
+.cabeca-secao{display:flex; align-items:baseline; gap:14px; padding-bottom:12px;
+  border-bottom:1px solid var(--ink); margin-bottom:8px; flex-wrap:wrap}
+.cabeca-secao .ordem{font-family:"IBM Plex Mono",monospace; font-size:.82rem; font-weight:600;
+  color:var(--marca)}
+.papel{font-size:.95rem; color:var(--muted); margin:14px 0 26px; max-width:66ch}
+
+/* ---- ficha de fonte ----------------------------------------------------- */
+.ficha{border:1px solid var(--fio); margin-bottom:20px; background:var(--paper)}
+.ficha-topo{display:flex; align-items:flex-start; gap:16px; padding:20px 22px 16px;
+  border-bottom:1px solid var(--fio); flex-wrap:wrap}
+.ficha-id{flex:1; min-width:220px}
+.ficha-id .org{font-size:.79rem; color:var(--muted); margin-top:3px}
+.corpo{padding:20px 22px 22px}
+.corpo > *:last-child{margin-bottom:0}
+
+.selo{font-family:"IBM Plex Mono",monospace; font-size:.68rem; font-weight:600;
+  letter-spacing:.07em; text-transform:uppercase; padding:5px 10px; border:1px solid;
+  white-space:nowrap; flex:none}
+.selo.vivo{color:var(--vivo); background:var(--vivo-fundo); border-color:var(--vivo)}
+.selo.morto{color:var(--morto); background:var(--morto-fundo); border-color:var(--morto)}
+.selo.frio{color:var(--frio); background:var(--frio-fundo); border-color:var(--frio);
+  background-image:repeating-linear-gradient(45deg,transparent,transparent 4px,var(--hachura) 4px,var(--hachura) 5px)}
+
+/* dá / não dá */
+.balanco{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:0;
+  border:1px solid var(--fio); margin:0 0 18px}
+.balanco > div{padding:15px 18px}
+.balanco > div + div{border-left:1px solid var(--fio)}
+@media (max-width:620px){ .balanco > div + div{border-left:0; border-top:1px solid var(--fio)} }
+.balanco h4{margin:0 0 9px; font-family:Archivo,sans-serif; font-size:.71rem; font-weight:600;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--muted)}
+.balanco ul{margin:0; padding-left:1.05em}
+.balanco li{margin-bottom:6px; font-size:.9rem; line-height:1.5}
+.balanco li:last-child{margin-bottom:0}
+.nao-da{background:var(--paper-2)}
+.nao-da li::marker{color:var(--morto)}
+.da li::marker{color:var(--marca)}
+
+.medido{border-left:3px solid var(--fio-forte); padding:2px 0 2px 16px; margin:0 0 18px}
+.medido p{font-size:.9rem; color:var(--ink-2); margin-bottom:.5rem}
+.medido p:last-child{margin-bottom:0}
+
+.armadilha{background:var(--paper-2); border:1px solid var(--fio); padding:14px 17px;
+  font-size:.86rem; line-height:1.55; margin:0 0 18px}
+.armadilha .rotulo{display:block; margin-bottom:5px; color:var(--marca)}
+.armadilha code{font-family:"IBM Plex Mono",monospace; font-size:.86em;
+  background:var(--paper); padding:1px 5px; border:1px solid var(--fio)}
+
+.acesso{font-family:"IBM Plex Mono",monospace; font-size:.78rem; line-height:1.7;
+  color:var(--muted); word-break:break-all; padding-top:14px; border-top:1px solid var(--fio)}
+.acesso a{color:var(--ink-2)}
+
+/* ---- tabelas ------------------------------------------------------------ */
+.rolagem{overflow-x:auto; margin:0 0 18px; border:1px solid var(--fio)}
+table{border-collapse:collapse; width:100%; font-size:.87rem; min-width:420px}
+th,td{padding:9px 14px; text-align:left; border-bottom:1px solid var(--fio)}
+thead th{font-family:Archivo,sans-serif; font-size:.7rem; font-weight:600; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--muted); background:var(--paper-2);
+  border-bottom:1px solid var(--fio-forte); white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+td.num{text-align:right; font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums;
+  white-space:nowrap}
+tr.fora td{color:var(--muted)}
+tr.fora td:first-child{background-image:repeating-linear-gradient(45deg,transparent,transparent 5px,var(--hachura) 5px,var(--hachura) 6px)}
+
+/* ---- barra de distribuição ---------------------------------------------- */
+.barras{margin:0 0 18px}
+.barra{display:grid; grid-template-columns:88px 1fr 66px; align-items:center; gap:12px;
+  padding:4px 0; font-size:.85rem}
+.barra .rot{font-family:"IBM Plex Mono",monospace; color:var(--muted); font-size:.78rem;
+  text-align:right}
+.barra .trilho{height:15px; background:var(--paper-2); border:1px solid var(--fio); position:relative}
+.barra .preenche{height:100%; background:var(--marca); border-right:1px solid var(--ink)}
+.barra .preenche.apagado{background:var(--fio-forte)}
+.barra .val{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums;
+  font-size:.8rem; color:var(--ink-2)}
+
+/* ---- fecho -------------------------------------------------------------- */
+.decisao{border:2px solid var(--ink); padding:30px 32px; margin-top:28px}
+.decisao h3{margin-bottom:16px}
+.decisao ol{margin:0; padding-left:1.3em}
+.decisao li{margin-bottom:14px; max-width:62ch}
+.decisao li:last-child{margin-bottom:0}
+.decisao li strong{font-weight:600}
+
+.rodape{margin-top:72px; padding-top:22px; border-top:1px solid var(--fio);
+  font-size:.8rem; color:var(--muted); display:flex; justify-content:space-between;
+  gap:16px; flex-wrap:wrap}
+.diag{height:8px; margin-top:40px;
+  background:repeating-linear-gradient(45deg,var(--marca),var(--marca) 2px,transparent 2px,transparent 7px)}
+</style>
+
+<div class="envelope">
+
+<header class="topo">
+  <div class="marca-fio">
+    <span class="quadro" aria-hidden="true"></span>
+    <span class="nome">GHT4</span>
+    <span class="sep" aria-hidden="true"></span>
+    <span class="rotulo">Objetivo 1 · Setor foco: Químicos</span>
+  </div>
+  <h1>Onde estão as químicas</h1>
+  <p class="subtitulo">Inventário das bases que têm empresas do setor químico brasileiro, com o que
+  cada uma entrega, o que não entrega, e o número medido — não estimado.</p>
+  <p class="data-linha mono">Verificação de campo · 20 de agosto de 2026 · cada número desta página
+  saiu de um arquivo baixado e lido, não de um site institucional</p>
+</header>
+
+<div class="veredito">
+  <h2>O veredito, antes do detalhe</h2>
+  <p>O agente <strong>já tem o universo</strong>: 38.583 empresas químicas ativas, extraídas do
+  cadastro completo da Receita Federal. Isso resolve a pergunta "quem existe". Custou zero.</p>
+  <p>O que ele <strong>não tem é como ordenar</strong>. Sem receita, o motor de score devolve
+  apenas 5 valores distintos para 38.583 empresas, e 85% delas empatam em exatamente 15 pontos.
+  A base filtra bem — por subsetor, praça, sucessão, presença multi-UF. Priorizar, ela não
+  prioriza. Nenhuma fonte pública brasileira tem faturamento de empresa fechada.</p>
+  <p>As três fontes novas verificadas hoje não resolvem a receita. Resolvem algo diferente e
+  igualmente ausente: <strong>provar que a empresa opera de fato</strong> — o que importa porque
+  dois terços do universo entraram por CNAE secundário, e CNAE secundário é declaração, não operação.</p>
+</div>
+
+<div class="placar">
+  <div class="cel destaque"><span class="n">38.583</span><span class="d">empresas químicas ativas, base RFB</span></div>
+  <div class="cel"><span class="n">12.933</span><span class="d">com CNAE químico <em>principal</em> — o núcleo defensável</span></div>
+  <div class="cel"><span class="n">5.723</span><span class="d">indústrias químicas confirmadas no IBAMA</span></div>
+  <div class="cel"><span class="n">8.329</span><span class="d">empresas de saneantes com licença ANVISA ativa</span></div>
+  <div class="cel"><span class="n">R$ 0</span><span class="d">custo de tudo nesta página</span></div>
+</div>
+
+<!-- ==================================================================== -->
+<section>
+  <div class="cabeca-secao">
+    <span class="ordem">01</span>
+    <h2>O universo</h2>
+  </div>
+  <p class="papel">Uma só fonte responde "quais empresas químicas existem no Brasil". É gratuita,
+  cobre o país inteiro e se republica todo mês. Já está ingerida.</p>
+
+  <article class="ficha">
+    <div class="ficha-topo">
+      <div class="ficha-id">
+        <h3>Cadastro Nacional da Pessoa Jurídica — dados abertos</h3>
+        <div class="org">Receita Federal do Brasil · base primária do agente</div>
+      </div>
+      <span class="selo vivo">Ingerida</span>
+    </div>
+    <div class="corpo">
+      <div class="medido">
+        <p><strong>72.789.645</strong> estabelecimentos lidos. <strong>176.166</strong> raízes de CNPJ
+        caíram no recorte químico. Depois dos cortes — inativa 89.150, jovem demais 19.417,
+        Simples 28.657, MEI 359 — sobraram <strong>38.583 empresas</strong>.</p>
+        <p>Praças: SP 7.486 · PR 3.536 · RS 3.520 · MG 3.390 · SC 2.695 · MT 2.434 · GO 1.872 ·
+        BA 1.681 · PA 1.606 · RJ 1.158.</p>
+        <p>Sinais que só esta fonte dá: <strong>2.800</strong> empresas com sucessão sem sucessor
+        no quadro (todos os sócios acima de 60, nenhum abaixo de 50) · <strong>4.926</strong> com
+        presença em mais de uma UF · <strong>1.170</strong> com sócio estrangeiro ·
+        <strong>32.879</strong> com e-mail no cadastro.</p>
+      </div>
+
+      <div class="balanco">
+        <div class="da">
+          <h4>Dá</h4>
+          <ul>
+            <li>CNPJ, razão social, nome fantasia, endereço, CNAE principal e secundários</li>
+            <li>Data de abertura, capital social, natureza jurídica, porte declarado</li>
+            <li>Quadro societário: quantidade, faixa etária, sócio estrangeiro</li>
+            <li>Todos os estabelecimentos, e portanto a malha de UFs</li>
+          </ul>
+        </div>
+        <div class="nao-da">
+          <h4>Não dá</h4>
+          <ul>
+            <li><strong>Receita.</strong> Nem estimada, nem faixa. Fica nula, por decisão</li>
+            <li>EBITDA, margem, número de funcionários</li>
+            <li>Se a empresa opera de fato — só que o cadastro está ativo</li>
+          </ul>
+        </div>
+      </div>
+
+      <p class="rotulo" style="margin-bottom:8px">Composição por subsetor</p>
+      <div class="rolagem">
+      <table>
+        <thead><tr><th>Subsetor</th><th style="text-align:right">Total</th>
+          <th style="text-align:right">CNAE principal</th><th style="text-align:right">Só secundário</th></tr></thead>
+        <tbody>
+          <tr><td>Fertilizantes e nutrição vegetal</td><td class="num">21.787</td><td class="num">5.616</td><td class="num">16.171</td></tr>
+          <tr><td>Distribuição e trading químico</td><td class="num">6.592</td><td class="num">1.670</td><td class="num">4.922</td></tr>
+          <tr><td>Especialidades e aditivos</td><td class="num">3.130</td><td class="num">1.814</td><td class="num">1.316</td></tr>
+          <tr><td>Domissanitários e limpeza</td><td class="num">2.949</td><td class="num">1.644</td><td class="num">1.305</td></tr>
+          <tr><td>Tintas, vernizes e revestimentos</td><td class="num">1.473</td><td class="num">1.005</td><td class="num">468</td></tr>
+          <tr><td>Resinas, elastômeros e fibras</td><td class="num">919</td><td class="num">320</td><td class="num">599</td></tr>
+          <tr class="fora"><td>Petroquímica básica — contexto, sem alvo de boutique</td><td class="num">763</td><td class="num">374</td><td class="num">389</td></tr>
+          <tr><td>Inorgânicos e gases industriais</td><td class="num">678</td><td class="num">321</td><td class="num">357</td></tr>
+          <tr><td>Defensivos agrícolas</td><td class="num">200</td><td class="num">122</td><td class="num">78</td></tr>
+          <tr><td>Explosivos e pirotecnia</td><td class="num">92</td><td class="num">47</td><td class="num">45</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <div class="armadilha">
+        <span class="rotulo">O problema que a tabela revela</span>
+        <strong>66,5% do universo entrou por CNAE secundário</strong> — 25.650 de 38.583. Em
+        fertilizantes são 74%: dos 21.787, apenas 5.616 têm CNAE químico principal. Os outros são
+        transportadoras de carga, atacadistas de cereais e varejo veterinário que declararam
+        "comércio de adubos" como atividade secundária. São revendas do agro, não empresas
+        químicas. Cortar o enquadramento secundário derruba o universo para <strong>12.933</strong> —
+        e é esse o número honesto para uma lista de alvos.
+      </div>
+
+      <div class="acesso">
+        <a href="https://arquivos.receitafederal.gov.br">arquivos.receitafederal.gov.br</a> ·
+        ~5 GB por mês, 40 meses de histórico retidos · <code>node ferramentas/importar-cnpj.mjs</code>
+      </div>
+    </div>
+  </article>
+</section>
+
+<!-- ==================================================================== -->
+<section>
+  <div class="cabeca-secao">
+    <span class="ordem">02</span>
+    <h2>A prova de que opera</h2>
+  </div>
+  <p class="papel">O achado desta busca. O IBAMA publica, por formulário, a relação das pessoas
+  jurídicas que entregaram o Relatório de Atividades Potencialmente Poluidoras. A categoria de
+  atividade é declarada pela empresa e <em>independe do CNAE</em> — é um teste externo de que a
+  operação química existe, e é exatamente o que falta para separar os 25.650 CNPJs de enquadramento
+  secundário entre operadores reais e cadastro de papel.</p>
+
+  <article class="ficha">
+    <div class="ficha-topo">
+      <div class="ficha-id">
+        <h3>RAPP — Resíduos Sólidos, Gerador</h3>
+        <div class="org">IBAMA · dados abertos · 826 MB, CSV</div>
+      </div>
+      <span class="selo vivo">Verificada hoje</span>
+    </div>
+    <div class="corpo">
+      <div class="medido">
+        <p><strong>5.723</strong> empresas distintas na categoria "Indústria Química".
+        <strong>3.946</strong> reportaram em 2023 ou 2024, e <strong>3.758</strong> estão com
+        cadastro ativo. Em "Transporte, Terminais, Depósitos e Comércio" há outras
+        <strong>37.573</strong> — é lá que a distribuição química se esconde.</p>
+      </div>
+
+      <p class="rotulo" style="margin-bottom:10px">O campo "detalhe" mapeia quase 1 para 1 nos nossos subsetores</p>
+      <div class="barras">
+        <div class="barra"><span class="rot">1.413</span><span class="trilho"><span class="preenche" style="width:100%"></span></span><span class="val">inorg./esp.</span></div>
+        <div class="barra"><span class="rot">956</span><span class="trilho"><span class="preenche" style="width:67.7%"></span></span><span class="val">domissan.</span></div>
+        <div class="barra"><span class="rot">881</span><span class="trilho"><span class="preenche apagado" style="width:62.4%"></span></span><span class="val">cosmético ✕</span></div>
+        <div class="barra"><span class="rot">786</span><span class="trilho"><span class="preenche" style="width:55.6%"></span></span><span class="val">tintas</span></div>
+        <div class="barra"><span class="rot">577</span><span class="trilho"><span class="preenche" style="width:40.8%"></span></span><span class="val">fert./defens.</span></div>
+        <div class="barra"><span class="rot">505</span><span class="trilho"><span class="preenche apagado" style="width:35.7%"></span></span><span class="val">farma/vet ✕</span></div>
+        <div class="barra"><span class="rot">197</span><span class="trilho"><span class="preenche" style="width:13.9%"></span></span><span class="val">resinas</span></div>
+        <div class="barra"><span class="rot">119</span><span class="trilho"><span class="preenche" style="width:8.4%"></span></span><span class="val">solventes</span></div>
+        <div class="barra"><span class="rot">88</span><span class="trilho"><span class="preenche" style="width:6.2%"></span></span><span class="val">aromas</span></div>
+      </div>
+      <p style="font-size:.83rem;color:var(--muted);margin-bottom:18px">As barras cinzas são as
+      categorias que a decisão da reunião deixou <em>fora</em> do escopo — cosmético acabado e
+      farmoquímico. Estão aqui porque a fonte as entrega juntas, e porque somam 1.386 empresas:
+      se o escopo mudar, o custo de incluí-las é zero.</p>
+
+      <div class="armadilha">
+        <span class="rotulo">Armadilha técnica</span>
+        Encoding <strong>UTF-8</strong>. Os arquivos da Receita são latin1 e estes não são — ler
+        como latin1 não dá erro, apenas quebra os acentos, e aí o filtro por
+        <code>/Química/</code> devolve zero silenciosamente. Perdi uma rodada nisso.
+      </div>
+
+      <div class="acesso">
+        <a href="https://dadosabertos.ibama.gov.br/dados/RAPP/residuoSolidosGerador/relatorio.csv">dadosabertos.ibama.gov.br/dados/RAPP/residuoSolidosGerador/relatorio.csv</a><br>
+        Catálogo dos 23 formulários: <a href="https://dadosabertos.ibama.gov.br/api/3/action/package_search?fq=tags:rapp">API CKAN, tag <code>rapp</code></a> · atualização anual, entrega até 31 de março
+      </div>
+    </div>
+  </article>
+
+  <article class="ficha">
+    <div class="ficha-topo">
+      <div class="ficha-id">
+        <h3>RAPP — Transporte de Produtos Químicos Perigosos</h3>
+        <div class="org">IBAMA · dados abertos · 908 MB, 3.929.301 linhas</div>
+      </div>
+      <span class="selo vivo">Verificada hoje</span>
+    </div>
+    <div class="corpo">
+      <div class="medido">
+        <p><strong>24.583</strong> empresas em <strong>30.732</strong> estabelecimentos, série de
+        1999 a 2024. Em 2024: <strong>9.985</strong> declarantes, <strong>9.513</strong> com
+        cadastro ativo, <strong>797</strong> operando em mais de uma UF.</p>
+      </div>
+
+      <div class="balanco">
+        <div class="da">
+          <h4>Dá</h4>
+          <ul>
+            <li>CNPJ com sufixo de filial, e razão social</li>
+            <li><strong>O produto químico transportado, pelo nome</strong> — o portfólio real, não o CNAE declarado</li>
+            <li><strong>UF e município de origem e de destino</strong> — a malha logística, rota a rota</li>
+            <li>Tipo de transporte, de armazenamento, e se há plano de emergência</li>
+          </ul>
+        </div>
+        <div class="nao-da">
+          <h4>Não dá</h4>
+          <ul>
+            <li><strong>Volume utilizável.</strong> Ver abaixo — testei e não serve</li>
+            <li>Qualquer dado financeiro</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="armadilha">
+        <span class="rotulo">Não use as quantidades</span>
+        As unidades são declaratórias e sem validação: 1,39 milhão de linhas em "Litro", 1,37 milhão
+        em "kilogramas", 373 mil em "Tonelada", e ainda "Caixa", "Pacote", "Lata", "Galão" e
+        "Militro". Somar dá absurdo físico — a maior declarante aparece com <strong>49 bilhões de
+        toneladas</strong> de GLP em um ano, mais do que a produção mundial em um século. O ranking
+        por crescimento de volume devolve variações de +50.000.000%, que são erro de digitação de
+        unidade e não expansão. <strong>A lista de empresas, os produtos e as rotas servem. Os
+        números, não.</strong>
+      </div>
+
+      <p>O valor aqui é a <strong>pegada geográfica</strong>. Origem e destino por município
+      reconstroem a área de atuação real de um distribuidor, que é justamente o ativo que o
+      comprador estratégico está comprando, e que nenhuma outra base pública entrega.</p>
+
+      <div class="acesso">
+        <a href="https://dadosabertos.ibama.gov.br/dados/RAPP/transpProdQuiPerigCombustivel/relatorio.csv">dadosabertos.ibama.gov.br/dados/RAPP/transpProdQuiPerigCombustivel/relatorio.csv</a><br>
+        O ano corrente sai praticamente vazio — use sempre o último fechado, hoje 2024
+      </div>
+    </div>
+  </article>
+</section>
+
+<!-- ==================================================================== -->
+<section>
+  <div class="cabeca-secao">
+    <span class="ordem">03</span>
+    <h2>Portfólio e contato</h2>
+  </div>
+  <p class="papel">Para um subsetor inteiro — domissanitários — existe registro produto a produto,
+  com CNPJ, e telefone. Contar registros vivos por empresa mede a largura da linha de produtos:
+  é proxy de porte que não depende de estimativa nenhuma, e é ativo que se transfere na transação.</p>
+
+  <article class="ficha">
+    <div class="ficha-topo">
+      <div class="ficha-id">
+        <h3>Saneantes regularizados + Autorização de Funcionamento</h3>
+        <div class="org">ANVISA · dois arquivos · 24 MB e 312 MB</div>
+      </div>
+      <span class="selo vivo">Verificada hoje</span>
+    </div>
+    <div class="corpo">
+      <div class="medido">
+        <p><strong>143.411</strong> registros de produto sobre <strong>3.988</strong> empresas no
+        arquivo de saneantes. No arquivo de empresas, <strong>9.803</strong> companhias com tipo
+        "Saneantes", das quais <strong>8.329</strong> com autorização <strong>ativa</strong>.</p>
+        <p>Contato direto: <strong>1.639</strong> com site e <strong>1.842</strong> com telefone de
+        SAC. Praças: SP 2.420 · PR 647 · MG 647 · SC 591 · RS 529 · RJ 510 · GO 498 · BA 305.</p>
+      </div>
+
+      <p>O campo <strong>ATIVIDADES</strong> é o que faz esta fonte valer mais do que parece: ele
+      separa <em>Fabricar</em> de <em>Distribuir</em>, de <em>Importar</em>, de <em>Transportar</em>,
+      dentro do mesmo CNPJ. É a distinção indústria-versus-distribuidor sem depender do CNAE —
+      2.589 empresas só armazenam e distribuem, 1.062 fabricam a linha completa.</p>
+
+      <div class="armadilha">
+        <span class="rotulo">Duas armadilhas</span>
+        O arquivo <code>DADOS_ABERTOS_REGISTROS_SANEANTES.CSV</code>, na raiz do portal, é uma
+        <strong>amostra de 13 linhas</strong> — não é a base; a base está em
+        <code>/CONSULTAS/PRODUTOS/</code>. E os arquivos são latin1 com campos entre aspas contendo
+        <code>;</code> e quebra de linha dentro (os endereços): split simples corrompe tudo, precisa
+        de parser que respeite aspas. O campo <code>ATIVO</code> vale <code>SIM</code>/<code>NAO</code>,
+        não <code>S</code>/<code>N</code>.
+      </div>
+
+      <div class="acesso">
+        <a href="https://dados.anvisa.gov.br/dados/CONSULTAS/PRODUTOS/TA_CONSULTA_SANEANTES.CSV">…/CONSULTAS/PRODUTOS/TA_CONSULTA_SANEANTES.CSV</a><br>
+        <a href="https://dados.anvisa.gov.br/dados/CONSULTAS/EMPRESA_FISCALIZACAO_PRODUTO/TA_CONSULTA_FUNCIONAMENTO_EMPRESA_NACIONAL.CSV">…/EMPRESA_FISCALIZACAO_PRODUTO/TA_CONSULTA_FUNCIONAMENTO_EMPRESA_NACIONAL.CSV</a><br>
+        Carga diária
+      </div>
+    </div>
+  </article>
+</section>
+
+<!-- ==================================================================== -->
+<section>
+  <div class="cabeca-secao">
+    <span class="ordem">04</span>
+    <h2>A que morreu</h2>
+  </div>
+  <p class="papel">Registrada aqui porque estava no nosso catálogo como aposta principal para
+  medir porte, e porque alguém no time vai lembrar dela e procurar.</p>
+
+  <article class="ficha">
+    <div class="ficha-topo">
+      <div class="ficha-id">
+        <h3>Empresas brasileiras exportadoras e importadoras</h3>
+        <div class="org">MDIC / SECEX</div>
+      </div>
+      <span class="selo morto">Despublicada</span>
+    </div>
+    <div class="corpo">
+      <p>A lista nominal de empresas que comerciaram com o exterior — com CNPJ e faixa de valor —
+      <strong>não é mais divulgada</strong>, e os anos anteriores foram removidos. A justificativa
+      é sigilo de informação econômico-financeira. A URL responde 404 e a nota metodológica do
+      próprio MDIC confirma.</p>
+      <p>Era a melhor aposta pública de porte para distribuidor de capital fechado, porque em
+      distribuição química importar <em>é</em> o negócio. Essa porta fechou. O
+      <strong>Comex Stat continua vivo</strong>, mas só por NCM, mês, país e município — serve para
+      dimensionar subsetor e localizar praça, nunca para identificar empresa.</p>
+      <p>Quem tem dado por empresa hoje são os agregadores de manifesto de carga — Panjiva,
+      ImportGenius — e são pagos.</p>
+      <div class="acesso">
+        <a href="https://comexstat.mdic.gov.br">comexstat.mdic.gov.br</a> — o que sobrou, e é agregado
+      </div>
+    </div>
+  </article>
+</section>
+
+<!-- ==================================================================== -->
+<section>
+  <div class="cabeca-secao">
+    <span class="ordem">05</span>
+    <h2>Listas-semente e o lado global</h2>
+  </div>
+  <p class="papel">Pequenas e precisas. Não constroem universo; calibram filtro. Cem nomes
+  conferidos por uma associação valem, para começar, mais do que dez mil CNPJs por filtrar.</p>
+
+  <div class="rolagem">
+  <table>
+    <thead><tr><th>Fonte</th><th>Cobertura</th><th>Traz</th><th>Situação</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>ABIQUIM</strong> — associadas</td>
+        <td>~100 indústrias químicas, de 3M a Yara</td>
+        <td>Razão social e site. Sem CNPJ, sem UF</td>
+        <td>Diretório aberto, filtro alfabético</td>
+      </tr>
+      <tr>
+        <td><strong>ASSOCIQUIM/SINCOQUIM</strong></td>
+        <td>92 distribuidores certificados — o subsetor prioritário</td>
+        <td>Razão social, cidade, UF, site, validade do certificado</td>
+        <td>A página <code>/associados/</code> agora exige login; a lista de certificadas segue aberta</td>
+      </tr>
+      <tr>
+        <td><strong>Brazilian Chemicals</strong> (ABIQUIM)</td>
+        <td>695 empresas, 1.487 produtos, com capacidade instalada</td>
+        <td>Patrimônio, faturamento, empregados, composição acionária</td>
+        <td>Publicação paga — o Guia da Indústria Química</td>
+      </tr>
+      <tr>
+        <td><strong>Capital IQ</strong></td>
+        <td>Compradores globais, GICS Chemicals</td>
+        <td>Financeiro completo, múltiplos, comparáveis</td>
+        <td>Já assinado pela casa</td>
+      </tr>
+      <tr>
+        <td><strong>EPA TSCA — CDR</strong></td>
+        <td>Fabricantes e importadores nos EUA acima de 25.000 lb/ano</td>
+        <td>Volume de produção por substância e por sítio</td>
+        <td>Público, ciclo de 4 anos</td>
+      </tr>
+      <tr>
+        <td><strong>ECHA CHEM</strong></td>
+        <td>Registrantes REACH na União Europeia</td>
+        <td>Nome do registrante por substância</td>
+        <td>Lista completa disponível para download desde 12/02/2026</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:.86rem;color:var(--muted)">EPA e ECHA não servem para achar alvo brasileiro.
+  Servem para o outro lado do mandato: mapear quem, lá fora, fabrica a mesma molécula e portanto
+  tem razão industrial para comprar aqui.</p>
+</section>
+
+<!-- ==================================================================== -->
+<section>
+  <div class="cabeca-secao">
+    <span class="ordem">06</span>
+    <h2>O que nenhuma delas tem</h2>
+  </div>
+  <p class="papel">A receita. E é ela que faz o ranking existir.</p>
+
+  <div class="rolagem">
+  <table>
+    <thead><tr><th>Base</th><th style="text-align:right">Empresas</th><th style="text-align:right">Scores distintos</th><th>Formato da distribuição</th></tr></thead>
+    <tbody>
+      <tr><td>Demonstração — <em>com</em> receita</td><td class="num">32</td><td class="num">14</td><td>amplitude 17 a 57, bem espalhada</td></tr>
+      <tr class="fora"><td>Receita Federal — <em>sem</em> receita</td><td class="num">38.583</td><td class="num">5</td><td>85% empatadas em exatamente 15 pontos</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Trinta e duas empresas fictícias com faturamento produzem um ranking mais informativo do que
+  trinta e oito mil empresas reais sem ele. No topo da base real aparecem Petrobras, Ambev, JBS,
+  Suzano e Shell — todas empatadas em 22 pontos, todas presentes porque têm um CNAE químico
+  secundário, e nenhuma delas é alvo de boutique.</p>
+
+  <p>Isso não é defeito do motor de score. É o motor dizendo a verdade: sem a variável que
+  discrimina, ele não discrimina. <strong>A camada de porte é compra, não é busca</strong> — e as
+  candidatas já estão decididas: Econodata, Neoway ou BigData Corp, que cruzam CNPJ com faixa de
+  faturamento estimada.</p>
+
+  <div class="decisao">
+    <h3>O que eu recomendo, em ordem</h3>
+    <ol>
+      <li><strong>Cruzar o IBAMA com a base CNPJ antes de comprar qualquer coisa.</strong> É de
+      graça, é um fim de semana de trabalho, e responde a pergunta mais barata primeiro: dos 25.650
+      CNPJs que entraram por atividade secundária, quantos aparecem no RAPP como operador químico
+      real? O que sobrar é lista de alvo. O resto é cadastro.</li>
+      <li><strong>Validar as faixas consolidáveis por subsetor.</strong> Hoje são estimativa minha,
+      não a régua da casa. Fertilizantes e distribuição têm giros e múltiplos muito diferentes, e a
+      faixa é o filtro que mais mexe no resultado final.</li>
+      <li><strong>Decidir sobre a camada de porte.</strong> Sem ela o agente entrega uma lista
+      filtrada, não um ranking — e uma lista de 12.933 nomes sem ordem não é acionável por uma
+      boutique.</li>
+      <li><strong>Pedir um piloto de 500 CNPJs</strong> aos três fornecedores, sobre a mesma
+      amostra do subsetor de distribuição, e comparar taxa de acerto antes de assinar. Nós temos os
+      CNPJs; eles é que precisam provar a cobertura.</li>
+    </ol>
+  </div>
+</section>
+
+<div class="diag" aria-hidden="true"></div>
+<footer class="rodape">
+  <span>GHT4 · dossiê de fontes · objetivo 1, setor químico</span>
+  <span class="mono">verificado em 20.08.2026</span>
+</footer>
+
+</div>

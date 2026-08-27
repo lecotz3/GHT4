@@ -184,25 +184,93 @@ function perfilDe(controle) {
   return 'Capital aberto';
 }
 
-/* ---- setor: agrupa a classificação da CVM em famílias legíveis ------------ */
-const FAMILIAS = [
-  [/energia el[ée]trica|petr[óo]leo|g[áa]s|combust/i, 'Energia'],
-  [/saúde|hospitalar|medicamento|farmac/i,            'Saúde'],
-  [/comércio|varejo|atacado/i,                        'Varejo'],
-  [/telecomunica|inform[áa]tica|software|tecnolog/i,  'Tecnologia'],
-  [/alimento|bebida|agricultura|carnes|fumo/i,        'Alimentos & Agro'],
-  [/constru|imobili|incorpora/i,                      'Construção & Imobiliário'],
-  [/transporte|log[íi]stica|rodovi|aero|portu/i,      'Transporte & Logística'],
-  [/metalurgia|siderurgia|extra[çc][ãa]o mineral|papel|celulose|petroqu[íi]m|qu[íi]mic|borracha/i, 'Indústria de base'],
-  [/máquinas|equipamentos|ve[íi]culos|pe[çc]as|el[ée]tricos|eletr[ôo]nic/i, 'Bens de capital'],
-  [/têxtil|vestuário|calçad|couro/i,                  'Têxtil & Vestuário'],
-  [/educa/i,                                          'Educação'],
-  [/hospedagem|turismo|lazer|servi[çc]os m[ée]dic/i,  'Serviços ao consumidor'],
-  [/saneamento|água|ambient/i,                        'Saneamento & Ambiental'],
+/* ---- setor: o recorte é QUÍMICOS, e só ------------------------------------
+ * Antes este bloco espalhava as 537 companhias por treze famílias. Com o setor
+ * foco definido pela diretoria, ele faz o oposto: decide se a companhia está
+ * DENTRO do escopo químico e, se estiver, em qual subsetor de `setores.js`.
+ * Fora do escopo, a companhia é descartada e contabilizada no relatório.
+ *
+ * POR QUE NÃO DÁ PARA CLASSIFICAR SÓ PELO SETOR DA CVM
+ * A classificação da CVM é grossa demais para o recorte. "Petroquímicos e
+ * Borracha" mistura Braskem (primeira geração) com Borrachas Vipal (transformado
+ * de borracha, que é adjacência, não química). "Farmacêutico e Higiene" mistura
+ * Eurofarma (farma, fora) com Bombril (domissanitário, dentro). Por isso há duas
+ * camadas: o padrão por regex e um mapa explícito por código CVM, que vence.
+ *
+ * O mapa é curto porque o universo é curto — e essa é a descoberta que motivou
+ * a troca de base primária: a CVM tem meia dúzia de companhias no escopo.
+ * -------------------------------------------------------------------------- */
+const SUB_PETRO   = 'Petroquímica básica e intermediários';
+const SUB_INORG   = 'Inorgânicos e gases industriais';
+const SUB_FERT    = 'Fertilizantes e nutrição vegetal';
+const SUB_DEFEN   = 'Defensivos agrícolas';
+const SUB_DOMI    = 'Domissanitários e produtos de limpeza';
+const SUB_TINTAS  = 'Tintas, vernizes e revestimentos';
+const SUB_ESPEC   = 'Especialidades e aditivos';
+const SUB_RESINAS = 'Resinas, elastômeros e fibras';
+const SUB_DISTR   = 'Distribuição e trading químico';
+
+/* Vence o padrão por regex. Chave = código CVM sem zeros à esquerda. */
+const SUBSETOR_POR_CODIGO = {
+  4820:  SUB_PETRO,    // Braskem — primeira e segunda geração
+  8745:  SUB_PETRO,    // Metanor — metanol, orgânico básico
+  11592: SUB_INORG,    // Unipar Carbocloro — cloro-soda
+  11398: SUB_INORG,    // Millennium Inorganic Chemicals — dióxido de titânio
+  20621: SUB_FERT,     // Fertilizantes Heringer — mistura e distribuição
+  12190: SUB_DOMI,     // Bombril — a CVM classifica em "Farmacêutico e Higiene"
+};
+
+/* Fora do escopo por decisão de taxonomia, não por erro de classificação.
+   Ficam nomeados para que a exclusão apareça no relatório de importação. */
+const ADJACENCIA_POR_CODIGO = {
+  26980: 'Borracha transformada (divisão 22) — adjacência',
+  12696: 'Plásticos transformados (divisão 22) — adjacência',
+  19550: 'Cosmético acabado — adjacência',
+};
+
+/* Os \b não são preciosismo. Sem eles, "Águas de Teresina Saneamento" entrou na
+   base como fabricante de RESINAS — "Te-resina" contém "resina". Todo padrão
+   que casa contra razão social precisa de limite de palavra, porque topônimo
+   brasileiro é uma máquina de gerar substring enganosa. */
+const PADRAO_SUBSETOR = [
+  [/petroqu[íi]mic|\bmetanol\b|arom[áa]tic/i,                       SUB_PETRO],
+  [/\bcloro\b|\bsoda\b|g[áa]s(es)? industria|inorg[âa]nic/i,        SUB_INORG],
+  [/fertilizante|\badubos?\b|nutri[çc][ãa]o vegetal/i,              SUB_FERT],
+  [/defensivo|agroqu[íi]mic|agrot[óo]xic/i,                         SUB_DEFEN],
+  [/domissanit|saneante|\blimpeza\b|detergente|\bsab[ãa]o\b/i,      SUB_DOMI],
+  [/\btintas?\b|\bverniz|revestiment|impermeabiliz/i,               SUB_TINTAS],
+  [/\badesivos?\b|\baditivos?\b|catalisador|especialidades? qu/i,   SUB_ESPEC],
+  [/\bresinas?\b|elast[ôo]mero|\bfibras? (artificial|sint)/i,       SUB_RESINAS],
+  [/distribui[çc][ãa]o qu[íi]mic|atacad.*qu[íi]mic/i,               SUB_DISTR],
 ];
-function familiaDe(setorCvm) {
-  for (const [re, nome] of FAMILIAS) if (re.test(setorCvm)) return nome;
-  return 'Outros setores';
+
+/* Guarda de setor. Se a CVM classificou a companhia num setor que nada tem a
+   ver com química, nenhum casamento por razão social pode trazê-la para dentro.
+   É a segunda linha de defesa contra o problema do "Teresina": limite de
+   palavra resolve o caso conhecido, a guarda resolve a classe do problema. */
+const SETOR_CVM_FORA = /saneamento|[áa]gua|energia el[ée]trica|telecomunica|transporte|log[íi]stica|educa|banco|seguro|previd|hospedagem|turismo|imobili|constru|servi[çc]os m[ée]dic|hospital/i;
+
+/**
+ * Devolve o subsetor químico da companhia, ou null se ela está fora do escopo.
+ * `codigo` é o código CVM já normalizado (sem zeros à esquerda).
+ */
+function subsetorQuimicoDe(codigo, setorCvm, nome) {
+  const cd = Number(codigo);
+  if (ADJACENCIA_POR_CODIGO[cd]) return null;
+  /* O mapa explícito vence tudo, inclusive a guarda — é onde o operador
+     registra a decisão humana sobre um caso que os padrões erram. */
+  if (SUBSETOR_POR_CODIGO[cd]) return SUBSETOR_POR_CODIGO[cd];
+
+  if (SETOR_CVM_FORA.test(setorCvm)) return null;
+
+  /* Farma e cosmético estão fora do escopo escolhido. O teste vem antes do
+     padrão positivo porque "Farmacêutico e Higiene" casaria com "limpeza"
+     em algumas razões sociais. */
+  if (/farmac|medicament|cosm[ée]tic|perfumaria/i.test(setorCvm + ' ' + nome)) return null;
+
+  const alvo = setorCvm + ' ' + nome;
+  for (const [re, sub] of PADRAO_SUBSETOR) if (re.test(alvo)) return sub;
+  return null;
 }
 
 /* ========================== EXECUÇÃO ====================================== */
@@ -331,12 +399,27 @@ const empregados = new Map(); // CNPJ -> total
 /* ---- 4. montagem ---------------------------------------------------------- */
 const SIT_ESPECIAIS = /RECUPERA[ÇC][ÃA]O|FALIDA|LIQUIDA[ÇC][ÃA]O|PARALISADA/i;
 const empresas = [];
-const descartes = { semDre: 0, semReceita: 0, receitaBaixa: 0, setorExcluido: 0, semCadastro: 0 };
+const descartes = { semDre: 0, semReceita: 0, receitaBaixa: 0, setorExcluido: 0, semCadastro: 0, foraDoEscopoQuimico: 0 };
+const foraDoEscopo = [];   // guardado para o relatório: quem saiu e por quê
 
 for (const [cd, contas] of dre) {
   const c = cadastro.get(cd);
   if (!c) { descartes.semCadastro++; continue; }
   if (SETORES_EXCLUIDOS.has(c.setorCvm)) { descartes.setorExcluido++; continue; }
+
+  /* RECORTE DE SETOR — decisão de diretoria: o agente ataca um setor por vez, e
+     o primeiro é Químicos. Companhia fora do escopo sai aqui, antes de qualquer
+     cálculo. O nome precisa ser resolvido antes do normal porque a razão social
+     participa da classificação (o setor da CVM sozinho não separa Bombril de
+     Eurofarma). */
+  const nomeEmpresa = nomeBonito(c.comerc || c.social);
+  const subsetorQuimico = subsetorQuimicoDe(cd, c.setorCvm || '', nomeEmpresa);
+  if (!subsetorQuimico) {
+    descartes.foraDoEscopoQuimico++;
+    foraDoEscopo.push({ cd, nome: nomeEmpresa, setorCvm: c.setorCvm,
+      motivo: ADJACENCIA_POR_CODIGO[Number(cd)] || 'fora do setor foco' });
+    continue;
+  }
 
   const receita = contas['3.01'];
   if (!receita || !receita.ultimo || receita.ultimo <= 0) { descartes.semReceita++; continue; }
@@ -444,15 +527,19 @@ for (const [cd, contas] of dre) {
     ? margem - margemAnterior : null;
 
   const especial = SIT_ESPECIAIS.test(c.sitEmis || '') ? c.sitEmis : null;
-  const nome = nomeBonito(c.comerc || c.social);
-  const familia = familiaDe(c.setorCvm);
+  const nome = nomeEmpresa;
 
   empresas.push({
     id: 'cvm' + cd,
     nome,
-    setor: familia,
-    subsetor: c.setorCvm,
-    oQueFazem: `Companhia aberta registrada na CVM sob o código ${cd}, classificada no setor "${c.setorCvm}".`,
+    setor: 'Químicos',
+    subsetor: subsetorQuimico,
+    /* Duas classificações convivem: a da GHT4 (subsetor, que é a régua do
+       agente) e a da CVM (setorCvm, preservada porque é o que a fonte diz).
+       Onde elas divergem, o dossiê mostra as duas — a régua da casa não apaga
+       o que o documento original afirma. */
+    setorCvm: c.setorCvm,
+    oQueFazem: `Companhia aberta registrada na CVM sob o código ${cd}, classificada pela CVM no setor "${c.setorCvm}" e enquadrada pela GHT4 em "${subsetorQuimico}".`,
     cidade: nomeBonito(c.municipio || ''),
     uf: c.uf,
     receita: arred(receitaMi, 0),
@@ -529,6 +616,7 @@ empresas.sort((a, b) => b.receita - a.receita);
 /* ---- 5. relatório --------------------------------------------------------- */
 const perfis = [...new Set(empresas.map(e => e.perfil))].sort();
 const setores = [...new Set(empresas.map(e => e.setor))].sort();
+const subsetores = [...new Set(empresas.map(e => e.subsetor))].sort();
 const comMargem = empresas.filter(e => e.margemEbitda !== null).length;
 const comCresc  = empresas.filter(e => e.crescimento !== null).length;
 const comFunc   = empresas.filter(e => e.funcionarios !== null).length;
@@ -540,12 +628,29 @@ console.log(`     com margem EBITDA calculável: ${comMargem} (${Math.round(comM
 console.log(`     com crescimento comparável:   ${comCresc} (${Math.round(comCresc / empresas.length * 100)}%)`);
 console.log(`     com nº de empregados:         ${comFunc} (${Math.round(comFunc / empresas.length * 100)}%)`);
 console.log(`     em situação especial:         ${emCrise}`);
-console.log(`     setores: ${setores.length} · perfis: ${perfis.join(', ')}`);
+console.log(`     subsetores químicos: ${subsetores.length} · perfis: ${perfis.join(', ')}`);
+for (const s of subsetores) {
+  console.log(`       · ${s}: ${empresas.filter(e => e.subsetor === s).length}`);
+}
 
 const daInd = empresas.filter(e => e.cvm.demonstrativo === 'individual').length;
 const naFaixa = empresas.filter(e => e.receita >= 30 && e.receita <= 250).length;
 console.log(`\n  origem do demonstrativo: ${empresas.length - daInd} consolidada · ${daInd} individual`);
 console.log(`  na faixa consolidável R$ 30–250 mi: ${naFaixa}`);
+
+/* O recorte de setor derrubou a base de centenas para uma dúzia. Isso não é
+   defeito do importador — é o achado que motivou a troca de base primária, e
+   precisa ficar visível no terminal de quem roda, não só no README. */
+console.log(`\n  RECORTE QUÍMICOS: ${descartes.foraDoEscopoQuimico} companhias fora do escopo, ${empresas.length} dentro.`);
+if (foraDoEscopo.length) {
+  const adjacentes = foraDoEscopo.filter(x => /adjac/i.test(x.motivo));
+  if (adjacentes.length) {
+    console.log('  descartadas como ADJACÊNCIA (fronteira do setor, decisão de taxonomia):');
+    for (const x of adjacentes) console.log(`       · ${x.nome} — ${x.motivo}`);
+  }
+}
+console.log(`  ${empresas.length} registros não sustentam originação. A base primária do setor`);
+console.log('  passa a ser data-quimicos.js — rode: node ferramentas/importar-cnpj.mjs\n');
 
 const cob = (campo) => {
   const n = empresas.filter(e => e[campo] !== null && e[campo] !== undefined).length;
@@ -584,10 +689,24 @@ const cabecalho = `/* ==========================================================
  *    receitaPorFuncionario ... receita / empregados (FRE), em R$ mil
  *    variacaoMargem .......... margem EBITDA do exercício menos a do anterior
  *
+ *  RECORTE — SETOR QUÍMICOS
+ *  ------------------------
+ *  Esta base cobre APENAS o setor foco (Químicos), conforme a taxonomia de
+ *  setores.js. Foram ${descartes.foraDoEscopoQuimico} companhias descartadas por estarem fora do escopo,
+ *  restando ${empresas.length}.
+ *
+ *  ${empresas.length} companhias não sustentam originação. Esta base deixou de ser a base
+ *  primária do agente e passou a cumprir dois papéis menores e ainda úteis:
+ *  padrão de qualidade contra o qual as estimativas de capital fechado são
+ *  comparadas, e conjunto de comparáveis listados locais. O universo do setor
+ *  vem de data-quimicos.js (dados abertos do CNPJ).
+ *
  *  LIMITES DESTA BASE — ler antes de tirar conclusão
  *  -------------------------------------------------
  *  1. São só companhias ABERTAS (~${empresas.length}). O middle market que uma boutique
  *     assessora é majoritariamente de capital fechado e NÃO aparece aqui.
+ *     Em química isso é extremo: o setor tem milhares de empresas no país e
+ *     um punhado de listadas.
  *  1b. Parte vem da DFP INDIVIDUAL (companhias sem controladas não publicam
  *     consolidada). O campo cvm.demonstrativo diz qual, e o dossiê exibe isso:
  *     individual e consolidada não descrevem o mesmo perímetro econômico.

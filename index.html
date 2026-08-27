@@ -381,6 +381,35 @@
   .lastro.forte{color:var(--alvo-ink);border-color:var(--alvo-fio);background:var(--alvo-bg)}
   .lastro.medio{color:var(--muted);border-color:var(--rule-strong);background:transparent}
   .lastro.medio .dot{background:var(--rule-strong)}
+  /* SELO DE PEGADA AMBIENTAL — confirmação vinda do RAPP/IBAMA, que é fonte
+     INDEPENDENTE do CNAE. Por isso ele fica ao lado do lastro e não dentro dele:
+     não é mais um grau da mesma medida, é uma segunda testemunha.
+     'sem' usa a hachura de 45° da marca — o mesmo dispositivo que marca
+     "sem lastro documental" —, porque ausência de RAPP NÃO prova que a empresa
+     não opera. É falta de confirmação, não desmentido, e a textura diz isso
+     mesmo impressa em preto e branco. */
+  /* Rodapé da lista: onde a janela de renderização se declara. Fica no fluxo,
+     depois da última ficha, e não flutuando — quem chegou até aqui rolando
+     precisa ver o número, não um botão pairando sobre o conteúdo. */
+  .mais-fichas{border-top:1px solid var(--rule);margin-top:26px;padding:22px 0 8px;
+    display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+  .mais-conta{margin:0;font-size:13px;color:var(--ink-2)}
+  .mais-dica{margin:0;font-size:12px;color:var(--muted);max-width:64ch;line-height:1.6}
+  .btn-mais{font:600 13px/1 var(--sans);letter-spacing:.01em;padding:11px 20px;cursor:pointer;
+    background:var(--preto);color:#fff;border:1px solid var(--preto)}
+  .btn-mais:hover{background:var(--marca);color:var(--preto);border-color:var(--alvo-ink)}
+  .btn-mais:focus-visible{outline:2.5px solid var(--marca);outline-offset:3px}
+
+  .pegada{display:inline-flex;align-items:center;gap:6px;font:600 10px/1 var(--sans);
+    letter-spacing:.02em;padding:4px 8px;border:1px solid;white-space:nowrap}
+  .pegada .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto}
+  .pegada.industria{color:var(--alvo-ink);border-color:var(--alvo-fio);background:var(--alvo-bg)}
+  .pegada.transporte,.pegada.comercio,.pegada.outra{color:var(--muted);border-color:var(--rule-strong);background:transparent}
+  .pegada.transporte .dot,.pegada.comercio .dot,.pegada.outra .dot{background:var(--rule-strong)}
+  .pegada.sem{color:var(--muted);border-color:var(--rule-strong);
+    background-image:repeating-linear-gradient(45deg,transparent,transparent 4px,var(--inferido) 4px,var(--inferido) 5px)}
+  .pegada.sem .dot{display:none}
+
   .lastro.fraco{color:var(--alerta);border-color:var(--alerta-fio);background:var(--alerta-bg);font-weight:700}
 
   /* Barra de composição do lastro — segmentos separados por 2px de superfície,
@@ -540,6 +569,7 @@
       <div class="chips" id="f-base">
         <span class="chip-toggle on" data-base="demo">Demonstração</span>
         <span class="chip-toggle" data-base="cvm">Real · CVM</span>
+        <span class="chip-toggle" data-base="cnpj">Real · CNPJ</span>
       </div>
       <p class="base-nota" id="base-nota"></p>
     </div>
@@ -601,6 +631,21 @@
         <span class="chip-toggle on" data-tri="priorizado">Priorizado</span>
         <span class="chip-toggle on" data-tri="descartado">Descartado</span>
       </div>
+    </div>
+
+    <!-- Só aparece quando a base CNPJ está ativa E o cruzamento foi rodado.
+         Nas outras bases o conceito não existe: CVM tem balanço auditado, e a
+         base de demonstração é fictícia. Ver alternaBase(). -->
+    <div class="fgroup" id="grupo-pegada" hidden>
+      <label>Pegada ambiental · RAPP/IBAMA</label>
+      <div class="chips" id="f-pegada">
+        <span class="chip-toggle on" data-pegada="industria" title="Declarou ao IBAMA a categoria Indústria Química">Indústria química</span>
+        <span class="chip-toggle on" data-pegada="transporte" title="Consta no formulário de transporte de produto químico perigoso">Transporta químico</span>
+        <span class="chip-toggle on" data-pegada="comercio" title="Categoria de transporte, terminais, depósitos e comércio">Depósito e comércio</span>
+        <span class="chip-toggle on" data-pegada="outra" title="Entrega RAPP, mas em categoria que não é química — a pegada existe e não confirma o setor">RAPP em outra categoria</span>
+        <span class="chip-toggle on" data-pegada="sem" title="Nenhum RAPP recente — não confirma e não desmente">Sem confirmação</span>
+      </div>
+      <p class="base-nota" id="nota-pegada"></p>
     </div>
 
     <div class="fgroup">
@@ -668,10 +713,18 @@
   <div class="modal" id="modal" role="dialog" aria-modal="true"></div>
 </div>
 
+<!-- Taxonomia do setor foco (Químicos) e catálogo de fontes. Carregam antes das
+     bases porque definem o recorte a que as bases têm de obedecer. -->
+<script src="setores.js"></script>
+<script src="fontes.js"></script>
 <script src="data.js"></script>
 <!-- Base real. Gerada por `node ferramentas/importar-cvm.mjs`; se o arquivo não
      existir, o seletor de base some sozinho e o razão segue na base fictícia. -->
 <script src="data-real.js" onerror="console.info('data-real.js ausente — rode: node ferramentas/importar-cvm.mjs')"></script>
+<!-- Base grande do setor químico, gerada por `node ferramentas/importar-cnpj.mjs`.
+     Ausente até a primeira ingestão — o seletor de base a ignora sem quebrar. -->
+<script src="data-quimicos.js" onerror="console.info('data-quimicos.js ausente — rode: node ferramentas/importar-cnpj.mjs')"></script>
+<script src="data-ibama.js" onerror="console.info('data-ibama.js ausente — rode: node ferramentas/cruzar-ibama.mjs')"></script>
 <script src="evidencias.js"></script>
 <script src="scoring.js"></script>
 <script>
@@ -683,17 +736,22 @@
   const CFG  = window.MOTOR.CONFIG_PAPEIS;
 
   /* ============================================================
-     DUAS BASES, LADO A LADO
+     TRÊS BASES, LADO A LADO
      ------------------------------------------------------------
-     A base de DEMONSTRAÇÃO tem empresas inventadas, mas o conjunto completo de
-     sinais — inclusive eventos societários, que é o que de fato antecipa uma
-     transação. A base REAL tem centenas de companhias abertas de verdade, com números
-     auditados, mas quase nenhum evento: dado público brasileiro publica
-     demonstração financeira, não acontecimento.
+     Cada uma tem exatamente o que falta às outras, e ver as três juntas é o
+     argumento inteiro do projeto:
 
-     Ver as duas lado a lado é o argumento: mostra exatamente qual camada de
-     dados a GHT4 precisaria comprar ou construir para o agente funcionar sobre
-     o mercado real, e quanto do índice fica sem lastro sem ela.
+       DEMONSTRAÇÃO  empresas inventadas, conjunto COMPLETO de sinais. Serve
+                     para discutir o modelo, não o mercado.
+       REAL · CVM    números auditados e comparáveis — mas SEIS companhias no
+                     setor químico, nenhuma na faixa consolidável. Mostra o
+                     tamanho do buraco que o dado listado deixa.
+       REAL · CNPJ   o UNIVERSO do setor, quase todo de capital fechado, com
+                     estrutura societária e eventos. Sem faturamento nenhum.
+
+     A lacuna que sobra depois de somar as três — porte de empresa fechada — é
+     exatamente a camada que a GHT4 precisa contratar. O seletor existe para
+     tornar essa conclusão visível em vez de argumentada.
      ============================================================ */
   const BASES = {
     demo: {
@@ -740,19 +798,130 @@
               + 'priorizacao ilustrativo, nao calibrado - nao constitui recomendacao de transacao',
       sufixoContagem: 'base CVM',
     },
+    cnpj: {
+      rotulo: 'Real · CNPJ',
+      empresas: window.EMPRESAS_QUIMICOS || [],
+      perfis: window.PERFIS_QUIMICOS || [],
+      nota: '<b>' + (window.EMPRESAS_QUIMICOS || []).length.toLocaleString('pt-BR') + ' empresas químicas reais</b>, '
+          + 'quase todas de capital fechado. Tem o universo e os eventos societários; '
+          + '<b>não tem faturamento</b> — o cadastro não publica.',
+      strip: 'Empresas REAIS (cadastro do CNPJ) · sem faturamento · índice ilustrativo',
+      intro: '<strong>Atenção — esta base é real, e é o universo do setor.</strong> São '
+           + (window.EMPRESAS_QUIMICOS || []).length.toLocaleString('pt-BR') + ' empresas químicas ativas no cadastro da Receita Federal, '
+           + 'a esmagadora maioria de <em>capital fechado</em> — exatamente o mercado que a CVM não enxerga e '
+           + 'que a boutique assessora. Em compensação, <strong>receita, margem e nº de funcionários vêm '
+           + 'vazios em todos os registros</strong>: o cadastro do CNPJ não publica faturamento, e capital '
+           + 'social não é proxy dele. Qualquer filtro de porte aqui devolve lista vazia — e está certo que '
+           + 'devolva, porque o dado não existe nesta fonte. O porte entra na etapa seguinte do pipeline '
+           + '(ver <code>fontes.js</code>). O que esta base entrega e nenhuma outra entrega é o <em>universo</em>, '
+           + 'a estrutura societária com faixa etária dos sócios — de onde sai o sinal de sucessão — e as '
+           + 'filiais por UF.',
+      rodape: 'Cadastro Nacional da Pessoa Jurídica, dados abertos da Receita Federal (informação pública). '
+            + 'Nomes de sócios omitidos por padrão: só a estrutura societária é gravada. '
+            + 'Receita, margem e funcionários não constam desta fonte.',
+      dossie: '<b>Empresa real (cadastro do CNPJ); sem dados financeiros.</b> O cadastro sustenta identificação, '
+            + 'estrutura societária e presença geográfica. Não sustenta porte nem rentabilidade.',
+      avisoCsv: 'DADOS REAIS - cadastro publico do CNPJ (Receita Federal) - SEM faturamento, margem ou '
+              + 'funcionarios: essa fonte nao publica - indice ilustrativo, nao constitui recomendacao de transacao',
+      sufixoContagem: 'base CNPJ',
+    },
   };
 
   const CHAVE_BASE = 'ght4.demo.base.v1';
   let baseAtual = 'demo';
   try { const s = localStorage.getItem(CHAVE_BASE); if (s && BASES[s] && BASES[s].empresas.length) baseAtual = s; } catch(_) {}
-  if (!BASES.cvm.empresas.length) {
-    // data-real.js ausente: some com a opção em vez de oferecer uma base vazia
-    const chip = document.querySelector('#f-base [data-base="cvm"]');
-    if (chip) { chip.style.display = 'none'; }
-    baseAtual = 'demo';
+  /* Base cujo arquivo não foi gerado some do seletor, em vez de oferecer uma
+     opção vazia. Vale para a CVM (importar-cvm.mjs) e para o CNPJ
+     (importar-cnpj.mjs), que é grande e pode ainda não ter sido rodado. */
+  for (const chave of ['cvm', 'cnpj']) {
+    if (BASES[chave].empresas.length) continue;
+    const chip = document.querySelector('#f-base [data-base="' + chave + '"]');
+    if (chip) chip.style.display = 'none';
+    if (baseAtual === chave) baseAtual = 'demo';
   }
 
-  let BASE = window.MOTOR.avaliarBase(BASES[baseAtual].empresas);
+  /* A pegada só existe para a base CNPJ: ela é indexada por raiz de CNPJ, e é
+     a única base que carrega esse campo. Empresa sem entrada no índice devolve
+     'sem' — que significa "não confirmado", nunca "desmentido". */
+  const PEGADA = window.IBAMA_PEGADA || null;
+  const ANO_PEGADA_VIVA = (window.IBAMA_RESUMO && window.IBAMA_RESUMO.anoCorte) || 2022;
+  function pegadaDe(e){
+    if(!PEGADA || !e.cnpjRaiz) return null;
+    const p = PEGADA[e.cnpjRaiz];
+    if(!p || !p.viva) return {grau:'sem', p:p||null};
+    return {grau:p.grau, p:p};
+  }
+  const ROTULO_PEGADA = {
+    industria:'Indústria química · IBAMA',
+    transporte:'Transporta químico · IBAMA',
+    comercio:'Depósito/comércio · IBAMA',
+    outra:'RAPP em outra categoria',
+    sem:'Sem RAPP recente',
+  };
+
+  /* ---------------------------------------------------------------------
+   *  QUANTAS FICHAS A TELA MONTA DE UMA VEZ
+   *
+   *  Cada ficha vira ~30 nós de DOM. Trinta e oito mil fichas passam de um
+   *  milhão de elementos, e o navegador congela por dezenas de segundos a
+   *  cada toque no filtro — foi o que quebrou quando a base real entrou.
+   *
+   *  O limite é da TELA, não do dado, e a diferença precisa ficar visível:
+   *  a contagem continua dizendo o total inteiro, o rodapé da lista declara
+   *  quantas estão à mostra, e o botão alcança o resto. Nenhum registro fica
+   *  inacessível — o que seria esconder dado, e não é o que a casa faz.
+   * ------------------------------------------------------------------- */
+  const PAGINA = 120;
+
+  /* ---------------------------------------------------------------------
+   *  DESEMPATE — e este não é detalhe de performance, é de honestidade.
+   *
+   *  Na base do CNPJ o score empata em massa: 85% das empresas marcam
+   *  exatamente 15 pontos, porque sem receita o motor não tem com que
+   *  discriminar. Cortar as 120 primeiras de uma lista empatada seria
+   *  mostrar 120 empresas ao ACASO e chamar de "as mais bem pontuadas".
+   *
+   *  A pegada do IBAMA desempata com informação: quem tem operação química
+   *  confirmada por fonte independente aparece antes de quem não tem. E o
+   *  nome fecha o critério, para que a mesma consulta devolva sempre a mesma
+   *  ordem — lista que muda sozinha entre dois cliques não é auditável.
+   *
+   *  O desempate por nome usa `_nomeOrd`, não localeCompare. Medido sobre as
+   *  38.583: localeCompare custa 110 ms por ordenação, a chave pré-calculada
+   *  custa 33 ms. Com 85% de empates, o desempate É o caminho quente.
+   * ------------------------------------------------------------------- */
+  const ORDEM_PEGADA = {industria:0, transporte:1, comercio:2, outra:3, sem:4};
+  function compararFichas(a,b){
+    if(b.scorePrincipal !== a.scorePrincipal) return b.scorePrincipal - a.scorePrincipal;
+    if(a._ordPeg !== b._ordPeg) return a._ordPeg - b._ordPeg;
+    return a._nomeOrd < b._nomeOrd ? -1 : a._nomeOrd > b._nomeOrd ? 1 : 0;
+  }
+
+  /* ---------------------------------------------------------------------
+   *  Campos derivados e ORDENAÇÃO, feitos UMA vez ao trocar de base.
+   *
+   *  `_busca` existia como concatenação dentro de filtrar(): a cada tecla
+   *  digitada, 38.583 concatenações de string mais 38.583 toLowerCase(). É
+   *  trabalho idêntico repetido, e some do caminho quente indo para cá.
+   *
+   *  A ordenação também sai do render. Nem o índice nem a pegada mudam depois
+   *  que a base carrega — e Array.filter preserva a ordem —, então ordenar a
+   *  base inteira uma vez deixa toda consulta já ordenada de graça. Antes eram
+   *  33 ms a cada tecla digitada; agora são 33 ms uma vez por base.
+   * ------------------------------------------------------------------- */
+  function prepararBase(lista){
+    for(const e of lista){
+      e._busca = (e.nome+' '+e.subsetor+' '+e.setor+' '+e.cidade).toLowerCase();
+      const p = PEGADA && e.cnpjRaiz ? PEGADA[e.cnpjRaiz] : null;
+      e._peg = PEGADA && e.cnpjRaiz ? ((p && p.viva) ? p.grau : 'sem') : null;
+      const o = ORDEM_PEGADA[e._peg];
+      e._ordPeg = o === undefined ? 5 : o;
+      e._nomeOrd = e.nome.toLowerCase();
+    }
+    return lista.sort(compararFichas);
+  }
+
+  let BASE = prepararBase(window.MOTOR.avaliarBase(BASES[baseAtual].empresas));
   const fmtBR = (n)=> (n===null||n===undefined) ? '—' : n.toLocaleString('pt-BR');
   const pct   = (n)=> (n===null||n===undefined) ? '—' : n.toLocaleString('pt-BR')+'%';
   const rs    = (n)=> (n===null||n===undefined) ? '—' : 'R$ '+n.toLocaleString('pt-BR')+' mi';
@@ -823,6 +992,8 @@
     perfis:new Set(), papeis:new Set(['alvo','comprador','vendedora']), busca:'',
     triagens:new Set(['novo','analise','priorizado','descartado']),
     lastros:new Set(['forte','medio','fraco']),
+    pegadas:new Set(['industria','transporte','comercio','outra','sem']),
+    limite:120,
     // vazio = nenhuma exigência; cada chip ligado impõe uma (ver #f-exigir)
     exigencias:new Set()
   };
@@ -853,13 +1024,30 @@
     $('#intro-natureza').innerHTML = cfg.intro;
     $('#rodape-natureza').innerHTML = cfg.rodape;
     $$('#f-base .chip-toggle').forEach(c=>c.classList.toggle('on', c.dataset.base===baseAtual));
+
+    /* O grupo da pegada só faz sentido na base CNPJ, e só se o cruzamento foi
+       rodado. Nas outras bases o conceito não existe — a CVM tem balanço
+       auditado e a de demonstração é fictícia —, então some da tela em vez de
+       aparecer desabilitado, que só ocuparia espaço mentindo que é aplicável. */
+    const grupoPeg = $('#grupo-pegada');
+    if(grupoPeg){
+      const cabe = PEGADA && baseAtual==='cnpj';
+      grupoPeg.hidden = !cabe;
+      if(cabe && window.IBAMA_RESUMO){
+        const r = window.IBAMA_RESUMO;
+        $('#nota-pegada').innerHTML =
+          '<b>'+r.viva.toLocaleString('pt-BR')+'</b> das '+r.universo.toLocaleString('pt-BR')+
+          ' têm RAPP de '+r.anoCorte+' em diante. Sem confirmação <b>não é</b> desmentido: '+
+          'empresa pequena pode não ter obrigação de entregar.';
+      }
+    }
   }
 
   function trocarBase(nova){
     if(!BASES[nova] || nova===baseAtual || !BASES[nova].empresas.length) return;
     baseAtual = nova;
     try{ localStorage.setItem(CHAVE_BASE, nova); }catch(_){}
-    BASE = window.MOTOR.avaliarBase(BASES[nova].empresas);
+    BASE = prepararBase(window.MOTOR.avaliarBase(BASES[nova].empresas));
     montarFiltrosDaBase();
     resetFilters();
   }
@@ -879,7 +1067,17 @@
   bindRange('#f-cresc','#v-cresc',(v,min)=>{state.cresc=+v===+min?SEM_MIN:+v;return +v===+min?'sem mínimo':v+'%';});
   bindRange('#f-margem','#v-margem',(v,min)=>{state.margem=+v===+min?SEM_MIN:+v;return +v===+min?'sem mínimo':v+'%';});
   bindRange('#f-func','#v-func',(v,min)=>{state.func=+v===+min?SEM_MIN:+v;return +v===+min?'sem mínimo':fmtBR(+v);});
-  $('#f-busca').addEventListener('input',e=>{state.busca=e.target.value.toLowerCase().trim();render();});
+  /* Busca e sliders disparam por tecla e por pixel arrastado. Sem folga, cada
+     rajada enfileira dezenas de renders completos e a tela trava mesmo com a
+     janela limitada. 140 ms é curto o bastante para não parecer atraso e longo
+     o bastante para engolir a rajada. */
+  function comFolga(fn, ms){
+    let id=0;
+    return function(){ clearTimeout(id); id=setTimeout(fn, ms); };
+  }
+  const renderComFolga = comFolga(()=>render(), 140);
+
+  $('#f-busca').addEventListener('input',e=>{state.busca=e.target.value.toLowerCase().trim();renderComFolga();});
 
   perfilBox.addEventListener('click',e=>{
     const c=e.target.closest('.chip-toggle'); if(!c)return;
@@ -899,6 +1097,13 @@
     c.classList.contains('on')?state.triagens.add(c.dataset.tri):state.triagens.delete(c.dataset.tri);
     render();
   });
+  $('#f-pegada').addEventListener('click',e=>{
+    const c=e.target.closest('.chip-toggle'); if(!c) return;
+    c.classList.toggle('on');
+    c.classList.contains('on')?state.pegadas.add(c.dataset.pegada):state.pegadas.delete(c.dataset.pegada);
+    render();
+  });
+
   $('#f-lastro').addEventListener('click',e=>{
     const c=e.target.closest('.chip-toggle'); if(!c)return;
     c.classList.toggle('on');
@@ -917,7 +1122,7 @@
   function bindRange(sel,valSel,fn){
     const el=$(sel), lbl=$(valSel);
     lbl.textContent=fn(el.value,el.min);
-    el.addEventListener('input',()=>{lbl.textContent=fn(el.value,el.min);render();});
+    el.addEventListener('input',()=>{lbl.textContent=fn(el.value,el.min);renderComFolga();});
   }
 
   function resetFilters(){
@@ -925,6 +1130,7 @@
     state.perfis=new Set(BASES[baseAtual].perfis);state.papeis=new Set(['alvo','comprador','vendedora']);state.busca='';
     state.triagens=new Set(['novo','analise','priorizado','descartado']);
     state.lastros=new Set(['forte','medio','fraco']);
+    state.pegadas=new Set(['industria','transporte','comercio','outra','sem']);
     state.exigencias=new Set();
     $$('#f-exigir .chip-toggle').forEach(c=>c.classList.remove('on'));
     selSetor.value='';selUf.value='';$('#f-busca').value='';
@@ -934,6 +1140,7 @@
     $$('#f-papel .chip-toggle').forEach(c=>c.classList.add('on'));
     $$('#f-triagem .chip-toggle').forEach(c=>c.classList.add('on'));
     $$('#f-lastro .chip-toggle').forEach(c=>c.classList.add('on'));
+    $$('#f-pegada .chip-toggle').forEach(c=>c.classList.add('on'));
     render();
   }
 
@@ -954,6 +1161,7 @@
       if(!state.papeis.has(e.classificacao)) return false;
       if(!state.triagens.has(triagemDe(e.id).estado)) return false;
       if(!state.lastros.has(e.rotuloLastro.chave)) return false;
+      if(e._peg && baseAtual==='cnpj' && !state.pegadas.has(e._peg)) return false;
       /* Exigência é AND: cada chip ligado precisa ser satisfeito. Um critério
          que a empresa não tem COMO responder reprova aqui — e é o comportamento
          certo: exigir "balanço limpo" e receber de volta quem não publicou
@@ -963,10 +1171,7 @@
         if(ex==='sem_ressalvas'){ if(e.ressalvas && e.ressalvas.length) return false; continue; }
         if(!e.sinais.some(s=>s.chave===ex)) return false;
       }
-      if(state.busca){
-        const hay=(e.nome+' '+e.subsetor+' '+e.setor+' '+e.cidade).toLowerCase();
-        if(!hay.includes(state.busca)) return false;
-      }
+      if(state.busca && !e._busca.includes(state.busca)) return false;
       return true;
     });
   }
@@ -974,47 +1179,97 @@
   const corPapel={alvo:'var(--alvo)',comprador:'var(--comprador)',vendedora:'var(--vendedora)'};
 
   // ---- render ----
-  function render(){
-    const lista=filtrar().sort((a,b)=>b.scorePrincipal-a.scorePrincipal);
-    const triados = lista.filter(e=>triagemDe(e.id).estado!=='novo').length;
-    const fragil  = lista.filter(e=>e.rotuloLastro.chave==='fraco').length;
-    $('#count').textContent = lista.length+' registro'+(lista.length!==1?'s':'')
-      + ' · '+triados+' triado'+(triados!==1?'s':'')
-      + (fragil? ' · '+fragil+' com lastro frágil' : '')
+  /** `estender` = true só quando vem do botão "mostrar mais". Qualquer outra
+   *  chamada é mudança de critério, e mudança de critério recomeça a janela:
+   *  manter o limite esticado depois de trocar o filtro faria a tela mostrar
+   *  600 fichas de uma consulta nova sem ninguém ter pedido. */
+  function render(estender){
+    if(!estender) state.limite = PAGINA;
+
+    /* Sem .sort() aqui: a base já veio ordenada de prepararBase, e filter
+       preserva a ordem. Ordenar de novo seria refazer 33 ms por tecla. */
+    const lista=filtrar();
+
+    /* Uma passada só. Antes eram oito varreduras da lista inteira — irrelevante
+       em 32 empresas, caro em 38 mil. */
+    let triados=0, fragil=0;
+    const porPapel={alvo:0,comprador:0,vendedora:0};
+    for(const e of lista){
+      if(triagemDe(e.id).estado!=='novo') triados++;
+      if(e.rotuloLastro.chave==='fraco') fragil++;
+      if(porPapel[e.classificacao]!==undefined) porPapel[e.classificacao]++;
+    }
+
+    const nf=(n)=>n.toLocaleString('pt-BR');
+    $('#count').textContent = nf(lista.length)+' registro'+(lista.length!==1?'s':'')
+      + ' · '+nf(triados)+' triado'+(triados!==1?'s':'')
+      + (fragil? ' · '+nf(fragil)+' com lastro frágil' : '')
       + ' · '+BASES[baseAtual].sufixoContagem;
 
     // resumo da varredura
     const stats=$('#stats'); stats.innerHTML='';
     ['alvo','comprador','vendedora'].forEach(p=>{
-      const n=lista.filter(e=>e.classificacao===p).length;
       const d=document.createElement('div'); d.className='stat '+p;
-      d.innerHTML=`<div class="n">${n}</div><div class="meta"><span class="tick"></span><span class="t">${CFG[p].rotulo}</span></div>`;
+      d.innerHTML=`<div class="n">${nf(porPapel[p])}</div><div class="meta"><span class="tick"></span><span class="t">${CFG[p].rotulo}</span></div>`;
       stats.appendChild(d);
     });
 
     // grupos
     const box=$('#groups'); box.innerHTML='';
     if(lista.length===0){
-      box.innerHTML='<div class="empty">Nenhum registro (fictício) atende aos critérios de triagem selecionados.</div>';
+      box.innerHTML='<div class="empty">Nenhum registro atende aos critérios de triagem selecionados.</div>';
       return;
     }
+
+    /* A JANELA. Corta a lista JÁ ORDENADA e só então agrupa, para que o recorte
+       seja "as N primeiras da consulta" e não "as N primeiras de cada grupo" —
+       senão o tamanho do grupo mandaria mais do que o critério do analista. */
+    const janela = lista.slice(0, state.limite);
+    const porPapelJanela={alvo:[],comprador:[],vendedora:[]};
+    for(const e of janela){ if(porPapelJanela[e.classificacao]) porPapelJanela[e.classificacao].push(e); }
+
+    const frag=document.createDocumentFragment();
     ['alvo','comprador','vendedora'].forEach(p=>{
       if(!state.papeis.has(p)) return;
-      const grupo=lista.filter(e=>e.classificacao===p);
+      const grupo=porPapelJanela[p];
       if(grupo.length===0) return;
       const sec=document.createElement('section'); sec.className='group';
+      /* O cabeçalho mostra os DOIS números quando eles diferem: quantas fichas
+         do grupo estão na tela e quantas o grupo tem. Um número só, aqui,
+         mentiria por omissão. */
+      const rotuloCont = grupo.length===porPapel[p]
+        ? nf(porPapel[p])+' reg.'
+        : nf(grupo.length)+' de '+nf(porPapel[p])+' reg.';
       sec.innerHTML=`
         <div class="group-head">
           <span class="g-index">${ROMANOS[p]}</span>
           <span class="stamp ${p}">${CFG[p].rotulo}</span>
-          <span class="g-count">${grupo.length} reg.</span>
+          <span class="g-count">${rotuloCont}</span>
           <span class="g-desc">${CFG[p].descricao}</span>
         </div>
         <div class="cards"></div>`;
       const cards=$('.cards',sec);
-      grupo.forEach(e=>cards.appendChild(cardEl(e)));
-      box.appendChild(sec);
+      const lote=document.createDocumentFragment();
+      grupo.forEach(e=>lote.appendChild(cardEl(e)));
+      cards.appendChild(lote);
+      frag.appendChild(sec);
     });
+
+    if(lista.length > janela.length){
+      const resto = lista.length - janela.length;
+      const rodape=document.createElement('div'); rodape.className='mais-fichas';
+      rodape.innerHTML=`
+        <p class="mais-conta">Mostrando <b>${nf(janela.length)}</b> de <b>${nf(lista.length)}</b> registros.
+        Ordem: índice, depois confirmação de operação, depois nome.</p>
+        <button type="button" class="btn-mais" id="btn-mais">Mostrar mais ${nf(Math.min(PAGINA,resto))}</button>
+        <p class="mais-dica">A lista é para ser <b>estreitada</b>, não rolada. Use os critérios à esquerda —
+        e a razão exportada em CSV sai com os ${nf(lista.length)} registros, não só com os da tela.</p>`;
+      frag.appendChild(rodape);
+    }
+
+    box.appendChild(frag);
+    const btnMais=$('#btn-mais');
+    if(btnMais) btnMais.addEventListener('click',()=>{ state.limite += PAGINA; render(true); });
   }
 
   function cardEl(e){
@@ -1048,6 +1303,13 @@
       </div>
       <div class="card-flags">
         <span class="lastro ${e.rotuloLastro.chave}" title="${tituloLastro(e)}"><span class="dot"></span>${e.rotuloLastro.rotulo}</span>
+        ${(() => { const g = PEGADA && baseAtual==='cnpj' ? pegadaDe(e) : null;
+            if(!g) return '';
+            const det = g.p && g.p.detalhes && g.p.detalhes.length ? g.p.detalhes.join(' · ')
+              : g.grau === 'outra' ? 'Entrega RAPP, mas em categoria que não é Indústria Química. Confirma que a empresa opera; não confirma que opera no setor: ' + (g.p.categorias || []).join(' · ')
+              : g.grau === 'transporte' ? 'Consta no formulário de transporte de produto químico perigoso — a operação química está provada pelo formulário, sem detalhe de subsetor.'
+              : 'Nenhum RAPP de ' + ANO_PEGADA_VIVA + ' em diante. Não confirma a operação, e também não a desmente.';
+            return `<span class="pegada ${g.grau}" title="${esc(det)}"><span class="dot"></span>${ROTULO_PEGADA[g.grau]}</span>`; })()}
         ${tri.estado!=='novo' ? `<span class="tri ${ESTADOS[tri.estado].classe}">${ESTADOS[tri.estado].rotulo}${tri.responsavel?' · '+tri.responsavel:''}</span>` : ''}
       </div>
       <div class="card-contato" title="Contato fictício (demonstração)">

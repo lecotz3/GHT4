@@ -5,3 +5,7 @@ ferramentas/.cache-cvm/
 
 # Permissoes locais do Claude Code (por maquina, nao versionar)
 .claude/settings.local.json
+# CSV brutos do RAPP/IBAMA (~3 GB), recriados por:
+#   node ferramentas/cruzar-ibama.mjs --cache
+# O resultado (data-ibama.js) segue a mesma regra do data-real.js: e versionado.
+.cache/
