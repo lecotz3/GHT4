@@ -116,9 +116,25 @@ function metricas(empresas) {
   const receitas = _numeros(empresas, (e) => e.receita);
   const indiceHhi = hhi(empresas);
 
-  /* Faixa consolidável: o mesmo recorte que o restante do projeto trata como
-     alvo típico de boutique (R$ 30–250 mi de receita). */
-  const naFaixa = empresas.filter((e) => e.receita >= 30 && e.receita <= 250);
+  /* Faixa consolidável: quem responde é setores.js, que resolve a faixa do
+     PRÓPRIO subsetor de cada empresa — distribuição é R$ 40–600 mi, e dois
+     subsetores não têm alvo de boutique nenhum. O corte fixo de R$ 30–250 mi que
+     morava aqui tratava o setor inteiro como uma coisa só, e contradizia a
+     régua declarada em setores.js.
+
+     naFaixaConsolidavel devolve null quando não dá para saber: sem receita, ou
+     subsetor sem faixa. Null não vira false — sai do denominador, senão a
+     porcentagem mentiria para baixo justamente na base do CNPJ, onde a receita
+     é nula em todos os 38.583 registros. */
+  const _setores = (typeof window !== 'undefined' && window.SETORES) || null;
+  let _naFaixa = 0, _foraDaFaixa = 0, _indeterminadas = 0;
+  for (const e of empresas) {
+    const r = _setores ? _setores.naFaixaConsolidavel(e) : null;
+    if (r === true) _naFaixa++;
+    else if (r === false) _foraDaFaixa++;
+    else _indeterminadas++;
+  }
+  const _avaliadas = _naFaixa + _foraDaFaixa;
 
   return {
     contagem: empresas.length,
@@ -129,8 +145,10 @@ function metricas(empresas) {
     alavancagemMediana: mediana(_numeros(empresas, (e) => e.alavancagem)),
     hhi: indiceHhi,
     concentracao: classificarHhi(indiceHhi),
-    alvosNaFaixa: naFaixa.length,
-    pctNaFaixa: empresas.length ? Math.round((naFaixa.length / empresas.length) * 100) : 0,
+    alvosNaFaixa: _naFaixa,
+    alvosForaDaFaixa: _foraDaFaixa,
+    semFaixaApurada: _indeterminadas,
+    pctNaFaixa: _avaliadas ? Math.round((_naFaixa / _avaliadas) * 100) : null,
   };
 }
 
@@ -162,7 +180,7 @@ const CRITERIOS_SUBSEGMENTO = {
   },
   alvosConsolidaveis: {
     rotulo: 'Alvos na faixa consolidável',
-    explicacao: 'Quantas empresas estão na faixa de R$ 30–250 mi de receita, o recorte típico de boutique.',
+    explicacao: 'Quantas empresas estão na faixa consolidável do PRÓPRIO subsetor, declarada em setores.js. Empresa sem receita apurada fica fora da conta — não conta como fora da faixa.',
     fonte: 'Derivado da receita (conta 3.01)',
     pesoPadrao: 25,
     ler: (s) => s.alvosNaFaixa,

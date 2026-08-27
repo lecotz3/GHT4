@@ -216,7 +216,12 @@ function LinhaSubsegmento({
 
           <span className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-[11.5px] text-suave">
             <span>{s.contagem} empresas</span>
-            <span>{s.alvosNaFaixa} na faixa R$ 30–250 mi</span>
+            <span>
+              {s.alvosNaFaixa} na faixa consolidável
+              {s.semFaixaApurada > 0 && (
+                <span className="text-suave"> · {s.semFaixaApurada} sem receita apurada</span>
+              )}
+            </span>
             {s.compradores !== undefined && <span>{s.compradores} consolidadores</span>}
             {s.crescimentoMediano !== null && <span>cresc. mediano {pct(s.crescimentoMediano)}</span>}
             {s.margemMediana !== null && <span>margem mediana {pct(s.margemMediana)}</span>}

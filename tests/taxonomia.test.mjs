@@ -13,7 +13,8 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { carregarMotor, tabelaCnaeDoImportador } from './motor.mjs';
+import { carregarMotor, importadorUsaFonteUnica, conferirSetoresGerado } from './motor.mjs';
+import * as fonte from '../packages/domain/taxonomia.mjs';
 
 const janela = carregarMotor();
 const SETORES = janela.SETORES;
@@ -98,26 +99,55 @@ test('todo CNAE do escopo tem sete dígitos', () => {
   }
 });
 
-test('a taxonomia do produto e a do importador não divergem', () => {
-  const doImportador = tabelaCnaeDoImportador();
+test('setores.js está em dia com a fonte que o gera', () => {
+  /* setores.js é gerado de packages/domain/taxonomia.mjs. Editar o gerado à mão
+     é trabalho que a próxima geração apaga — este teste torna isso visível. */
+  assert.equal(
+    conferirSetoresGerado(), 0,
+    'setores.js divergiu da fonte. Rode: node ferramentas/gerar-setores.mjs',
+  );
+});
 
-  const doProduto = {};
-  for (const s of SETORES.SUBSETORES) for (const c of s.cnae) doProduto[c] = s.rotulo;
-  for (const c of SETORES.SUBSETORES.flatMap((s) => s.excluirCnae || [])) delete doProduto[c];
+test('o gerado e a fonte descrevem a mesma taxonomia', () => {
+  assert.equal(SETORES.SETOR_FOCO, fonte.SETOR_FOCO);
+  assert.equal(SETORES.SUBSETORES.length, fonte.SUBSETORES.length);
+  assert.deepEqual([...SETORES.cnaesDoEscopo()], [...fonte.cnaesDoEscopo()]);
+  assert.deepEqual(
+    { ...SETORES.tabelaSubsetorPorCnae() },
+    { ...fonte.tabelaSubsetorPorCnae() },
+  );
+});
 
-  const soNoProduto = Object.keys(doProduto).filter((c) => !doImportador[c]);
-  assert.deepEqual(soNoProduto, [], 'CNAEs em setores.js e ausentes no importador');
+test('o importador consome a fonte única, sem cópia própria', () => {
+  const { importa, temLiteralDuplicado } = importadorUsaFonteUnica();
+  assert.ok(importa, 'importar-cnpj.mjs não importa tabelaSubsetorPorCnae de packages/domain');
+  assert.ok(
+    !temLiteralDuplicado,
+    'importar-cnpj.mjs voltou a declarar SUBSETOR_POR_CNAE à mão — a duplicação regrediu',
+  );
+});
 
-  /* Um mesmo código pode servir dois subsetores como secundário (o 4683400 em
-     fertilizantes e defensivos). Entra no importador e não no mapa principal:
-     exceção conhecida, não divergência. */
-  const secundarios = new Set(SETORES.SUBSETORES.flatMap((s) => s.cnaeSecundario || []));
-  const soNoImportador = Object.keys(doImportador)
-    .filter((c) => !doProduto[c] && !secundarios.has(c));
-  assert.deepEqual(soNoImportador, [], 'CNAEs no importador e ausentes em setores.js');
+test('a tabela de ingestão enquadra pelo CNAE certo', () => {
+  const tabela = fonte.tabelaSubsetorPorCnae();
 
-  for (const [cnae, rotulo] of Object.entries(doProduto)) {
-    assert.equal(doImportador[cnae], rotulo, `rótulo divergente para o CNAE ${cnae}`);
+  for (const cnae of ['4684201', '4684202', '4684299']) {
+    assert.equal(tabela[cnae], 'Distribuição e trading químico');
+  }
+
+  /* O 4683400 é atacado de adubo e defensivo: diz o que a empresa faz, então
+     enquadra. Serve a dois subsetores e vence o de prioridade maior. */
+  assert.equal(tabela['4683400'], 'Fertilizantes e nutrição vegetal');
+
+  /* O 4689399 é "outros produtos não especificados": levanta candidato, não
+     enquadra sozinho. Fica fora da tabela de ingestão de propósito. */
+  assert.equal(tabela['4689399'], undefined);
+  assert.ok(fonte.cnaesDeDescoberta().includes('4689399'));
+});
+
+test('nenhum CNAE excluído entra na tabela de ingestão', () => {
+  const tabela = fonte.tabelaSubsetorPorCnae();
+  for (const c of fonte.SUBSETORES.flatMap((s) => s.excluirCnae || [])) {
+    assert.equal(tabela[c], undefined, `o CNAE excluído ${c} entrou na ingestão`);
   }
 });
 

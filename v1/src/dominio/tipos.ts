@@ -243,8 +243,14 @@ export interface MetricasSubsegmento {
   alavancagemMediana: number | null
   hhi: number | null
   concentracao: Concentracao
+  /* A faixa é a do PRÓPRIO subsetor (setores.js), não um corte único do setor.
+     Empresa sem receita apurada não conta como fora da faixa: entra em
+     semFaixaApurada e sai do denominador de pctNaFaixa — que por isso é null
+     quando nenhuma empresa do conjunto teve a faixa avaliada. */
   alvosNaFaixa: number
-  pctNaFaixa: number
+  alvosForaDaFaixa: number
+  semFaixaApurada: number
+  pctNaFaixa: number | null
 }
 
 export interface ContribuicaoSubsegmento {

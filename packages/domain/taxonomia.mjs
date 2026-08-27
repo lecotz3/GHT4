@@ -1,18 +1,4 @@
 /* =============================================================================
- *  GHT4 · TAXONOMIA DO SETOR FOCO — ARQUIVO GERADO. NÃO EDITAR.
- * -----------------------------------------------------------------------------
- *  Fonte: packages/domain/taxonomia.mjs
- *  Gerado por: node ferramentas/gerar-setores.mjs
- *
- *  Editar aqui é trabalho perdido: a próxima geração sobrescreve. Mexa na
- *  fonte e rode o gerador. A CI confere que os dois estão em dia
- *  (`node ferramentas/gerar-setores.mjs --conferir`).
- *
- *  Este arquivo existe para o index.html poder carregá-lo por <script> em
- *  file://, onde módulo ES não funciona. O comentário original da fonte segue
- *  abaixo, íntegro.
- * ========================================================================== */
-/* =============================================================================
  *  GHT4 · TAXONOMIA DO SETOR FOCO — QUÍMICOS
  * -----------------------------------------------------------------------------
  *  Decisão de negócio (reunião com a diretoria): o agente passa a atacar um
@@ -426,9 +412,9 @@ function barreirasDe(chave) {
   return (s.barreiraRegulatoria || []).map((b) => ({ chave: b, ...BARREIRAS[b] }));
 }
 
-window.SETORES = {
-  SETOR_FOCO, SUBSETORES, ADJACENCIAS, BARREIRAS,
-  CONSOLIDADORES, cnaesDoEscopo, subsetorDeCnae, subsetor,
-  faixaDe, naFaixaConsolidavel, subsetoresAcionaveis, consolidadoresDe,
-  barreirasDe, tabelaSubsetorPorCnae, cnaesDeDescoberta,
+export {
+  SETOR_FOCO, SUBSETORES, ADJACENCIAS, BARREIRAS, CONSOLIDADORES,
+  cnaesDoEscopo, subsetorDeCnae, subsetor, faixaDe, naFaixaConsolidavel,
+  subsetoresAcionaveis, consolidadoresDe, barreirasDe,
+  tabelaSubsetorPorCnae, cnaesDeDescoberta,
 };

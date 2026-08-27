@@ -16,6 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 export const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -92,12 +93,28 @@ export function carregarMotor({ comBaseQuimica = false, comIbama = false } = {})
   return janela;
 }
 
-/** Lê SUBSETOR_POR_CNAE do importador sem executá-lo (ele baixaria ~5 GB). */
-export function tabelaCnaeDoImportador() {
+/**
+ * O importador consome a taxonomia? Confere sem executá-lo — rodar de verdade
+ * dispararia o download de ~5 GB dos dados abertos do CNPJ.
+ *
+ * Desde a Fase 1 ele não carrega mais uma cópia da tabela: importa
+ * `tabelaSubsetorPorCnae` de packages/domain. Este teste existe para que
+ * reintroduzir um literal duplicado ali volte a ser um erro visível.
+ */
+export function importadorUsaFonteUnica() {
   const fonte = fs.readFileSync(path.join(RAIZ, 'ferramentas', 'importar-cnpj.mjs'), 'utf8');
-  const bloco = fonte.match(/const SUBSETOR_POR_CNAE = \{([\s\S]*?)\n\};/);
-  if (!bloco) throw new Error('não encontrei SUBSETOR_POR_CNAE em importar-cnpj.mjs');
-  const tabela = {};
-  for (const m of bloco[1].matchAll(/'(\d{7})':\s*'([^']+)'/g)) tabela[m[1]] = m[2];
-  return tabela;
+  return {
+    importa: /import \{[^}]*tabelaSubsetorPorCnae[^}]*\} from '\.\.\/packages\/domain\/taxonomia\.mjs'/.test(fonte),
+    temLiteralDuplicado: /const SUBSETOR_POR_CNAE = \{[\s\S]*?'\d{7}':/.test(fonte),
+  };
+}
+
+/** Roda o conferidor do gerado. Devolve o código de saída. */
+export function conferirSetoresGerado() {
+  const { status } = spawnSync(
+    process.execPath,
+    [path.join(RAIZ, 'ferramentas', 'gerar-setores.mjs'), '--conferir'],
+    { cwd: RAIZ, encoding: 'utf8' },
+  );
+  return status;
 }

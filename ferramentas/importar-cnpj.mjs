@@ -67,6 +67,7 @@ import readline from 'node:readline';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
+import { tabelaSubsetorPorCnae, cnaesDeDescoberta } from '../packages/domain/taxonomia.mjs';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CACHE = path.join(RAIZ, 'ferramentas', '.cache-cnpj');
@@ -93,61 +94,18 @@ const BASE  = '/public.php/webdav/Dados/Cadastros/CNPJ';
 const AUTH  = 'Basic ' + Buffer.from(TOKEN + ':').toString('base64');
 
 /* ---- taxonomia: os CNAEs do escopo ----------------------------------------
- * Espelha `setores.js`. Está duplicado aqui de propósito: setores.js é um script
- * de navegador (window.SETORES) e este é um módulo de Node. Duplicar sete linhas
- * custa menos que converter setores.js para ESM e quebrar o duplo-clique no
- * index.html, que é o que faz o protótipo funcionar numa sala de reunião.
+ * Vem de packages/domain/taxonomia.mjs, que desde a Fase 1 e a fonte unica.
+ * O setores.js da raiz e GERADO da mesma fonte por ferramentas/gerar-setores.mjs.
  *
- * Se mexer num, mexa no outro — e rode `node ferramentas/verificar-taxonomia.mjs`,
- * que compara as duas listas e reprova a divergência. O risco que ele existe
- * para eliminar é o pior possível: a tela dizendo um recorte e a ingestão
- * fazendo outro, sem ninguém perceber.
+ * Antes esta tabela era uma copia mantida a mao, e um verificador tentava
+ * impedir que as duas divergissem. Agora nao ha o que divergir: a tela e a
+ * ingestao leem o mesmo modulo.
+ *
+ * cnaesDeDescoberta() sao os codigos que levantam candidato mas nao enquadram
+ * sozinhos (o 4689399). Ficam de fora de SUBSETOR_POR_CNAE de proposito.
  * -------------------------------------------------------------------------- */
-const SUBSETOR_POR_CNAE = {
-  // Distribuição e trading químico
-  '4684201': 'Distribuição e trading químico',
-  '4684202': 'Distribuição e trading químico',
-  '4684299': 'Distribuição e trading químico',
-  // Especialidades e aditivos
-  '2091600': 'Especialidades e aditivos',
-  '2093200': 'Especialidades e aditivos',
-  '2094100': 'Especialidades e aditivos',
-  '2099101': 'Especialidades e aditivos',
-  '2099199': 'Especialidades e aditivos',
-  // Tintas, vernizes e revestimentos
-  '2071100': 'Tintas, vernizes e revestimentos',
-  '2072000': 'Tintas, vernizes e revestimentos',
-  '2073800': 'Tintas, vernizes e revestimentos',
-  // Domissanitários e produtos de limpeza
-  '2052500': 'Domissanitários e produtos de limpeza',
-  '2061400': 'Domissanitários e produtos de limpeza',
-  '2062200': 'Domissanitários e produtos de limpeza',
-  // Inorgânicos e gases industriais
-  '2011800': 'Inorgânicos e gases industriais',
-  '2014200': 'Inorgânicos e gases industriais',
-  '2019399': 'Inorgânicos e gases industriais',
-  // Fertilizantes e nutrição vegetal
-  '2012600': 'Fertilizantes e nutrição vegetal',
-  '2013400': 'Fertilizantes e nutrição vegetal',
-  '2013401': 'Fertilizantes e nutrição vegetal',
-  '2013402': 'Fertilizantes e nutrição vegetal',
-  '4683400': 'Fertilizantes e nutrição vegetal',
-  // Defensivos agrícolas
-  '2051700': 'Defensivos agrícolas',
-  // Explosivos e pirotecnia
-  '2092401': 'Explosivos e pirotecnia',
-  '2092402': 'Explosivos e pirotecnia',
-  '2092403': 'Explosivos e pirotecnia',
-  // Resinas, elastômeros e fibras
-  '2031200': 'Resinas, elastômeros e fibras',
-  '2032100': 'Resinas, elastômeros e fibras',
-  '2033900': 'Resinas, elastômeros e fibras',
-  '2040100': 'Resinas, elastômeros e fibras',
-  // Petroquímica básica e intermediários (contexto: sem alvo de boutique)
-  '2021500': 'Petroquímica básica e intermediários',
-  '2022300': 'Petroquímica básica e intermediários',
-  '2029100': 'Petroquímica básica e intermediários',
-};
+const SUBSETOR_POR_CNAE = tabelaSubsetorPorCnae();
+const CNAE_DESCOBERTA = new Set(cnaesDeDescoberta());
 /* 2019301 (combustíveis nucleares) fica fora: monopólio estatal, sem transação
    privada possível. 2063100 (cosméticos) fica fora: adjacência declarada. */
 
