@@ -862,3 +862,63 @@ publicam o próprio global, e os `data-*.js` são base, não regra.
 Portanto o aceite "nenhuma regra de produção depende de `window.*`" está cumprido
 para o escopo nomeado, e explicitamente **não** para esses dois — que ficam
 registrados aqui em vez de passarem por concluídos.
+
+### Fase 2 — parcial
+
+**Decisão de ambiente**
+
+A máquina de desenvolvimento não tem Docker nem Postgres, e o aceite da fase
+exige que o backend seja **executado**, não só escrito. Escolhido **PGlite**: o
+Postgres compilado para WebAssembly, que roda por npm sem instalar serviço.
+Mesmo parser, mesmos tipos, mesmas migrations. Trocar para um Postgres de
+verdade é trocar a implementação de `abrir()` em `server/src/db/cliente.mjs`.
+
+PGlite não é multiusuário — serve a desenvolvimento, teste e demonstração.
+Homologação e produção pedem Postgres real, e isso é da Fase 9.
+
+**Decisão de ORM**
+
+Nenhum. O plano permite "Drizzle ou equivalente tipado"; a escolha é SQL
+explícito com Zod na fronteira. Três razões: este produto precisa explicar de
+onde veio cada número, e SQL que se lê é auditável; o projeto tem cultura de
+dependência mínima (o `.xlsx` é escrito à mão); e a tipagem que importa é a da
+fronteira, que o Zod já cobre.
+
+**Entregue**
+
+- `server/` com Fastify, cookie de sessão e tratamento de erro que não vaza
+  interno.
+- Migrations em SQL numerado, cada uma em transação. O executor guarda o hash e
+  **recusa** rodar se uma já aplicada mudou em disco.
+- `0001`: papéis, usuários, sessões, mandatos, membros, auditoria, idempotência.
+- `0002`: templates de triagem com versão imutável.
+- **Senha:** scrypt do `node:crypto` — sal por senha, comparação em tempo
+  constante, parâmetros gravados junto do hash. Não bcrypt/argon2 porque
+  compilam nativo e esta máquina não tem toolchain.
+- **Sessão:** token opaco, hash no banco, nunca o token. Não JWT — revogar JWT
+  exige a lista de revogados que seria a própria tabela de sessões, e com
+  mandato confidencial "tirar o acesso agora" precisa ser imediato.
+- **RBAC:** papel e participação são perguntas separadas, e ambas obrigatórias.
+  Permissão desconhecida é negada. Papel no mandato reduz o global, nunca amplia.
+- **Política de campo:** e-mail e telefone da rede só para quem tem
+  `rede.ver_contato`, com a omissão **declarada** — a tela pode dizer "há
+  contato, você não tem acesso" em vez de sugerir que não existe.
+- **Auditoria append-only** imposta por trigger. `registrar()` exige a transação
+  da mutação: auditar fora dela deixaria a mudança subir e o registro não.
+  Decisão humana exige responsável nomeado e justificativa.
+- **Idempotência** por `Idempotency-Key`, com a corrida arbitrada pelo banco.
+  Mesma chave com corpo diferente é 409, não a resposta antiga.
+- **Templates saíram do `localStorage`.** Editar cria versão nova; versão já
+  usada é imutável por trigger. Há importação única do estado do navegador,
+  idempotente por nome.
+
+**Aceite verificado** — 48 testes no servidor, todos os três critérios cobertos:
+dois usuários veem o mesmo CRM conforme permissão; quem não participa recebe
+**404** (e não 403, que confirmaria a existência do mandato); toda mutação
+registra quem, quando, antes/depois e justificativa.
+
+**Falta nesta fase**
+
+- CRM e rede ainda no `localStorage` — só templates migraram.
+- Sem especificação OpenAPI publicada; os contratos existem em Zod.
+- Sem tela de administração de usuários e mandatos: hoje se cria por SQL.
