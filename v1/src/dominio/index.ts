@@ -27,6 +27,11 @@
  *  duas interfaces mudam juntas.
  * ========================================================================== */
 
+/* setores.js vem primeiro: e a taxonomia do setor foco, e mercado.js le
+   window.SETORES na carga (o arquivo e gerado de packages/domain/taxonomia.mjs,
+   e o gerador resolve o import como global). Sem ele, metricas() quebra ao
+   avaliar a faixa consolidavel. */
+import '@dominio/setores.js'
 import '@dominio/data.js'
 import '@dominio/evidencias.js'
 import '@dominio/scoring.js'
