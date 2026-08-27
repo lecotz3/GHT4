@@ -1,20 +1,4 @@
 /* =============================================================================
- *  GHT4 · ARQUIVO GERADO. NÃO EDITAR.
- * -----------------------------------------------------------------------------
- *  Fonte: packages/domain/scoring.mjs
- *  Gerado por: node ferramentas/gerar-globais.mjs
- *
- *  Editar aqui é trabalho perdido: a próxima geração sobrescreve. Mexa na
- *  fonte e rode o gerador. A CI confere que os dois estão em dia
- *  (`node ferramentas/gerar-globais.mjs --conferir`).
- *
- *  Este arquivo existe para o index.html poder carregá-lo por <script> em
- *  file://, onde módulo ES não funciona. O comentário original da fonte segue
- *  abaixo, íntegro.
- * ========================================================================== */
-(function () {
-'use strict';
-/* =============================================================================
  *  GHT4 · Agente de Prospecção M&A — MOTOR DE SCORING (ILUSTRATIVO)
  * -----------------------------------------------------------------------------
  *  ESTE É O PONTO DE EDIÇÃO APÓS AS REUNIÕES DE LEVANTAMENTO.
@@ -51,14 +35,8 @@
  *  virar sinal ativo. 58% dos dealmakers aplicam exatamente essa revisão.
  * ========================================================================== */
 
-const EVIDENCIAS = /* evidencias.mjs */ new Proxy({}, {
-  get: (_alvo, prop) => (window.EVIDENCIA ? window.EVIDENCIA[prop] : undefined),
-  has: (_alvo, prop) => Boolean(window.EVIDENCIA) && prop in window.EVIDENCIA,
-});
-const CONFIG = /* configuracao.mjs */ new Proxy({}, {
-  get: (_alvo, prop) => (window.CONFIGURACAO ? window.CONFIGURACAO[prop] : undefined),
-  has: (_alvo, prop) => Boolean(window.CONFIGURACAO) && prop in window.CONFIGURACAO,
-});
+import * as EVIDENCIAS from './evidencias.mjs';
+import * as CONFIG from './configuracao.mjs';
 
 /* ---- 1. LIMIARES AJUSTÁVEIS ------------------------------------------------ */
 const LIMIARES = {
@@ -647,9 +625,8 @@ function avaliarBase(empresas, config) {
   return empresas.map((e) => avaliarEmpresa(e, config));
 }
 
-window.MOTOR = {
+export {
   LIMIARES, SINAIS, CONFIG_PAPEIS, RESSALVAS,
   detectarSinais, scorePapel, avaliarEmpresa, avaliarBase,
   lastroDoPapel, rotuloLastro, ressalvasDe,
 };
-})();

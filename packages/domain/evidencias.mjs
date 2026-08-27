@@ -1,20 +1,4 @@
 /* =============================================================================
- *  GHT4 · ARQUIVO GERADO. NÃO EDITAR.
- * -----------------------------------------------------------------------------
- *  Fonte: packages/domain/evidencias.mjs
- *  Gerado por: node ferramentas/gerar-globais.mjs
- *
- *  Editar aqui é trabalho perdido: a próxima geração sobrescreve. Mexa na
- *  fonte e rode o gerador. A CI confere que os dois estão em dia
- *  (`node ferramentas/gerar-globais.mjs --conferir`).
- *
- *  Este arquivo existe para o index.html poder carregá-lo por <script> em
- *  file://, onde módulo ES não funciona. O comentário original da fonte segue
- *  abaixo, íntegro.
- * ========================================================================== */
-(function () {
-'use strict';
-/* =============================================================================
  *  GHT4 · Agente de Prospecção M&A — CAMADA DE EVIDÊNCIA (DEMONSTRATIVA)
  * -----------------------------------------------------------------------------
  *  ATENÇÃO: Todas as fontes abaixo são FICTÍCIAS. Veículos, títulos, datas e
@@ -577,8 +561,7 @@ function coberturaEvidencia(empresa, sinaisAtivos) {
   return { documentados, estruturados, lacunas, total: sinaisAtivos.length };
 }
 
-window.EVIDENCIA = {
+export {
   EVIDENCIA_SETORIAL, EVIDENCIA_EMPRESA, SINAIS_SEM_FONTE_PUBLICA, CRITERIOS_SEM_FONTE,
   evidenciaDe, coberturaEvidencia, sinaisIndisponiveis, criteriosNaoAvaliados,
 };
-})();

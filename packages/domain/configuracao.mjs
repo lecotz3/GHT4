@@ -1,20 +1,4 @@
 /* =============================================================================
- *  GHT4 · ARQUIVO GERADO. NÃO EDITAR.
- * -----------------------------------------------------------------------------
- *  Fonte: packages/domain/configuracao.mjs
- *  Gerado por: node ferramentas/gerar-globais.mjs
- *
- *  Editar aqui é trabalho perdido: a próxima geração sobrescreve. Mexa na
- *  fonte e rode o gerador. A CI confere que os dois estão em dia
- *  (`node ferramentas/gerar-globais.mjs --conferir`).
- *
- *  Este arquivo existe para o index.html poder carregá-lo por <script> em
- *  file://, onde módulo ES não funciona. O comentário original da fonte segue
- *  abaixo, íntegro.
- * ========================================================================== */
-(function () {
-'use strict';
-/* =============================================================================
  *  GHT4 · CONFIGURAÇÃO EM TEMPO DE USO
  * -----------------------------------------------------------------------------
  *  Atende ao princípio central do documento de requisitos (seção 1):
@@ -47,18 +31,9 @@
  *  a forma mais comum de uma triagem gerar falso positivo.
  * ========================================================================== */
 
-const MOTOR = /* scoring.mjs */ new Proxy({}, {
-  get: (_alvo, prop) => (window.MOTOR ? window.MOTOR[prop] : undefined),
-  has: (_alvo, prop) => Boolean(window.MOTOR) && prop in window.MOTOR,
-});
-const CONEXOES = /* conexoes.mjs */ new Proxy({}, {
-  get: (_alvo, prop) => (window.CONEXOES ? window.CONEXOES[prop] : undefined),
-  has: (_alvo, prop) => Boolean(window.CONEXOES) && prop in window.CONEXOES,
-});
-const ARMAZENAMENTO = /* armazenamento.mjs */ new Proxy({}, {
-  get: (_alvo, prop) => (window.ARMAZENAMENTO ? window.ARMAZENAMENTO[prop] : undefined),
-  has: (_alvo, prop) => Boolean(window.ARMAZENAMENTO) && prop in window.ARMAZENAMENTO,
-});
+import * as MOTOR from './scoring.mjs';
+import * as CONEXOES from './conexoes.mjs';
+import * as ARMAZENAMENTO from './armazenamento.mjs';
 
 /* ---- 1. CAMPOS DISPONÍVEIS --------------------------------------------------
  * Catálogo do que pode virar critério. Cada campo declara de onde sai o número:
@@ -516,10 +491,9 @@ function ajustesAplicados(config) {
   return { pesos: mudancas, criterios: config.criterios ? config.criterios.length : 0 };
 }
 
-window.CONFIGURACAO = {
+export {
   CAMPOS, OPERADORES, operadoresPara, valoresDe,
   avaliarCriterio, descreverCriterio, fonteCriterio, comoSinal,
   listarTemplates, salvarTemplate, removerTemplate, exportarTemplate,
   importarTemplate, configuracaoPadrao, ajustesAplicados,
 };
-})();

@@ -820,11 +820,45 @@ foi feito, o que foi decidido e onde a execução divergiu do plano — com o mo
 
 **Estado:** 38 testes, `npm run ci` sai 0.
 
-**Falta nesta fase**
+**Concluído também**
 
-Portar `evidencias.js`, `scoring.js`, `configuracao.js` e `matchmaking.js` para
-`packages/domain`, para cumprir o aceite "nenhuma regra de produção depende de
-`window.*`". A ordem é ditada pela dependência: `evidencias` é folha e vai
-primeiro; `scoring` e `configuracao` têm ciclo entre si (`scoring` lê
-`window.CONFIGURACAO`, `configuracao` lê `window.MOTOR`) e precisam ser portados
-juntos, mantendo o acesso adiado para a hora da chamada.
+- **Porte para `packages/domain`:** `evidencias`, `conexoes`, `scoring`,
+  `configuracao` e `matchmaking`, além de `mercado`. São os quatro módulos que
+  esta fase nomeia, mais as duas folhas de que dependem.
+- **`packages/domain/armazenamento.mjs`** — porta de persistência local. As
+  camadas de configuração e rede liam `window.localStorage` dentro de um
+  try/catch que, fora do navegador, virava fluxo de controle para um
+  `ReferenceError`. Agora há um lugar só para trocar quando a Fase 2 levar a
+  persistência para o backend.
+- **Guardas passaram a testar capacidade, não módulo.** `window.EVIDENCIA ? …`
+  virou `EVIDENCIAS.evidenciaDe ? …`. No global gerado a ligação é tardia (um
+  Proxy que lê `window` no acesso), e um Proxy é sempre verdadeiro — testar o
+  módulo daria falso positivo. Testar a capacidade é correto nos dois mundos.
+- **Ligação tardia no gerado.** O gerador emite Proxy em vez de
+  `const X = window.Y`. Capturar na carga congelaria `undefined` no ciclo
+  scoring↔configuração e na v1, que carrega `configuracao.js` depois de
+  `scoring.js` — o recurso de critérios ad hoc sumiria em silêncio.
+- **Cada gerado sai dentro de uma IIFE.** Os `.js` da raiz dividem um escopo só,
+  e `scoring` e `matchmaking` declaram ambos o alias `CONFIG`. Sem a IIFE, o
+  segundo `<script>` derruba a página com SyntaxError — a regra 0 do projeto,
+  que já tinha mordido antes com `LIMITACOES`.
+
+**Aceite verificado**
+
+`tests/regressao-do-porte.test.mjs` carrega a versão dos `.js` da raiz anterior
+ao porte (via `git show`) e a atual, roda as duas sobre a base de demonstração e
+compara `avaliarEmpresa` empresa por empresa e o mapa de mercado inteiro. São
+idênticos: o porte não mudou um número. 45 testes, `npm run ci` sai 0.
+
+**Fronteira desta fase, declarada**
+
+`analises.js` e `exportar-excel.js` continuam lendo globais —
+`window.MERCADO` no primeiro; `CONFIGURACAO`, `CRM`, `EVIDENCIA`, `MERCADO` e
+`MOTOR` no segundo. Não foram portados de propósito: esta fase nomeia scoring,
+configuração, mercado e matchmaking, e esses dois pertencem às Fases 7 (módulo 5)
+e 8 (outputs), onde serão reescritos de qualquer modo. `crm.js` e `fontes.js` só
+publicam o próprio global, e os `data-*.js` são base, não regra.
+
+Portanto o aceite "nenhuma regra de produção depende de `window.*`" está cumprido
+para o escopo nomeado, e explicitamente **não** para esses dois — que ficam
+registrados aqui em vez de passarem por concluídos.

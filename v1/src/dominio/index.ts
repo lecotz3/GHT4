@@ -32,6 +32,10 @@
    e o gerador resolve o import como global). Sem ele, metricas() quebra ao
    avaliar a faixa consolidavel. */
 import '@dominio/setores.js'
+/* armazenamento.js e a porta de persistencia local: conexoes.js e
+   configuracao.js leem ARMAZENAMENTO.local() em vez de tocar em
+   window.localStorage direto. Precisa vir antes dos dois. */
+import '@dominio/armazenamento.js'
 import '@dominio/data.js'
 import '@dominio/evidencias.js'
 import '@dominio/scoring.js'

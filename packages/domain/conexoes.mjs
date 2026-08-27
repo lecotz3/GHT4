@@ -1,20 +1,4 @@
 /* =============================================================================
- *  GHT4 · ARQUIVO GERADO. NÃO EDITAR.
- * -----------------------------------------------------------------------------
- *  Fonte: packages/domain/conexoes.mjs
- *  Gerado por: node ferramentas/gerar-globais.mjs
- *
- *  Editar aqui é trabalho perdido: a próxima geração sobrescreve. Mexa na
- *  fonte e rode o gerador. A CI confere que os dois estão em dia
- *  (`node ferramentas/gerar-globais.mjs --conferir`).
- *
- *  Este arquivo existe para o index.html poder carregá-lo por <script> em
- *  file://, onde módulo ES não funciona. O comentário original da fonte segue
- *  abaixo, íntegro.
- * ========================================================================== */
-(function () {
-'use strict';
-/* =============================================================================
  *  GHT4 · ANÁLISE DE CONEXÕES DA REDE  (Módulo 4)
  * -----------------------------------------------------------------------------
  *  "qualquer conexão existente com uma companhia é um diferencial que aumenta
@@ -43,10 +27,7 @@
  *  de relacionamento completo.
  * ========================================================================== */
 
-const ARMAZENAMENTO = /* armazenamento.mjs */ new Proxy({}, {
-  get: (_alvo, prop) => (window.ARMAZENAMENTO ? window.ARMAZENAMENTO[prop] : undefined),
-  has: (_alvo, prop) => Boolean(window.ARMAZENAMENTO) && prop in window.ARMAZENAMENTO,
-});
+import * as ARMAZENAMENTO from './armazenamento.mjs';
 
 /* ---- 1. NORMALIZAÇÃO DE NOMES ---------------------------------------------
  * "RAÍZEN S.A.", "Raízen S/A" e "raizen sa" são a mesma empresa. Sem
@@ -431,11 +412,10 @@ function carregarRedeDemonstracao() {
   return gravarRede(REDE_DEMONSTRACAO.map((m) => ({ ...m })));
 }
 
-window.CONEXOES = {
-  TIPOS_VINCULO, NIVEIS, REDE_DEMONSTRACAO, LIMITACOES: LIMITACOES_REDE,
+export {
+  TIPOS_VINCULO, NIVEIS, REDE_DEMONSTRACAO, LIMITACOES_REDE as LIMITACOES,
   membros, adicionarMembro, removerMembro, importarRede,
   exportarRede, limparRede, carregarRedeDemonstracao, analisar,
   forcaDe, temVinculoRelevante, ranquearPorConexao, normalizar,
   mesmaEmpresa, nivelDe,
 };
-})();

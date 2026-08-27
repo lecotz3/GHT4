@@ -12,6 +12,8 @@
  *  file://, onde módulo ES não funciona. O comentário original da fonte segue
  *  abaixo, íntegro.
  * ========================================================================== */
+(function () {
+'use strict';
 /* =============================================================================
  *  GHT4 · MAPEAMENTO E RANKING DE SUBSEGMENTOS  (Módulos 1 e 2)
  * -----------------------------------------------------------------------------
@@ -41,7 +43,10 @@
  *  `ressalvaCobertura` e a interface exibe junto do resultado.
  * ========================================================================== */
 
-const TAXONOMIA = window.SETORES;
+const TAXONOMIA = /* taxonomia.mjs */ new Proxy({}, {
+  get: (_alvo, prop) => (window.SETORES ? window.SETORES[prop] : undefined),
+  has: (_alvo, prop) => Boolean(window.SETORES) && prop in window.SETORES,
+});
 
 /* ---- utilitários numéricos ------------------------------------------------ */
 
@@ -371,3 +376,4 @@ window.MERCADO = {
   metricas, ranquearSubsegmentos, hhi, classificarHhi,
   mediana,
 };
+})();

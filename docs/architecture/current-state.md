@@ -171,5 +171,9 @@ Ambiente: Node v24.14.1, npm 11.11.0.
 - Sem testes automatizados de domínio, integração, UI ou comportamento do agente.
 - Sem `test:e2e`.
 - Porte (receita, EBITDA, funcionários) não resolvido para a base química.
-- Templates, rede, análises e CRM presos ao `localStorage` de um navegador.
+- Templates, rede, análises e CRM ainda presos ao `localStorage` de um navegador.
+  A porta `packages/domain/armazenamento.mjs` já isola o ponto de troca; a Fase 2
+  substitui a implementação por API.
+- `analises.js` e `exportar-excel.js` ainda leem globais (ver o registro da Fase 1
+  no plano). Serão reescritos nas Fases 7 e 8.
 - A v1 em React não enxerga a base química.

@@ -1,20 +1,4 @@
 /* =============================================================================
- *  GHT4 · ARQUIVO GERADO. NÃO EDITAR.
- * -----------------------------------------------------------------------------
- *  Fonte: packages/domain/matchmaking.mjs
- *  Gerado por: node ferramentas/gerar-globais.mjs
- *
- *  Editar aqui é trabalho perdido: a próxima geração sobrescreve. Mexa na
- *  fonte e rode o gerador. A CI confere que os dois estão em dia
- *  (`node ferramentas/gerar-globais.mjs --conferir`).
- *
- *  Este arquivo existe para o index.html poder carregá-lo por <script> em
- *  file://, onde módulo ES não funciona. O comentário original da fonte segue
- *  abaixo, íntegro.
- * ========================================================================== */
-(function () {
-'use strict';
-/* =============================================================================
  *  GHT4 · LISTAS DE POTENCIAIS COMPRADORES E ALVOS  (Módulo 6)
  * -----------------------------------------------------------------------------
  *  Cenário do documento (seção 7): a GHT4 foi mandatada para vender a empresa X.
@@ -37,10 +21,7 @@
  *  carrega essa distinção em `limitacoes`, e a interface a exibe junto.
  * ========================================================================== */
 
-const CONFIG = /* configuracao.mjs */ new Proxy({}, {
-  get: (_alvo, prop) => (window.CONFIGURACAO ? window.CONFIGURACAO[prop] : undefined),
-  has: (_alvo, prop) => Boolean(window.CONFIGURACAO) && prop in window.CONFIGURACAO,
-});
+import * as CONFIG from './configuracao.mjs';
 
 /* ---- 1. CRITÉRIOS ----------------------------------------------------------
  * Cada critério devolve 0..1, ou null quando a candidata não publicou o dado.
@@ -406,7 +387,6 @@ const LIMITACOES = [
   },
 ];
 
-window.MATCHMAKING = {
+export {
   CRITERIOS_COMPRADOR, LIMITACOES, compradoresPara, alvosPara,
 };
-})();

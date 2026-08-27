@@ -12,6 +12,8 @@
  *  file://, onde módulo ES não funciona. O comentário original da fonte segue
  *  abaixo, íntegro.
  * ========================================================================== */
+(function () {
+'use strict';
 /* =============================================================================
  *  GHT4 · TAXONOMIA DO SETOR FOCO — QUÍMICOS
  * -----------------------------------------------------------------------------
@@ -432,3 +434,4 @@ window.SETORES = {
   faixaDe, naFaixaConsolidavel, subsetoresAcionaveis, consolidadoresDe,
   barreirasDe, tabelaSubsetorPorCnae, cnaesDeDescoberta,
 };
+})();

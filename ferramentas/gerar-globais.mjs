@@ -45,7 +45,13 @@ const CONFERIR = process.argv.includes('--conferir');
  * -------------------------------------------------------------------------- */
 export const MODULOS = [
   { fonte: 'packages/domain/taxonomia.mjs', destino: 'setores.js', global: 'SETORES' },
+  { fonte: 'packages/domain/armazenamento.mjs', destino: 'armazenamento.js', global: 'ARMAZENAMENTO' },
+  { fonte: 'packages/domain/evidencias.mjs', destino: 'evidencias.js', global: 'EVIDENCIA' },
+  { fonte: 'packages/domain/conexoes.mjs', destino: 'conexoes.js', global: 'CONEXOES' },
+  { fonte: 'packages/domain/scoring.mjs', destino: 'scoring.js', global: 'MOTOR' },
+  { fonte: 'packages/domain/configuracao.mjs', destino: 'configuracao.js', global: 'CONFIGURACAO' },
   { fonte: 'packages/domain/mercado.mjs', destino: 'mercado.js', global: 'MERCADO' },
+  { fonte: 'packages/domain/matchmaking.mjs', destino: 'matchmaking.js', global: 'MATCHMAKING' },
 ];
 
 /** Módulo de domínio → nome do global, para reescrever os imports. */
@@ -53,10 +59,24 @@ const GLOBAL_POR_MODULO = new Map(
   MODULOS.map((m) => [path.basename(m.fonte), m.global]),
 );
 
+/**
+ * Nomes publicados pelo módulo, já na forma que o objeto global usa.
+ *
+ * Um export pode renomear — `LIMITACOES_REDE as LIMITACOES` — e o objeto global
+ * escreve isso ao contrário: `LIMITACOES: LIMITACOES_REDE`. A tradução mora
+ * aqui para o resto do gerador não precisar saber disso.
+ */
 function nomesExportados(fonte, arquivo) {
   const bloco = fonte.match(/\nexport \{([\s\S]*?)\n\};/);
   if (!bloco) throw new Error(`${arquivo} não termina com um bloco \`export { ... };\``);
-  return bloco[1].split(',').map((n) => n.trim()).filter(Boolean);
+  return bloco[1]
+    .split(',')
+    .map((n) => n.trim())
+    .filter(Boolean)
+    .map((n) => {
+      const renomeia = n.match(/^(\w+) as (\w+)$/);
+      return renomeia ? `${renomeia[2]}: ${renomeia[1]}` : n;
+    });
 }
 
 /** Troca `import * as X from './y.mjs'` por `const X = window.GLOBAL;` */
@@ -75,7 +95,19 @@ function reescreverImports(corpo, arquivo) {
       if (!nomeGlobal) {
         throw new Error(`${arquivo}: importa ${modulo}, que não está no manifesto de gerar-globais.mjs`);
       }
-      return `const ${alias} = window.${nomeGlobal};`;
+      /* Ligação TARDIA, não `const X = window.Y`.
+         O global pode ser publicado por um <script> posterior a este — é o caso
+         do ciclo entre scoring e configuração, e o da v1, que carrega
+         configuracao.js depois de scoring.js. Capturar na carga congelaria
+         `undefined` e faria o recurso sumir em silêncio.
+         Ler `window` na hora do acesso reproduz, no mundo dos scripts, o binding
+         vivo que o ESM dá de graça. */
+      return [
+        `const ${alias} = /* ${modulo} */ new Proxy({}, {`,
+        `  get: (_alvo, prop) => (window.${nomeGlobal} ? window.${nomeGlobal}[prop] : undefined),`,
+        `  has: (_alvo, prop) => Boolean(window.${nomeGlobal}) && prop in window.${nomeGlobal},`,
+        `});`,
+      ].join('\n');
     },
   );
 }
@@ -110,9 +142,27 @@ function gerar({ fonte: caminhoFonte, destino, global: nomeGlobal }) {
   for (let i = 0; i < nomes.length; i += 4) {
     linhas.push('  ' + nomes.slice(i, i + 4).join(', ') + ',');
   }
-  const rodape = ['', `window.${nomeGlobal} = {`, ...linhas, '};', ''].join('\n');
 
-  return cabecalho + corpo + '\n' + rodape;
+  /* IIFE, e não código solto no escopo global.
+     Os .js da raiz compartilham um escopo só: dois `const` de mesmo nome em
+     arquivos diferentes derrubam a página inteira com SyntaxError, e já
+     aconteceu neste projeto com LIMITACOES. Os módulos portados agravariam isso,
+     porque vários declaram o mesmo alias de dependência (CONFIG aparece em
+     scoring e em matchmaking).
+     Fechar cada gerado numa função elimina a classe inteira do problema: só o
+     `window.NOME` do rodapé atravessa. O 'use strict' iguala o comportamento ao
+     do módulo ESM de origem, que já roda em modo estrito. */
+  const abre = ['(function () {', "'use strict';", ''].join('\n');
+  const fecha = [
+    '',
+    `window.${nomeGlobal} = {`,
+    ...linhas,
+    '};',
+    '})();',
+    '',
+  ].join('\n');
+
+  return cabecalho + abre + corpo + '\n' + fecha;
 }
 
 let divergiu = 0;
