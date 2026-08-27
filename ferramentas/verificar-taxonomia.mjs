@@ -43,13 +43,13 @@ const tabela = TAXONOMIA.tabelaSubsetorPorCnae();
 {
   const r = spawnSync(
     process.execPath,
-    [path.join(RAIZ, 'ferramentas', 'gerar-setores.mjs'), '--conferir'],
+    [path.join(RAIZ, 'ferramentas', 'gerar-globais.mjs'), '--conferir'],
     { cwd: RAIZ, encoding: 'utf8' },
   );
   if (r.status === 0) {
-    ok('setores.js está em dia com packages/domain/taxonomia.mjs');
+    ok('os scripts globais da raiz estão em dia com packages/domain');
   } else {
-    erro('setores.js divergiu da fonte — rode `node ferramentas/gerar-setores.mjs`');
+    erro('script global divergiu da fonte — rode `node ferramentas/gerar-globais.mjs`');
   }
 }
 

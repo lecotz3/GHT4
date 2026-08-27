@@ -787,3 +787,44 @@ foi feito, o que foi decidido e onde a execução divergiu do plano — com o mo
 
 5. **`test:e2e` sai com código 1 em vez de fingir sucesso**, e fica fora do
    script `ci` até existir de verdade.
+
+### Fase 1 — em andamento
+
+**Concluído**
+
+- **Fonte única da taxonomia.** `packages/domain/taxonomia.mjs` é a fonte;
+  `setores.js` passou a ser gerado por `ferramentas/gerar-globais.mjs` e segue
+  commitado; `ferramentas/importar-cnpj.mjs` importa `tabelaSubsetorPorCnae()` e
+  perdeu o literal de 33 CNAEs.
+- **A regra implícita virou declarada.** `CNAE_APENAS_DESCOBERTA`: o 4689399
+  levanta candidato e nunca enquadra sozinho; o 4683400 enquadra. Antes essa
+  distinção era um literal escrito à mão, sem explicação.
+- **`verificar-taxonomia.mjs` mudou de papel.** A duplicação que ele guardava
+  acabou. Agora confere se os gerados estão em dia e segue validando os códigos
+  contra a CNAE do IBGE — que é o que só ele faz.
+- **Faixa consolidável corrigida.** `mercado.js` consultava um corte fixo de
+  R$ 30–250 mi; passa a chamar `naFaixaConsolidavel()`, que resolve a faixa do
+  próprio subsetor. Receita ausente deixou de contar como "fora da faixa": vira
+  `semFaixaApurada` e sai do denominador, e `pctNaFaixa` é `null` quando nada foi
+  avaliado. Isso muda o resultado na base do CNPJ, onde a receita é nula nos
+  38.583 registros — antes reportaria 0%, que afirma "nenhuma na faixa".
+- **Contrato `Dado<T>`** em `packages/schemas/dado.mjs` + `.d.ts`. Estados
+  `reportado`, `estimado`, `proxy`, `inferido`, `nao_apurado`. Recusa `null` com
+  estado apurado, lastro sem fonte, número sem unidade, e ausência sem motivo.
+- **`mercado.js` portado** para `packages/domain/mercado.mjs`, o primeiro módulo
+  de regra a sair do `window.*`.
+- **Gerador generalizado.** `gerar-globais.mjs` reescreve
+  `import * as X from './y.mjs'` para `const X = window.GLOBAL;`, o que torna o
+  porte dos demais módulos mecânico. Só import de namespace é suportado, de
+  propósito: import nomeado quebraria no ciclo real entre scoring e configuração.
+
+**Estado:** 38 testes, `npm run ci` sai 0.
+
+**Falta nesta fase**
+
+Portar `evidencias.js`, `scoring.js`, `configuracao.js` e `matchmaking.js` para
+`packages/domain`, para cumprir o aceite "nenhuma regra de produção depende de
+`window.*`". A ordem é ditada pela dependência: `evidencias` é folha e vai
+primeiro; `scoring` e `configuracao` têm ciclo entre si (`scoring` lê
+`window.CONFIGURACAO`, `configuracao` lê `window.MOTOR`) e precisam ser portados
+juntos, mantendo o acesso adiado para a hora da chamada.

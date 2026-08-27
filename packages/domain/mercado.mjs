@@ -1,18 +1,4 @@
 /* =============================================================================
- *  GHT4 · ARQUIVO GERADO. NÃO EDITAR.
- * -----------------------------------------------------------------------------
- *  Fonte: packages/domain/mercado.mjs
- *  Gerado por: node ferramentas/gerar-globais.mjs
- *
- *  Editar aqui é trabalho perdido: a próxima geração sobrescreve. Mexa na
- *  fonte e rode o gerador. A CI confere que os dois estão em dia
- *  (`node ferramentas/gerar-globais.mjs --conferir`).
- *
- *  Este arquivo existe para o index.html poder carregá-lo por <script> em
- *  file://, onde módulo ES não funciona. O comentário original da fonte segue
- *  abaixo, íntegro.
- * ========================================================================== */
-/* =============================================================================
  *  GHT4 · MAPEAMENTO E RANKING DE SUBSEGMENTOS  (Módulos 1 e 2)
  * -----------------------------------------------------------------------------
  *  Módulo 1 — dado um setor, devolver seus subsegmentos e as empresas de cada.
@@ -41,7 +27,7 @@
  *  `ressalvaCobertura` e a interface exibe junto do resultado.
  * ========================================================================== */
 
-const TAXONOMIA = window.SETORES;
+import * as TAXONOMIA from './taxonomia.mjs';
 
 /* ---- utilitários numéricos ------------------------------------------------ */
 
@@ -366,7 +352,7 @@ function ressalvaCobertura(quantas) {
   };
 }
 
-window.MERCADO = {
+export {
   CRITERIOS_SUBSEGMENTO, CRITERIOS_SEM_FONTE_MERCADO, setoresDisponiveis, mapear,
   metricas, ranquearSubsegmentos, hhi, classificarHhi,
   mediana,

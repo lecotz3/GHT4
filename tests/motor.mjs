@@ -109,11 +109,11 @@ export function importadorUsaFonteUnica() {
   };
 }
 
-/** Roda o conferidor do gerado. Devolve o código de saída. */
-export function conferirSetoresGerado() {
+/** Roda o conferidor dos globais gerados. Devolve o código de saída. */
+export function conferirGeradosEmDia() {
   const { status } = spawnSync(
     process.execPath,
-    [path.join(RAIZ, 'ferramentas', 'gerar-setores.mjs'), '--conferir'],
+    [path.join(RAIZ, 'ferramentas', 'gerar-globais.mjs'), '--conferir'],
     { cwd: RAIZ, encoding: 'utf8' },
   );
   return status;

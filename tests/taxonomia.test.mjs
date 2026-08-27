@@ -1,19 +1,21 @@
 /* =============================================================================
  *  GHT4 · testes de regressão da taxonomia do setor foco
  * -----------------------------------------------------------------------------
- *  A taxonomia vive em dois lugares por necessidade — `setores.js` para o
- *  navegador, `ferramentas/importar-cnpj.mjs` para a ingestão em Node. A razão
- *  está no cabeçalho de `ferramentas/verificar-taxonomia.mjs`: converter
- *  setores.js para ESM quebraria o duplo-clique em file://.
+ *  A taxonomia tem uma fonte só: `packages/domain/taxonomia.mjs`. O `setores.js`
+ *  da raiz é GERADO dela por `ferramentas/gerar-globais.mjs`, e a ingestão em
+ *  `ferramentas/importar-cnpj.mjs` a importa direto.
  *
- *  Estes testes são a rede que impede a duplicação de virar divergência. Eles
- *  precisam continuar passando depois que a Fase 1 mover a fonte da verdade para
- *  packages/domain — o que muda é de onde os dois lados derivam, não o que vale.
+ *  Os dois formatos existem porque o navegador bloqueia módulo ES em file://, e
+ *  é o duplo-clique no index.html que faz a demonstração rodar sem servidor.
+ *
+ *  Estes testes protegem três coisas: que o gerado não saiu de dia com a fonte,
+ *  que a ingestão não voltou a carregar uma cópia própria, e que a taxonomia
+ *  continua internamente coerente.
  * ========================================================================== */
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { carregarMotor, importadorUsaFonteUnica, conferirSetoresGerado } from './motor.mjs';
+import { carregarMotor, importadorUsaFonteUnica, conferirGeradosEmDia } from './motor.mjs';
 import * as fonte from '../packages/domain/taxonomia.mjs';
 
 const janela = carregarMotor();
@@ -99,12 +101,12 @@ test('todo CNAE do escopo tem sete dígitos', () => {
   }
 });
 
-test('setores.js está em dia com a fonte que o gera', () => {
-  /* setores.js é gerado de packages/domain/taxonomia.mjs. Editar o gerado à mão
-     é trabalho que a próxima geração apaga — este teste torna isso visível. */
+test('os globais da raiz estão em dia com a fonte que os gera', () => {
+  /* Os scripts globais da raiz são gerados de packages/domain. Editar um gerado
+     à mão é trabalho que a próxima geração apaga — este teste torna isso visível. */
   assert.equal(
-    conferirSetoresGerado(), 0,
-    'setores.js divergiu da fonte. Rode: node ferramentas/gerar-setores.mjs',
+    conferirGeradosEmDia(), 0,
+    'um global divergiu da fonte. Rode: node ferramentas/gerar-globais.mjs',
   );
 });
 
