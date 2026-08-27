@@ -732,3 +732,58 @@ O projeto só pode ser declarado aderente ao documento quando:
 - `README.md` e `ESTADO-DA-ENTREGA.md` forem atualizados para refletir o estado real, distinguindo demo, piloto, homologação e produção.
 
 Até lá, use rótulos precisos como “protótipo”, “scaffold”, “piloto” ou “parcial”; não “feito”.
+
+---
+
+## 14. Registro de execução
+
+Atualizado ao concluir cada fase, conforme o mandato da seção 1. Registra o que
+foi feito, o que foi decidido e onde a execução divergiu do plano — com o motivo.
+
+### Fase 0 — concluída em 27/08/2026
+
+**Entregue**
+
+- Checkpoint `c68aff5` na branch `baseline/pre-plano`. Congela ~24 MB de trabalho
+  que não estava em commit nenhum e não estava no origin. `main` intacta em
+  `b1a078b`. Sem push.
+- Branch de implementação: `feat/agente-operacional`.
+- `docs/architecture/current-state.md` — diagnóstico verificado no código, com
+  inventário fonte/gerado/demo e as correções à seção 3 deste plano.
+- `package.json` na raiz com `build`, `lint`, `test`, `test:e2e`, `validate:data`
+  e `ci`.
+- `tests/motor.mjs` — carrega os `.js` da raiz num `window` falso, na ordem do
+  `index.html`. Base química fica fora por padrão.
+- `tests/taxonomia.test.mjs` — 13 testes de regressão da taxonomia.
+- `.github/workflows/ci.yml` — lint, build, testes, taxonomia e paleta em
+  ambiente limpo.
+
+**Aceite verificado:** `npm run ci` sai 0. Estado anterior recuperável por
+`git checkout baseline/pre-plano`. Nenhuma alteração do usuário perdida.
+
+**Divergências do plano, com motivo**
+
+1. **§2.3 está errado sobre o `index.html`.** Ele já carrega `setores.js`,
+   `fontes.js`, `data-quimicos.js` e `data-ibama.js`. A lacuna da base química é
+   só da v1 em React, e é a Fase 6 que a fecha.
+
+2. **§2.3 trata a duplicação da taxonomia como defeito a eliminar; ela é
+   deliberada e já tem guarda.** `ferramentas/verificar-taxonomia.mjs` existe
+   para isso e passa. Eliminar a duplicação convertendo `setores.js` para ESM
+   quebraria o duplo-clique em `file://`, que a seção 1 deste mesmo plano manda
+   preservar. A Fase 1 resolve sem apagar lado nenhum: fonte única em
+   `packages/domain`, os dois consumidores derivam dela, e o verificador vira
+   teste de regressão da geração.
+
+3. **§8.1 chama o funil de "baseline já existente".** É reproduzível, mas
+   `data-quimicos.js` declara que `receita`, `crescimento`, `margemEbitda` e
+   `funcionarios` são nulos nos 38.583 registros. O funil é coorte de validação,
+   não ranking, e nenhum corte de porte se sustenta sobre essa base sozinha.
+
+4. **Raiz sem npm workspaces.** O `package.json` delega com `--prefix`. Declarar
+   workspaces reposicionaria `v1/node_modules` no próximo install, e o aceite da
+   Fase 0 é que build e lint *continuem* verdes. Reavaliar quando `server/`
+   existir e a CI estiver protegendo.
+
+5. **`test:e2e` sai com código 1 em vez de fingir sucesso**, e fica fora do
+   script `ci` até existir de verdade.

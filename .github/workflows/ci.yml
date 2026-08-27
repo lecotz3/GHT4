@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: v1/package-lock.json
+
+      # A raiz nao tem dependencias: so orquestra. As deps vivem na v1.
+      - name: Instalar dependencias da interface
+        run: npm ci --prefix v1
+
+      # lint + build + testes de dominio + taxonomia + paleta.
+      # A verificacao de taxonomia roda em --sem-rede: o job nao depende de o
+      # servico do IBGE estar de pe para dar veredito.
+      - name: Verificar
+        run: npm run ci
