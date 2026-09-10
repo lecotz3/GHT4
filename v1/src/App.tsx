@@ -137,6 +137,7 @@ const EXIGENCIAS: [string, string, string][] = [
 ]
 
 export default function App() {
+  const [convite, setConvite] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get('convite'))
   const [base, setBase] = useState<ChaveBase>('demo')
   const [temReal, setTemReal] = useState(false)
   const [busca, setBusca] = useState('')
@@ -161,6 +162,7 @@ export default function App() {
      `index.html#empresa=tec07` do protótipo — quem manda o link por e-mail
      manda a tela, não a instrução de onde clicar. */
   const [vista, setVista] = useState<Vista>(() => {
+    if (new URLSearchParams(window.location.hash.slice(1)).has('convite')) return 'agente'
     const pedida = new URLSearchParams(window.location.hash.slice(1)).get('vista')
     return VISTAS.some(([chave]) => chave === pedida) ? (pedida as Vista) : 'agente'
   })
@@ -179,8 +181,9 @@ export default function App() {
   /* `replaceState` e não `hash =`: trocar de aba não deve empilhar histórico a
      ponto de o botão "voltar" do navegador virar um desfazer de cliques. */
   useEffect(() => {
+    if (convite) return
     window.history.replaceState(null, '', `#vista=${vista}`)
-  }, [vista])
+  }, [vista, convite])
 
   /* `temReal` é dependência de verdade, não enfeite — não remova.
      `BASES[base].empresas()` lê `window.*`, que é estado externo mutável:
@@ -332,7 +335,7 @@ export default function App() {
     })
   }
 
-  if (vista === 'agente') return <Suspense fallback={<Carregando />}><Agente aoExplorar={() => setVista('empresas')} /></Suspense>
+  if (vista === 'agente') return <Suspense fallback={<Carregando />}><Agente convite={convite} aoLimparConvite={() => setConvite(null)} aoExplorar={() => setVista('empresas')} /></Suspense>
 
   return (
     <div className="min-h-full">

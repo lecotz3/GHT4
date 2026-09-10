@@ -29,6 +29,21 @@ Portas alternativas: definir `PORTA` para a API e `GHT4_PORTA_WEB` para a interf
 
 O histórico é privado por usuário nesta versão. Trabalhos vinculados a um espaço também dependem da permissão nesse espaço. Participar do mesmo mandato não compartilha automaticamente conversas. A lista limita-se aos 100 trabalhos mais recentes e cada abertura mostra as últimas 50 tarefas.
 
+## Acessos da equipe
+
+O administrador encontra **Equipe** no cabeçalho do agente. A tela permite:
+
+1. Criar um espaço por tese, oportunidade ou mandato, restrito aos membros escolhidos.
+2. Convidar uma pessoa por nome, e-mail, perfil e espaços autorizados. O agente gera um link de uso único, válido por 48 horas; o administrador copia e compartilha pelo canal adequado. Nenhum e-mail é enviado automaticamente.
+3. A pessoa abre o link e define a própria senha, com pelo menos 12 caracteres. O acesso fica vinculado ao e-mail do convite. Quem receber o link poderá utilizá-lo; compartilhe apenas com o destinatário correto.
+4. Gerenciar os espaços de cada membro ou suspender e reativar sua conta. A suspensão encerra as sessões abertas; a reativação exige novo login. Ao retirar acesso a um espaço, trabalhos vinculados deixam de ser acessíveis à pessoa, preservando o histórico no banco.
+
+O link completo aparece apenas na criação. Para recuperar um link perdido, gere outro convite com o mesmo e-mail: o anterior será cancelado. Convites pendentes também podem ser cancelados pela tela. Não há convites de administrador nem redefinição de senha nesta entrega.
+
+Os perfis sócio e analista executam tarefas do agente; somente leitura não cria trabalhos. O histórico de cada pessoa permanece privado, mesmo dentro de um espaço comum. Ao voltar da tela de equipe, o trabalho aberto continua na interface e o seletor inclui os novos espaços.
+
+**Uso local:** os links `127.0.0.1` abrem somente no computador que está executando o agente. Esta entrega permite verificar o fluxo de equipe localmente. Para pessoas em máquinas distintas, ainda é necessário implantar o ambiente compartilhado com endereço próprio, HTTPS e operação do banco. Não basta trocar o endereço no link.
+
 ## Dados e limites atuais
 
 A busca lê o snapshot local `data-quimicos.js`, referência extraída do arquivo. O classificador existente determina o enquadramento em distribuição química. Registros de enquadramento possível entram apenas quando essa opção é escolhida. Os resultados são ordenados por força do enquadramento e nome, não por probabilidade de venda ou qualidade financeira. Não há busca nova na internet nesta etapa.
@@ -47,4 +62,4 @@ Antes de habilitar um provedor, implementar o adaptador escolhido com credencial
 
 ## Próximas entregas
 
-Ver `docs/RETOMADA-AGENTE.md` para o checkpoint atual. Próximos blocos: gestão de usuários para uso pela equipe; integração do provedor escolhido; pesquisa e enriquecimento com fontes; conexão das ações com o CRM e compartilhamento autorizado. A implantação multiusuário com Postgres, TLS, backup e operação na rede permanece uma etapa própria.
+Ver `docs/RETOMADA-AGENTE.md` para o checkpoint atual. Próximos blocos: listas revisáveis e oportunidades no CRM persistente; integração do provedor escolhido; pesquisa e enriquecimento com fontes; compartilhamento autorizado. A implantação multiusuário com Postgres, TLS, backup e operação na rede permanece uma etapa própria.

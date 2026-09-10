@@ -4,7 +4,7 @@
 
 Para iniciar a versão operacional local, use `npm run iniciar` ou abra **Iniciar Agente GHT4.cmd** no Windows. Acesse **http://127.0.0.1:5173** e configure seu primeiro acesso pela tela. Dependências e instruções: [guia do agente local](docs/runbooks/agente-local.md).
 
-Já estão disponíveis busca no cadastro químico real, preparação de reuniões, registro de próximos passos e retomada de trabalhos com autenticação e banco persistente. As tarefas são assistidas por roteiros e consultas; o provedor de IA generativa ainda será escolhido. Consulte [o checkpoint de implementação](docs/RETOMADA-AGENTE.md) para continuar o desenvolvimento.
+Já estão disponíveis busca no cadastro químico real, preparação de reuniões, registro de próximos passos e retomada de trabalhos com autenticação e banco persistente. O administrador também pode criar espaços, convidar membros e gerenciar acessos pela tela **Equipe**. O ambiente atual roda nesta máquina; o acesso remoto depende de implantação compartilhada. As tarefas são assistidas por roteiros e consultas; o provedor de IA generativa ainda será escolhido. Consulte [o checkpoint de implementação](docs/RETOMADA-AGENTE.md) para continuar o desenvolvimento.
 
 ## Demonstração anterior
 

@@ -6,7 +6,7 @@ Atualizado em 10 de setembro de 2026. Branch de trabalho: `feat/agente-operacion
 
 Entregar rapidamente um fluxo utilizável de agente para tarefas de M&A, começando por Distribuição e Trading Químico, com compra e venda equilibradas. O usuário autorizou implementar e pediu commits de tudo que for feito para permitir continuidade entre sessões.
 
-## Diagnóstico verificado nesta etapa
+## Diagnóstico do ponto de partida, anterior aos checkpoints abaixo
 
 - Existem API Fastify, sessões, RBAC, auditoria, migrations, Postgres ou PGlite e testes de servidor.
 - A interface React ainda inicia na demonstração e usa módulos locais. Não há nela um fluxo de login nem de conversa conectado à API.
@@ -42,6 +42,10 @@ Segunda etapa entregue: tela inicial do agente, login e primeiro acesso, trabalh
 
 Validação completa: `npm run ci` passou, incluindo lint sem avisos, build, 65 testes de domínio, 83 testes de servidor e validações offline de taxonomia e paleta. No navegador, em banco isolado, foram verificados login, busca real por Campinas/SP, reunião na frente de compra, registro e conclusão de ação. Após encerrar a API e reiniciar sobre o mesmo banco, o histórico, contexto e ação concluída foram recuperados.
 
-Próximo passo imediato: gestão de acessos e espaços para permitir uso por membros da equipe; manter convites e credenciais sob controle do administrador. Em seguida, ampliar a integração com o CRM e habilitar o provedor de IA quando escolhido. Os arquivos antigos do protótipo continuam intactos.
+Terceira etapa entregue: tela **Equipe**, exclusiva do administrador, com criação de espaços confidenciais, convites de uso único válidos por 48 horas, definição da senha pelo convidado, suspensão e reativação de contas e concessão/retirada de acesso aos espaços. A migration 0007 guarda apenas hash dos tokens. Novos convites para o mesmo e-mail invalidam os anteriores. O link usa fragmento da URL para não entrar nas requisições HTTP; não é salvo em localStorage. A API não envia e-mails. A interface esclarece a limitação dos links locais e mantém o trabalho em andamento ao visitar a gestão de equipe.
+
+Validação da terceira etapa: CI completo aprovado com 65 testes de domínio e 88 de servidor (153 no total), lint e build. Testes adicionais cobrem os três perfis não administrativos, espaços autorizados, ausência de segredos na auditoria, aceite concorrente, expiração/revogação, bloqueio de contas e restauração de acesso. Verificação de navegador em banco isolado: criação de espaço, geração de convite, abertura do formulário de primeiro acesso e atualização do seletor de espaços ao retornar ao agente. O aceite com senha foi validado pela API em bancos de teste, sem criar credenciais reais da equipe.
+
+Próximo passo imediato: conectar uma lista revisável de empresas e oportunidades ao fluxo do agente e ao CRM persistente, preservando origem, contexto de compra/venda, acesso por espaço e próximos passos. Depois, implementar o adaptador do provedor quando escolhido e a pesquisa com fontes atualizadas. Ainda não há compartilhamento de conversas, integração real de IA, pesquisa web dentro do agente nem implantação para acesso remoto. Os arquivos antigos do protótipo continuam intactos.
 
 Ambiente de verificação desta sessão: portas 3312/5174, banco temporário separado do banco do usuário. Não reutilizar a conta de teste como conta de produção. O guia de uso está em `docs/runbooks/agente-local.md`.

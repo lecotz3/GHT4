@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { MarcaGHT4 } from './MarcaGHT4'
+import { Equipe } from './Equipe'
+import { AceitarConvite } from './AceitarConvite'
 import { api, ErroApi, type Acao, type Contexto, type Conversa, type Empresa, type EstadoAgente, type Resultado, type Tarefa, type Trabalho, type Turno, type Usuario } from '../agente/api'
 
 const campo = 'w-full rounded-ficha border border-fio-forte bg-papel px-3 py-2.5 text-sm outline-offset-2 focus:outline-comprador'
@@ -9,7 +11,7 @@ const ESTADOS = ['', 'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS'
 const ROTULOS: Record<Tarefa, string> = { buscar_empresas: 'Encontrar empresas', preparar_reuniao: 'Preparar reunião', registrar_passo: 'Registrar próximo passo', ver_pendencias: 'Rever pendências' }
 const mensagem = (e: unknown) => e instanceof Error ? e.message : 'Não foi possível concluir esta ação.'
 
-export function Agente({ aoExplorar }: { aoExplorar: () => void }) {
+export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: () => void; convite: string | null; aoLimparConvite: () => void }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null)
   const [fase, setFase] = useState<'carregando' | 'login' | 'configurar' | 'offline'>('carregando')
   const [erro, setErro] = useState('')
@@ -17,6 +19,10 @@ export function Agente({ aoExplorar }: { aoExplorar: () => void }) {
   const [nome, setNome] = useState('')
   const [senha, setSenha] = useState('')
   const [ocupado, setOcupado] = useState(false)
+  const [equipe, setEquipe] = useState(false)
+  const [versaoEquipe, setVersaoEquipe] = useState(0)
+  const conviteInicial = useRef(convite)
+  const aoExpirar = useCallback(() => { setUsuario(null); setEquipe(false); setFase('login'); setErro('Sua sessão expirou. Faça login para retomar seus trabalhos.') }, [])
 
   async function iniciar() {
     setFase('carregando'); setErro('')
@@ -28,7 +34,7 @@ export function Agente({ aoExplorar }: { aoExplorar: () => void }) {
       } else { setErro(mensagem(e)); setFase('offline') }
     }
   }
-  useEffect(() => { void iniciar() }, [])
+  useEffect(() => { if (!conviteInicial.current) void iniciar() }, [])
 
   async function entrar(e: FormEvent) {
     e.preventDefault(); if (ocupado) return
@@ -45,7 +51,7 @@ export function Agente({ aoExplorar }: { aoExplorar: () => void }) {
   }
   async function sair() {
     setOcupado(true); setErro('')
-    try { await api('/api/sessao', 'DELETE'); setUsuario(null); setSenha(''); setFase('login') }
+    try { await api('/api/sessao', 'DELETE'); setUsuario(null); setEquipe(false); setSenha(''); setFase('login') }
     catch (falha) { setErro(mensagem(falha)) }
     finally { setOcupado(false) }
   }
@@ -55,13 +61,14 @@ export function Agente({ aoExplorar }: { aoExplorar: () => void }) {
       <MarcaGHT4 />
       <div><p className="text-xs font-semibold text-suave">GHT4 Advisory</p><h1 className="text-xl font-semibold">Agente de M&amp;A</h1></div>
       <div className="ml-auto flex items-center gap-3 text-sm">
-        {usuario && <><span>{usuario.nome}</span><button className={secundario} onClick={() => void sair()} disabled={ocupado}>Sair</button></>}
-        <button className="text-xs text-suave underline underline-offset-4" onClick={aoExplorar}>Explorar demonstração</button>
+        {usuario && !convite && <><span>{usuario.nome}</span>{usuario.papel === 'admin' && !equipe && <button className={secundario} onClick={() => setEquipe(true)}>Equipe</button>}<button className={secundario} onClick={() => void sair()} disabled={ocupado}>Sair</button></>}
+        {!convite && <button className="text-xs text-suave underline underline-offset-4" onClick={aoExplorar}>Explorar demonstração</button>}
       </div>
     </header>
-    {usuario ? <>
+    {convite ? <AceitarConvite token={convite} aoEntrar={(u) => { setUsuario(u); setEquipe(false); aoLimparConvite() }} aoLogin={() => { aoLimparConvite(); setUsuario(null); setFase('login'); setErro('') }} /> : usuario ? <>
       {erro && <p role="alert" className="mx-5 mt-3 text-sm text-alerta">{erro}</p>}
-      <EspacoDoAgente key={usuario.id} usuario={usuario} aoExpirar={() => { setUsuario(null); setFase('login'); setErro('Sua sessão expirou. Faça login para retomar seus trabalhos.') }} />
+      {equipe && <Equipe aoExpirar={aoExpirar} aoVoltar={() => { setEquipe(false); setVersaoEquipe((v) => v + 1) }} />}
+      <div hidden={equipe}><EspacoDoAgente key={usuario.id} usuario={usuario} aoExpirar={aoExpirar} versaoEquipe={versaoEquipe} /></div>
     </> : <main className="mx-auto max-w-lg px-5 py-14">
       {fase === 'carregando' ? <p role="status">Abrindo seu espaço de trabalho…</p>
         : fase === 'offline' ? <section className="space-y-5"><h2 className="text-2xl font-semibold">Vamos conectar o agente</h2>
@@ -81,7 +88,7 @@ export function Agente({ aoExplorar }: { aoExplorar: () => void }) {
   </div>
 }
 
-function EspacoDoAgente({ usuario, aoExpirar }: { usuario: Usuario; aoExpirar: () => void }) {
+function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe }: { usuario: Usuario; aoExpirar: () => void; versaoEquipe: number }) {
   const [estado, setEstado] = useState<EstadoAgente | null>(null)
   const [conversas, setConversas] = useState<Conversa[]>([])
   const [mandatos, setMandatos] = useState<{ id: string; rotulo: string }[]>([])
@@ -114,7 +121,7 @@ function EspacoDoAgente({ usuario, aoExpirar }: { usuario: Usuario; aoExpirar: (
     } catch (e) { falhou(e) }
     finally { setCarregando(false) }
   }, [falhou])
-  useEffect(() => { void carregar() }, [carregar])
+  useEffect(() => { void carregar() }, [carregar, versaoEquipe])
 
   async function abrir(id: string) {
     if (enviando) return
