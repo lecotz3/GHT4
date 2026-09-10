@@ -26,6 +26,7 @@ import { registrarRotasDeTemplate } from './api/templates.mjs';
 import { registrarRotasDoAgente } from './api/agente.mjs';
 import { registrarInstalacao } from './api/instalacao.mjs';
 import { registrarEquipe } from './api/equipe.mjs';
+import { registrarProspeccao } from './api/prospeccao.mjs';
 
 /** Erro que vira resposta HTTP em vez de 500. */
 export class ErroHttp extends Error {
@@ -134,6 +135,7 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
   await app.register(registrarInstalacao, { habilitada: instalacaoInicial });
   await app.register(registrarRotasDoAgente, { catalogo, redigirIA });
   await app.register(registrarEquipe);
+  await app.register(registrarProspeccao);
 
   return app;
 }
