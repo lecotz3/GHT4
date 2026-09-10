@@ -186,7 +186,7 @@ test('toda rota registrada é pública por decisão, não por esquecimento', asy
      não cresceu sem alguém decidir. */
   assert.deepEqual(
     [...ROTAS_PUBLICAS].sort(),
-    ['GET /api/saude', 'POST /api/sessao'],
+    ['GET /api/instalacao', 'GET /api/saude', 'POST /api/instalacao', 'POST /api/sessao'],
     'a lista de rotas públicas mudou — foi decisão?',
   );
   assert.ok(registradas.length > 0);

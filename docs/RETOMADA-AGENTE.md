@@ -32,4 +32,10 @@ Entregar rapidamente um fluxo utilizável de agente para tarefas de M&A, começa
 
 ## Estado do checkpoint
 
-Diagnóstico inicial registrado. Próximo passo: executar verificações da base e implementar a primeira etapa funcional. A preferência de provedor de IA foi perguntada ao usuário, sem solicitar credenciais pelo chat.
+Primeira etapa de servidor implementada: migration 0006, configuração inicial local opt-in, catálogo por leitura de JSON da base química, quatro tarefas assistidas, conversas privadas com contexto, ações concluíveis e auditoria. As requisições de mensagem têm chave por conversa e versão para evitar duplicação e sobrescrita entre abas. Acesso ao mandato é conferido antes de ler ou escrever.
+
+Validação: 65 testes de domínio e 75 de servidor passaram no baseline. Após as alterações, passaram 38 testes de API, segurança, agente e catálogo. O TypeScript da interface passou antes da integração.
+
+O usuário confirmou que ainda não há provedor de IA escolhido. Há um contrato de função `redigirIA` opcional em `criarApp`; nenhum provedor externo está habilitado. As tarefas atuais são roteiros com consulta determinística, não conversa livre com modelo generativo.
+
+Próximo passo imediato: conectar login/configuração inicial e tela do agente à API, adicionar comando simples de inicialização, testar o fluxo no navegador e registrar o próximo checkpoint. Os arquivos antigos do protótipo continuam intactos.

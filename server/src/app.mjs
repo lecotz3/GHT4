@@ -23,6 +23,8 @@ import * as sessao from './seguranca/sessao.mjs';
 import { pode, podeNoMandato } from './seguranca/rbac.mjs';
 import { consultarUm } from './db/cliente.mjs';
 import { registrarRotasDeTemplate } from './api/templates.mjs';
+import { registrarRotasDoAgente } from './api/agente.mjs';
+import { registrarInstalacao } from './api/instalacao.mjs';
 
 /** Erro que vira resposta HTTP em vez de 500. */
 export class ErroHttp extends Error {
@@ -38,9 +40,11 @@ export class ErroHttp extends Error {
 export const ROTAS_PUBLICAS = Object.freeze([
   'POST /api/sessao',
   'GET /api/saude',
+  'GET /api/instalacao',
+  'POST /api/instalacao',
 ]);
 
-export async function criarApp(db, { logger = false } = {}) {
+export async function criarApp(db, { logger = false, instalacaoInicial = false, catalogo, redigirIA = null } = {}) {
   const app = Fastify({
     logger,
     /* O corpo cru é preciso para o hash de idempotência: dois JSON iguais podem
@@ -124,6 +128,8 @@ export async function criarApp(db, { logger = false } = {}) {
   await app.register(registrarRotasDeSessao);
   await app.register(registrarRotasDeMandato);
   await app.register(registrarRotasDeTemplate);
+  await app.register(registrarInstalacao, { habilitada: instalacaoInicial });
+  await app.register(registrarRotasDoAgente, { catalogo, redigirIA });
 
   return app;
 }

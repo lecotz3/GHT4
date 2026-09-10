@@ -28,6 +28,7 @@ const FORCA = Object.freeze({ leitura: 0, analista: 1, socio: 2, admin: 3 });
  */
 const PERMISSOES = Object.freeze({
   admin: [
+    'agente.ler', 'agente.usar',
     'usuario.criar', 'usuario.editar', 'usuario.desativar',
     'mandato.criar', 'mandato.editar', 'mandato.membros',
     'auditoria.ler',
@@ -39,6 +40,7 @@ const PERMISSOES = Object.freeze({
     'exportar',
   ],
   socio: [
+    'agente.ler', 'agente.usar',
     'mandato.membros',
     'auditoria.ler',
     'template.criar', 'template.editar', 'template.usar',
@@ -49,6 +51,7 @@ const PERMISSOES = Object.freeze({
     'exportar',
   ],
   analista: [
+    'agente.ler', 'agente.usar',
     'template.criar', 'template.usar',
     'triagem.decidir', 'triagem.ler',
     'crm.ler', 'crm.editar',
@@ -57,6 +60,7 @@ const PERMISSOES = Object.freeze({
     'exportar',
   ],
   leitura: [
+    'agente.ler',
     'triagem.ler',
     'crm.ler',
     'rede.ler',

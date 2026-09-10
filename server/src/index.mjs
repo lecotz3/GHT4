@@ -30,6 +30,7 @@ if (aplicadas.length) console.log(`  migrations aplicadas: ${aplicadas.join(', '
 
 const app = await criarApp(db, {
   logger: { level: process.env.LOG_NIVEL || 'info' },
+  instalacaoInicial: process.env.GHT4_CONFIGURACAO_INICIAL === '1',
 });
 
 try {
