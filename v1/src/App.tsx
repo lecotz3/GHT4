@@ -47,6 +47,7 @@ const Crm = lazy(() => import('./componentes/Crm').then((m) => ({ default: m.Crm
 const Gaveta = lazy(() => import('./componentes/Gaveta').then((m) => ({ default: m.Gaveta })))
 const Dossie = lazy(() => import('./componentes/Dossie').then((m) => ({ default: m.Dossie })))
 const Analises = lazy(() => import('./componentes/Analises').then((m) => ({ default: m.Analises })))
+const Agente = lazy(() => import('./componentes/Agente').then((m) => ({ default: m.Agente })))
 
 /** Placa de carregamento com a altura aproximada de uma tela, para a troca de
  *  aba não colapsar o rodapé e empurrar a página para cima. */
@@ -63,9 +64,10 @@ const PAPEIS: Papel[] = ['alvo', 'comprador', 'vendedora']
 /* As telas seguem a ordem do trabalho de originação, não a ordem dos
    módulos do documento: primeiro escolhe-se o mercado, depois a empresa dentro
    dele, e só quando há mandato é que a lista de contrapartes faz sentido. */
-type Vista = 'mercado' | 'empresas' | 'listas' | 'rede' | 'pipeline' | 'analises'
+type Vista = 'agente' | 'mercado' | 'empresas' | 'listas' | 'rede' | 'pipeline' | 'analises'
 
 const VISTAS: [Vista, string, string][] = [
+  ['agente', 'Agente', 'Tarefas, contexto e histórico salvos'],
   ['mercado', 'Mapa de mercado', 'Subsegmentos de um setor, ranqueados por atratividade (Módulos 1 e 2)'],
   ['empresas', 'Empresas', 'Triagem e priorização dentro do recorte escolhido (Módulo 3)'],
   ['listas', 'Listas de contrapartes', 'Compradores para um mandato de venda, alvos para um de compra (Módulo 6)'],
@@ -160,7 +162,7 @@ export default function App() {
      manda a tela, não a instrução de onde clicar. */
   const [vista, setVista] = useState<Vista>(() => {
     const pedida = new URLSearchParams(window.location.hash.slice(1)).get('vista')
-    return VISTAS.some(([chave]) => chave === pedida) ? (pedida as Vista) : 'empresas'
+    return VISTAS.some(([chave]) => chave === pedida) ? (pedida as Vista) : 'agente'
   })
   const [mostrarConfig, setMostrarConfig] = useState(false)
   /* A configuração é estado de PÁGINA, não de componente: ela atravessa as três
@@ -329,6 +331,8 @@ export default function App() {
       return proximo
     })
   }
+
+  if (vista === 'agente') return <Suspense fallback={<Carregando />}><Agente aoExplorar={() => setVista('empresas')} /></Suspense>
 
   return (
     <div className="min-h-full">

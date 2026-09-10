@@ -12,7 +12,7 @@
  *    GHT4_MEMORIA  se '1', banco em memória: some ao encerrar. Bom para demo.
  * ========================================================================== */
 
-import { abrir, fechar } from './db/cliente.mjs';
+import { abrir, fechar, tipoAberto } from './db/cliente.mjs';
 import { migrar } from './db/migrar.mjs';
 import { criarApp } from './app.mjs';
 
@@ -36,17 +36,20 @@ const app = await criarApp(db, {
 try {
   await app.listen({ port: PORTA, host: HOST });
   console.log(`\n  GHT4 · API em http://${HOST}:${PORTA}`);
-  console.log(`  banco: ${EM_MEMORIA ? 'memória (some ao encerrar)' : 'server/.dados'}\n`);
+  console.log(`  banco: ${tipoAberto()} · ${EM_MEMORIA ? 'memória (some ao encerrar)' : 'persistente'}\n`);
 } catch (erro) {
   console.error('não subiu:', erro);
   process.exit(1);
 }
 
-for (const sinal of ['SIGINT', 'SIGTERM']) {
-  process.on(sinal, async () => {
+let encerrando = false;
+async function encerrar() {
+    if (encerrando) return;
+    encerrando = true;
     console.log('\n  encerrando…');
     await app.close();
     await fechar();
     process.exit(0);
-  });
 }
+for (const sinal of ['SIGINT', 'SIGTERM']) process.on(sinal, encerrar);
+process.on('message', (m) => { if (m?.acao === 'encerrar') void encerrar(); });

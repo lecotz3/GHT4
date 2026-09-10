@@ -36,14 +36,14 @@ if (fs.existsSync(ENV) && typeof process.loadEnvFile === 'function') {
   try { process.loadEnvFile(ENV); } catch { /* .env malformado não derruba o processo */ }
 }
 
-const CAMINHO_PADRAO = path.join(RAIZ_SERVIDOR, '.dados');
+const CAMINHO_PADRAO = process.env.GHT4_DADOS_DIR || path.join(RAIZ_SERVIDOR, '.dados');
 
 let instancia = null;
 let tipoAtual = null;
 
 /** 'postgres' quando há DATABASE_URL, 'pglite' caso contrário. */
 export function tipoDeBanco() {
-  return process.env.DATABASE_URL ? 'postgres' : 'pglite';
+  return process.env.GHT4_APENAS_LOCAL === '1' ? 'pglite' : process.env.DATABASE_URL ? 'postgres' : 'pglite';
 }
 
 /* ---------------------------------------------------------------------------
@@ -128,7 +128,7 @@ async function abrirPglite({ emMemoria, caminho }) {
 export async function abrir({ emMemoria = false, caminho = CAMINHO_PADRAO, url = null } = {}) {
   if (instancia) return instancia;
 
-  const destino = url ?? process.env.DATABASE_URL;
+  const destino = process.env.GHT4_APENAS_LOCAL === '1' ? null : url ?? process.env.DATABASE_URL;
   if (destino) {
     instancia = await abrirPostgres(destino);
     tipoAtual = 'postgres';

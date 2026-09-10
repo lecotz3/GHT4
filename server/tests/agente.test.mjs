@@ -53,6 +53,7 @@ test('trabalho salva resultado, contexto e ação; retomada e repetição não d
   assert.equal(salvo.turnos.length, 3);
   assert.equal(salvo.acoes.length, 1);
   assert.equal(salvo.conversa.contexto.uf, 'SP');
+  assert.equal(salvo.conversa.contexto.objetivo, 'Tese de compra');
   const fim = await u.chamar('PATCH', `/api/agente/conversas/${c.id}/acoes/${salvo.acoes[0].id}`, { concluida: true });
   assert.equal(fim.json().acoes[0].concluida, true);
   const abrir = await u.chamar('PATCH', `/api/agente/conversas/${c.id}/acoes/${salvo.acoes[0].id}`, { concluida: false });

@@ -80,6 +80,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    host: '127.0.0.1',
+    proxy: { '/api': { target: process.env.GHT4_API_URL || 'http://127.0.0.1:3311' } },
     fs: { allow: [RAIZ] },
   },
 })

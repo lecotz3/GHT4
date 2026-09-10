@@ -113,6 +113,7 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
     }
     if (conversa.versao !== p.versao) throw new ErroHttp(409, 'trabalho_atualizado', 'O trabalho mudou em outra aba. Reabra-o antes de enviar.');
     const contexto = { ...conversa.contexto, ...p.contexto };
+    if (p.texto && ['buscar_empresas', 'preparar_reuniao'].includes(p.tarefa)) contexto.objetivo = p.texto.slice(0, 2000);
     const acoes = await acoesDe(conversa.id);
     let resultado;
     try { resultado = await executarTarefa({ ...p, contexto, catalogo, acoes }); }

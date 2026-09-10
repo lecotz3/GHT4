@@ -1,4 +1,14 @@
-# GHT4 · Agente de Prospecção M&A — Protótipo de Demonstração
+# GHT4 · Agente de M&A
+
+## Agente local com histórico salvo
+
+Para iniciar a versão operacional local, use `npm run iniciar` ou abra **Iniciar Agente GHT4.cmd** no Windows. Acesse **http://127.0.0.1:5173** e configure seu primeiro acesso pela tela. Dependências e instruções: [guia do agente local](docs/runbooks/agente-local.md).
+
+Já estão disponíveis busca no cadastro químico real, preparação de reuniões, registro de próximos passos e retomada de trabalhos com autenticação e banco persistente. As tarefas são assistidas por roteiros e consultas; o provedor de IA generativa ainda será escolhido. Consulte [o checkpoint de implementação](docs/RETOMADA-AGENTE.md) para continuar o desenvolvimento.
+
+## Demonstração anterior
+
+As seções abaixo descrevem o protótipo anterior, preservado e acessível por **Explorar demonstração**. Para o estado atual do agente e seus limites, use os dois guias acima.
 
 Protótipo **conceitual e visual** de um agente de IA para prospecção em Fusões e Aquisições,
 criado para apoiar a conversa de levantamento de requisitos com os sócios da **GHT4**.

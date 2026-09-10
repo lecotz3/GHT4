@@ -8,6 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "iniciar": "node ferramentas/iniciar-agente.mjs",
     "build": "npm run build --prefix v1",
     "lint": "npm run lint --prefix v1",
     "test": "node --test \"tests/**/*.test.mjs\"",

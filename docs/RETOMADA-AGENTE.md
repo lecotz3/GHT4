@@ -38,4 +38,10 @@ Validação: 65 testes de domínio e 75 de servidor passaram no baseline. Após 
 
 O usuário confirmou que ainda não há provedor de IA escolhido. Há um contrato de função `redigirIA` opcional em `criarApp`; nenhum provedor externo está habilitado. As tarefas atuais são roteiros com consulta determinística, não conversa livre com modelo generativo.
 
-Próximo passo imediato: conectar login/configuração inicial e tela do agente à API, adicionar comando simples de inicialização, testar o fluxo no navegador e registrar o próximo checkpoint. Os arquivos antigos do protótipo continuam intactos.
+Segunda etapa entregue: tela inicial do agente, login e primeiro acesso, trabalhos recentes, filtros explícitos, preparação de reunião, conclusão e reabertura de ações. `npm run iniciar` e `Iniciar Agente GHT4.cmd` sobem API e interface em localhost com banco persistente. O iniciador força banco local e aguarda a saúde da API antes de iniciar a interface.
+
+Validação completa: `npm run ci` passou, incluindo lint sem avisos, build, 65 testes de domínio, 83 testes de servidor e validações offline de taxonomia e paleta. No navegador, em banco isolado, foram verificados login, busca real por Campinas/SP, reunião na frente de compra, registro e conclusão de ação. Após encerrar a API e reiniciar sobre o mesmo banco, o histórico, contexto e ação concluída foram recuperados.
+
+Próximo passo imediato: gestão de acessos e espaços para permitir uso por membros da equipe; manter convites e credenciais sob controle do administrador. Em seguida, ampliar a integração com o CRM e habilitar o provedor de IA quando escolhido. Os arquivos antigos do protótipo continuam intactos.
+
+Ambiente de verificação desta sessão: portas 3312/5174, banco temporário separado do banco do usuário. Não reutilizar a conta de teste como conta de produção. O guia de uso está em `docs/runbooks/agente-local.md`.
