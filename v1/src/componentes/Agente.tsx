@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { MarcaGHT4 } from './MarcaGHT4'
 import { Equipe } from './Equipe'
 import { AceitarConvite } from './AceitarConvite'
+import { Oportunidades } from './Oportunidades'
+import { SelecaoEmpresas } from './SelecaoEmpresas'
+import type { EscolhaEmpresa } from '../agente/prospeccao'
 import { api, ErroApi, type Acao, type Contexto, type Conversa, type Empresa, type EstadoAgente, type Resultado, type Tarefa, type Trabalho, type Turno, type Usuario } from '../agente/api'
 
 const campo = 'w-full rounded-ficha border border-fio-forte bg-papel px-3 py-2.5 text-sm outline-offset-2 focus:outline-comprador'
@@ -21,8 +24,9 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
   const [ocupado, setOcupado] = useState(false)
   const [equipe, setEquipe] = useState(false)
   const [versaoEquipe, setVersaoEquipe] = useState(0)
+  const [crm, setCrm] = useState<{ id: string | null } | null>(null)
   const conviteInicial = useRef(convite)
-  const aoExpirar = useCallback(() => { setUsuario(null); setEquipe(false); setFase('login'); setErro('Sua sessão expirou. Faça login para retomar seus trabalhos.') }, [])
+  const aoExpirar = useCallback(() => { setUsuario(null); setEquipe(false); setCrm(null); setFase('login'); setErro('Sua sessão expirou. Faça login para retomar seus trabalhos.') }, [])
 
   async function iniciar() {
     setFase('carregando'); setErro('')
@@ -51,7 +55,7 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
   }
   async function sair() {
     setOcupado(true); setErro('')
-    try { await api('/api/sessao', 'DELETE'); setUsuario(null); setEquipe(false); setSenha(''); setFase('login') }
+    try { await api('/api/sessao', 'DELETE'); setUsuario(null); setEquipe(false); setCrm(null); setSenha(''); setFase('login') }
     catch (falha) { setErro(mensagem(falha)) }
     finally { setOcupado(false) }
   }
@@ -61,14 +65,15 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
       <MarcaGHT4 />
       <div><p className="text-xs font-semibold text-suave">GHT4 Advisory</p><h1 className="text-xl font-semibold">Agente de M&amp;A</h1></div>
       <div className="ml-auto flex items-center gap-3 text-sm">
-        {usuario && !convite && <><span>{usuario.nome}</span>{usuario.papel === 'admin' && !equipe && <button className={secundario} onClick={() => setEquipe(true)}>Equipe</button>}<button className={secundario} onClick={() => void sair()} disabled={ocupado}>Sair</button></>}
+        {usuario && !convite && <><span>{usuario.nome}</span>{!equipe && !crm && <button className={secundario} onClick={() => setCrm({ id: null })}>Oportunidades</button>}{usuario.papel === 'admin' && !equipe && !crm && <button className={secundario} onClick={() => setEquipe(true)}>Equipe</button>}<button className={secundario} onClick={() => void sair()} disabled={ocupado}>Sair</button></>}
         {!convite && <button className="text-xs text-suave underline underline-offset-4" onClick={aoExplorar}>Explorar demonstração</button>}
       </div>
     </header>
     {convite ? <AceitarConvite token={convite} aoEntrar={(u) => { setUsuario(u); setEquipe(false); aoLimparConvite() }} aoLogin={() => { aoLimparConvite(); setUsuario(null); setFase('login'); setErro('') }} /> : usuario ? <>
       {erro && <p role="alert" className="mx-5 mt-3 text-sm text-alerta">{erro}</p>}
       {equipe && <Equipe aoExpirar={aoExpirar} aoVoltar={() => { setEquipe(false); setVersaoEquipe((v) => v + 1) }} />}
-      <div hidden={equipe}><EspacoDoAgente key={usuario.id} usuario={usuario} aoExpirar={aoExpirar} versaoEquipe={versaoEquipe} /></div>
+      {crm && <Oportunidades inicialId={crm.id} aoVoltar={() => setCrm(null)} aoExpirar={aoExpirar} />}
+      <div hidden={equipe || Boolean(crm)}><EspacoDoAgente key={usuario.id} usuario={usuario} aoExpirar={aoExpirar} versaoEquipe={versaoEquipe} aoAbrirCrm={(id) => setCrm({ id })} /></div>
     </> : <main className="mx-auto max-w-lg px-5 py-14">
       {fase === 'carregando' ? <p role="status">Abrindo seu espaço de trabalho…</p>
         : fase === 'offline' ? <section className="space-y-5"><h2 className="text-2xl font-semibold">Vamos conectar o agente</h2>
@@ -88,7 +93,7 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
   </div>
 }
 
-function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe }: { usuario: Usuario; aoExpirar: () => void; versaoEquipe: number }) {
+function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm }: { usuario: Usuario; aoExpirar: () => void; versaoEquipe: number; aoAbrirCrm: (id: string) => void }) {
   const [estado, setEstado] = useState<EstadoAgente | null>(null)
   const [conversas, setConversas] = useState<Conversa[]>([])
   const [mandatos, setMandatos] = useState<{ id: string; rotulo: string }[]>([])
@@ -104,6 +109,7 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe }: { usuario: Usuario
   const [carregando, setCarregando] = useState(true)
   const [enviando, setEnviando] = useState(false)
   const [salvandoAcao, setSalvandoAcao] = useState('')
+  const [revisao, setRevisao] = useState<EscolhaEmpresa | null>(null)
   const ultimaResposta = useRef<HTMLDivElement>(null)
   const requisicao = useRef(0)
   const envioPendente = useRef<{ id: string; corpo: unknown } | null>(null)
@@ -133,6 +139,7 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe }: { usuario: Usuario
       setAtiva(r.conversa); setContexto(r.conversa.contexto); setTitulo(r.conversa.titulo)
       setMandatoId(r.conversa.mandato_id || ''); setTurnos(r.turnos); setAcoes(r.acoes)
       setTexto(''); setTarefa('ver_pendencias'); envioPendente.current = null
+      setRevisao(null)
     } catch (e) { if (requisicao.current === n) falhou(e) }
     finally { if (requisicao.current === n) setCarregando(false) }
   }
@@ -141,6 +148,7 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe }: { usuario: Usuario
     requisicao.current++; setAtiva(null); setTurnos([]); setAcoes([]); setTitulo(''); setMandatoId('')
     setContexto({ frente: 'venda', uf: '', busca: '', incluirPossiveis: false }); setTexto(''); setTarefa('buscar_empresas')
     setErro(''); setCarregando(false); envioPendente.current = null
+    setRevisao(null)
   }
   function preparar(e: Empresa) {
     setContexto((c) => ({ ...c, empresaId: e.id })); setTarefa('preparar_reuniao'); setTexto(''); envioPendente.current = null
@@ -232,17 +240,19 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe }: { usuario: Usuario
           <div className="flex flex-wrap items-center gap-3"><button className={botao} disabled={enviando || carregando || !podeUsar || (tarefa === 'preparar_reuniao' && !contexto.empresaId)}>{enviando ? 'Preparando e salvando…' : ROTULOS[tarefa]}</button><span role="status" className="text-xs text-suave">{enviando ? 'Seu pedido está em andamento.' : 'O resultado e o contexto serão salvos neste trabalho.'}</span></div>
           {!podeUsar && <p className="text-sm text-suave">Seu acesso permite apenas consulta.</p>}
         </form>
+        {ativa && <SelecaoEmpresas key={ativa.id} conversaId={ativa.id} espaco={ativa.mandato_id ? mandatos.find((m) => m.id === ativa.mandato_id)?.rotulo || 'Espaço selecionado' : null}
+          podeEditar={podeUsar && !enviando && !carregando} escolha={revisao} aoEscolher={setRevisao} aoAbrirCrm={aoAbrirCrm} aoExpirar={aoExpirar} />}
         <section className="space-y-5" aria-label="Histórico do trabalho">{[...turnos].reverse().map((t, i) => <div key={t.id} ref={i === 0 ? ultimaResposta : undefined} className="scroll-mt-5 rounded-ficha border border-fio bg-papel p-5 md:p-6">
           <p className="text-xs font-medium text-suave">Tarefa {t.numero} · {ROTULOS[t.pedido.tarefa]} · {t.pedido.contexto.frente === 'compra' ? 'Compra' : 'Venda'}</p>
           {t.pedido.texto && <p className="mt-2 whitespace-pre-wrap border-l-2 border-fio pl-3 text-sm text-suave">{t.pedido.texto}</p>}
-          <Resposta resultado={t.resultado} aoPreparar={preparar} desabilitado={enviando || !podeUsar} />
+          <Resposta resultado={t.resultado} aoPreparar={preparar} aoRevisar={(empresa) => setRevisao({ empresa, turnoId: t.id, frente: t.pedido.contexto.frente === 'compra' ? 'compra' : 'venda' })} desabilitado={enviando || !podeUsar || carregando} />
         </div>)}</section>
       </>}
     </div>
   </main>
 }
 
-function Resposta({ resultado: r, aoPreparar, desabilitado }: { resultado: Resultado; aoPreparar: (e: Empresa) => void; desabilitado: boolean }) {
+function Resposta({ resultado: r, aoPreparar, aoRevisar, desabilitado }: { resultado: Resultado; aoPreparar: (e: Empresa) => void; aoRevisar: (e: Empresa) => void; desabilitado: boolean }) {
   return <div className="mt-4 space-y-4">
     <div><h3 className="text-lg font-semibold">{r.titulo}</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{r.resumo}</p></div>
     {!!r.empresas.length && <ul className="divide-y divide-fio rounded-ficha border border-fio">{r.empresas.map((e) => <li key={e.id} className="flex flex-wrap items-center gap-3 p-3">
@@ -250,6 +260,7 @@ function Resposta({ resultado: r, aoPreparar, desabilitado }: { resultado: Resul
         <p className="mt-1 text-xs text-suave">{e.estado === 'provavel' ? 'Enquadramento provável' : e.estado === 'possivel' ? 'Enquadramento possível' : 'Enquadramento confirmado'}</p>
         <details className="mt-2 text-xs text-suave"><summary className="cursor-pointer">Ver cadastro e evidência</summary><p className="mt-2">{e.razaoSocial} · CNAE {e.cnaePrincipal}</p><p className="mt-1">{e.motivo}</p></details></div>
       <button className={secundario} onClick={() => aoPreparar(e)} disabled={desabilitado}>Preparar reunião</button>
+      <button className={secundario} onClick={() => aoRevisar(e)} disabled={desabilitado}>Revisar empresa</button>
     </li>)}</ul>}
     {r.blocos.map((b) => <section key={b.titulo}><h4 className="text-sm font-semibold">{b.titulo}</h4><ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed">{b.itens.map((s, i) => <li key={i} className="whitespace-pre-wrap">{s}</li>)}</ul></section>)}
     {r.complementoIA && <section><h4 className="text-sm font-semibold">Complemento de IA para revisão</h4><p className="mt-2 whitespace-pre-wrap text-sm">{r.complementoIA}</p></section>}

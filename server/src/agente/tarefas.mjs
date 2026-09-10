@@ -13,7 +13,7 @@ export async function executarTarefa({ tarefa, texto, contexto, catalogo, acoes 
   if (tarefa === 'buscar_empresas') {
     const r = await catalogo.buscar(contexto);
     return { ...resposta, titulo: 'Empresas para investigar',
-      resumo: `${r.total} empresas correspondem aos filtros; exibindo ${r.empresas.length}. Ordem por evidência de enquadramento e nome.`,
+      resumo: `${r.total} ${r.total === 1 ? 'empresa corresponde' : 'empresas correspondem'} aos filtros; exibindo ${r.empresas.length}. Ordem por evidência de enquadramento e nome.`,
       empresas: r.empresas, fontes: [fonte(r.referencia)],
       catalogoHash: r.hash,
       blocos: [{ titulo: 'Antes de priorizar', itens: [

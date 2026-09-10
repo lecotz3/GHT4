@@ -29,6 +29,22 @@ Portas alternativas: definir `PORTA` para a API e `GHT4_PORTA_WEB` para a interf
 
 O histórico é privado por usuário nesta versão. Trabalhos vinculados a um espaço também dependem da permissão nesse espaço. Participar do mesmo mandato não compartilha automaticamente conversas. A lista limita-se aos 100 trabalhos mais recentes e cada abertura mostra as últimas 50 tarefas.
 
+## Da pesquisa à oportunidade
+
+1. Em um resultado do agente, clique em **Revisar empresa**.
+2. Escolha **Investigar**, **Priorizar** ou **Descartar** e escreva o motivo. A decisão pode ser revista; o histórico de auditoria preserva a mudança. Compra e venda têm decisões independentes, determinadas pela frente do resultado original.
+3. Na seção **Sua lista revisada**, uma empresa priorizada permite **Criar oportunidade**. Informe objetivo comercial, próxima ação e prazo. Você começa como responsável e a etapa inicial é **Identificada**.
+4. A tela explica a visibilidade antes de salvar. Em um trabalho pessoal, a oportunidade é privada. Em um espaço, ela fica disponível aos membros autorizados. São compartilhados o cadastro e os dados preenchidos nessa criação; a conversa e os motivos da revisão permanecem privados.
+5. Use **Oportunidades** no cabeçalho para acompanhar os registros por empresa, frente, etapa ou pendência. A lista tem paginação de 30 registros, ordenados por prazo. **Minhas pendências** mostra ações abertas sob sua responsabilidade; **Atrasados** mostra prazos anteriores ao dia corrente de São Paulo. Mandatos assinados e oportunidades perdidas saem desses dois filtros.
+6. Na ficha, atualize objetivo, responsável, prazo e próxima ação. Marque a ação como concluída e clique em **Salvar acompanhamento**. Editar o texto da próxima ação reabre a pendência. Responsáveis de espaços devem ter conta ativa e permissão de edição; oportunidades pessoais permanecem sob responsabilidade do próprio autor.
+7. Em **Registrar atividade**, descreva o que aconteceu e a evidência, com a data real. Sócios e administradores com permissão no espaço podem atualizar a etapa. Analistas registram notas e atividades sem mover o pipeline. Contato exige canal e destinatário; conversa exige participantes; proposta e assinatura exigem referência ao documento; pausa e perda exigem motivo.
+
+O agente registra esses eventos como declarações da equipe: não verifica contratos ou propostas nem envia comunicações. Registros históricos não podem ser apagados ou sobrescritos. Para corrigir um evento, registre a correção e, com a permissão necessária, ajuste a etapa. As últimas 100 atividades ficam visíveis na ficha.
+
+Se outra pessoa ou aba atualizar a oportunidade durante uma edição, a gravação será recusada e a tela orientará a reabrir o registro. Tentativas repetidas do mesmo envio não duplicam atividades ou oportunidades. Rever uma decisão de seleção não muda automaticamente a etapa de uma oportunidade já criada.
+
+O CRM operacional é acessado pelo cabeçalho do **agente**. O CRM antigo dentro de **Explorar demonstração** mantém dados e comportamento do protótipo; não há migração automática desses registros. As ações pessoais do trabalho e as próximas ações comerciais são registros distintos nesta entrega.
+
 ## Acessos da equipe
 
 O administrador encontra **Equipe** no cabeçalho do agente. A tela permite:
@@ -62,4 +78,4 @@ Antes de habilitar um provedor, implementar o adaptador escolhido com credencial
 
 ## Próximas entregas
 
-Ver `docs/RETOMADA-AGENTE.md` para o checkpoint atual. Próximos blocos: listas revisáveis e oportunidades no CRM persistente; integração do provedor escolhido; pesquisa e enriquecimento com fontes; compartilhamento autorizado. A implantação multiusuário com Postgres, TLS, backup e operação na rede permanece uma etapa própria.
+Ver `docs/RETOMADA-AGENTE.md` para o checkpoint atual e `docs/PLANO-EXECUCAO-AGENTE.md` para as entregas seguintes. Próximos blocos: ampliar busca/listas e qualidade das evidências; configurar um provedor; pesquisa atualizada e conexões autorizadas; documentos e exportações. A implantação multiusuário com Postgres, TLS, backup e operação na rede permanece uma etapa própria.

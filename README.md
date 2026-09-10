@@ -6,6 +6,8 @@ Para iniciar a versão operacional local, use `npm run iniciar` ou abra **Inicia
 
 Já estão disponíveis busca no cadastro químico real, preparação de reuniões, registro de próximos passos e retomada de trabalhos com autenticação e banco persistente. O administrador também pode criar espaços, convidar membros e gerenciar acessos pela tela **Equipe**. O ambiente atual roda nesta máquina; o acesso remoto depende de implantação compartilhada. As tarefas são assistidas por roteiros e consultas; o provedor de IA generativa ainda será escolhido. Consulte [o checkpoint de implementação](docs/RETOMADA-AGENTE.md) para continuar o desenvolvimento.
 
+O fluxo agora inclui **Revisar empresa → Priorizar → Criar oportunidade**. Em **Oportunidades**, acompanhe responsáveis, prazos, atividades e etapas, com histórico e acesso por espaço. Consulte o [plano de execução do agente](docs/PLANO-EXECUCAO-AGENTE.md) para as próximas entregas.
+
 ## Demonstração anterior
 
 As seções abaixo descrevem o protótipo anterior, preservado e acessível por **Explorar demonstração**. Para o estado atual do agente e seus limites, use os dois guias acima.
