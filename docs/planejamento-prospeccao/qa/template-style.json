@@ -1,0 +1,170 @@
+{
+  "input": "C:\\Users\\Leonardo\\.codex\\plugins\\cache\\openai-curated-remote\\openai-templates\\0.1.1\\skills\\artifact-template-strategy-memorandum\\assets\\reference.docx",
+  "fonts_by_char_count": {
+    "Helvetica Neue": 10449
+  },
+  "direct_run_formatting_runs": 1414,
+  "direct_paragraph_formatting_paragraphs": 33,
+  "heading_like_paragraphs_not_heading_style": [
+    {
+      "para_index": 88,
+      "text": "Author",
+      "style": "Normal"
+    },
+    {
+      "para_index": 90,
+      "text": "Team",
+      "style": "Normal"
+    },
+    {
+      "para_index": 92,
+      "text": "Prepared for",
+      "style": "Normal"
+    },
+    {
+      "para_index": 94,
+      "text": "Date ",
+      "style": "Normal"
+    },
+    {
+      "para_index": 96,
+      "text": "Status",
+      "style": "Normal"
+    },
+    {
+      "para_index": 98,
+      "text": "Option",
+      "style": "Normal"
+    },
+    {
+      "para_index": 99,
+      "text": "Time to value",
+      "style": "Normal"
+    },
+    {
+      "para_index": 100,
+      "text": "Execution risk",
+      "style": "Normal"
+    },
+    {
+      "para_index": 101,
+      "text": "Strategic fit",
+      "style": "Normal"
+    },
+    {
+      "para_index": 102,
+      "text": "Recommendation",
+      "style": "Normal"
+    },
+    {
+      "para_index": 118,
+      "text": "Metric",
+      "style": "Normal"
+    },
+    {
+      "para_index": 119,
+      "text": "Current",
+      "style": "Normal"
+    },
+    {
+      "para_index": 120,
+      "text": "Target",
+      "style": "Normal"
+    },
+    {
+      "para_index": 121,
+      "text": "Change",
+      "style": "Normal"
+    },
+    {
+      "para_index": 138,
+      "text": "Criterion (weight)",
+      "style": "Normal"
+    },
+    {
+      "para_index": 139,
+      "text": "[Option A]",
+      "style": "Normal"
+    },
+    {
+      "para_index": 140,
+      "text": "[Option B]",
+      "style": "Normal"
+    },
+    {
+      "para_index": 141,
+      "text": "[Option C]",
+      "style": "Normal"
+    },
+    {
+      "para_index": 166,
+      "text": "Risk",
+      "style": "Normal"
+    },
+    {
+      "para_index": 167,
+      "text": "Likelihood",
+      "style": "Normal"
+    }
+  ],
+  "examples": {
+    "direct_run_formatting": [
+      {
+        "para_index": 5,
+        "run_text": "Strategic decision or question",
+        "style": "Heading 1"
+      },
+      {
+        "para_index": 33,
+        "run_text": "[Describe the strategic decision and why it matters.] Lorem ipsum dolor ",
+        "style": "Normal"
+      },
+      {
+        "para_index": 33,
+        "run_text": "sit",
+        "style": "Normal"
+      },
+      {
+        "para_index": 33,
+        "run_text": " ",
+        "style": "Normal"
+      },
+      {
+        "para_index": 33,
+        "run_text": "amet",
+        "style": "Normal"
+      }
+    ],
+    "direct_paragraph_formatting": [
+      {
+        "para_index": 33,
+        "text": "[Describe the strategic decision and why it matters.] Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do ei",
+        "style": "Normal"
+      },
+      {
+        "para_index": 34,
+        "text": "[Summarize the options considered and state the recommendation.] Lorem ipsum dolor sit amet, consectetur adipiscing elit",
+        "style": "Normal"
+      },
+      {
+        "para_index": 37,
+        "text": "Table 1. Generic comparison of strategic options.",
+        "style": "Normal"
+      },
+      {
+        "para_index": 39,
+        "text": "[Describe the current state, customer signal, and competitive context.] Lorem ipsum dolor sit amet, consectetur adipisci",
+        "style": "Normal"
+      },
+      {
+        "para_index": 41,
+        "text": "Table 2. Illustrative opportunity metrics.",
+        "style": "Normal"
+      }
+    ]
+  },
+  "notes": [
+    "Direct formatting is not always wrong, but it often causes inconsistent output when templates change.",
+    "Heading-like paragraphs not using Heading styles can break TOC and accessibility."
+  ]
+}

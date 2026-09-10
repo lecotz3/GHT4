@@ -1,0 +1,1636 @@
+PAGE 1
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  1 de 36 
+Prospecção de mandatos na 
+GHT4 
+Pesquisa e planejamento operacional com requisitos da ferramenta de IA 
+ 
+Tema Originação e suporte a mandatos de compra e venda 
+Piloto Distribuição e Trading Químico 
+Destinatários Sócios, equipe Advisory e responsável técnico 
+Data de corte 10 de setembro de 2026 
+Versão Planejamento proposto e requisitos consolidados 
+Documento destinado à GHT4 para orientar prioridades, operação e implementação. Metas e 
+estimativas propostas dependem de validação pelos responsáveis. 
+
+PAGE 2
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  2 de 36 
+Conteúdo 
+1 Recomendação executiva 
+2 O que a pesquisa sustenta 
+3 Adaptação ao ambiente da boutique 
+4 Processo comercial de ponta a ponta 
+5 Tese do piloto de distribuição química 
+6 Base de dados e qualidade da informação 
+7 Ranking configurável e explicável 
+8 Conexões da rede GHT4 
+9 Valuation reports e notícias 
+10 Listas de compradores e alvos 
+11 CRM e gestão da atividade comercial 
+12 Outputs e experiência da ferramenta 
+13 Arquitetura e requisitos transversais 
+14 Implantação em 16 semanas 
+15 Critérios de sucesso e economia 
+16 Riscos e decisões ainda necessárias 
+17 Matriz de rastreabilidade dos requisitos 
+18 Fontes e referências 
+Leitura sugerida: as seções 1 a 5 definem a estratégia e a operação; 6 a 13 especificam a ferramenta; 14 a 
+17 orientam implementação, aceite e gestão. 
+
+PAGE 3
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  3 de 36 
+1 Recomendação executiva 
+A GHT4 deve organizar a prospecção como um processo contínuo de inteligência setorial, 
+relacionamento e conversão comercial. A ferramenta de IA deve sustentar esse processo desde a 
+definição da tese até a assinatura do mandato, reaproveitando os mesmos dados na execução. O resultado 
+central é uma agenda de oportunidades qualificadas, com justificativa, responsável, caminho de acesso 
+e próxima ação. 
+O piloto será Distribuição e Trading Químico, com esforço equilibrado entre conquistar mandatos de 
+compra e de venda. A base de empresas deve permanecer ampla e reutilizável para outros setores. Cada 
+busca produzirá um recorte versionado; alterar uma tese ou um filtro não apagará empresas nem fatos 
+da base mestre. 
+Este planejamento consolida e amplia os sete módulos do documento de requisitos, preservando a 
+configurabilidade, a revisão humana e os formatos de entrega exigidos. A expansão concentra -se em 
+critérios observáveis de ranking, qualidade de dados, operação comercial, responsabilidades e critérios 
+de aceite. As referências ao documento original usam seus números de seção; o report de mercado está 
+na seção 6.2, embora a seção 9 o identifique como “Módulo 6.2”.1 
+Recomenda-se uma implantação em 16 semanas, condicionada à disponibilidade da equipe e dos dados, 
+seguida de avaliação comercial até 180 dias. As primeiras quatro semanas devem produzir uma coorte 
+utilizável e uma rotina comercial assistida. As semanas seg uintes completarão regras por linguagem 
+natural, conexões, análises, CRM e integração. O prazo é uma estimativa de planejamento, não um 
+compromisso de entrega já contratado. 
+As cinco prioridades 
+• Construir fichas confiáveis e deduplicadas, com atividade econômica real, controle, porte 
+observado ou estimado e fonte por afirmação. 
+• Separar os rankings de potenciais clientes vendedores, potenciais clientes compradores e 
+contrapartes de mandatos. Usar critérios e explicações específicos para cada papel. 
+• Converter a rede do grupo em caminhos de apresentação confirmados, com o titular do 
+relacionamento no controle da divulgação. 
+• Ligar cada oportunidade a uma agenda, histórico de interação, motivo de avanço ou recusa e 
+proposta comercial. 
+• Medir qualidade da seleção e tempo poupado desde o início; medir mandatos e resultado 
+econômico por coorte, sem tratar estimativas de conversão como resultados reais. 
+ 
+1 GHT4 Advisory. Ferramenta de IA para Prospecção e Execução de Mandatos. Documento de Requisitos v1.0, sem data 
+explícita. Fonte interna; seções 1 a 12. 
+
+PAGE 4
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  4 de 36 
+Decisões de operação propostas 
+Tema Padrão proposto Como validar 
+Piloto Distribuição e Trading Químico no 
+Brasil 
+Foco confirmado; validar recortes e 
+exclusões 
+Equilíbrio comercial Metade da capacidade de prospecção 
+para cada lado 
+Revisão quinzenal por horas e 
+oportunidades qualificadas 
+Porte inicial R$ 40 a 600 milhões de receita anual 
+como hipótese do material existente 
+Sócios ratificam; receita desconhecida 
+vai para enriquecimento 
+Dados pagos Importações autorizadas de EMIS e 
+Capital IQ 
+Validar exportações e usos contratados 
+na primeira semana 
+Rede Materiais internos autorizados e 
+confirmação do titular 
+Teste com pequeno grupo de membros 
+da GHT4 
+Situações especiais Fila separada de distressed Definir se a boutique pretende atender 
+esse perfil 
+ 
+A faixa de porte não deve excluir compradores globais, fundos ou plataformas que possam contratar a 
+GHT4. Ela é uma hipótese para alvos e potenciais vendedores do piloto. O equilíbrio de compra e venda 
+também não exige quantidades idênticas de empresas: um a conta compradora pode justificar mais 
+trabalho e originar vários mandatos ou buscas. 
+2 O que a pesquisa sustenta 
+Originação começa antes de uma empresa declarar que está à venda. Pesquisa da McKinsey sobre 
+adquirentes programáticos destaca a identificação e o cultivo antecipado de alvos, articulados a uma 
+tese de criação de valor e a múltiplos canais de acesso. Para a GHT4, a aplicação é manter 
+relacionamento com empresas aderentes à tese e oferecer conversas úteis sobre alternativas estratégicas. 
+Não se deve transformar essa evidência, produzida sobre adquirentes, em uma taxa de conversão 
+presumida para boutiques brasileiras.2 
+Em IA, os casos mais relevantes para o projeto são identificação de alvos, síntese de informações e apoio 
+à análise. A McKinsey recomenda formalizar estratégia, critérios, fontes e práticas de M&A para 
+aproveitar essas ferramentas. A consequência prática é  escrever primeiro a metodologia de seleção e, 
+então, automatizar sua aplicação; a pesquisa não demonstra que um modelo genérico possa prever 
+intenção de venda ou qualidade de um mandato.3 
+ 
+2 McKinsey & Company. Five steps to strengthen M&A capabilities, no matter the starting point. 13 fevereiro 2026. 
+3 McKinsey & Company. Gen AI in M&A From theory to practice to high performance. 14 janeiro 2026. 
+
+PAGE 5
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  5 de 36 
+A Deloitte reportou que 86% das organizações respondentes haviam integrado IA generativa aos fluxos 
+de M&A. A pesquisa ouviu 1.000 líderes corporativos e de private equity dos Estados Unidos no 
+primeiro semestre de 2025. Esse resultado indica adoção na amo stra, mas não é benchmark de 
+produtividade, retorno ou maturidade da GHT4.4 
+A pesquisa divulgada por Datasite e FT Longitude em julho de 2026, com 1.000 profissionais seniores, 
+enfatiza o uso de IA em sourcing e screening e a importância de confiança, relacionamento e 
+julgamento. Por ser uma publicação de fornecedor, deve informar  o desenho do processo, sem servir 
+como prova de superioridade de um produto ou promessa de retorno.5 
+Consequências para o modelo de prospecção 
+Achado Aplicação na GHT4 Evidência operacional esperada 
+Relacionamento se 
+desenvolve antes da 
+transação 
+Nutrição com informação setorial e 
+gatilhos de retomada 
+Contatos com histórico, contexto e 
+próxima ação 
+Tese direciona a busca Critérios separados para comprador, 
+vendedor e mandato 
+Listas com racional coerente e regras 
+reproduzíveis 
+Dados privados são 
+incompletos 
+Enriquecimento em etapas e cobertura 
+explícita 
+Lacunas visíveis; ausência de números 
+inventados 
+IA acelera síntese Dossiê com fontes e revisão do analista Menor tempo de preparação com 
+qualidade mantida 
+Rede depende de 
+confiança 
+Titular confirma a conexão e a 
+apresentação 
+Relações confirmadas e introduções 
+aceitas 
+Atividade comercial exige 
+continuidade CRM e disciplina de acompanhamento Menos oportunidades sem responsável 
+ou esquecidas 
+ 
+O documento original trata a rede como um fator de grande relevância. Isso é uma hipótese comercial 
+plausível e uma prioridade explícita da GHT4. O ganho de conversão deve ser medido comparando 
+apresentações confirmadas e contatos diretos em coortes semelh antes, com registro de setor, porte, 
+estágio e experiência do originador. Empresas mais atraentes tendem a receber mais atenção dos sócios; 
+uma comparação bruta pode confundir qualidade da oportunidade com efeito da conexão.6 
+ 
+4 Deloitte. New Deloitte Survey 86% of Corporate and Private Equity Leaders Now Use Generative AI. 9 outubro 2025. 
+5 Datasite. How AI is making M&A more human. 29 julho 2026. 
+6 GHT4 Advisory. Ferramenta de IA para Prospecção e Execução de Mandatos. Documento de Requisitos v1.0, sem data 
+explícita. Fonte interna; seções 1 a 12. 
+
+PAGE 6
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  6 de 36 
+3 Adaptação ao ambiente da boutique 
+A apresentação pública da GHT4 Advisory inclui M&A, captação e avaliação, com atendimento a 
+empresas brasileiras e multinacionais e experiência em transações internacionais. Isso favorece uma 
+proposta comercial baseada em alternativas estratégicas, leitura  de compradores e execução próxima 
+dos sócios. A experiência divulgada deve ser utilizada com o mesmo perímetro e ressalvas do material 
+institucional, sem atribuir à GHT4 operações de experiências profissionais anteriores como se fossem 
+mandatos da firma.7 
+Três objetos comerciais que não podem se confundir 
+Potencial cliente vendedor. Empresa e acionistas que podem contratar assessoria para alienação total ou 
+parcial, entrada de sócio ou avaliação de alternativas. O interesse e a disponibilidade dos acionistas 
+precisam ser apurados em conversa. Ser familiar, antiga ou atuar em setor co nsolidável não comprova 
+intenção de venda. 
+Potencial cliente comprador. Grupo estratégico, plataforma de consolidação, investidor ou fundo que 
+pode contratar a GHT4 para originar e executar aquisições. A qualificação precisa apurar tese, 
+orçamento, governança decisória, capacidade de execução e disposição para contratar um assessor. Ter 
+comprado empresas antes não prova necessidade atual de assessoria externa. 
+Contraparte de mandato. Comprador de uma empresa que a GHT4 está assessorando, ou alvo para um 
+comprador já mandatado. A empresa integra um processo específico, com regras de confidencialidade, 
+contato e conflito. Estar em uma lista de contrapartes não significa ser cliente da GHT4. 
+A mesma empresa pode ter mais de um papel em momentos distintos. O cadastro será único; 
+oportunidades comerciais e participações em mandatos serão registros separados. O status “empresa 
+compradora” não substitui uma oportunidade buy-side nem autoriza contato em nome de um cliente. 
+O que aproveitar do trabalho existente 
+Os arquivos locais descrevem taxonomia química, fontes, regras de pontuação, conexões, listas e uma 
+arquitetura de base mestre. A inspeção do diretório também identifica código de domínio, testes, uma 
+API em server, autenticação, permissões, auditoria e mi grações das camadas raw, master e serving. 
+Portanto, a afirmação de materiais antigos de que não existe backend ou nenhum teste não deve ser 
+tomada como diagnóstico atual.8 
+Ao mesmo tempo, presença de arquivos não comprova implantação em produção, integração completa 
+ou aceite do negócio. A primeira etapa deve verificar o funcionamento ponta a ponta e produzir uma 
+matriz demonstrável de aderência. O planejamento propõe aproveitar o que passar nessa verificação e 
+ 
+7 GHT4. GHT4 Advisory. Sem data de publicação. 
+8 GHT4, materiais do projeto. Planos e código locais de prospecção. Planos de agosto de 2026; diretório inspecionado em 10 
+setembro 2026. Planos e diretórios do projeto GHT4; detalhes na referência 21. 
+
+PAGE 7
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  7 de 36 
+completar lacunas; não parte da premissa de reconstruir tudo nem de que todos os módulos estejam 
+concluídos. 
+Escolha de solução 
+Caminho Benefício Custo ou limite principal Recomendação 
+Processo assistido 
+com importações e 
+CRM existente 
+Gera aprendizado comercial 
+cedo 
+Exige disciplina manual e 
+reconciliação 
+Usar no início do 
+piloto 
+Evoluir a aplicação 
+da GHT4 
+Preserva critérios, histórico e 
+diferenciação 
+Exige manutenção e 
+responsável técnico 
+Caminho 
+preferencial, após 
+diagnóstico 
+Contratar CRM 
+especializado 
+Pode acelerar relações e 
+gestão comercial 
+Licença, integração e 
+adequação de permissões 
+Comparar se o CRM 
+se tornar gargalo 
+ 
+Affinity e Intapp DealCloud apresentam recursos de relacionamento e gestão de oportunidades voltados 
+ao mercado financeiro. São referências para a comparação funcional, não uma seleção de fornecedores 
+já feita. A decisão exige demonstração com casos da GHT4, análise de permissões, exportação integral, 
+integrações e custo total. As páginas comerciais não comprovam cobertura ou desempenho no universo 
+brasileiro de distribuição química.9, 10 
+4 Processo comercial de ponta a ponta 
+Da tese à assinatura 
+Etapa Trabalho principal Saída exigida Responsável 
+proposto 
+1 Tese Definir problema do cliente, 
+setor, papel e exclusões 
+Brief de uma página e 
+critérios Sócio responsável 
+2 Universo Cruzar fontes e resolver 
+identidade 
+Empresas únicas e cobertura 
+documentada Analista 
+3 Qualificação Confirmar atividade, porte e 
+controle Fichas e lacunas prioritárias Analista 
+4 Priorização Aplicar regra e revisar 
+resultados 
+Lista curta explicável por 
+papel Analista e sócio 
+ 
+9 Affinity. Investment Banking CRM and Deal Management Software. Página de produto, sem data de publicação. 
+10 Intapp. Deal and relationship management for investment banking. Página de produto, sem data de publicação. 
+
+PAGE 8
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  8 de 36 
+Etapa Trabalho principal Saída exigida Responsável 
+proposto 
+5 Acesso Confirmar decisor, conexão e 
+abordagem 
+Responsável e plano por 
+conta Originador 
+6 Contato Executar abordagem 
+aprovada e registrar resposta 
+Interação, resposta e próxima 
+ação Originador 
+7 Diagnóstico Entender objetivos e 
+viabilidade 
+Nota de reunião e 
+qualificação Sócio ou executivo 
+8 Proposta Definir escopo, processo e 
+remuneração Proposta aprovada e enviada Sócio 
+9 Negociação Resolver escopo e condições Termos acordados ou razão 
+de perda Sócio 
+10 Mandato Assinatura e abertura do 
+projeto 
+Mandato formal e passagem 
+à execução Sócio e execução 
+11 Retomada Nutrir recusas temporárias e 
+contas futuras 
+Agenda vinculada a data ou 
+evento Dono da conta 
+ 
+Regra de responsabilidade.  Toda conta ativa terá um dono e um substituto. A pessoa que originou a 
+relação continuará registrada, mesmo que outro membro execute as próximas etapas. Atribuição de 
+crédito comercial deve seguir regra interna definida pelos sócios, sem perder a origem da oportunidade. 
+Prospecção de mandatos de venda 
+A primeira conversa deve testar se existe uma decisão acionária ou estratégica que a GHT4 pode ajudar 
+a resolver. Perguntar sobre planos de crescimento, alternativas de capital, objetivos dos acionistas, 
+horizonte e limitações de execução. Sucessão entra como tema apenas quando houver sinal legítimo ou 
+abertura do interlocutor, sem inferência sobre idade, saúde ou vida familiar. 
+A qualificação avança quando há interlocutor com influência real, problema reconhecido, escopo 
+potencial, acesso inicial à informação e disposição para avaliar uma proposta de assessoria. Registrar 
+quais acionistas precisam participar e se existe alinhamento entre eles. Antes de mobilizar execução, o 
+sócio avalia a possibilidade de transação, as expectativas de valor, a qualidade mínima dos dados e a 
+atratividade econômica do mandato. 
+O argumento comercial pode combinar leitura de consolidação do subsegmento, alternativas de 
+parceiros, preparação necessária e capacidade da boutique de conduzir um processo. Não declarar que 
+há comprador interessado sem manifestação efetiva; não usar múltiplos preliminares como promessa de 
+preço. 
+
+PAGE 9
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  9 de 36 
+Prospecção de mandatos de compra 
+Começar pela estratégia do comprador: aplicações e mercados finais desejados, competências ausentes, 
+geografia, tamanho, controle pretendido, financiamento e capacidade de integrar. Perguntar como sua 
+equipe encontra alvos hoje, onde perde oportunidades e quais atividades terceirizaria. O produto 
+comercial é uma busca orientada por tese e acompanhada de execução, com entregas e limites claros. 
+Um comprador se qualifica como cliente quando há patrocinador interno, critério de investimento, 
+processo decisório conhecido, capacidade plausível de financiar e executar, e interesse em discutir 
+contratação. Para fundos, registrar veículo, período de inv estimento, estratégia de plataforma ou 
+aquisições complementares e autonomia da investida. Capital captado ou patrimônio divulgado não 
+equivale a orçamento disponível para uma operação específica. 
+A proposta buy -side deve definir universo, exclusões, atualização da lista, regras sobre alvos já 
+conhecidos, contato com terceiros, critérios de qualificação e remuneração. O cadastro de compradores 
+deve incluir empresas estrangeiras com tese brasileira; a faixa de receita dos vendedores do piloto não é 
+filtro para esses compradores. 
+Canais e cadência inicial 
+Priorizar apresentações da rede, relações anteriores, indicações de assessores e associações, eventos 
+setoriais e abordagem direta contextualizada. Advogados, contadores, executivos e parceiros comerciais 
+podem ser fontes de indicações, respeitadas as regr as da GHT4 sobre confidencialidade, conflito e 
+eventual remuneração. Conteúdo setorial e eventos pequenos alimentam relacionamento e entradas 
+espontâneas. 
+Como hipótese de operação, preparar 20 primeiras abordagens por ciclo de quatro semanas, distribuindo 
+a capacidade entre compra e venda. Se a revisão ou as reuniões excederem a capacidade do time, reduzir 
+o volume. Não perseguir volume de disparos como medida de sucesso. 
+Momento Ação proposta Condição para continuar 
+Antes do primeiro 
+contato 
+Validar destinatário, contexto e 
+conflito Dono da conta assume a abordagem 
+Dia 0 Apresentação por conexão ou 
+mensagem direta Conteúdo específico e motivo legítimo 
+Dias 5 a 7 úteis Retomada breve com uma informação 
+útil 
+Ausência de recusa ou pedido de 
+interrupção 
+Dias 12 a 15 úteis Última tentativa do ciclo ou convite a 
+retomar depois 
+Canal e frequência apropriados à 
+relação 
+Após o ciclo Pausar ou nutrir por data ou evento Registrar motivo e evitar contatos 
+repetitivos 
+ 
+
+PAGE 10
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  10 de 36 
+Esses intervalos são parâmetros iniciais, não benchmarks. Resposta explícita prevalece sobre qualquer 
+automação. Uma recusa definitiva ou solicitação de não contato interrompe a cadência; uma recusa por 
+timing pode gerar retorno em prazo combinado. 
+Modelos de abordagem para revisão humana 
+Pedido interno de apresentação.  “Estamos estudando a distribuição de insumos para [aplicação]. Sua 
+experiência em [contexto profissional documentado] sugere uma possível proximidade com [empresa]. 
+Você conhece a pessoa responsável por decisões estratégicas e se sentiria confortável em a valiar uma 
+apresentação? Posso enviar um resumo do motivo da conversa.” 
+Primeiro contato com potencial vendedor.  “Sou [nome], da GHT4 Advisory. Estamos acompanhando 
+movimentos de consolidação em [subsegmento] e identificamos a atuação da [empresa] em [atividade 
+confirmada]. Gostaríamos de entender os planos do negócio e compartilhar uma leitura sobre 
+alternativas de crescimento e parceria. Há espaço para uma conversa breve?” 
+Primeiro contato com potencial comprador. “Sou [nome], da GHT4 Advisory. Estamos aprofundando o 
+mapa brasileiro de [subsegmento], incluindo empresas com [competência]. Gostaríamos de entender se 
+aquisições nessa frente fazem parte da estratégia de vocês e onde apoio local de originação e execução  
+poderia ser útil.” 
+Os trechos entre colchetes são campos de personalização destes modelos. Antes do envio, validar cada 
+afirmação, o nome do destinatário e o responsável. A ferramenta prepara rascunhos; a execução de 
+contatos depende da rotina comercial autorizada da GHT4. 
+5 Tese do piloto de distribuição química 
+Taxonomia econômica 
+O mapa deve cruzar mercados finais com modelo de atuação. Uma empresa pode operar em vários 
+mercados, mas seu cadastro jurídico será único. Classificação por CNAE é um ponto de partida: site, 
+portfólio, representadas, catálogos e informação validada devem determinar a aderência econômica. 
+Recorte de aplicação Diferenciais a investigar Questões que mudam a tese 
+Alimentos e nutrição Laboratório, formulação, representadas 
+e acesso a clientes 
+Exclusividades e dependência de 
+poucos fornecedores 
+Farmacêutico e cuidados 
+pessoais 
+Apoio técnico, qualidade e capacidade 
+regulatória 
+Portfólio autorizado e transferibilidade 
+de contratos 
+Tintas adesivos e 
+construção 
+Formulação, cobertura de aplicações e 
+equipe técnica 
+Concentração de clientes e ciclo 
+industrial 
+
+PAGE 11
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  11 de 36 
+Recorte de aplicação Diferenciais a investigar Questões que mudam a tese 
+Plásticos borracha e 
+materiais 
+Especialidades, suporte de aplicação e 
+portfólio 
+Exposição a commodities e 
+diferenciação comercial 
+Limpeza tratamento de 
+água e indústria Cobertura regional, serviço e logística Mistura entre distribuição, fabricação e 
+serviços 
+Químicos básicos e 
+trading 
+Abastecimento, logística, crédito e 
+escala 
+Capital de giro, câmbio e volatilidade 
+de margem 
+ 
+Esses recortes são uma proposta de classificação comercial. Devem se conectar à taxonomia química já 
+existente, sem substituir silenciosamente seus códigos. Separar distribuidor técnico, revendedor de 
+químicos básicos, trader ou importador, fabricante com distribuição própria e modelo misto. 
+“Especialidades” não deve ser deduzido apenas do nome da empresa. 
+Evidências reais para orientar critérios 
+Em 19 de agosto de 2024, a Brenntag anunciou a aquisição de PIC e PharmaSpecial, destacando a 
+expansão em pharma e personal care, portfólio de fornecedores e capacidade de aplicação. O 
+comunicado informava condições de fechamento e não divulgava o preço. É  evidência de racional de 
+aquisição; o anúncio isolado não comprova fechamento nem fornece múltiplo de transação.11 
+A Azelis anunciou em abril de 2023 a compra de participação majoritária na Vogler, distribuidora 
+brasileira de ingredientes, ressaltando relacionamentos com fornecedores, mercados atendidos e 
+laboratórios. Seu comunicado de resultados de 2023 informa a con clusão da transação em junho. Esse 
+histórico sustenta investigar complementaridade de portfólio e capacidades técnicas, sem concluir que 
+a empresa esteja hoje procurando o mesmo perfil.12, 13 
+A Univar anunciou em dezembro de 2021 a aquisição da Sweetmix no Brasil, associada à expansão em 
+ingredientes e especialidades. Trata -se de uma referência histórica, anterior à janela de três anos 
+proposta para atividade recente do piloto. Pode orientar o perfil estratégico, mas não deve receber o 
+mesmo peso temporal de um evento recente.14 
+Organização Papel inicial no mapa Uso permitido da evidência 
+Brenntag Estratégico a qualificar Investigar complementaridade e 
+confirmar tese atual 
+ 
+11 Brenntag. Brenntag adquire PIC e PharmaSpecial no Brasil. 19 agosto 2024. 
+12 Azelis. Azelis expands its Latin American presence with the acquisition of Vogler in Brazil. 12 abril 2023. 
+13 Azelis. FY2023 results Azelis delivers record free cash flow. Resultados de 2023, divulgados em 2024. 
+14 Univar Solutions. Univar Solutions Acquires Leading Distributor Sweetmix to Expand Food Ingredients and CASE 
+Portfolio in Brazil. 1 dezembro 2021. 
+
+PAGE 12
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  12 de 36 
+Organização Papel inicial no mapa Uso permitido da evidência 
+Azelis Estratégico a qualificar Avaliar aplicações, fornecedores e 
+expansão brasileira 
+Univar Solutions Estratégico a qualificar Mapear portfólio e capacidade local 
+atual 
+PIC PharmaSpecial e 
+Vogler 
+Referências históricas de alvos 
+adquiridos 
+Aprender critérios; não tratá-las como 
+vendedores independentes 
+ 
+Esta é uma amostra de referências de mercado, não uma lista de empresas disponíveis para venda ou 
+compradores interessados em um ativo da GHT4. A equipe deverá verificar controle atual, aquisições 
+posteriores, conflitos e apetite antes de inserir uma conta na agenda. 
+Informações que justificam enriquecimento profundo 
+Para uma distribuidora, apurar receita e sua base bruta ou líquida, lucro bruto, margem, EBITDA 
+quando disponível, necessidade de capital de giro, estoque, inadimplência, exposição cambial, 
+concentração de fornecedores e clientes, contratos de representação e cláusulas de mudança de controle. 
+Distinguir serviços técnicos próprios de serviços terceirizados e armazéns próprios de instalações 
+contratadas. 
+Nas primeiras etapas, muitos desses campos serão desconhecidos. A ferramenta deve transformá-los em 
+perguntas de qualificação, priorizadas por impacto na tese. Um novo laboratório, expansão de aplicação, 
+mudança relevante de portfólio ou aquisição anunciada é um gatilho para pesquisa. Mudança cadastral 
+de sócio ou administrador é um evento a investigar, sem classificá -la automaticamente como sucessão 
+ou intenção de transação. 
+Dimensionamento sem misturar mercados 
+O Perfil do Setor da ASSOCIQUIM é produzido a partir de dados coletados de associados. Seu universo 
+e metodologia devem ser conferidos antes de extrapolar resultados para todo o Brasil. Listas associativas 
+tampouco representam necessariamente a totalidade de empresas do setor.15 
+Separar dois exercícios: mercado de distribuição química e mercado endereçável de mandatos da GHT4. 
+No primeiro, manter ano, geografia, tipos de produto, receita bruta ou líquida e perímetro da 
+distribuição. No segundo, partir de empresas aderentes, evento s estratégicos plausíveis, capacidade de 
+atendimento e economia dos mandatos. Não multiplicar uma receita industrial agregada por uma 
+comissão para chamar o resultado de mercado de assessoria. 
+ 
+15 ASSOCIQUIM e SINCOQUIM. Perfil do Setor. Sem data de publicação; página remete ao Perfil 2024. 
+
+PAGE 13
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  13 de 36 
+6 Base de dados e qualidade da informação 
+Universo e cobertura 
+“Mapa completo” deve significar universo conhecido dentro de um escopo e de uma data de corte, 
+acompanhado de cobertura e lacunas. Não existe evidência suficiente para prometer todas as empresas 
+de qualquer setor. Para cada recorte, registrar fontes consul tadas, quantidade bruta, entidades únicas, 
+empresas qualificadas, exclusões justificadas e fila pendente. 
+Medir cobertura contra conjuntos de referência: quantas empresas de uma lista associativa entram no 
+mapa, quantas de um export da EMIS foram resolvidas e quais empresas conhecidas dos sócios ficaram 
+ausentes. Chamar essa medida de cobertura do conjunto de referência; ela não demonstra cobertura de 
+um universo desconhecido. 
+Função de cada fonte 
+Fonte Uso principal Limite e controle 
+RFB e CNPJ Identidade, estabelecimentos, CNAE, 
+situação e quadro cadastral 
+Não fornece receita ou EBITDA; 
+distinguir matriz e filiais 
+Sites e catálogos oficiais Produtos, aplicações, unidades e 
+equipes Autodeclaração; guardar página e data 
+Associações Descoberta e estudos de setor Associados não são o universo total 
+EMIS Empresas privadas, estudos e 
+transações 
+Cobertura por campo e direitos 
+dependem da contratação 
+Capital IQ Comps, transações, finanças e 
+identificação 
+Confirmar produto, campos, períodos e 
+licenças 
+CVM e relações com 
+investidores 
+Fatos e dados de companhias que 
+divulgam informações 
+Amostra não representa 
+automaticamente empresas fechadas 
+IBAMA e órgãos setoriais Atividade declarada e contexto 
+regulatório 
+Cadastro ou declaração não é validação 
+integral da empresa 
+Rede e CRM da GHT4 Relacionamento, conversas e interesse 
+confirmado 
+Acesso por finalidade e escopo de 
+confidencialidade 
+Imprensa e notícias Eventos e gatilhos Corroborar afirmações materiais e 
+separar rumor de fato 
+ 
+
+PAGE 14
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  14 de 36 
+O dicionário de dados abertos do CNPJ lista capital social e categoria de porte, além de dados cadastrais. 
+Capital social não é faturamento, e a categoria “demais” não informa a receita de uma companhia. A 
+classificação de porte comercial precisa de outra evidência.16 
+A Receita Federal anunciou o primeiro CNPJ alfanumérico em 31 de julho de 2026. O projeto deve 
+armazenar identificadores como texto, preservar zeros e letras e usar validação compatível com o novo 
+formato. Conversões que removem tudo que não é dígito podem  corromper novos registros e devem 
+entrar nos testes de importação.17 
+O RAPP do IBAMA tem finalidade de informação para controle e fiscalização e utiliza declarações de 
+atividades. Sua presença pode apoiar o enquadramento, mas não comprova, isoladamente, ausência de 
+passivos, licenciamento de todas as unidades ou capacidade operacional atual.18 
+Estrutura dos registros 
+Cada fato deve armazenar empresa ou pessoa relacionada, campo, valor, unidade, moeda, período de 
+referência, data de coleta, fonte, localização exata no documento, método de obtenção, classificação de 
+confidencialidade e status de revisão. Separar “observa do”, “estimado”, “inferido”, “conflitante”, 
+“desatualizado” e “não encontrado”. Estimativas terão faixa, método e premissas; confiança não será 
+uma porcentagem inventada pelo modelo. 
+Registrar entidade jurídica, estabelecimento e grupo econômico em níveis próprios. Compartilhar raiz 
+do CNPJ pode ajudar a unir matriz e filiais; vincular empresas de raízes diferentes a um grupo exige 
+evidência. Nomes semelhantes, mesmo endereço ou sobren ome de sócio não bastam para deduzir 
+controle ou parentesco. 
+Preservar observações divergentes. Uma receita de grupo não substitui receita da empresa operacional; 
+um dado de 2023 não é contradição automática de um dado de 2024. A resolução deve comparar 
+período, moeda, unidade, perímetro e definição contábil antes de escolher um valor para análise. 
+Enriquecimento em três passagens 
+Primeiro, realizar uma passagem ampla e barata de cadastro, deduplicação e atividade. Segundo, 
+enriquecer a coorte aderente com porte, controle e eventos. Terceiro, produzir dossiês e verificar 
+conexões apenas para as prioridades de ação. Preservar o unive rso e o histórico em todas as passagens; 
+enriquecer seletivamente reduz custo sem transformar a primeira lista em um limite permanente do 
+produto. 
+ 
+16 Receita Federal. Novo Layout para os Dados Abertos do CNPJ. Documento de metadados sem data explícita, páginas 1 a 6. 
+17 Receita Federal. Receita Federal gera o primeiro CNPJ em formato alfanumérico. 31 julho 2026. 
+18 IBAMA. Relatório de Atividades Potencialmente Poluidoras e Utilizadoras de Recursos Ambientais RAPP. Página de 
+serviço, sem data relevante explicitada. 
+
+PAGE 15
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  15 de 36 
+Os arquivos originais e seus hashes ficam na camada raw; entidades e fatos reconciliados, na master; 
+coortes, rankings e relatórios reproduzíveis, na serving. Essa separação é coerente com o adendo de base 
+mestre já existente na GHT4. Importações devem ser repetíveis sem duplicação, reconciliar contagens 
+e registrar rejeições.19 
+7 Ranking configurável e explicável 
+Ranking de subsegmentos 
+O score de subsegmento prioriza onde dedicar esforço. Sugere -se começar com interesse de 
+compradores 30%, atividade recente de transações 25%, tendências e condições de crescimento 20%, 
+ambiente de valuation 15% e fragmentação com ativos endereçáveis 10%. Os quatro primeiros critérios 
+vêm do documento; o quinto é uma ampliação proposta. Pesos são hipóteses iniciais e devem ser salvos 
+como versão de template.20 
+Interesse exige manifestação, estratégia publicada, histórico ou outra evidência identificada, com datas 
+diferentes para cada nível. Atividade deve contar transações únicas, distinguir anúncio e fechamento e 
+manter janelas de 12, 36 e 60 meses. Uma operação divulgada em dez notícias conta uma vez. Quando 
+o universo comparável for conhecido, mostrar também transações por quantidade de empresas; sem 
+denominador confiável, exibir apenas contagem observada. 
+O ambiente de valuation precisa de leitura por lado. Múltiplos elevados podem favorecer a narrativa de 
+venda e dificultar a criação de valor para um comprador. Não impor monotonicidade positiva para 
+ambos. Um template buy -side pode preferir preços mais dis ciplinados; um sell -side pode priorizar 
+demanda e possibilidade de execução. Exibir os componentes para evitar que um mesmo score esconda 
+decisões distintas. 
+Ranking de potenciais clientes 
+Dimensão Vendedor Comprador Evidência esperada 
+Aderência à tese 25% 25% Atividade e escopo 
+confirmados 
+Atratividade ou 
+capacidade 20% 20% 
+Qualidade do ativo 
+ou capacidade de 
+adquirir 
+ 
+19 GHT4, materiais do projeto. Planos e código locais de prospecção. Planos de agosto de 2026; diretório inspecionado em 10 
+setembro 2026. Planos e diretórios do projeto GHT4; detalhes na referência 21. 
+20 GHT4 Advisory. Ferramenta de IA para Prospecção e Execução de Mandatos. Documento de Requisitos v1.0, sem data 
+explícita. Fonte interna; seções 1 a 12. 
+
+PAGE 16
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  16 de 36 
+Dimensão Vendedor Comprador Evidência esperada 
+Timing e necessidade 15% 20% 
+Gatilho ou agenda 
+estratégica 
+identificada 
+Acesso e 
+relacionamento 25% 20% Caminho confirmado 
+ao decisor 
+Viabilidade do 
+mandato 15% 15% Problema, processo e 
+economia plausíveis 
+Total 100% 100% Template e versão 
+identificados 
+ 
+Aplicar primeiro critérios obrigatórios, como aderência mínima de atividade, ausência de bloqueio de 
+contato e escopo permitido. Campos obrigatórios desconhecidos geram fila de investigação. Uma 
+conexão forte não compensa incompatibilidade com a tese nem resolve conflito de interesse. 
+Dentro de cada dimensão, critérios terão definição, tipo de dado, unidade, sentido de preferência, 
+escalas e regra de ausência. Exemplo de diversificação: percentual da receita fora da principal aplicação, 
+quando disponível; alternativamente, número docume ntado de aplicações atendidas, rotulado como 
+proxy. Uma empresa pode divulgar dez linhas de produto e depender de uma só em receita. 
+Cálculo com dados ausentes 
+Para cada critério, definir peso w e nota x entre 0 e 1. A cobertura ponderada C é a soma dos pesos dos 
+critérios observados dividida pela soma de todos os pesos. A nota condicional S é 100 vezes a soma de 
+w × x observados dividida pela soma dos pesos obse rvados. Se nenhum critério estiver observado, S é 
+nulo. 
+Mostrar também um intervalo: limite inferior = 100 × soma de w × x observados / peso total; limite 
+superior = limite inferior + 100 × peso dos critérios ausentes / peso total. Esses limites representam 
+extremos matemáticos do que falta apurar, não um intervalo estatístico de confiança. 
+Exemplo hipotético: os pesos conhecidos somam 60 de 100 e geram 48 pontos. S é 80, C é 60%, e o 
+intervalo vai de 48 a 88. A ferramenta mostrará “dados insuficientes para priorização final”, com os 
+campos faltantes. O número 80 sozinho seria enganoso. Uma e mpresa com S igual a 74 e cobertura de 
+90% pode ser mais acionável, mas a escolha depende de revisar as lacunas e a tese. 
+Como regra inicial, exigir cobertura de ao menos 70% e todos os critérios obrigatórios resolvidos para 
+uma prioridade acionável. Na lista final de abordagem, revisar manualmente todas as empresas. A 
+cobertura mínima não é benchmark; será calibrada com exemplos positivos e negativos dos sócios. Usar 
+desempate por maior cobertura e evidência mais recente, mantendo uma pequena amostra exploratória 
+fora do topo para procurar oportunidades omitidas. 
+
+PAGE 17
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  17 de 36 
+Critérios por linguagem natural 
+Um pedido como “quero empresas mais diversificadas e com conexão da GHT4” deve ser convertido em 
+uma regra visível: universo, papel, filtros obrigatórios, critérios de preferência, pesos, medidas e política 
+para desconhecidos. A ferramenta apresenta essa interpretação antes da aplicação e mostra a diferença 
+em relação ao template anterior. 
+Se a medida estiver indefinida, solicitar apenas o esclarecimento necessário. “Mais diversificada” pode 
+significar clientes, fornecedores, aplicações ou geografia. Se não há campo para medi-la, a consulta deve 
+indicar necessidade de enriquecimento ou permitir uma proxy explicitamente escolhida. O modelo não 
+deve criar uma coluna fictícia preenchida com avaliações sem fonte. 
+Cada execução grava prompt, regra interpretada, autor, template, versão da taxonomia, snapshot de 
+dados, contribuições por critério e revisão. Correções devem indicar escopo: corrigir um fato, ajustar 
+uma análise ou publicar uma nova regra. Uma correção po ntual não muda silenciosamente todos os 
+templates ou resultados aprovados. 
+Calibração 
+Montar uma amostra de referência de 60 empresas ou contas, sendo 30 avaliadas como potenciais 
+vendedores e 30 como compradores; o conjunto pode conter sobreposição de entidades, mas a avaliação 
+é por papel. Incluir casos aderentes, não aderentes, ambíguos e com dados faltantes. Dois avaliadores 
+classificam independentemente, registram justificativas e resolvem divergências relevantes. 
+Reservar 20 casos, dez por papel, para verificação após calibrar os demais. Evitar usar resultados futuros 
+para avaliar retrospectivamente uma lista histórica: só considerar informação disponível na data de 
+corte. Testar mudanças de peso e investigar movim entações grandes de posição. Com poucos casos, os 
+resultados são diagnósticos, não estimativas robustas de probabilidade de mandato. 
+8 Conexões da rede GHT4 
+O módulo deve cobrir os membros autorizados de todo o grupo, conforme o documento, preservando 
+acesso por finalidade. A primeira implantação usará currículos, listas e históricos internos autorizados. 
+Notícias e biografias públicas podem sugerir vínculos profissionais a validar; não demonstram amizade, 
+proximidade ou disponibilidade para uma apresentação.21 
+Uma relação será composta por pessoa de origem, pessoa ou empresa de destino, natureza, instituição, 
+período, fonte, última confirmação, titular do relacionamento, escopo de visibilidade e possibilidade de 
+introdução. A identidade das pessoas precisa ser resolvida com cuidado para evitar homônimos. 
+ 
+21 GHT4 Advisory. Ferramenta de IA para Prospecção e Execução de Mandatos. Documento de Requisitos v1.0, sem data 
+explícita. Fonte interna; seções 1 a 12. 
+
+PAGE 18
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  18 de 36 
+Escala operacional de conexão 
+Nível Interpretação Efeito no processo 
+Não apurado Rede ainda não consultada Solicitar verificação; não confundir 
+com ausência 
+Vínculo possível Coincidência profissional com 
+evidência 
+Revisão do titular antes de contar 
+como acesso 
+Relação confirmada Titular confirma conhecer o contato Elegível para pontuação de acesso 
+Introdução viável Titular concorda em avaliar 
+apresentação Criar tarefa interna com prazo 
+Introdução realizada Apresentação efetivamente feita Registrar interação e encaminhamento 
+ 
+Tempo na mesma empresa, participação em conselho ou passagem por uma instituição pode gerar um 
+caminho possível. A ferramenta deve verificar sobreposição temporal e não chamar esse vínculo de 
+relação forte sem confirmação. A pontuação pode considerar senio ridade do contato, atualidade e 
+disponibilidade, mas a confirmação do titular tem precedência sobre a inferência automática. 
+Para pessoas sem permissão de ver detalhes, a interface pode exibir “há uma conexão interna; solicitar 
+ao responsável”, sem revelar nomes, conversas ou a identidade de um cliente confidencial. O membro 
+da rede deve conseguir corrigir, ocultar ou retirar um a relação e indicar assuntos em que não quer 
+intermediar. 
+O plano não depende de varredura automatizada do LinkedIn. Seus termos proíbem scraping e métodos 
+automatizados não autorizados em hipóteses expressas. Qualquer ampliação para integrações externas 
+deve usar caminho contratualmente permitido e preservar as regras de dados pessoais.22 
+Aceite do módulo. Testar homônimos, períodos sem sobreposição, relação expirada, pessoa desligada, 
+caminho com dois intermediários e acesso negado. Nenhum vínculo inferido poderá aparecer como 
+apresentação confirmada. Todas as conexões usadas no ranking final precisam indi car sua natureza e 
+data de confirmação. 
+9 Valuation reports e notícias 
+Valuation com Capital IQ 
+O documento exige acesso aos dados corretos de comparáveis listadas e transações precedentes, além de 
+revisão e ajustes pelo usuário. Os materiais anteriores da GHT4 indicam acesso web, sem API 
+ 
+22 LinkedIn. User Agreement. Termos consultados em 10 setembro 2026. 
+
+PAGE 19
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  19 de 36 
+contratada. A primeira solução será importar exportações autorizadas; acesso à plataforma não implica 
+permissão irrestrita de redistribuição, uso em IA ou automação.23, 24 
+A S&P apresenta o Capital IQ Pro como plataforma de informações financeiras, transações e screening; 
+a EMIS oferece dados de negócios e exportações em Excel de sua base DealWatch. A disponibilidade 
+desses recursos no produto e contrato específicos da GHT4 deve ser conferida. O passo a passo de Capital 
+IQ mencionado no anexo será transformado em um procedimento validado, com amostra de arquivos e 
+resultado esperado.25, 26 
+Comparáveis listadas. Definir universo econômico antes dos múltiplos. Identificar empresa, código do 
+fornecedor, bolsa, moeda, data da cotação, capitalização, dívida, caixa, participações relevantes e 
+tratamento de arrendamentos. Registrar receita, EBITDA ou EBITA, período fis cal, LTM ou projeção 
+futura, ajustes e origem. Não misturar distribuidor de especialidades e produtor químico sem justificar 
+a comparação. 
+Transações precedentes.  Registrar comprador, vendedor, alvo, participação adquirida, anúncio, 
+fechamento, situação do negócio, moeda, preço divulgado, definição de equity value ou enterprise value 
+e dados financeiros correspondentes ao perímetro adquirido. Valores não divulgados  permanecem 
+vazios; a existência de notícia de aquisição não autoriza calcular um múltiplo. 
+Cálculos e revisão.  O mecanismo de cálculo deve ser determinístico. Como ponte inicial, EV 
+corresponde ao valor do patrimônio acrescido de dívida e outros direitos financeiros pertinentes, menos 
+caixa e ativos não operacionais considerados; cada ajuste precisa de definição c onsistente. O valor 
+atribuível aos acionistas depende dessa reconciliação e dos termos da transação. Não dividir o preço de 
+uma participação por seu percentual para inferir automaticamente EV de 100%. 
+EV/EBITDA, EV/EBITA e EV/Receita são métricas distintas. Denominadores negativos ou próximos de 
+zero devem gerar tratamento específico ou “não significativo”, sem contaminar a mediana. Diferenças 
+de arrendamentos podem alterar tanto o valor da firma quanto medidas de resultado; a comparabilidade 
+exige tratamento consistente, como discutido por Damodaran.27 
+Apresentar mediana, quartis, número de observações válidas, exclusões e justificativas, separando 
+companhias listadas de negócios de controle. Manter moeda e escala explícitas, datas de corte comuns 
+quando apropriado e política para outliers. Em distribuiç ão, verificar receita bruta versus líquida e 
+receita de intermediação, pois modelos contábeis diferentes podem distorcer EV/Receita. 
+ 
+23 GHT4 Advisory. Ferramenta de IA para Prospecção e Execução de Mandatos. Documento de Requisitos v1.0, sem data 
+explícita. Fonte interna; seções 1 a 12. 
+24 GHT4, materiais do projeto. Planos e código locais de prospecção. Planos de agosto de 2026; diretório inspecionado em 10 
+setembro 2026. Planos e diretórios do projeto GHT4; detalhes na referência 21. 
+25 S&P Global Market Intelligence. S&P Capital IQ Pro. Página de produto, sem data de publicação. 
+26 EMIS. M&A Deals. Página de produto, sem data de publicação. 
+27 Aswath Damodaran, NYU Stern. Operating leases and valuation. Material metodológico sem data explícita na página. 
+
+PAGE 20
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  20 de 36 
+O analista revisa a extração e a seleção; o revisor valida a metodologia. Ajustes geram nova versão, 
+conservando o valor original e a justificativa. O uso de valuation no ranking de segmentos só recebe 
+dados de uma versão identificada e revisada. A ferrame nta não deve converter automaticamente 
+múltiplos públicos em preço recomendado para uma empresa fechada. 
+Aceite do valuation. Usar um arquivo real autorizado e conferir 100% dos campos críticos de ao menos 
+dez comparáveis e dez precedentes, quando disponíveis. Se houver menos casos, conferir todos e 
+declarar a amostra. Valores e unidades devem reconciliar; diferenças por arredon damento terão 
+tolerância definida antes do teste. Incluir casos de moeda divergente, participação parcial, dado ausente, 
+EBITDA negativo e empresa fora do perímetro. 
+Report de mercado 
+O report deve começar com a pergunta de negócio, o perímetro e a conclusão, conectando cada análise 
+à originação ou ao mandato. Trends, TAM, SAM, SOM, players, consolidadores, Porter, SWOT e 
+PESTLE continuam obrigatórios, mas cada seção precisa de evidênci as e implicações específicas. Uma 
+seção sem lastro suficiente deve explicar a lacuna e sua consequência, em vez de preencher o espaço 
+com texto genérico. 
+TAM. Mercado total definido por atividade, geografia, período e métrica. Para distribuição química, 
+explicitar se inclui químicos básicos, especialidades, ingredientes, trading e vendas diretas de 
+fabricantes. Uma estimativa por demanda deve mostrar volumes, p reços, canais e exclusões; uma 
+estimativa por empresas deve reconciliar grupos e duplicidades. 
+SAM. Parcela do TAM acessível ao negócio analisado, considerando produtos, aplicações, regiões, canais 
+e restrições relevantes. SOM. Parcela que essa empresa pode capturar em um horizonte definido, dadas 
+suas capacidades, recursos e concorrência. SOM não será um percentual arbitrário do TAM nem se 
+confundirá com a parcela de mandatos que a GHT4 espera ganhar. 
+Para a boutique, criar um bloco separado de oportunidade comercial: quantidade de contas elegíveis, 
+potencial de eventos, capacidade de abordagem e cenários de contratação. A receita de assessoria resulta 
+de escopo e remuneração de mandatos, e não da parti cipação da GHT4 na distribuição de produtos 
+químicos. 
+Porter. Avaliar poder de fornecedores e clientes, rivalidade, entrantes e substitutos, com exemplos por 
+aplicação. SWOT. Definir a unidade analisada — empresa, tese ou GHT4 — antes de classificar fatores 
+internos e externos. PESTLE. Relacionar fatores políticos, econômicos, sociais, tecnológicos, legais e 
+ambientais a efeitos concretos, responsáveis e datas. Todas as conclusões serão identificadas como fato, 
+interpretação ou hipótese. 
+O report será exibido no chat e exportado como PDF reproduzível, com sumário, gráficos quando 
+houver dados adequados, fontes próximas às afirmações, data de corte e limitações. O texto do chat e o 
+PDF devem derivar do mesmo artefato de análise, evitando versões com números divergentes. 
+
+PAGE 21
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  21 de 36 
+News run 
+Permitir busca por empresa, aliases, grupo, setor, aplicação e período configurável. Registrar título, 
+veículo, link, data de publicação, data do evento, coleta, entidades envolvidas, resumo, categoria e status 
+de verificação. Uma republicação recente de um negócio antigo não é um novo evento. 
+Deduplicar por evento e manter os diferentes documentos como evidências. Distinguir rumor, intenção, 
+anúncio, aprovação regulatória, fechamento, cancelamento e desinvestimento. Notícias sobre litígios 
+ou problemas operacionais devem conter contexto, fonte e situação, sem converter alegação em fato 
+confirmado. 
+A saída útil para prospecção combina “o que aconteceu”, “por que importa para esta tese” e “qual ação 
+considerar”. Exemplo: aquisição anunciada por um grupo → revisar possíveis lacunas do portfólio e 
+confirmar se a integração reduz sua capacidade de novas compras. O sistema não deve produzir alerta 
+de urgência só porque encontrou uma palavra associada a M&A. 
+10 Listas de compradores e alvos 
+O matchmaking parte de um mandato ou hipótese explicitamente definida. Para venda, o perfil do ativo 
+alimenta uma lista de compradores estratégicos e financeiros. Para compra, a tese do cliente alimenta 
+uma lista de alvos. Reaproveitar fatos e pesquisas nã o dispensa critérios novos nem autoriza 
+compartilhar informações do mandato fora do seu perímetro. 
+Perfil mínimo do mandato 
+Registrar lado da assessoria, empresa cliente, objetivo, aplicações, geografia, porte, participação 
+pretendida, restrições, exclusividade, alvos ou compradores já conhecidos e regras de contato. Quando 
+houver informação confidencial, preparar versões inter na completa e externa autorizada. Uma prévia 
+anônima pode reduzir exposição, mas combinações de características ainda podem identificar a empresa 
+e devem ser revistas. 
+Critérios da contraparte 
+Comprador para um mandato de venda Alvo para um mandato de compra 
+Compatibilidade estratégica e aplicações Aderência aos requisitos do cliente 
+Portfólio e geografia complementares Capacidades e ativos desejados 
+Capacidade financeira e de integração Porte, controle e viabilidade de aquisição 
+Evidência recente de apetite Disponibilidade a confirmar em contato 
+Conflitos entre representadas e clientes Dependências que afetam a integração 
+Caminho de acesso e processo decisório Caminho de acesso aos acionistas 
+ 
+
+PAGE 22
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  22 de 36 
+O ranking de compradores deve permitir incluir organizações fora da base setorial inicial: 
+conglomerados, fundos, plataformas investidas, compradores internacionais e adjacências. Já o ranking 
+de alvos não pode tratar ausência de sinal público de venda como impossibilidade de transação. 
+Cada linha terá entidade, racional, evidências, restrições, pontuação por dimensão, cobertura, caminho 
+de contato e recomendação de próxima ação. Exibir lista longa, lista curta e excluídos com motivo. O 
+analista propõe; o responsável pelo mandato aprova a  lista a utilizar no processo e a sequência de 
+contatos. 
+Aceite. Aplicar duas teses distintas à mesma base e demonstrar que filtros, lista e justificativas mudam 
+de forma coerente. Testar comprador estrangeiro, grupo com várias subsidiárias, investidor com 
+plataforma existente, ativo já adquirido e contato em conflito.  A lista deve ser reconstruível com o 
+snapshot e a regra originais. 
+11 CRM e gestão da atividade comercial 
+Modelo de pipeline 
+O CRM deve administrar oportunidades de contratação. A etapa de execução do negócio fica em 
+pipeline próprio após a assinatura do mandato. Separar empresas, pessoas, relações, oportunidades, 
+atividades, propostas e mandatos permite manter várias oportunidades na mesma conta sem duplicar o 
+cadastro ou confundir taxa de conversão. 
+Etapa Evidência de entrada ou avanço Campos indispensáveis 
+Identificada Conta aderente à pesquisa Empresa, papel, origem e responsável 
+Qualificada para 
+abordagem Revisão do dossiê e do plano de acesso Tese, lacunas, contato e próxima ação 
+Contatada Contato realmente efetuado Data, canal, mensagem e destinatário 
+Conversa realizada Interação substantiva concluída Participantes, nota, objetivos e 
+próximos passos 
+Oportunidade de 
+mandato 
+Necessidade e contratação em 
+discussão 
+Patrocinador, escopo, timing e 
+viabilidade 
+Proposta enviada Documento aprovado e entregue Versão, valor, escopo e prazo de 
+retorno 
+Negociação Ajustes comerciais ou contratuais em 
+curso 
+Pendências, decisores e data de 
+acompanhamento 
+Mandato assinado Contrato formalizado Documento, termos, equipe e 
+passagem à execução 
+
+PAGE 23
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  23 de 36 
+Etapa Evidência de entrada ou avanço Campos indispensáveis 
+Nutrição ou pausa Interesse futuro ou timing inadequado Motivo e data ou gatilho de retorno 
+Perdida ou não contatar Recusa definitiva, conflito ou 
+impedimento 
+Motivo estruturado e observação 
+específica 
+ 
+Uma reunião marcada não conta como conversa realizada; uma proposta produzida não conta como 
+enviada; aceite verbal não conta como mandato assinado. A IA pode sugerir atualizações a partir de 
+notas, mas o sistema deve confirmar o evento com a evidência correspondente e guardar autor e horário. 
+Agenda e histórico 
+Cada colaborador terá tarefas por data, prioridade, empresa e oportunidade, com visão de atrasos e 
+substituições. O gestor verá carga por responsável, oportunidades sem próxima ação e concentração por 
+lado, aplicação e estágio. Uma conta em andamento não s erá abordada por outro membro sem 
+coordenação com seu responsável. 
+Após cada call, registrar objetivos dos acionistas ou comprador, motivações declaradas, restrições, 
+horizonte, decisão sobre próxima etapa e dúvidas. Resumos automáticos devem ser revistos pelo 
+participante. Gravação e transcrição, se utilizadas, precisam de política própria; notas manuais devem 
+permanecer uma alternativa. 
+Os motivos de recusa incluirão sem interesse, timing, porte, falta de aderência, assessor já contratado, 
+expectativa de valor, escopo ou honorários, ausência de consenso, restrição do comprador, conflito, 
+contato incorreto e não contatar. Preservar também o comentário específico da conversa. “Sem 
+resposta” será uma categoria separada, sem atribuir ao empresário uma recusa que ele não fez. 
+Rotina de gestão 
+Proposta inicial: revisão individual de agenda em dias úteis; reunião semanal de 45 minutos para 
+oportunidades e bloqueios; calibração quinzenal entre pesquisa e originadores; revisão mensal de 
+desempenho e teses pelos sócios. A reunião semanal deve termin ar com decisões, donos e datas. A 
+mensal pode reduzir ou ampliar subsegmentos conforme evidência, sem reescrever o histórico. 
+O equilíbrio entre compra e venda será acompanhado por horas, contas qualificadas, conversas e 
+propostas, e não apenas por número de leads. Se o time observar demanda maior de um lado, poderá 
+alterar a alocação com justificativa e prazo de revisão. Manter o pedido de equilíbrio como ponto de 
+partida, com transparência sobre desvios. 
+Passagem para execução 
+Ao assinar, gerar um pacote com contrato, escopo, stakeholders, pesquisa validada, premissas de 
+valuation, perfil de compradores ou alvos, contatos já feitos, restrições e pendências. Confirmar o que 
+
+PAGE 24
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  24 de 36 
+pode ser reutilizado e quem tem acesso. O pipeline comercial encerra a oportunidade ganha, e o pipeline 
+de mandato inicia a execução; um negócio concluído é outro evento, potencialmente muito posterior. 
+12 Outputs e experiência da ferramenta 
+Chat 
+Toda entrega deve apresentar objetivo entendido, recorte, data de corte, principais resultados, critérios, 
+cobertura, ressalvas que alteram decisões e ações sugeridas. Os números citados devem apontar para 
+fatos ou cálculos rastreáveis. Oferecer comandos para ajustar pesos, comparar versões, aprofundar uma 
+empresa, revisar um dado e exportar a análise. 
+O usuário poderá interromper uma pesquisa, ver progresso e consultar o que foi concluído, sem 
+confundir resultado parcial com final. Uma falha de fonte deve aparecer como falha de coleta, não como 
+evidência de que o fato ou a empresa não existe. 
+Excel 
+Preservar a matriz pedida: cada subsegmento como coluna e empresas nas linhas correspondentes. A 
+posição vertical em colunas diferentes não implica equivalência entre empresas. Adicionar identificador 
+e um índice remissivo para localizar cada companhia nas abas detalhadas; uma empresa multissegmento 
+pode aparecer em várias colunas e uma única vez no cadastro normalizado. 
+Aba Conteúdo 
+Leia me Objetivo, regras, snapshot, data, definições e 
+responsáveis 
+Mapa por subsegmento Visão matricial exigida no documento 
+Empresas Uma linha por entidade, com dados e estados de 
+qualidade 
+Ranking de segmentos Critérios, pesos, valores, cobertura e posição 
+Ranking de empresas Papel, contribuições, cobertura, decisão e justificativa 
+Compradores ou alvos Racional, restrições, acesso e status da lista 
+Valuation Quadros separados de comps e precedentes, 
+conforme requisito 
+Fontes e evidências Referências, datas, localização e IDs de fatos 
+Revisões Mudanças, autores, versões e decisões 
+ 
+Quando necessário, complementar Valuation com abas detalhadas Comps e Precedentes, mantendo a 
+aba de síntese exigida. Fórmulas devem ser legíveis, referências consistentes e células sem dado 
+
+PAGE 25
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  25 de 36 
+permanecerem vazias ou explicitamente classificadas; nunca substituir ausência por zero. Textos 
+importados devem ser tratados como texto, evitando execução acidental de fórmulas de planilha. 
+PDF e plataforma 
+O PDF de mercado terá a mesma versão e corte do chat, fontes junto aos números, paginação e apêndice 
+metodológico. O CRM permanecerá na plataforma, com controle de acesso e auditoria. Exportações 
+respeitarão as permissões de campos e mandatos, inclusive quando um usuário puder ver o ranking mas 
+não a identidade do dono de uma conexão. 
+Aceite dos outputs. Abrir o Excel em leitor compatível, comparar quantidades e valores com o resultado 
+da consulta e conferir fórmulas. Renderizar e revisar o PDF completo. Testar empresas multissegmento, 
+textos longos, fontes sem acesso público, dados ausentes e exportação por um usuário com acesso 
+limitado. 
+13 Arquitetura e requisitos transversais 
+Arquitetura funcional 
+A interface reúne chat, mapas, fichas, rankings, rede, análises, listas e CRM. Uma API controla acesso, 
+consultas, revisões e exportações. Serviços de dados mantêm arquivos originais, fatos canônicos e 
+resultados versionados. Processos de atualização rodam no servidor e registram falhas, custos e tempos. 
+A interface não deve carregar todo o universo empresarial para filtrar no navegador. 
+O modelo de linguagem interpreta pedidos, propõe classificações e redige análises com fontes. Filtros, 
+cálculos, score, validações e gravações são executados por componentes tipados e verificáveis. Antes de 
+qualquer alteração relevante, a aplicação valida usuário, escopo e regra. Textos de sites, documentos e 
+planilhas são conteúdo para análise, nunca instruções que possam conceder permissões ou ordenar 
+ações. 
+Começar com um fluxo de IA controlado e ferramentas delimitadas. Dividir o processamento em 
+agentes especializados só se uma avaliação mostrar ganho real de qualidade ou tempo. Não introduzir 
+complexidade de coordenação como condição para entregar o piloto. 
+Continuidade e segurança 
+Definir perfis de administrador, sócio ou revisor, analista e colaborador da rede, além da participação 
+em cada mandato. Restringir também por campo quando houver relação pessoal ou informação do 
+cliente. A autorização precisa alcançar busca semântica, his tórico, exportações, cache e contexto 
+entregue ao modelo; esconder uma informação na tela não é suficiente. 
+Prever criptografia em trânsito e em armazenamento, gestão de credenciais no servidor, registro de 
+acessos relevantes, backup e teste de restauração. Separar desenvolvimento e produção. Dados reais 
+sensíveis não devem circular em demonstrações ou logs de diagnóstico. O contrato do fornecedor de IA 
+
+PAGE 26
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  26 de 36 
+deve definir retenção, uso de conteúdo, subprocessadores e região de processamento, sem presumir 
+garantias universais entre produtos. 
+Para dados pessoais de sócios, executivos e membros da rede, documentar finalidade, necessidade, base 
+legal e salvaguardas. O guia da ANPD sobre legítimo interesse propõe análise de finalidade, necessidade 
+e balanceamento; dados publicados na internet não dispensam essa avaliação. Prever canal de correção, 
+oposição quando aplicável, bloqueio de contato e prazo de retenção por classe de dado.28 
+Transferências internacionais exigem avaliação do mecanismo aplicável e dos instrumentos contratuais. 
+A Resolução CD/ANPD 19/2024 estabelece o regulamento e cláusulas-padrão. A implantação deve ser 
+conferida pelo responsável jurídico ou de privacidade à lu z do contrato e da norma vigente; esta 
+especificação define tarefas de produto e governança, sem escolher antecipadamente uma base legal 
+para todo tratamento.29 
+O histórico técnico será preservado conforme a política de retenção; “append -only” não significa 
+conservar dados pessoais indefinidamente. Exclusão, anonimização ou restrição legalmente necessária 
+deve alcançar índices e cópias derivadas, com procedimento de backup e trilha mínima compatíveis 
+com a política aprovada. 
+Atualização proposta 
+Informação Cadência inicial Regra para usar em decisão 
+Cadastro empresarial Cada publicação da fonte, com rotina 
+mensal como referência 
+Mostrar data do snapshot e reconciliar 
+diferenças 
+Atividade e portfólio Trimestral na coorte; sob demanda no 
+restante 
+Rever antes de uma abordagem 
+relevante 
+Notícias Dias úteis para contas ativas; semanal 
+para setor 
+Registrar evento e publicação 
+separadamente 
+Dados financeiros A cada nova divulgação ou exportação 
+autorizada 
+Preservar exercício, período e 
+perímetro 
+Comps No início da análise e antes de circular 
+versão final Data de mercado explícita e revisão 
+Precedentes Atualização mensal e antes de concluir 
+pesquisa 
+Distinguir anúncio, fechamento e 
+cancelamento 
+Conexões Confirmação semestral como hipótese 
+e antes de introdução A vontade do titular prevalece 
+ 
+28 ANPD. ANPD lança Guia Orientativo sobre Legítimo Interesse. 2 fevereiro 2024. 
+29 ANPD. Resolução CD/ANPD 19 de 23 de agosto de 2024. 23 agosto 2024; página consolidada consultada em 10 setembro 
+2026. 
+
+PAGE 27
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  27 de 36 
+Informação Cadência inicial Regra para usar em decisão 
+CRM Após interação, preferencialmente em 
+até um dia útil Evento comprovado e próxima ação 
+ 
+Essas frequências são propostas de serviço, sujeitas à disponibilidade das fontes e ao custo. Se a 
+atualização falhar, o sistema mantém o dado anterior com seu corte e sinaliza a defasagem. Não exibir 
+a data de uma nova consulta como se fosse a data do dado financeiro. 
+14 Implantação em 16 semanas 
+Premissas de capacidade 
+O plano pressupõe um sócio patrocinador com cerca de duas horas semanais para decisões, um 
+responsável de produto ou operação por quatro a seis horas semanais, um analista dedicado ao piloto, 
+dois originadores com blocos regulares de agenda e capacidade técnica combinando aplicação, dados e 
+IA. Como referência de esforço, considerar dois profissionais técnicos equivalentes em tempo integral 
+durante a construção, com participação pontual de segurança e privacidade. Esses papéis não 
+representam contratações ou disponibilidade já confirmadas. 
+Com uma única pessoa técnica ou um analista dividido entre muitos mandatos, reduzir o escopo 
+simultâneo e reestimar o prazo. A sequência de dependências é mais importante que o calendário: dados 
+e definições precisam estar prontos antes de afirmar que o ranking ou valuation foi entregue. 
+Fases e pontos de decisão 
+Fase Janela Entrega central Condição para 
+avançar 
+0 Diagnóstico e 
+critérios Semana 1 
+Aderência real, tese, 
+amostras, responsáveis e 
+acessos 
+Escopo e critérios do 
+piloto registrados 
+1 Universo e fichas Semanas 2 a 4 Base reconciliada e coorte 
+enriquecida 
+Dados críticos 
+verificáveis e lacunas 
+classificadas 
+2 Ranking e 
+linguagem natural Semanas 5 a 6 Templates por papel e regras 
+editáveis 
+Testes de ranking e 
+interpretação 
+aprovados 
+3 Rede e rotina 
+comercial Semanas 7 a 8 Conexões confirmadas e 
+CRM operacional 
+Agenda ativa, 
+permissões e 
+histórico confiáveis 
+
+PAGE 28
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  28 de 36 
+Fase Janela Entrega central Condição para 
+avançar 
+4 Análises e 
+matchmaking Semanas 9 a 12 Valuation, report, notícias e 
+listas 
+Reconciliação de 
+dados e revisão do 
+negócio 
+5 Integração e adoção Semanas 13 a 16 Fluxo completo, treinamento 
+e monitoramento 
+Critérios de 
+qualidade e 
+continuidade 
+atendidos 
+6 Validação 
+econômica Até 180 dias Revisão de conversões e 
+custos por coorte 
+Decisão de escala, 
+ajuste ou suspensão 
+ 
+Uma rotina comercial manual assistida pode começar na fase 1 assim que houver fichas revisadas e um 
+registro de atividades disponível. Não é preciso esperar todo o produto ficar pronto para aprender com 
+conversas; cada contato precisa, entretanto, cumprir o controle de acesso, a revisão e a responsabilidade 
+comercial. 
+Primeiros dez dias úteis 
+• Dia 1: designar patrocinador e dono do produto; confirmar piloto, lados comerciais e equipe 
+disponível. 
+• Dias 2 e 3: percorrer o fluxo atual com um analista e um originador; registrar tempos, 
+retrabalhos, CRM em uso e fontes contratadas. 
+• Dias 3 e 4: conferir os módulos existentes com cenários reais; separar disponível, parcial, não 
+integrado e não demonstrado. 
+• Dias 4 e 5: selecionar amostras de exportação, modelos de report e material autorizado da 
+rede; definir o catálogo de fontes e permissões. 
+• Dias 5 a 7: ratificar a taxonomia e construir o conjunto de referência para classificação e 
+ranking. 
+• Dias 7 a 9: resolver identidade e produzir as primeiras fichas revisadas, com fila de dados 
+faltantes. 
+• Dia 10: revisar o primeiro lote, ajustar critérios e definir contas, responsáveis e datas do 
+primeiro ciclo de abordagem. 
+Backlog com entregas verificáveis 
+P0 significa condição para operar o piloto com dados confiáveis; P1 completa o escopo do documento; 
+P2 amplia eficiência e escala. As estimativas de fase pressupõem reaproveitamento do que for validado 
+na aplicação atual. 
+
+PAGE 29
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  29 de 36 
+ID Prio Entrega Dono funcional Dependência 
+B01 P0 Diagnóstico demonstrado por requisito Produto Acesso ao ambiente 
+B02 P0 Tese e taxonomia ratificadas Sócio e analista B01 
+B03 P0 Catálogo de fontes e direitos de uso Produto e 
+privacidade Amostras e contratos 
+B04 P0 Importação com reconciliação e histórico Dados B03 
+B05 P0 Identidade empresa filial e grupo Dados e analista B04 
+B06 P0 Classificação econômica e evidências Analista B02 e B05 
+B07 P0 Enriquecimento de porte e controle Analista B06 e fontes 
+B08 P0 Ficha e estados de qualidade por campo Produto B05 a B07 
+B09 P0 Amostra de referência por papel Sócios B08 
+B10 P0 Ranking cobertura e explicações Produto e 
+analista B09 
+B11 P1 Prompt para regra com prévia e validação Produto e IA B10 
+B12 P1 Templates e comparação de versões Produto B10 
+B13 P0 Rede autorizada e confirmação de vínculos Donos das 
+relações B03 e B05 
+B14 P0 CRM agenda responsáveis e motivos Operação 
+comercial Modelo de funil 
+B15 P0 Plano de abordagem e revisão de contas Originadores B08 e B14 
+B16 P1 Importação validada de comps e 
+precedentes 
+Analista e 
+revisor Arquivos Capital IQ 
+B17 P1 Ranking de subsegmentos com dados reais Analista B06 e B16 
+B18 P1 News run por evento e período Analista e dados B03 e B05 
+B19 P1 Report com metodologia e fontes Analista e 
+revisor B16 a B18 
+B20 P1 Matchmaking com critérios de mandato Sócio e analista B10 e perfil 
+B21 P1 Chat Excel e PDF consistentes Produto B10 e B16 a B20 
+B22 P0 Permissões ponta a ponta e auditoria Tecnologia Matriz de acesso 
+
+PAGE 30
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  30 de 36 
+ID Prio Entrega Dono funcional Dependência 
+B23 P0 Backup recuperação e suporte Tecnologia Ambiente operacional 
+B24 P1 Painel de qualidade custo e conversão Produto e gestão B14 e eventos 
+B25 P1 Homologação completa e treinamento Produto e 
+usuários B01 a B24 
+B26 P2 Sincronizações e escala adicionais Produto Evidência do piloto 
+ 
+B22 e B23 devem acompanhar todas as fases, com profundidade proporcional à implantação; não ficam 
+para depois do uso de dados confidenciais. B16 pode exigir trabalho de preparação já na primeira 
+semana, mesmo que o módulo seja entregue mais adiante. 
+15 Critérios de sucesso e economia 
+Medidas de qualidade e adoção 
+Os valores abaixo são metas iniciais propostas. A medição da primeira semana fornece o baseline real, 
+hoje não estabelecido neste plano. Os sócios devem aprovar ou ajustar limites antes de utilizá-los como 
+critério contratual de aceite. 
+Medida Definição Meta inicial proposta 
+Identidade correta Entidades corretamente resolvidas / 
+entidades auditadas 
+Ao menos 95%; nenhum erro crítico 
+na lista de abordagem 
+Precisão da seleção Contas consideradas aderentes / contas 
+do top 20 por papel 
+Ao menos 80%, com julgamento 
+registrado 
+Rastreabilidade crítica Afirmações críticas com evidência / 
+afirmações críticas usadas 100% nos outputs aprovados 
+Cobertura para ação Peso conhecido / peso total da regra Ao menos 70% e critérios obrigatórios 
+resolvidos 
+Interpretação de prompts Regras semanticamente corretas / 
+conjunto de testes 
+Ao menos 90%; nenhuma violação de 
+filtro obrigatório 
+Valuation Reconciliação dos campos críticos 
+auditados 
+100%, respeitado arredondamento 
+previamente definido 
+Registro comercial Oportunidades ativas com dono e 
+próxima ação / ativas 100% 
+Tempo de dossiê Mediana do tempo até ficha revisada Redução de 30% ante baseline, sem 
+perda de qualidade 
+
+PAGE 31
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  31 de 36 
+Medida Definição Meta inicial proposta 
+Uso pelo time Usuários previstos com atividade útil 
+semanal / previstos 
+Ao menos 80% durante quatro 
+semanas 
+Permissões Vazamentos em cenários de acesso 
+indevido testados Zero nos testes de liberação 
+ 
+Testes devem incluir número e descrição dos casos. Zero falhas numa amostra não prova ausência de 
+vulnerabilidades. Priorizar cenários de impacto: vazamento entre mandatos, conexão revelada sem 
+permissão, múltiplo incorreto, empresa errada e contato após bloqueio. 
+Indicadores comerciais por lado 
+Medir contas únicas abordadas, apresentações solicitadas e realizadas, respostas substantivas, conversas 
+realizadas, oportunidades qualificadas, propostas enviadas, mandatos assinados, tempo por etapa, 
+motivos de perda e horas investidas. Usar oportunidade s, não mensagens, como unidade do funil; 
+separar empresas e pessoas para evitar dupla contagem. 
+Conversão de abordagem para conversa = contas com conversa realizada / contas abordadas da mesma 
+coorte. Conversão de conversa para proposta = oportunidades com proposta enviada / oportunidades 
+com conversa realizada. Conversão de proposta para mandato = m andatos assinados / propostas 
+enviadas. Comparar apenas coortes com tempo suficiente de observação, e mostrar oportunidades ainda 
+abertas. 
+O painel distingue canal de origem, influência posterior de uma conexão e responsável atual. Comparar 
+compra e venda separadamente. Mandatos recorrentes de compradores não devem distorcer a análise 
+de quantas contas novas foram conquistadas. 
+Capacidade e orçamento 
+O orçamento deve separar implantação, esforço interno e operação recorrente. A proposta de 
+capacidade técnica corresponde, ilustrativamente, a 2 profissionais × 16 semanas × 40 horas = 1.280 
+horas. Aplicar a taxa efetivamente cotada; somar analista, produt o, revisores, treinamento e serviços 
+pontuais. Essa conta dimensiona esforço, não estima preço de mercado. 
+Custo recorrente = infraestrutura + consumo de IA + armazenamento + manutenção + licenças 
+incrementais + horas de operação. Registrar também os custos totais das assinaturas quando forem 
+avaliadas alternativas de solução. Contratos já existentes podem não aumentar o caixa do piloto, mas 
+continuam relevantes para o custo total de propriedade. 
+Uma avaliação econômica conservadora usa duas linhas separadas. Benefício de produtividade = horas 
+efetivamente poupadas × custo ou valor da capacidade reaproveitada. Benefício comercial = margem de 
+contribuição incremental de mandatos atribuível ao proces so. Não contar a mesma hora poupada 
+simultaneamente como redução de folha e capacidade comercial adicional sem demonstrar o efeito. 
+
+PAGE 32
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  32 de 36 
+Para estimar receita de um mandato, separar remuneração fixa efetivamente contratada, honorários de 
+sucesso condicionados à conclusão e despesas reembolsáveis. O valor de uma transação potencial não é 
+receita da boutique, e pipeline ponderado não é caixa. Probabilidades de fechamento devem ser 
+calibradas por histórico e etapa, com cenários quando não houver histórico suficiente. 
+Decisões de continuidade 
+Na semana 4, avançar se o piloto produz fichas confiáveis e o time consegue utilizá -las para selecionar 
+contas; caso contrário, corrigir fonte, taxonomia ou esforço de enriquecimento. Na semana 8, revisar 
+qualidade da lista e execução da agenda. Na semana 16, decidir sobre operação regular com evidência 
+de qualidade, adoção, custo e segurança. Até 180 dias, revisar conversões, mandatos e viabilidade 
+econômica sem exigir que todas as transações já tenham sido concluídas. 
+Ampliar para outro subsegmento só quando o processo atual puder ser reproduzido por mais de um 
+analista, os outputs forem auditáveis e o custo de atualização for conhecido. Suspender expansão se falta 
+de dados, baixa aderência das listas ou ausência de execução comercial impedir avaliação do resultado. 
+16 Riscos e decisões ainda necessárias 
+Risco concreto Sinal de alerta Resposta prevista 
+Dados privados 
+insuficientes 
+Porte e controle faltam na maioria da 
+coorte 
+Testar cobertura dos fornecedores e 
+enriquecer seletivamente 
+Ranking reflete 
+preferências frágeis 
+Mudanças pequenas alteram todo o 
+topo 
+Calibrar, mostrar contribuições e testar 
+sensibilidade 
+Viés de empresas 
+conhecidas 
+Rede domina e oportunidades novas 
+somem 
+Reservar amostra exploratória e medir 
+por canal 
+Falta de uso comercial Boas listas não viram tarefas ou 
+conversas Responsável, agenda e revisão semanal 
+Compartilhamento 
+indevido 
+Dados aparecem fora do mandato ou 
+finalidade 
+Permissões no servidor, testes e trilha 
+de exportação 
+Licença incompatível Exportação ou uso em IA não 
+permitido 
+Adequar método e contrato; usar 
+fontes autorizadas 
+Dependência de uma 
+pessoa Conhecimento e CRM ficam locais Procedimentos, dados compartilhados 
+e substituição 
+Escopo excessivo Relatórios sofisticados atrasam 
+aprendizado 
+Proteger a sequência do piloto e 
+critérios de fase 
+Conflito de interesses Comprador e vendedor disputam uso 
+da informação 
+Revisão pelos sócios antes do contato 
+ou mandato 
+ 
+
+PAGE 33
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  33 de 36 
+Perguntas para a reunião de abertura 
+O foco setorial e o equilíbrio entre compra e venda já estão definidos. Restam decisões que refinam a 
+execução: faixa de receita e valor de transação desejados; regiões e aplicações prioritárias; aceitação de 
+situações especiais; equipe disponível; CRM e agenda usados hoje; acessos e direitos efetivos de EMIS e 
+Capital IQ; material da rede autorizado; responsabilidade por privacidade e manutenção; teto de 
+investimento e economia mínima de um mandato. 
+Também será necessário definir como os sócios avaliarão uma boa oportunidade: urgência, alinhamento 
+acionário, capacidade de contratar, tamanho, margem potencial do mandato ou valor estratégico da 
+relação. Essas escolhas serão registradas em templates e cr itérios de aceite. Não impedem o 
+planejamento, mas influenciam a calibragem e a contratação da implementação. 
+17 Matriz de rastreabilidade dos requisitos 
+Esta matriz permite verificar cobertura sem usar a existência de uma tela como evidência de entrega. 
+Cada requisito deve ser demonstrado com dados autorizados, resultado reproduzível e avaliação de um 
+usuário do negócio. 
+Documento original Adaptação neste planejamento Evidência de aceite 
+1 Contexto e objetivo Seções 1 a 4 e 15 Funis por lado e objetivo mensurável 
+2 Mapeamento de 
+mercado Seções 5 e 6 Taxonomia, empresas únicas, 
+cobertura e lacunas 
+3 Ranking de 
+subsegmentos Seções 7 e 9 Critérios do documento, pesos e fontes 
+por indicador 
+4.1 Critérios base Seções 5 a 7 Atividade, porte, estrutura e conexão 
+verificáveis 
+4.2 Critérios ad hoc Seção 7 Prompt convertido em regra visível e 
+testada 
+4.3 Templates Seções 7 e 14 Salvar, reutilizar e comparar versões 
+5 Rede do grupo Seção 8 Caminhos confirmados e acesso por 
+finalidade 
+6.1 Valuation Seção 9 Export real reconciliado e ajustes 
+auditáveis 
+6.2 Report Seções 5 e 9 Trends, TAM SAM SOM, players, 
+Porter, SWOT e PESTLE 
+
+PAGE 34
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  34 de 36 
+Documento original Adaptação neste planejamento Evidência de aceite 
+6.3 News run Seção 9 Período configurável, deduplicação e 
+eventos datados 
+7 Compradores e 
+vendedores Seção 10 Listas por mandato, regras próprias e 
+revisão 
+8 CRM e pipeline Seções 4 e 11 Agenda, calls, recusas, propostas e 
+assinatura 
+9 Formatos de saída Seção 12 Chat, matriz Excel, valuation e PDF 
+conferidos 
+10 Fontes de dados Seções 6 e 13 Catálogo, direito de uso, fonte e data 
+por fato 
+11 Atualização Seção 13 Cadências, histórico e falhas visíveis 
+12 Configurabilidade Seção 7 Filtros e pesos sem reprogramação 
+12 Revisão humana Seções 7 a 11 Correção com escopo, autor e versão 
+12 Integração Seções 6 e 10 a 13 Mesma empresa e evidência ao longo 
+do fluxo 
+12 Confidencialidade Seções 8 e 13 Testes de acesso em tela, busca, IA e 
+exportação 
+ 
+Cenário completo de homologação 
+Um analista seleciona distribuição de ingredientes, importa dados autorizados, resolve duplicidades e 
+delimita o subsegmento. Pede um ranking de potenciais vendedores com foco em diversificação e acesso 
+pela rede, revisa a interpretação e obtém lista com c obertura e evidências. O titular confirma uma 
+conexão; o originador conduz o contato e registra a conversa e seus próximos passos. 
+Em paralelo, outro originador qualifica uma conta compradora com interesse em ampliar aplicações no 
+Brasil, registra tese e processo decisório e prepara uma proposta buy-side. A mesma base permite gerar 
+uma lista de alvos sob critérios desse comprador, sem  expor os dados da oportunidade sell -side nem 
+misturar responsabilidades comerciais. 
+Após um mandato ser formalizado, o time reutiliza as informações permitidas, gera comps e precedentes 
+revisados, um report de mercado e uma lista de contrapartes. O Excel e o PDF correspondem ao 
+resultado do chat. Um revisor consegue voltar de uma conclusã o à fonte e reconstruir a análise. Um 
+usuário de outro mandato não consegue acessar os documentos ou conexões restritos. 
+
+PAGE 35
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  35 de 36 
+18 Fontes e referências 
+As datas de acesso das fontes públicas correspondem a 10 de setembro de 2026. Datas de publicação e 
+período das informações são mantidos separadamente. Anúncios históricos foram usados para 
+identificar critérios de mercado; nenhuma referência, isoladamente , comprova interesse atual de um 
+comprador ou disponibilidade de um vendedor. Pesos, metas, cadências, volumes e prazos identificados 
+como propostas são recomendações deste planejamento. 
+1. GHT4 Advisory. Ferramenta de IA para Prospecção e Execução de Mandatos. Documento de 
+Requisitos v1.0, sem data explícita. Arquivo interno Requisitos - Ferramenta de IA GHT4 (1).docx, 
+seções 1 a 12, fornecido para este planejamento. 
+2. GHT4. GHT4 Advisory. Sem data de publicação. Posicionamento institucional, serviços e experiência 
+divulgada. 
+3. McKinsey & Company. Five steps to strengthen M&A capabilities, no matter the starting point . 13 
+fevereiro 2026. Originação antecipada, tese e cultivo de relações; pesquisa com adquirentes 
+programáticos. 
+4. McKinsey & Company. Gen AI in M&A From theory to practice to high performance . 14 janeiro 
+2026. Identificação de alvos, formalização de critérios e adoção de IA. 
+5. Deloitte. New Deloitte Survey 86% of Corporate and Private Equity Leaders Now Use Generative 
+AI. 9 outubro 2025. Pesquisa com 1.000 líderes nos Estados Unidos, realizada no primeiro semestre de 
+2025; não é benchmark para a GHT4. 
+6. Datasite. How AI is making M&A more human. 29 julho 2026. Divulgação de pesquisa Datasite e FT 
+Longitude; publicação de fornecedor, com limitações de generalização. 
+7. Brenntag. Brenntag adquire PIC e PharmaSpecial no Brasil. 19 agosto 2024. Comunicado de anúncio, 
+racional setorial e condições de fechamento; preço não divulgado. 
+8. Azelis. Azelis expands its Latin American presence with the acquisition of Vogler in Brazil. 12 abril 
+2023. Anúncio de aquisição majoritária e descrição de portfólio e competências. 
+9. Azelis. FY2023 results Azelis delivers record free cash flow. Resultados de 2023, divulgados em 2024. 
+Registra fechamento da aquisição de Vogler em junho de 2023. 
+10. Univar Solutions. Univar Solutions Acquires Leading Distributor Sweetmix to Expand Food 
+Ingredients and CASE Portfolio in Brazil. 1 dezembro 2021. Referência histórica de aquisição, fora da 
+janela recente de três anos. 
+11. ASSOCIQUIM e SINCOQUIM. Perfil do Setor . Sem data de publicação; página remete ao Perfil 
+2024. Informação sobre a origem dos dados em associados; não foi usado valor de mercado de relatório 
+restrito. 
+
+PAGE 36
+ 
+ 
+GHT4 Advisory 
+ 
+ 
+Confidencial  |  Uso interno  |  36 de 36 
+12. Receita Federal. Novo Layout para os Dados Abertos do CNPJ. Documento de metadados sem data 
+explícita, páginas 1 a 6. Campos cadastrais, capital social e categorias de porte; verificar layout atual na 
+implementação. 
+13. Receita Federal. Receita Federal gera o primeiro CNPJ em formato alfanumérico . 31 julho 2026. 
+Necessidade de compatibilidade dos identificadores e validadores com letras e números. 
+14. IBAMA. Relatório de Atividades Potencialmente Poluidoras e Utilizadoras de Recursos Ambientais 
+RAPP. Página de serviço, sem data relevante explicitada. Finalidade de informação para controle e 
+fiscalização e origem declaratória do cadastro de atividades. 
+15. S&P Global Market Intelligence. S&P Capital IQ Pro. Página de produto, sem data de publicação. 
+Capacidades declaradas de dados e screening; funcionalidades e direitos da conta da GHT4 dependem 
+do contrato. 
+16. EMIS. M&A Deals. Página de produto, sem data de publicação. Dados de DealWatch e entrega em 
+Excel; não se presume contratação ou licença específica. 
+17. Aswath Damodaran, NYU Stern. Operating leases and valuation. Material metodológico sem data 
+explícita na página. Consistência no tratamento de arrendamentos e efeitos sobre múltiplos de firma. 
+18. LinkedIn. User Agreement. Termos consultados em 10 setembro 2026. Seção 8.2 sobre scraping e 
+métodos automatizados não autorizados; rever versão vigente antes de integração. 
+19. Affinity. Investment Banking CRM and Deal Management Software. Página de produto, sem data 
+de publicação. Referência funcional de CRM e relacionamento; material comercial, sem validação 
+independente de desempenho. 
+20. Intapp. Deal and relationship management for investment banking. Página de produto, sem data de 
+publicação. Referência funcional de DealCloud; contratação, preço e aderência dependem de avaliação 
+própria. 
+21. GHT4, materiais do projeto. Planos e código locais de prospecção. Planos de agosto de 2026; diretório 
+inspecionado em 10 setembro 2026. Pasta C:/Users/Leonardo/GHT4/GHT4: PLANO-CLAUDE-CODE-
+AGENTE-PROSPECCAO.md; ADENDO -CLAUDE-CODE-BASE-MESTRE-DADOS.md; 
+docs/architecture/current-state.md; packages/domain; server/src e te sts. Inspeção documental e de 
+arquivos, sem homologação funcional de produção. 
+22. ANPD. ANPD lança Guia Orientativo sobre Legítimo Interesse . 2 fevereiro 2024. Finalidade, 
+necessidade, balanceamento e salvaguardas; base para tarefas de governança, não parecer jurídico 
+individual. 
+23. ANPD. Resolução CD/ANPD 19 de 23 de agosto de 2024 . 23 agosto 2024; página consolidada 
+consultada em 10 setembro 2026. Regulamento de transferência internacional e cláusulas -padrão; 
+página informa retificação de 18 agosto 2025. 

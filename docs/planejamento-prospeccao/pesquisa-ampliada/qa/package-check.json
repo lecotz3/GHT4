@@ -1,0 +1,14 @@
+{
+  "changed": [
+    "word/_rels/document.xml.rels",
+    "word/document.xml",
+    "word/footnotes.xml",
+    "word/header1.xml",
+    "word/footer1.xml",
+    "word/settings.xml"
+  ],
+  "preserved_parts": 23,
+  "footnotes": 46,
+  "sections": 1,
+  "source_reference_sha256": "13bd3ae7aef4b3ae76c5d65200acd654c922782974dac18672e973fad93bd453"
+}
