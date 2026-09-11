@@ -141,6 +141,7 @@ function _planilha(linhas) {
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
     + `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`
+    + `<dimension ref="A1:${_coluna(Math.max(1,...linhas.map(l=>l.length))-1)}${Math.max(1,linhas.length)}"/>`
     + '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
     + colunas
     + `<sheetData>${xmlLinhas}</sheetData></worksheet>`;
@@ -156,6 +157,7 @@ function _estilos() {
     + `<borders count="1"><border/></borders>`
     + `<cellStyleXfs count="1"><xf/></cellStyleXfs>`
     + `<cellXfs count="2"><xf xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf xfId="0" fontId="1" applyFont="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs>`
+    + `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>`
     + `</styleSheet>`;
 }
 

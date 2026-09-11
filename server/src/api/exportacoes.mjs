@@ -42,7 +42,7 @@ export async function registrarExportacoes(app) {
         const registros=(await tx.query('SELECT DISTINCT ON(serie_id) * FROM crm_registros WHERE oportunidade_id=$1 ORDER BY serie_id,versao DESC',[o.id])).rows;
         for(const [tipo,f] of Object.entries(FORMULARIOS)) {
           const campos=f.campos.filter((c)=>!['email','telefone'].includes(c.id));
-          payload.secoes.push({titulo:f.titulo.slice(0,31),colunas:[...campos.map((c)=>c.rotulo),'Versão','Revisado'],
+          payload.secoes.push({titulo:f.titulo,colunas:[...campos.map((c)=>c.rotulo),'Versão','Revisado'],
             linhas:registros.filter((r)=>r.tipo===tipo).map((r)=>[...campos.map((c)=>r.dados[c.id]??null),r.versao,r.revisado?'Sim':'Não'])});
         }
         payload.secoes.push({titulo:'Valuation descritivo',colunas:['Empresa','EV/Receita','EV/EBITDA','Período','Fonte','Limites'],

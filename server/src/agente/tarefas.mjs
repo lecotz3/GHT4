@@ -90,6 +90,7 @@ export async function complementarComIA(resultado, entrada, redigir) {
       fontes: [...resultado.fontes, ...(complemento.fontes ?? [])] };
   } catch (erro) {
     if (erro.codigo === 'ia_em_andamento') throw erro;
+    if(erro.message==='contexto_excessivo')return {...resultado,avisoIA:'O conjunto de documentos e histórico ultrapassa o limite de 48 mil caracteres desta análise. Selecione menos documentos ou um arquivo menor e comece um novo trabalho. Nenhum pedido foi enviado ao provedor; o material completo continua na oportunidade.'};
     return { ...resultado, avisoIA: 'A IA não retornou uma resposta utilizável. Pode haver indisponibilidade, limite diário ou ausência de fontes. Os dados e o pedido foram preservados; isso não indica ausência de fatos sobre a empresa.' };
   }
 }

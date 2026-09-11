@@ -5,9 +5,11 @@ import { registrar } from '../auditoria/registrar.mjs';
 import { criarCatalogo } from '../agente/catalogo.mjs';
 import { TAREFAS, executarTarefa, complementarComIA } from '../agente/tarefas.mjs';
 import { autorizarOportunidade } from '../crm/acesso.mjs';
+import { ReferenciaModelo,filtrosDoContexto } from '../agente/filtros.mjs';
 
 const Id = z.string().uuid();
 const Contexto = z.object({
+  modeloBusca: ReferenciaModelo.nullable().optional(),
   frente: z.enum(['compra', 'venda']).optional(),
   objetivo: z.string().trim().max(2000).optional(),
   busca: z.string().trim().max(120).optional(),
@@ -122,6 +124,15 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
     }
     if (conversa.versao !== p.versao) throw new ErroHttp(409, 'trabalho_atualizado', 'O trabalho mudou em outra aba. Reabra-o antes de enviar.');
     const contexto = { ...conversa.contexto, ...p.contexto };
+    let modelo=null;
+    if(p.tarefa==='buscar_empresas' && contexto.modeloBusca) {
+      const ref=contexto.modeloBusca;
+      modelo=(await db.query(`SELECT t.nome,t.mandato_id,v.configuracao,v.conteudo_hash FROM templates_triagem t
+        JOIN templates_versoes v ON v.template_id=t.id WHERE t.id=$1 AND v.versao=$2 AND t.arquivado=false`,[ref.id,ref.versao])).rows[0];
+      if(!modelo || (modelo.mandato_id && modelo.mandato_id!==conversa.mandato_id))throw new ErroHttp(404,'modelo_indisponivel','Modelo indisponível neste espaço.');
+      if(modelo.mandato_id)await req.exigirNoMandato(modelo.mandato_id,'template.usar');else req.exigir('template.usar');
+      if(ref.hash!==modelo.conteudo_hash || !modelo.configuracao.buscaAgente || JSON.stringify(filtrosDoContexto(contexto))!==JSON.stringify(filtrosDoContexto(modelo.configuracao.buscaAgente)))throw new ErroHttp(409,'criterios_diferentes','Os filtros mudaram. Reaplique o modelo ou execute como pesquisa personalizada.');
+    }
     let documentos = [];
     if (contexto.oportunidadeId) {
       const o = await autorizarOportunidade(req,db,contexto.oportunidadeId);
@@ -142,6 +153,7 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
       .map((t) => ({ pedido: t.pedido.texto, resumo: t.resultado.resumo,
         analise: t.resultado.complementoIA?.slice(0, 3000), empresas: t.resultado.empresas?.slice(0, 12), fontes: t.resultado.fontes?.slice(0, 10) })) : [];
     if (documentos.length) resultado.fontes.push(...documentos.map((d) => ({ titulo:d.nome,referencia:d.hash,descricao:'Documento selecionado; consulte os parágrafos ou páginas na oportunidade.' })));
+    if(modelo)resultado.fontes.push({titulo:`Modelo de pesquisa: ${modelo.nome}`,referencia:`Versão ${contexto.modeloBusca.versao} · ${modelo.conteudo_hash}`,descricao:'Critérios conferidos contra a versão salva. Cadastro consultado no snapshot indicado no resultado.'});
     try { resultado = await complementarComIA(resultado, { ...p, contexto, historico, documentos,
       execucao: { usuarioId: req.usuario.id, conversaId: conversa.id, chave: p.chave, corpoHash: hash } },
     ['conversar','pesquisar_web'].includes(p.tarefa) ? (servicoIA?.redigir ?? redigirIA) : redigirIA); }

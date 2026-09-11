@@ -3,12 +3,12 @@ export class ErroApi extends Error {
   constructor(status: number, mensagem: string) { super(mensagem); this.status = status }
 }
 
-export async function api<T>(url: string, method = 'GET', corpo?: unknown): Promise<T> {
+export async function api<T>(url: string, method = 'GET', corpo?: unknown, chave?: string): Promise<T> {
   const controle = new AbortController()
   const timeout = setTimeout(() => controle.abort(), 100000)
   try {
     const r = await fetch(url, { method, credentials: 'same-origin', signal: controle.signal,
-      headers: corpo === undefined ? undefined : { 'Content-Type': 'application/json' },
+      headers: { ...(corpo === undefined ? {} : { 'Content-Type': 'application/json' }), ...(chave ? { 'Idempotency-Key': chave } : {}) },
       body: corpo === undefined ? undefined : JSON.stringify(corpo) })
     const dados = await r.json().catch(() => null)
     if (!r.ok) throw new ErroApi(r.status, dados?.mensagem || 'Não foi possível concluir. Tente novamente.')
@@ -23,6 +23,7 @@ export async function api<T>(url: string, method = 'GET', corpo?: unknown): Prom
 export type Tarefa = 'conversar' | 'pesquisar_web' | 'buscar_empresas' | 'preparar_reuniao' | 'registrar_passo' | 'ver_pendencias'
 export interface Usuario { id: string; nome: string; papel: string }
 export interface Contexto {
+  modeloBusca?: { id: string; versao: number; hash: string } | null
   frente?: 'compra' | 'venda'; objetivo?: string; busca?: string; uf?: string
   incluirPossiveis?: boolean; empresaId?: string | null
   offset?: number; catalogoHash?: string; cnae?: string

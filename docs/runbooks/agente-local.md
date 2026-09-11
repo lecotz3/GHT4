@@ -54,7 +54,7 @@ O administrador encontra **Equipe** no cabeçalho do agente. A tela permite:
 3. A pessoa abre o link e define a própria senha, com pelo menos 12 caracteres. O acesso fica vinculado ao e-mail do convite. Quem receber o link poderá utilizá-lo; compartilhe apenas com o destinatário correto.
 4. Gerenciar os espaços de cada membro ou suspender e reativar sua conta. A suspensão encerra as sessões abertas; a reativação exige novo login. Ao retirar acesso a um espaço, trabalhos vinculados deixam de ser acessíveis à pessoa, preservando o histórico no banco.
 
-O link completo aparece apenas na criação. Para recuperar um link perdido, gere outro convite com o mesmo e-mail: o anterior será cancelado. Convites pendentes também podem ser cancelados pela tela. Não há convites de administrador nem redefinição de senha nesta entrega.
+O link completo aparece apenas na criação. Para recuperar um link perdido, gere outro convite com o mesmo e-mail: o anterior será cancelado. Convites pendentes também podem ser cancelados pela tela. Recuperação de senha é feita pelo responsável técnico pelo [comando de console](implantacao-privada.md). Não há convites de administrador.
 
 Os perfis sócio e analista executam tarefas do agente; somente leitura não cria trabalhos. O histórico de cada pessoa permanece privado, mesmo dentro de um espaço comum. Ao voltar da tela de equipe, o trabalho aberto continua na interface e o seletor inclui os novos espaços.
 
@@ -62,20 +62,38 @@ Os perfis sócio e analista executam tarefas do agente; somente leitura não cri
 
 ## Dados e limites atuais
 
-A busca lê o snapshot local `data-quimicos.js`, referência extraída do arquivo. O classificador existente determina o enquadramento em distribuição química. Registros de enquadramento possível entram apenas quando essa opção é escolhida. Os resultados são ordenados por força do enquadramento e nome, não por probabilidade de venda ou qualidade financeira. Não há busca nova na internet nesta etapa.
+A busca cadastral lê o snapshot local `data-quimicos.js`, referência extraída do arquivo. O classificador existente determina o enquadramento em distribuição química. Registros possíveis entram apenas quando essa opção é escolhida. Os resultados são ordenados por enquadramento e nome, não por probabilidade de venda ou qualidade financeira. Pesquisa na internet é uma tarefa separada e exige configuração do provedor e da ferramenta web.
 
 Faturamento, intenção de transação, contatos pessoais e inferências de sucessão do arquivo legado não são usados para completar fichas do agente. A ficha de reunião utiliza os dados cadastrais permitidos e perguntas propostas, identificadas como roteiro. As observações digitadas na busca ficam registradas; os filtros explícitos controlam a consulta.
 
 Os trabalhos, mensagens, contexto e ações são gravados no banco com auditoria. As telas da **demonstração** continuam acessíveis separadamente e mantêm seu comportamento anterior; não representam integrações concluídas do agente com todos os módulos.
 
-## Configurar IA posteriormente
+## Modelos, documentos e rotina ampliada
+
+Na busca, CNAE principal aceita sete dígitos; a paginação mantém o hash do snapshot. Adicionar o lote para investigar preserva decisões anteriores e não aprova empresas automaticamente. Em **Modelos de pesquisa da equipe**, salve filtros, compare a versão com o formulário e aplique antes de buscar. Modelos de um espaço ficam nesse espaço; modelos sem espaço são da boutique. Incluem somente frente, termo de busca, UF, CNAE e possíveis. Não coloque termos confidenciais em um modelo geral. Sócios/administradores autorizados podem versionar; analistas podem criar e usar modelos. Aplicar filtros não executa a busca sozinho.
+
+A agenda aceita várias tarefas com tipo, responsável e prazo. **Não contatar** vale para a empresa no mesmo espaço, inclusive nas duas frentes. Retirar exige papel autorizado e motivo. O painel conta estados atuais por frente, sem apresentá-los como taxas de conversão.
+
+O acervo reúne evidências, relações, teses, comparáveis, notícias e passagem para execução. Registros têm origem, referência, data, autor e versões. Revisão exige permissão; ausência continua explícita. Relações exigem origem autorizada e contatos são omitidos de perfis sem permissão. Comparáveis só geram múltiplos com dados revisados e denominadores positivos; não geram o valor do alvo. Comparação de teses mostra critérios conhecidos/cobertura, sem confirmar interesse de transação.
+
+Documentos: PDF com texto, DOCX, TXT e MD, até 2 MB. Original/hash preservados. **Conferir texto** mostra páginas/parágrafos; falhas e ausência de texto ficam identificadas. Não há OCR. Preparar análise de até quatro documentos abre novo trabalho; a IA só é chamada ao enviar, após configuração. O contexto tem limite de 48 mil caracteres; selecione menos documentos ou arquivos menores quando necessário.
+
+**Exportar entrega** salva um corte de lista/oportunidade em Excel, PDF e JSON. Edições ainda não salvas ficam fora. Os formatos usam o mesmo corte/hash; novas revisões exigem outro corte. Documentos originais e e-mail/telefone de relações não entram automaticamente no relatório. Compartilhar exige destinatários autorizados.
+
+Após registrar mandato assinado com referência, a passagem para execução admite contrato, escopo, equipe, pendências e marco. Isso não declara fechamento de transação.
+
+## Configurar IA
 
 O usuário ainda não escolheu o provedor. As tarefas disponíveis funcionam sem LLM e a interface informa essa condição. Não há chave de IA em uso, seleção automática de fornecedor ou transmissão para serviços externos.
 
-O servidor aceita um adaptador assíncrono `redigirIA` na construção de `criarApp(db, { redigirIA })`. O contrato recebe `tarefa`, `pedido`, `contexto`, `evidencias` e `fontes`; deve devolver um texto de até 12.000 caracteres. A resposta é um complemento identificado para revisão e não substitui o resultado estruturado. O adaptador não tem acesso direto ao banco, a funções de escrita ou a conversas de outros usuários.
+O adaptador OpenAI Responses está preparado, com modelo explícito, credencial no servidor, prazos, limites persistentes e resposta de até 24 mil caracteres. Web é opt-in e envia somente a consulta pública explícita, preservando citações. Conversa livre recebe contexto delimitado, até quatro tarefas recentes e documentos selecionados; a pessoa revisa a resposta.
 
-Antes de habilitar um provedor, implementar o adaptador escolhido com credencial somente no servidor, prazo máximo de execução, limites de custo e envio de dados autorizado. Testar citações, tentativas de instrução em conteúdo e indisponibilidade. O contrato atual tem testes com adaptador simulado; ainda não há integração real ou conversa livre generativa.
+Seguir [Configurar IA](configurar-ia.md). Sem seleção automática de fornecedor nem credencial no navegador. Os testes usam respostas simuladas; configuração e aceitação com um modelo real continuam pendentes.
+
+## Backup e recuperação
+
+Administradores encontram **Equipe → Operação e continuidade**. A cópia local exige senha de acesso, senha do arquivo e ciência de que inclui trabalhos privados. Guardar arquivo e senha separadamente. Última solicitação não confirma download/restore. A restauração preserva a base original e segue o [guia de implantação e continuidade](implantacao-privada.md).
 
 ## Próximas entregas
 
-Ver `docs/RETOMADA-AGENTE.md` para o checkpoint atual e `docs/PLANO-EXECUCAO-AGENTE.md` para as entregas seguintes. Próximos blocos: ampliar busca/listas e qualidade das evidências; configurar um provedor; pesquisa atualizada e conexões autorizadas; documentos e exportações. A implantação multiusuário com Postgres, TLS, backup e operação na rede permanece uma etapa própria.
+Ver [Retomada](../RETOMADA-AGENTE.md) e a [matriz B01–B26](../PLANO-EXECUCAO-AGENTE.md). Prioridades: executar o [roteiro com a equipe](aceitacao-piloto.md), escolher provedor/hospedagem, validar dados reais e fechar integrações pendentes. Pacote preparado não significa serviço publicado.

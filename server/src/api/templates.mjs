@@ -16,11 +16,13 @@ import { ErroHttp } from '../app.mjs';
 import { consultar, consultarUm } from '../db/cliente.mjs';
 import { registrar } from '../auditoria/registrar.mjs';
 import { comIdempotencia } from './idempotencia.mjs';
+import { FiltrosBusca } from '../agente/filtros.mjs';
 
 /* A régua. Frouxa de propósito no miolo: a Fase 4 traz a DSL validada, e travar
    o formato agora obrigaria a migrar duas vezes. O que já é exigido é o que dá
    para verificar hoje sem inventar contrato. */
 const Configuracao = z.object({
+  buscaAgente: FiltrosBusca.optional(),
   filtrosDuros: z.array(z.object({
     campo: z.string().min(1),
     operador: z.string().min(1),
@@ -43,6 +45,7 @@ const CorpoCriar = z.object({
 });
 
 const CorpoNovaVersao = z.object({
+  baseVersao: z.number().int().min(1).optional(),
   configuracao: Configuracao,
   nota: z.string().max(500).optional(),
 });
@@ -50,7 +53,7 @@ const CorpoNovaVersao = z.object({
 function hashDaConfiguracao(configuracao) {
   /* Chaves ordenadas: a mesma régua escrita em outra ordem tem de dar o mesmo
      hash, senão "é a mesma regra?" fica sem resposta confiável. */
-  const estavel = JSON.stringify(configuracao, Object.keys(configuracao).sort());
+  const estavel = JSON.stringify(configuracao,(_k,v)=>v && typeof v==='object' && !Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
   return crypto.createHash('sha256').update(estavel).digest('hex');
 }
 
@@ -133,13 +136,15 @@ export async function registrarRotasDeTemplate(app) {
     await exigirEscopo(req, t.mandato_id, 'triagem.ler');
 
     const versoes = await consultar(db,
-      `SELECT id, versao, conteudo_hash, nota, criado_em, criado_por, usada_em
+      `SELECT id, versao, conteudo_hash, configuracao, nota, criado_em, criado_por, usada_em
          FROM templates_versoes WHERE template_id = $1 ORDER BY versao DESC`, [t.id]);
 
     const atual = await consultarUm(db,
       `SELECT * FROM templates_versoes WHERE template_id = $1 ORDER BY versao DESC LIMIT 1`, [t.id]);
 
-    return { template: t, versaoAtual: atual, versoes };
+    let podeEditar=false;
+    try{await exigirEscopo(req,t.mandato_id,'template.editar');podeEditar=true}catch(e){if(!(e instanceof ErroHttp))throw e}
+    return { template: t, versaoAtual: atual, versoes, podeEditar };
   });
 
   /* ---- nova versão ------------------------------------------------------- */
@@ -151,15 +156,17 @@ export async function registrarRotasDeTemplate(app) {
 
     const resultado = await comIdempotencia(db, req, async () => {
       const nova = await db.transaction(async (tx) => {
+        await tx.query('SELECT id FROM templates_triagem WHERE id=$1 FOR UPDATE',[t.id]);
         const ultima = (await tx.query(
-          `SELECT versao, conteudo_hash FROM templates_versoes
+          `SELECT versao, conteudo_hash, configuracao FROM templates_versoes
             WHERE template_id = $1 ORDER BY versao DESC LIMIT 1`, [t.id],
         )).rows[0];
 
         const hash = hashDaConfiguracao(corpo.configuracao);
         /* Régua idêntica não vira versão nova: o histórico ficaria cheio de
            entradas que não mudam nada, e achar a mudança real fica mais caro. */
-        if (ultima?.conteudo_hash === hash) {
+        if(corpo.baseVersao!==undefined && corpo.baseVersao!==ultima?.versao)throw new ErroHttp(409,'modelo_atualizado','O modelo mudou. Reabra a versão mais recente antes de salvar.');
+        if (ultima && hashDaConfiguracao(ultima.configuracao) === hash) {
           throw new ErroHttp(409, 'sem_mudanca',
             'Esta configuração é idêntica à versão atual. Nada a versionar.');
         }

@@ -42,16 +42,17 @@ function hashDoCorpo(corpo) {
  * @param {Function} efeito o que fazer. Deve devolver `{ status, corpo }`.
  */
 export async function comIdempotencia(db, req, efeito) {
-  const chave = req.headers['idempotency-key'];
-  if (!chave) return efeito();
+  const recebida = req.headers['idempotency-key'];
+  if (!recebida) return efeito();
 
-  if (typeof chave !== 'string' || chave.length < 8 || chave.length > 200) {
+  if (typeof recebida !== 'string' || recebida.length < 8 || recebida.length > 200) {
     throw new ErroHttp(400, 'chave_invalida',
       'Idempotency-Key deve ter entre 8 e 200 caracteres.');
   }
 
   const corpoHash = hashDoCorpo(req.body);
-  const rota = `${req.method} ${req.routeOptions?.url ?? req.url}`;
+  const rota = `${req.method} ${req.url}`;
+  const chave = crypto.createHash('sha256').update(JSON.stringify([req.usuario?.id ?? null,rota,recebida])).digest('hex');
 
   const existente = await consultarUm(
     db, 'SELECT * FROM chaves_idempotencia WHERE chave = $1', [chave],
@@ -66,6 +67,7 @@ export async function comIdempotencia(db, req, efeito) {
       throw new ErroHttp(409, 'em_curso',
         'Uma requisição com esta chave ainda está em andamento.');
     }
+    if (existente.situacao === 'falhou') throw new ErroHttp(409,'envio_falhou','O envio anterior falhou. Confira o resultado antes de fazer uma nova tentativa.');
     /* Repetição legítima: devolve o que a primeira produziu, sem reexecutar. */
     return {
       status: existente.status_http ?? 200,

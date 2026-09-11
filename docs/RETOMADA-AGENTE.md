@@ -1,10 +1,22 @@
 # Retomada da implementação do agente GHT4
 
-Atualizado em 10 de setembro de 2026. Branch de trabalho: `feat/agente-operacional`.
+Atualizado em 11 de setembro de 2026. Branch de trabalho: `feat/agente-operacional`.
 
 ## Objetivo em execução
 
 Entregar rapidamente um fluxo utilizável de agente para tarefas de M&A, começando por Distribuição e Trading Químico, com compra e venda equilibradas. O usuário autorizou implementar e pediu commits de tudo que for feito para permitir continuidade entre sessões.
+
+## Estado mais recente — modelos e atualização local
+
+Modelos de pesquisa conectados ao agente: salvar filtros compartilhados no espaço ou na boutique, comparar versões e aplicar ao formulário antes de buscar. Analistas criam/usam; versionamento respeita o papel efetivo no servidor. O resultado cita a versão/hash e o servidor recusa filtros divergentes ou modelo de outro espaço. Histórico de conversas e documentos não entra no modelo. O campo de observações continua sem conversão automática em filtro.
+
+Corrigidos hash de configurações aninhadas, isolamento de idempotência por usuário/caminho e retorno indevido de sucesso em repetição de falha. Correções de exportação: títulos completos no PDF e dimensões/estilo padrão do XLSX. Documentos além do contexto permitido explicam como reduzir o pedido antes de chamar o provedor. Matriz B01–B26 atualizada em `PLANO-EXECUCAO-AGENTE.md`, com pendências reais de desenvolvimento/dados/homologação; guia diário ampliado e roteiro `runbooks/aceitacao-piloto.md` preparado.
+
+Validação final deste checkpoint: **181 testes (65 domínio + 116 servidor)**, lint, build e validações offline passaram. PDF sintético renderizado/inspecionado; XLSX aberto no openpyxl com 12 abas, dimensões válidas, zero avisos e nenhuma fórmula executável. O navegador CUA continua indisponível por falha de inicialização de assets; não contornar com outro mecanismo de controle, nem declarar revisão visual das telas novas concluída.
+
+Agente principal novamente ativo em `http://127.0.0.1:5173/#vista=agente`, API 3311. Migrations 0009–0012 aplicadas com sucesso após cópia da base offline em `.cache/antes-implantacao-5ccc60ccc25d45f7a96e7eee1eb871fe`. Saúde e interface retornaram 200; a configuração do primeiro administrador continua disponível (nenhuma conta real criada por nós). Iniciador em segundo plano usa o helper ignorado `.cache/agente-em-segundo-plano.mjs`; para encerrar controladamente, criar o arquivo `.cache/parar-agente-20260911` e aguardar saída dos processos. Não tentar reutilizar a antiga sessão de exec 16595: ela não existe mais. Logs locais ignorados em `server/iniciador-local.log` e `server/iniciador-local-erros.log`.
+
+Próxima prioridade: homologar a experiência com a GHT4, selecionar/configurar IA e hospedagem conforme escolhas ainda pendentes, depois fechar os itens de desenvolvimento explicitados na matriz (linguagem natural para regras, atualização de fontes, qualidade por campo, ranking real, relatório setorial e métricas). Não considerar o planejamento inteiro concluído nem atribuir todas as pendências apenas à infraestrutura.
 
 ## Diagnóstico do ponto de partida, anterior aos checkpoints abaixo
 

@@ -8,6 +8,8 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { comIdempotencia } from '../src/api/idempotencia.mjs';
 
 import { criarApp } from '../src/app.mjs';
 import { historicoDe } from '../src/auditoria/registrar.mjs';
@@ -19,6 +21,37 @@ const REGRA = {
   politicaDadoAusente: 'sinalizar',
   coberturaMinima: 0.6,
 };
+
+test('repetição isola usuário e caminho concreto, e uma falha não vira sucesso vazio',async()=>{
+  const {db}=await montar();
+  const a=await criarUsuario(db,{email:'idempotencia-a@example.test'}),b=await criarUsuario(db,{email:'idempotencia-b@example.test'});
+  const req={usuario:a,headers:{'idempotency-key':'mesma-chave-escopo'},method:'POST',url:'/api/operacao/um',body:{valor:1}};
+  const r=await comIdempotencia(db,req,async()=>({status:201,corpo:{autor:'a'}}));assert.equal(r.corpo.autor,'a');
+  const outro=await comIdempotencia(db,{...req,usuario:b},async()=>({status:201,corpo:{autor:'b'}}));assert.equal(outro.corpo.autor,'b');
+  const caminho=await comIdempotencia(db,{...req,url:'/api/operacao/dois'},async()=>({status:201,corpo:{autor:'segundo'}}));assert.equal(caminho.corpo.autor,'segundo');
+  const falha={...req,url:'/api/operacao/falha'};await assert.rejects(comIdempotencia(db,falha,async()=>{throw new Error('falhou')}));
+  await assert.rejects(comIdempotencia(db,falha,async()=>({status:200,corpo:null})),{codigo:'envio_falhou'});
+});
+
+test('modelo de busca preserva filtros aninhados, recusa edição desatualizada e vincula a versão ao resultado',async()=>{
+  const {db,app}=await montar();await criarUsuario(db,{email:'modelo@example.test',papel:'socio',senha:'senha-de-teste-longa'});
+  const cookie=await entrar(app,'modelo@example.test'),headers={cookie};
+  const filtros={frente:'compra',uf:'SP',busca:'Adequim',cnae:'',incluirPossiveis:false};
+  const novo=await app.inject({method:'POST',url:'/api/templates',headers,payload:{nome:'Busca química QA',configuracao:{buscaAgente:filtros}}});
+  assert.equal(novo.statusCode,201,novo.body);const {template,versao}=novo.json();
+  const conf={buscaAgente:{...filtros,uf:'RJ'}};
+  const segunda=await app.inject({method:'POST',url:`/api/templates/${template.id}/versoes`,headers,payload:{baseVersao:1,configuracao:conf}});
+  assert.equal(segunda.statusCode,201,segunda.body);assert.notEqual(segunda.json().versao.conteudo_hash,versao.conteudo_hash);
+  assert.equal((await app.inject({method:'POST',url:`/api/templates/${template.id}/versoes`,headers,payload:{baseVersao:1,configuracao:{buscaAgente:{...filtros,uf:'MG'}}}})).statusCode,409);
+  const contexto={...filtros,modeloBusca:{id:template.id,versao:1,hash:versao.conteudo_hash}};
+  const c=(await app.inject({method:'POST',url:'/api/agente/conversas',headers,payload:{id:randomUUID(),titulo:'Modelo testado',contexto}})).json().conversa;
+  const pedido={chave:randomUUID(),versao:0,tarefa:'buscar_empresas',contexto};
+  const resultado=await app.inject({method:'POST',url:`/api/agente/conversas/${c.id}/mensagens`,headers,payload:pedido});assert.equal(resultado.statusCode,200,resultado.body);
+  assert.ok(resultado.json().turno.resultado.fontes.some(f=>f.referencia.includes(versao.conteudo_hash)));
+  const divergente=await app.inject({method:'POST',url:`/api/agente/conversas/${c.id}/mensagens`,headers,payload:{...pedido,chave:randomUUID(),versao:1,contexto:{...contexto,uf:'RJ'}}});assert.equal(divergente.statusCode,409);
+  const historico=(await app.inject({url:`/api/templates/${template.id}`,headers})).json().versoes;
+  assert.deepEqual(historico.map(v=>v.configuracao.buscaAgente.uf),['RJ','SP']);
+});
 
 async function montar() {
   const db = await bancoDeTeste();
