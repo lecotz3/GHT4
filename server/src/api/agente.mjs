@@ -20,9 +20,11 @@ const Pedido = z.object({
   texto: z.string().trim().max(4000).default(''),
   contexto: Contexto.default({}),
 }).strict().refine((p) => p.tarefa !== 'registrar_passo' || p.texto.length > 0,
-  { message: 'Descreva o próximo passo.', path: ['texto'] });
+  { message: 'Descreva o próximo passo.', path: ['texto'] })
+  .refine((p) => !['conversar','pesquisar_web'].includes(p.tarefa) || p.texto.length >= 10,
+    { message: 'Descreva seu pedido com pelo menos 10 caracteres.', path: ['texto'] });
 
-export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), redigirIA = null } = {}) {
+export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), redigirIA = null, servicoIA = null } = {}) {
   const { db } = app;
 
   async function autorizar(req, id, permissao = 'agente.ler') {
@@ -44,7 +46,7 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
       const r = await catalogo.buscar({ limite: 0 });
       base = { disponivel: true, total: r.total, referencia: r.referencia };
     } catch { base = { disponivel: false, mensagem: 'A base de empresas não está disponível. As ações e o histórico continuam acessíveis.' }; }
-    return { tarefas: TAREFAS, iaConfigurada: Boolean(redigirIA), base };
+    return { tarefas: TAREFAS, iaConfigurada: Boolean(servicoIA || redigirIA), ia: servicoIA?.status ?? null, base };
   });
 
   app.get('/api/agente/empresas', async (req) => {
@@ -118,8 +120,19 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
     let resultado;
     try { resultado = await executarTarefa({ ...p, contexto, catalogo, acoes }); }
     catch { throw new ErroHttp(503, 'base_indisponivel', 'A base não pôde ser consultada. Seu pedido não foi perdido; tente novamente.'); }
-    resultado = await complementarComIA(resultado, { ...p, contexto }, redigirIA);
+    const historico = p.tarefa === 'conversar' ? (await db.query(
+      'SELECT pedido, resultado FROM agente_turnos WHERE conversa_id=$1 ORDER BY numero DESC LIMIT 4', [conversa.id])).rows.reverse()
+      .map((t) => ({ pedido: t.pedido.texto, resumo: t.resultado.resumo,
+        analise: t.resultado.complementoIA?.slice(0, 3000), empresas: t.resultado.empresas?.slice(0, 12), fontes: t.resultado.fontes?.slice(0, 10) })) : [];
+    try { resultado = await complementarComIA(resultado, { ...p, contexto, historico,
+      execucao: { usuarioId: req.usuario.id, conversaId: conversa.id, chave: p.chave, corpoHash: hash } },
+    ['conversar','pesquisar_web'].includes(p.tarefa) ? (servicoIA?.redigir ?? redigirIA) : redigirIA); }
+    catch (erro) {
+      if (erro.codigo === 'ia_em_andamento') throw new ErroHttp(409, 'ia_em_andamento', 'Este pedido já está em andamento. Aguarde e reabra o trabalho.');
+      throw erro;
+    }
     // O provedor não decide permissões, cálculos nem gravações. Revalida o escopo antes da escrita.
+    await req.revalidarSessao();
     await autorizar(req, conversa.id, 'agente.usar');
     const salvo = await db.transaction(async (tx) => {
       const atual = (await tx.query('SELECT * FROM agente_conversas WHERE id = $1 FOR UPDATE', [conversa.id])).rows[0];

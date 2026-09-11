@@ -61,3 +61,11 @@ Ambiente de verificação desta sessão: portas 3312/5174, banco temporário sep
 O ambiente principal usa 3311/5173 e `server/.dados`. A configuração inicial ainda estava disponível na verificação final: não foram criadas credenciais reais para a GHT4. O usuário define seu acesso pela tela. Nenhum push ou deploy remoto foi realizado.
 
 Verificação final desta entrega: `npm run ci` aprovado com 65 testes de domínio e 96 de servidor, total de 161; lint sem avisos, TypeScript, build e validações offline aprovados. A aba do ambiente principal foi deixada na tela de primeiro acesso do agente. A aba de teste foi fechada.
+
+## Checkpoint — IA e pesquisa configuráveis
+
+Entregue em 10/09/2026: adaptador opcional OpenAI Responses, tarefas de conversa e pesquisa pública, fontes com citações clicáveis, contexto limitado ao trabalho, limites diários persistentes, deduplicação de chamadas, timeout e revalidação de sessão após o provedor. Migration 0009. Configuração em `docs/runbooks/configurar-ia.md`. A pesquisa recebe somente a consulta pública, sem histórico privado.
+
+Validação: lint/build e 65 testes de domínio + 102 de servidor passaram. O provedor foi simulado; não houve uso de credencial nem pesquisa paga real. O provedor continua não escolhido e desativado, conforme resposta do usuário. Hospedagem também não escolhida; preparar a implantação, sem publicar em destino presumido.
+
+Próximos blocos: ampliar pesquisa/seleção/exportação, rotina do CRM, evidências/rede/matchmaking, pacote de operação e matriz de aceite. A IA não encerra o restante do plano.

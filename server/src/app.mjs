@@ -48,7 +48,7 @@ export const ROTAS_PUBLICAS = Object.freeze([
   'POST /api/convites/aceitar',
 ]);
 
-export async function criarApp(db, { logger = false, instalacaoInicial = false, catalogo, redigirIA = null } = {}) {
+export async function criarApp(db, { logger = false, instalacaoInicial = false, catalogo, redigirIA = null, servicoIA = null } = {}) {
   const app = Fastify({
     logger,
     /* O corpo cru é preciso para o hash de idempotência: dois JSON iguais podem
@@ -62,6 +62,11 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
 
   /* ---- quem está falando -------------------------------------------------- */
   app.decorateRequest('usuario', null);
+
+  app.decorateRequest('revalidarSessao', async function () {
+    const token = this.cookies?.[sessao.NOME_COOKIE];
+    this.usuario = token ? await sessao.resolver(db, token) : null;
+  });
 
   app.addHook('onRequest', async (req) => {
     const token = req.cookies?.[sessao.NOME_COOKIE];
@@ -133,7 +138,7 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
   await app.register(registrarRotasDeMandato);
   await app.register(registrarRotasDeTemplate);
   await app.register(registrarInstalacao, { habilitada: instalacaoInicial });
-  await app.register(registrarRotasDoAgente, { catalogo, redigirIA });
+  await app.register(registrarRotasDoAgente, { catalogo, redigirIA, servicoIA });
   await app.register(registrarEquipe);
   await app.register(registrarProspeccao);
 

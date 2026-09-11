@@ -11,7 +11,7 @@ const campo = 'w-full rounded-ficha border border-fio-forte bg-papel px-3 py-2.5
 const botao = 'rounded-ficha border border-tinta bg-tinta px-4 py-2.5 text-sm font-semibold text-papel transition hover:bg-tinta-2 disabled:cursor-not-allowed disabled:opacity-50'
 const secundario = 'rounded-ficha border border-fio-forte bg-papel px-3 py-2 text-sm font-medium hover:bg-papel-2 disabled:opacity-50'
 const ESTADOS = ['', 'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO']
-const ROTULOS: Record<Tarefa, string> = { buscar_empresas: 'Encontrar empresas', preparar_reuniao: 'Preparar reunião', registrar_passo: 'Registrar próximo passo', ver_pendencias: 'Rever pendências' }
+const ROTULOS: Record<Tarefa, string> = { conversar: 'Conversar com o agente', pesquisar_web: 'Pesquisar fontes públicas', buscar_empresas: 'Encontrar empresas', preparar_reuniao: 'Preparar reunião', registrar_passo: 'Registrar próximo passo', ver_pendencias: 'Rever pendências' }
 const mensagem = (e: unknown) => e instanceof Error ? e.message : 'Não foi possível concluir esta ação.'
 
 export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: () => void; convite: string | null; aoLimparConvite: () => void }) {
@@ -208,7 +208,7 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm }: { usua
       <section><p className="text-xs font-semibold uppercase tracking-wider text-comprador">Distribuição e trading químico</p>
         <h2 className="mt-2 text-2xl font-semibold tracking-tight">{ativa ? ativa.titulo : 'O que vamos avançar hoje?'}</h2>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-suave">Consulte empresas, prepare reuniões e acompanhe ações no mesmo trabalho.</p>
-        {estado && <p className="mt-2 text-xs text-suave">{estado.iaConfigurada ? 'Complementação por IA disponível para revisão.' : 'Tarefas assistidas disponíveis. Conversa livre por IA aguarda a configuração do provedor.'}</p>}
+        {estado && <p className="mt-2 text-xs text-suave">{estado.iaConfigurada ? `IA disponível para revisão${estado.ia ? ` · ${estado.ia.modelo} · até ${estado.ia.pedidosUsuarioDia} pedidos por pessoa/dia` : ''}.` : 'Tarefas assistidas disponíveis. Conversa livre por IA aguarda a configuração do provedor.'}</p>}
       </section>
       {erro && <div role="alert" className="flex flex-wrap items-center gap-3 rounded-ficha border border-alerta-fio bg-alerta-fundo p-4 text-sm"><p className="flex-1">{erro}</p>
         {ativa && <button className={secundario} onClick={() => void abrir(ativa.id)} disabled={enviando}>Reabrir trabalho</button>}
@@ -233,11 +233,12 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm }: { usua
           </>}
           {tarefa === 'preparar_reuniao' && <p className="text-sm">{contexto.empresaId ? `Empresa: ${empresaEscolhida?.nome || contexto.empresaId}` : 'Primeiro encontre uma empresa e selecione “Preparar reunião” no resultado.'}</p>}
           {tarefa === 'preparar_reuniao' && contexto.objetivo && <p className="text-xs leading-relaxed text-suave">Objetivo salvo: {contexto.objetivo}</p>}
-          {tarefa !== 'ver_pendencias' && <label className="block text-sm">{tarefa === 'registrar_passo' ? 'Qual é o próximo passo?' : 'Objetivo ou observações para este trabalho (opcional)'}
+          {['conversar','pesquisar_web'].includes(tarefa) && <p className="rounded-ficha bg-papel-2 p-3 text-sm">{!estado.iaConfigurada ? 'A integração está preparada. O administrador precisa configurar provedor, modelo e credencial no servidor para ativar esta tarefa.' : tarefa === 'pesquisar_web' ? estado.ia?.web ? 'Escreva somente informações públicas. Esta consulta será enviada ao serviço de pesquisa; as notas e o histórico do trabalho ficam fora da busca.' : 'A pesquisa web ainda está desabilitada na configuração do servidor.' : 'Seu pedido, a empresa selecionada e as últimas quatro tarefas serão enviados ao provedor. A resposta propõe ações para você revisar.'}</p>}
+          {tarefa !== 'ver_pendencias' && <label className="block text-sm">{tarefa === 'registrar_passo' ? 'Qual é o próximo passo?' : tarefa === 'conversar' ? 'Como o agente pode ajudar?' : tarefa === 'pesquisar_web' ? 'O que pesquisar nas fontes públicas?' : 'Objetivo ou observações para este trabalho (opcional)'}
             <textarea id="pedido-agente" className={`${campo} mt-1 min-h-24 resize-y`} value={texto} onChange={(e) => setTexto(e.target.value)} maxLength={4000} required={tarefa === 'registrar_passo'} disabled={enviando} placeholder={tarefa === 'registrar_passo' ? 'Ex.: confirmar a carteira de fornecedores com o responsável até sexta-feira.' : 'Ex.: entender a atuação em especialidades e preparar uma primeira conversa.'} />
             {tarefa === 'buscar_empresas' && <span className="mt-1 block text-xs text-suave">As observações ficam no histórico. Nesta versão, a busca usa os filtros acima.</span>}
           </label>}
-          <div className="flex flex-wrap items-center gap-3"><button className={botao} disabled={enviando || carregando || !podeUsar || (tarefa === 'preparar_reuniao' && !contexto.empresaId)}>{enviando ? 'Preparando e salvando…' : ROTULOS[tarefa]}</button><span role="status" className="text-xs text-suave">{enviando ? 'Seu pedido está em andamento.' : 'O resultado e o contexto serão salvos neste trabalho.'}</span></div>
+          <div className="flex flex-wrap items-center gap-3"><button className={botao} disabled={enviando || carregando || !podeUsar || (tarefa === 'preparar_reuniao' && !contexto.empresaId) || (['conversar','pesquisar_web'].includes(tarefa) && (!estado.iaConfigurada || texto.trim().length < 10)) || (tarefa === 'pesquisar_web' && !estado.ia?.web)}>{enviando ? 'Preparando e salvando…' : ROTULOS[tarefa]}</button><span role="status" className="text-xs text-suave">{enviando ? 'Seu pedido está em andamento.' : 'O resultado e o contexto serão salvos neste trabalho.'}</span></div>
           {!podeUsar && <p className="text-sm text-suave">Seu acesso permite apenas consulta.</p>}
         </form>
         {ativa && <SelecaoEmpresas key={ativa.id} conversaId={ativa.id} espaco={ativa.mandato_id ? mandatos.find((m) => m.id === ativa.mandato_id)?.rotulo || 'Espaço selecionado' : null}
@@ -263,8 +264,18 @@ function Resposta({ resultado: r, aoPreparar, aoRevisar, desabilitado }: { resul
       <button className={secundario} onClick={() => aoRevisar(e)} disabled={desabilitado}>Revisar empresa</button>
     </li>)}</ul>}
     {r.blocos.map((b) => <section key={b.titulo}><h4 className="text-sm font-semibold">{b.titulo}</h4><ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed">{b.itens.map((s, i) => <li key={i} className="whitespace-pre-wrap">{s}</li>)}</ul></section>)}
-    {r.complementoIA && <section><h4 className="text-sm font-semibold">Complemento de IA para revisão</h4><p className="mt-2 whitespace-pre-wrap text-sm">{r.complementoIA}</p></section>}
+    {r.complementoIA && <section><h4 className="text-sm font-semibold">Análise de IA para revisão</h4><TextoComFontes texto={r.complementoIA} citacoes={r.citacoesIA || []} />{r.modeloIA && <p className="mt-2 text-xs text-suave">Modelo: {r.modeloIA} · As conclusões exigem revisão humana.</p>}</section>}
     {r.avisoIA && <p className="text-sm text-suave">{r.avisoIA}</p>}
-    {!!r.fontes.length && <details className="border-t border-fio pt-3 text-xs text-suave"><summary className="cursor-pointer font-semibold">Fontes e limites desta entrega</summary>{r.fontes.map((f) => <p key={`${f.titulo}-${f.referencia}`} className="mt-2 leading-relaxed"><b>{f.titulo}</b> · {f.referencia}. {f.descricao}</p>)}</details>}
+    {!!r.fontes.length && <details className="border-t border-fio pt-3 text-xs text-suave"><summary className="cursor-pointer font-semibold">Fontes e limites desta entrega</summary>{r.fontes.map((f) => <p key={`${f.titulo}-${f.referencia}-${f.url}`} className="mt-2 leading-relaxed">{f.url ? <a href={f.url} target="_blank" rel="noreferrer" className="underline">{f.titulo}</a> : <b>{f.titulo}</b>} · {f.referencia}. {f.descricao}</p>)}</details>}
   </div>
+}
+
+function TextoComFontes({ texto, citacoes }: { texto: string; citacoes: NonNullable<Resultado['citacoesIA']> }) {
+  let fim = 0
+  const partes = citacoes.slice().sort((a,b) => a.inicio - b.inicio).flatMap((c, i) => {
+    if (c.inicio < fim || c.fim > texto.length || !/^https?:\/\//.test(c.url)) return []
+    const antes = texto.slice(fim, c.inicio); fim = c.fim
+    return [<span key={`texto-${i}`}>{antes}</span>, <a key={`fonte-${i}`} href={c.url} title={c.titulo} target="_blank" rel="noreferrer" className="text-comprador underline">{texto.slice(c.inicio,c.fim) || c.titulo}</a>]
+  })
+  return <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{partes}{texto.slice(fim)}</p>
 }

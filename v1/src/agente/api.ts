@@ -5,7 +5,7 @@ export class ErroApi extends Error {
 
 export async function api<T>(url: string, method = 'GET', corpo?: unknown): Promise<T> {
   const controle = new AbortController()
-  const timeout = setTimeout(() => controle.abort(), 30000)
+  const timeout = setTimeout(() => controle.abort(), 100000)
   try {
     const r = await fetch(url, { method, credentials: 'same-origin', signal: controle.signal,
       headers: corpo === undefined ? undefined : { 'Content-Type': 'application/json' },
@@ -20,7 +20,7 @@ export async function api<T>(url: string, method = 'GET', corpo?: unknown): Prom
   } finally { clearTimeout(timeout) }
 }
 
-export type Tarefa = 'buscar_empresas' | 'preparar_reuniao' | 'registrar_passo' | 'ver_pendencias'
+export type Tarefa = 'conversar' | 'pesquisar_web' | 'buscar_empresas' | 'preparar_reuniao' | 'registrar_passo' | 'ver_pendencias'
 export interface Usuario { id: string; nome: string; papel: string }
 export interface Contexto {
   frente?: 'compra' | 'venda'; objetivo?: string; busca?: string; uf?: string
@@ -30,13 +30,15 @@ export interface Conversa { id: string; titulo: string; mandato_id: string | nul
 export interface Empresa { id: string; nome: string; razaoSocial: string; cidade: string; uf: string; cnpjRaiz: string; cnaePrincipal: string; estado: string; motivo: string; referencia: string }
 export interface Resultado {
   titulo: string; resumo: string; modo: string; complementoIA?: string; avisoIA?: string
+  citacoesIA?: { inicio: number; fim: number; url: string; titulo: string }[]; modeloIA?: string
   empresas: Empresa[]; blocos: { titulo: string; itens: string[] }[]
-  fontes: { titulo: string; referencia: string; descricao: string }[]; proximas: Tarefa[]
+  fontes: { titulo: string; referencia: string; descricao: string; url?: string }[]; proximas: Tarefa[]
 }
 export interface Turno { id: string; numero: number; pedido: { tarefa: Tarefa; texto: string; contexto: Contexto }; resultado: Resultado }
 export interface Acao { id: string; descricao: string; concluida: boolean }
 export interface Trabalho { conversa: Conversa; turnos: Turno[]; acoes: Acao[] }
 export interface EstadoAgente {
   tarefas: { id: Tarefa; titulo: string; descricao: string }[]; iaConfigurada: boolean
+  ia?: { provedor: string; modelo: string; web: boolean; pedidosUsuarioDia: number; pedidosDia: number; tokensSaida: number } | null
   base: { disponivel: boolean; total?: number; referencia?: string; mensagem?: string }
 }

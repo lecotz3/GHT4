@@ -15,6 +15,7 @@
 import { abrir, fechar, tipoAberto } from './db/cliente.mjs';
 import { migrar } from './db/migrar.mjs';
 import { criarApp } from './app.mjs';
+import { configurarIA, criarServicoIA } from './agente/provedor.mjs';
 
 const PORTA = Number(process.env.PORTA) || 3311;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -31,6 +32,7 @@ if (aplicadas.length) console.log(`  migrations aplicadas: ${aplicadas.join(', '
 const app = await criarApp(db, {
   logger: { level: process.env.LOG_NIVEL || 'info' },
   instalacaoInicial: process.env.GHT4_CONFIGURACAO_INICIAL === '1',
+  servicoIA: criarServicoIA(db, configurarIA(process.env)),
 });
 
 try {
