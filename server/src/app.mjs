@@ -30,6 +30,8 @@ import { registrarProspeccao } from './api/prospeccao.mjs';
 import { registrarAcervo } from './api/acervo.mjs';
 import { registrarDocumentos } from './api/documentos.mjs';
 import { registrarExportacoes } from './api/exportacoes.mjs';
+import { registrarOperacao } from './api/operacao.mjs';
+import { limitarAcesso } from './operacao/limites.mjs';
 
 /** Erro que vira resposta HTTP em vez de 500. */
 export class ErroHttp extends Error {
@@ -51,7 +53,7 @@ export const ROTAS_PUBLICAS = Object.freeze([
   'POST /api/convites/aceitar',
 ]);
 
-export async function criarApp(db, { logger = false, instalacaoInicial = false, catalogo, redigirIA = null, servicoIA = null } = {}) {
+export async function criarApp(db, { logger = false, instalacaoInicial = false, catalogo, redigirIA = null, servicoIA = null, origemPublica = null } = {}) {
   const app = Fastify({
     logger,
     /* O corpo cru é preciso para o hash de idempotência: dois JSON iguais podem
@@ -61,7 +63,15 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
 
   await app.register(cookie);
 
+  app.addHook('onRequest',async(req,res)=>{
+    if(req.url.startsWith('/api/'))res.header('Cache-Control','no-store').header('X-Content-Type-Options','nosniff');
+    if(origemPublica && !['GET','HEAD','OPTIONS'].includes(req.method) && req.headers.origin && req.headers.origin!==origemPublica) {
+      throw new ErroHttp(403,'origem_invalida','A origem desta requisição não é autorizada.');
+    }
+  });
+
   app.decorate('db', db);
+  limitarAcesso(app);
 
   /* ---- quem está falando -------------------------------------------------- */
   app.decorateRequest('usuario', null);
@@ -115,6 +125,7 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
 
   /* ---- respostas de erro, sem vazar interno ------------------------------- */
   app.setErrorHandler((erro, req, resposta) => {
+    if (erro.code === 'FST_ERR_CTP_BODY_TOO_LARGE') return resposta.status(413).send({erro:'arquivo_excessivo',mensagem:'O envio excede o limite permitido. Documentos devem ter até 2 MB.'});
     if (erro instanceof ErroHttp) {
       return resposta.status(erro.status).send({
         erro: erro.codigo, mensagem: erro.message, detalhe: erro.detalhe,
@@ -147,6 +158,7 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
   await app.register(registrarAcervo);
   await app.register(registrarDocumentos);
   await app.register(registrarExportacoes);
+  await app.register(registrarOperacao, { servicoIA });
 
   return app;
 }
@@ -156,8 +168,8 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
  * ------------------------------------------------------------------------- */
 
 const CorpoLogin = z.object({
-  email: z.string().email('e-mail inválido'),
-  senha: z.string().min(1, 'senha obrigatória'),
+  email: z.string().trim().email('e-mail inválido').max(200),
+  senha: z.string().min(1, 'senha obrigatória').max(256),
 });
 
 async function registrarRotasDeSessao(app) {

@@ -1,0 +1,13 @@
+.git
+**/node_modules
+**/.env*
+**/.dados
+**/.dados/**
+.cache
+**/*.log
+docs
+**/dist
+.codex
+.agents
+implantacao/segredos
+implantacao/backups

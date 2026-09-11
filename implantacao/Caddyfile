@@ -1,0 +1,12 @@
+{$GHT4_DOMINIO} {
+  # Certificado privado. Distribuir a CA somente à equipe/VPN autorizada.
+  tls internal
+  encode gzip
+  header {
+    Strict-Transport-Security "max-age=31536000"
+    X-Content-Type-Options nosniff
+    Referrer-Policy no-referrer
+    -Server
+  }
+  reverse_proxy api:3311
+}

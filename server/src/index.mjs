@@ -16,11 +16,14 @@ import { abrir, fechar, tipoAberto } from './db/cliente.mjs';
 import { migrar } from './db/migrar.mjs';
 import { criarApp } from './app.mjs';
 import { configurarIA, criarServicoIA } from './agente/provedor.mjs';
+import { validarOperacao } from './operacao/configuracao.mjs';
+import { servirInterface } from './operacao/estatico.mjs';
 
 const PORTA = Number(process.env.PORTA) || 3311;
 const HOST = process.env.HOST || '127.0.0.1';
 const EM_MEMORIA = process.env.GHT4_MEMORIA === '1';
 
+validarOperacao(process.env);
 const db = await abrir({ emMemoria: EM_MEMORIA });
 
 /* Migrar na subida: em desenvolvimento é o que evita "esqueci de migrar" virar
@@ -33,7 +36,9 @@ const app = await criarApp(db, {
   logger: { level: process.env.LOG_NIVEL || 'info' },
   instalacaoInicial: process.env.GHT4_CONFIGURACAO_INICIAL === '1',
   servicoIA: criarServicoIA(db, configurarIA(process.env)),
+  origemPublica: process.env.GHT4_ORIGEM_PUBLICA,
 });
+if(process.env.GHT4_SERVIR_INTERFACE)await servirInterface(app,process.env.GHT4_SERVIR_INTERFACE);
 
 try {
   await app.listen({ port: PORTA, host: HOST });

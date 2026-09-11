@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_DB: ght4
+      POSTGRES_USER: ght4
+      POSTGRES_PASSWORD_FILE: /run/secrets/senha_banco
+    secrets: [senha_banco]
+    volumes: [banco:/var/lib/postgresql/data, backups:/backups]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U ght4 -d ght4"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+  api:
+    build: ..
+    env_file: ./segredos/api.env
+    environment:
+      GHT4_SERVIR_INTERFACE: /app/v1/dist
+      PG_TLS_MODE: disable
+    depends_on:
+      db: {condition: service_healthy}
+    restart: unless-stopped
+    stop_grace_period: 40s
+  web:
+    image: caddy:2
+    environment:
+      GHT4_DOMINIO: ${GHT4_DOMINIO:?Defina o domínio privado da GHT4}
+    ports: ["${GHT4_IP_BIND:-127.0.0.1}:443:443"]
+    volumes: [./Caddyfile:/etc/caddy/Caddyfile:ro, certificados:/data, caddy_config:/config]
+    depends_on: [api]
+    restart: unless-stopped
+secrets:
+  senha_banco:
+    file: ./segredos/senha-banco.txt
+volumes:
+  banco:
+  backups:
+  certificados:
+  caddy_config:

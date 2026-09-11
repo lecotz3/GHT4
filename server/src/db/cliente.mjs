@@ -95,7 +95,7 @@ async function abrirPostgres(url) {
     /* Supabase e a maioria dos Postgres gerenciados exigem TLS. `rejectUnauthorized`
        fica ligado por padrão; quem estiver atrás de um proxy com certificado
        próprio ajusta por PGSSLMODE, sem afrouxar isto no código. */
-    ssl: url.includes('localhost') || url.includes('127.0.0.1')
+    ssl: process.env.PG_TLS_MODE === 'disable' || ['localhost','127.0.0.1','[::1]'].includes(new URL(url).hostname)
       ? false
       : { rejectUnauthorized: process.env.PGSSL_INSEGURO !== '1' },
     max: Number(process.env.PG_POOL_MAX) || 10,

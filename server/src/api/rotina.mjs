@@ -18,10 +18,11 @@ export async function registrarRotina(app, { oportunidade, participantes, adicio
     const id = Id.parse(req.params.tarefaId);
     const p = z.object({ chave: Id, versao: Versao, descricao: z.string().trim().min(3).max(2000),
       responsavelId: Id, prazo: Data, tipo: z.enum(['pesquisa','contato','reuniao','documento','interno']), concluida: z.boolean() }).strict().parse(req.body);
+    const pedido={...p,tarefaId:id};
     if (!(await participantes(req,o)).some((u) => u.id === p.responsavelId)) throw new ErroHttp(422,'responsavel_invalido','Escolha um responsável ativo deste espaço.');
     await db.transaction(async (tx) => {
       const atual = (await tx.query('SELECT * FROM crm_oportunidades WHERE id=$1 FOR UPDATE',[o.id])).rows[0];
-      if (await repetido(tx,o,p)) return;
+      if (await repetido(tx,o,pedido)) return;
       if (atual.versao !== p.versao) throw erroVersao();
       if (p.tipo === 'contato' && (await restricaoDe(tx,o))?.ativa) throw new ErroHttp(422,'nao_contatar','Esta empresa está marcada como não contatar neste espaço.');
       const anterior = (await tx.query('SELECT * FROM crm_tarefas WHERE id=$1',[id])).rows[0];
@@ -31,7 +32,7 @@ export async function registrarRotina(app, { oportunidade, participantes, adicio
         VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(id) DO UPDATE SET responsavel_id=$3,descricao=$4,tipo=$5,prazo=$6,concluida=$7,versao=crm_tarefas.versao+1,atualizado_em=now()`,
       [id,o.id,p.responsavelId,p.descricao,p.tipo,p.prazo,p.concluida]);
       await tx.query('UPDATE crm_oportunidades SET versao=versao+1,atualizado_em=now() WHERE id=$1',[o.id]);
-      await adicionarEvento(tx,req,o,p,'tarefa',`${p.concluida ? 'Concluída' : 'Atualizada'}: ${p.descricao}`, { tarefaId: id, responsavelId: p.responsavelId, prazo: p.prazo, concluida: p.concluida });
+      await adicionarEvento(tx,req,o,pedido,'tarefa',`${p.concluida ? 'Concluída' : 'Atualizada'}: ${p.descricao}`, { tarefaId: id, responsavelId: p.responsavelId, prazo: p.prazo, concluida: p.concluida });
     });
     return { salvo: true };
   });

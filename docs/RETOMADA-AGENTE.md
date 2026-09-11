@@ -30,6 +30,16 @@ Entregar rapidamente um fluxo utilizável de agente para tarefas de M&A, começa
 - Registrar aqui o que foi entregue, validações, limitações e próximo passo em cada commit funcional.
 - O usuário autorizou commits locais; não foi solicitado push ou publicação.
 
+## Checkpoint de operação — 11/09/2026
+
+Pacote de implantação privada preparado: Dockerfile, Compose com Postgres/Caddy, interface compilada servida pela API, HTTPS/origem obrigatórios em produção e bootstrap público fechado. Comando de console cria o primeiro administrador ou recupera conta existente, revogando sessões. Tela Equipe inclui operação, uso diário da IA e backup local cifrado. Restauração aceita somente uma pasta nova, preserva a base original e revoga sessões/convites copiados. Guia completo: `docs/runbooks/implantacao-privada.md`.
+
+Migration nova `0012_operacao.sql`: limites persistentes de tentativa de acesso. Testes cobrem restauração real de trabalhos, oportunidades e bytes de anexos em outra pasta, senha errada, destino existente, permissões, recuperação de conta, origem e arquivos estáticos. Corrigida também a chave de repetição de tarefas para incluir o identificador da tarefa. `npm run ci` passou: **65 testes de domínio + 114 de servidor**, lint, build e validações offline. Concorrência dos arquivos de teste do servidor limitada a 2 para evitar disputa excessiva de CPU/memória dos bancos WASM e timeouts artificiais de extração.
+
+QA isolado gerou PDF/Excel/JSON por fluxo real da API. Duas páginas do PDF foram renderizadas e inspecionadas; o workbook abriu no openpyxl sem fórmulas executáveis. Foram identificados ajustes menores de títulos/estilo de exportação para o próximo checkpoint. O controle de navegador CUA falhou antes de abrir a sessão (`failed to write kernel assets`), inclusive após reset; as telas novas não estão visualmente homologadas. Não houve rejeição de aprovação. Docker não está instalado neste host: o pacote não foi construído nem implantado em rede. Sem provedor escolhido, nenhuma chamada de IA real foi feita.
+
+Continuar: corrigir os pequenos ajustes de exportação; fechar filtros reutilizáveis e prévia de pesquisa; atualizar matriz B01–B26 e roteiro de aceitação. Reiniciar o agente principal de forma controlada para aplicar as migrations novas. Não marcar uso em duas máquinas, avaliação de IA ou validação comercial como aprovados sem ensaio.
+
 ## Estado do checkpoint
 
 Primeira etapa de servidor implementada: migration 0006, configuração inicial local opt-in, catálogo por leitura de JSON da base química, quatro tarefas assistidas, conversas privadas com contexto, ações concluíveis e auditoria. As requisições de mensagem têm chave por conversa e versão para evitar duplicação e sobrescrita entre abas. Acesso ao mandato é conferido antes de ler ou escrever.

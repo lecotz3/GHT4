@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api, ErroApi } from '../agente/api'
+import { Operacao } from './Operacao'
 
 const campo = 'w-full rounded-ficha border border-fio-forte bg-papel px-3 py-2.5 text-sm focus:outline-comprador'
 const botao = 'rounded-ficha bg-tinta px-4 py-2.5 text-sm font-semibold text-papel disabled:opacity-50'
@@ -126,5 +127,6 @@ export function Equipe({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpira
         </div>)}
       </section>
     </>}
+    <Operacao aoExpirar={aoExpirar} />
   </main>
 }
