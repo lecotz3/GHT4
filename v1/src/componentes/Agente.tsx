@@ -110,6 +110,7 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm }: { usua
   const [enviando, setEnviando] = useState(false)
   const [salvandoAcao, setSalvandoAcao] = useState('')
   const [revisao, setRevisao] = useState<EscolhaEmpresa | null>(null)
+  const [versaoSelecao, setVersaoSelecao] = useState(0)
   const ultimaResposta = useRef<HTMLDivElement>(null)
   const requisicao = useRef(0)
   const envioPendente = useRef<{ id: string; corpo: unknown } | null>(null)
@@ -154,8 +155,8 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm }: { usua
     setContexto((c) => ({ ...c, empresaId: e.id })); setTarefa('preparar_reuniao'); setTexto(''); envioPendente.current = null
     document.getElementById('pedido-agente')?.focus()
   }
-  async function enviar(e: FormEvent) {
-    e.preventDefault(); if (enviando || carregando || !podeUsar) return
+  async function enviar(e?: FormEvent, contextoPedido = contexto, tarefaPedido = tarefa, textoPedido = texto) {
+    e?.preventDefault(); if (enviando || carregando || !podeUsar) return
     setEnviando(true); setErro('')
     try {
       let c = ativa
@@ -166,7 +167,7 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm }: { usua
         c = r.conversa; setAtiva(c); setTitulo(c.titulo)
         setConversas((cs) => [r.conversa, ...cs.filter((item) => item.id !== r.conversa.id)])
       }
-      const candidato = { versao: c.versao, tarefa, texto, contexto }
+      const candidato = { versao: c.versao, tarefa: tarefaPedido, texto: textoPedido, contexto: contextoPedido }
       const anterior = envioPendente.current?.corpo as (typeof candidato & { chave: string }) | null
       const corpo = anterior && JSON.stringify({ ...anterior, chave: undefined }) === JSON.stringify(candidato)
         ? anterior : { ...candidato, chave: crypto.randomUUID() }
@@ -226,9 +227,10 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm }: { usua
         <form onSubmit={enviar} className="space-y-4 rounded-ficha border border-fio bg-papel p-5">
           <div className="flex flex-wrap items-center gap-3"><h3 className="mr-auto font-semibold">{ROTULOS[tarefa]}</h3><label className="flex items-center gap-2 text-sm">Frente<select className="rounded-ficha border border-fio-forte bg-papel px-2 py-1.5" value={contexto.frente || 'venda'} onChange={(e) => setContexto({ ...contexto, frente: e.target.value as 'compra' | 'venda' })} disabled={enviando}><option value="venda">Venda</option><option value="compra">Compra</option></select></label></div>
           {tarefa === 'buscar_empresas' && <>
-            <div className="grid gap-3 sm:grid-cols-[1fr_130px]"><label className="text-sm">Nome, cidade ou raiz do CNPJ<input className={`${campo} mt-1`} value={contexto.busca || ''} onChange={(e) => setContexto({ ...contexto, busca: e.target.value })} maxLength={120} disabled={enviando} placeholder="Ex.: Campinas" /></label>
-              <label className="text-sm">Estado<select className={`${campo} mt-1`} value={contexto.uf || ''} onChange={(e) => setContexto({ ...contexto, uf: e.target.value })} disabled={enviando}>{ESTADOS.map((uf) => <option key={uf} value={uf}>{uf || 'Todos'}</option>)}</select></label></div>
-            <label className="flex items-start gap-2 text-sm"><input className="mt-1" type="checkbox" checked={contexto.incluirPossiveis || false} onChange={(e) => setContexto({ ...contexto, incluirPossiveis: e.target.checked })} disabled={enviando} /><span>Incluir enquadramentos possíveis <span className="block text-xs text-suave">Empresas com evidência cadastral mais fraca, que exigem revisão adicional.</span></span></label>
+            <div className="grid gap-3 sm:grid-cols-[1fr_130px]"><label className="text-sm">Nome, cidade ou raiz do CNPJ<input className={`${campo} mt-1`} value={contexto.busca || ''} onChange={(e) => setContexto({ ...contexto, busca: e.target.value, offset: 0, catalogoHash: undefined })} maxLength={120} disabled={enviando} placeholder="Ex.: Campinas" /></label>
+              <label className="text-sm">Estado<select className={`${campo} mt-1`} value={contexto.uf || ''} onChange={(e) => setContexto({ ...contexto, uf: e.target.value, offset: 0, catalogoHash: undefined })} disabled={enviando}>{ESTADOS.map((uf) => <option key={uf} value={uf}>{uf || 'Todos'}</option>)}</select></label></div>
+            <label className="flex items-start gap-2 text-sm"><input className="mt-1" type="checkbox" checked={contexto.incluirPossiveis || false} onChange={(e) => setContexto({ ...contexto, incluirPossiveis: e.target.checked, offset: 0, catalogoHash: undefined })} disabled={enviando} /><span>Incluir enquadramentos possíveis <span className="block text-xs text-suave">Empresas com evidência cadastral mais fraca, que exigem revisão adicional.</span></span></label>
+            <label className="block text-sm">CNAE principal <span className="text-suave">(opcional, sete dígitos)</span><input className={`${campo} mt-1`} value={contexto.cnae || ''} onChange={(e) => setContexto({ ...contexto, cnae: e.target.value, offset: 0, catalogoHash: undefined })} pattern="[0-9]{7}|" maxLength={7} /></label>
             <p className="text-xs text-suave">Busca no snapshot cadastral de {estado.base.referencia || 'referência indisponível'}. Faturamento e intenção de transação ainda não apurados.</p>
           </>}
           {tarefa === 'preparar_reuniao' && <p className="text-sm">{contexto.empresaId ? `Empresa: ${empresaEscolhida?.nome || contexto.empresaId}` : 'Primeiro encontre uma empresa e selecione “Preparar reunião” no resultado.'}</p>}
@@ -241,16 +243,34 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm }: { usua
           <div className="flex flex-wrap items-center gap-3"><button className={botao} disabled={enviando || carregando || !podeUsar || (tarefa === 'preparar_reuniao' && !contexto.empresaId) || (['conversar','pesquisar_web'].includes(tarefa) && (!estado.iaConfigurada || texto.trim().length < 10)) || (tarefa === 'pesquisar_web' && !estado.ia?.web)}>{enviando ? 'Preparando e salvando…' : ROTULOS[tarefa]}</button><span role="status" className="text-xs text-suave">{enviando ? 'Seu pedido está em andamento.' : 'O resultado e o contexto serão salvos neste trabalho.'}</span></div>
           {!podeUsar && <p className="text-sm text-suave">Seu acesso permite apenas consulta.</p>}
         </form>
-        {ativa && <SelecaoEmpresas key={ativa.id} conversaId={ativa.id} espaco={ativa.mandato_id ? mandatos.find((m) => m.id === ativa.mandato_id)?.rotulo || 'Espaço selecionado' : null}
+        {ativa && <SelecaoEmpresas key={`${ativa.id}-${versaoSelecao}`} conversaId={ativa.id} espaco={ativa.mandato_id ? mandatos.find((m) => m.id === ativa.mandato_id)?.rotulo || 'Espaço selecionado' : null}
           podeEditar={podeUsar && !enviando && !carregando} escolha={revisao} aoEscolher={setRevisao} aoAbrirCrm={aoAbrirCrm} aoExpirar={aoExpirar} />}
         <section className="space-y-5" aria-label="Histórico do trabalho">{[...turnos].reverse().map((t, i) => <div key={t.id} ref={i === 0 ? ultimaResposta : undefined} className="scroll-mt-5 rounded-ficha border border-fio bg-papel p-5 md:p-6">
           <p className="text-xs font-medium text-suave">Tarefa {t.numero} · {ROTULOS[t.pedido.tarefa]} · {t.pedido.contexto.frente === 'compra' ? 'Compra' : 'Venda'}</p>
           {t.pedido.texto && <p className="mt-2 whitespace-pre-wrap border-l-2 border-fio pl-3 text-sm text-suave">{t.pedido.texto}</p>}
           <Resposta resultado={t.resultado} aoPreparar={preparar} aoRevisar={(empresa) => setRevisao({ empresa, turnoId: t.id, frente: t.pedido.contexto.frente === 'compra' ? 'compra' : 'venda' })} desabilitado={enviando || !podeUsar || carregando} />
+          {ativa && !!t.resultado.empresas.length && podeUsar && <LoteDoResultado turno={t} conversaId={ativa.id} desabilitado={enviando || carregando} aoSalvar={() => setVersaoSelecao((v) => v + 1)} aoFalhar={falhou} />}
+          {t.resultado.paginacao?.proximoOffset != null && <button className={`${secundario} mt-4`} disabled={enviando || carregando || !podeUsar} onClick={() => void enviar(undefined,
+            { ...t.pedido.contexto, offset: t.resultado.paginacao!.proximoOffset!, catalogoHash: t.resultado.catalogoHash }, 'buscar_empresas', '')}>Carregar próximas empresas</button>}
         </div>)}</section>
       </>}
     </div>
   </main>
+}
+
+function LoteDoResultado({ turno, conversaId, desabilitado, aoSalvar, aoFalhar }: { turno: Turno; conversaId: string; desabilitado: boolean; aoSalvar: () => void; aoFalhar: (e: unknown) => void }) {
+  const [motivo, setMotivo] = useState('')
+  const [ocupado, setOcupado] = useState(false)
+  const [aviso, setAviso] = useState('')
+  async function salvar(e: FormEvent) {
+    e.preventDefault(); if (ocupado) return; setOcupado(true)
+    try { const r = await api<{ adicionadas: number }>(`/api/agente/conversas/${conversaId}/selecao/lote`, 'POST', { turnoId: turno.id, empresas: turno.resultado.empresas.map((e) => e.id), justificativa: motivo });
+      setAviso(`${r.adicionadas} empresas adicionadas. Decisões anteriores foram preservadas.`); aoSalvar() }
+    catch (e) { aoFalhar(e) } finally { setOcupado(false) }
+  }
+  return <details className="mt-4 border-t border-fio pt-3 text-sm"><summary className="cursor-pointer font-medium">Investigar as {turno.resultado.empresas.length} empresas desta página</summary>
+    <form className="mt-3 space-y-3" onSubmit={salvar}><label className="block">Motivo da investigação<input className={`${campo} mt-1`} value={motivo} onChange={(e) => setMotivo(e.target.value)} required minLength={3} maxLength={2000} /></label>
+      <button className={secundario} disabled={desabilitado || ocupado}>{ocupado ? 'Salvando…' : 'Adicionar página à lista de investigação'}</button>{aviso && <p role="status">{aviso}</p>}</form></details>
 }
 
 function Resposta({ resultado: r, aoPreparar, aoRevisar, desabilitado }: { resultado: Resultado; aoPreparar: (e: Empresa) => void; aoRevisar: (e: Empresa) => void; desabilitado: boolean }) {

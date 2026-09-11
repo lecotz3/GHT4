@@ -27,4 +27,11 @@ test('catálogo interpreta JSON, filtra por atividade e não propaga inferência
   assert.equal(globalThis.naoExecutar, undefined);
   assert.equal((await catalogo.buscar({ incluirPossiveis: true })).total, 2);
   assert.equal((await catalogo.buscar({ uf: 'PR' })).total, 0);
+  const primeira = await catalogo.buscar({ incluirPossiveis: true, limite: 1 });
+  const segunda = await catalogo.buscar({ incluirPossiveis: true, limite: 1, offset: primeira.proximoOffset, catalogoHash: primeira.hash });
+  assert.equal(primeira.proximoOffset, 1); assert.equal(segunda.proximoOffset, null);
+  assert.notEqual(primeira.empresas[0].id, segunda.empresas[0].id);
+  assert.equal((await catalogo.buscar({ cnae: '4693100', incluirPossiveis: true })).total, 1);
+  assert.equal(primeira.cobertura.receitaApurada, 0);
+  await assert.rejects(catalogo.buscar({ catalogoHash: '0'.repeat(64) }), /catálogo foi atualizado/);
 });

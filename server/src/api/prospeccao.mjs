@@ -4,6 +4,7 @@ import { ErroHttp } from '../app.mjs';
 import { registrar } from '../auditoria/registrar.mjs';
 import { pode, podeNoMandato } from '../seguranca/rbac.mjs';
 import { Id, EmpresaId, Versao, Criacao, Atualizacao, Atividade, ETAPAS, Etapa, hoje } from '../crm/contratos.mjs';
+import { registrarRotina, restricaoDe } from './rotina.mjs';
 
 const hashDe = (v) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
 const conflito = () => new ErroHttp(409, 'registro_atualizado', 'Este registro foi atualizado. Reabra-o para conferir as mudanças antes de salvar.');
@@ -87,6 +88,31 @@ export async function registrarProspeccao(app) {
     return { selecao };
   });
 
+  app.post('/api/agente/conversas/:id/selecao/lote', async (req) => {
+    const c = await conversa(req, req.params.id, 'triagem.decidir');
+    const p = z.object({ turnoId: Id, empresas: z.array(EmpresaId).min(1).max(30),
+      justificativa: z.string().trim().min(3).max(2000) }).strict().parse(req.body);
+    const adicionadas = await db.transaction(async (tx) => {
+      await tx.query('SELECT id FROM agente_conversas WHERE id=$1 FOR UPDATE', [c.id]);
+      const turno = (await tx.query('SELECT * FROM agente_turnos WHERE id=$1 AND conversa_id=$2', [p.turnoId,c.id])).rows[0];
+      const ids = [...new Set(p.empresas)], frente = turno?.pedido.contexto.frente || 'venda';
+      const empresas = ids.map((id) => turno?.resultado.empresas?.find((e) => e.id === id));
+      if (empresas.some((e) => !e)) throw new ErroHttp(422, 'empresa_fora_do_resultado', 'O lote deve conter somente empresas deste resultado.');
+      let quantidade = 0;
+      for (const empresa of empresas) {
+        const s = (await tx.query(`INSERT INTO agente_selecao (conversa_id,turno_id,empresa_id,empresa,fontes,frente,estado,justificativa)
+          VALUES ($1,$2,$3,$4,$5,$6,'investigar',$7) ON CONFLICT (conversa_id,empresa_id,frente) DO NOTHING RETURNING id`,
+        [c.id,p.turnoId,empresa.id,JSON.stringify(empresa),JSON.stringify(turno.resultado.fontes || []),frente,p.justificativa])).rows[0];
+        if (!s) continue;
+        quantidade++;
+        await registrar(tx, { usuarioId: req.usuario.id, mandatoId: c.mandato_id, entidade: 'agente_selecao', entidadeId: s.id,
+          acao: 'decidir', depois: { estado: 'investigar', empresaId: empresa.id, frente }, justificativa: p.justificativa });
+      }
+      return quantidade;
+    });
+    return { adicionadas, mensagem: 'Empresas adicionadas para investigação. Decisões anteriores foram preservadas.' };
+  });
+
   app.post('/api/crm/oportunidades', async (req, res) => {
     req.exigir('crm.editar'); const p = Criacao.parse(req.body);
     const s = (await db.query('SELECT * FROM agente_selecao WHERE id = $1', [p.selecaoId])).rows[0];
@@ -159,10 +185,12 @@ export async function registrarProspeccao(app) {
       const atual = (await tx.query('SELECT * FROM crm_oportunidades WHERE id = $1 FOR UPDATE', [o.id])).rows[0];
       if (await repetido(tx,o,p)) return;
       if (atual.versao !== p.versao) throw conflito();
+      if (p.etapa === 'contatada' && (await restricaoDe(tx,o))?.ativa) throw new ErroHttp(422,'nao_contatar','A empresa está marcada como não contatar neste espaço. Registre a situação em uma nota sem avançar a etapa.');
       await tx.query('UPDATE crm_oportunidades SET etapa=$2,versao=versao+1,atualizado_em=now() WHERE id=$1', [o.id,p.etapa || atual.etapa]);
       await adicionarEvento(tx,req,o,p,'atividade',p.descricao, { etapaAnterior: atual.etapa, etapa: p.etapa || atual.etapa,
         canal: p.canal, participantes: p.participantes, referencia: p.referencia, motivo: p.motivo });
     });
     return { oportunidade: await publicavel(o.id) };
   });
+  await registrarRotina(app, { oportunidade, participantes, adicionarEvento, repetido });
 }

@@ -25,12 +25,14 @@ export interface Usuario { id: string; nome: string; papel: string }
 export interface Contexto {
   frente?: 'compra' | 'venda'; objetivo?: string; busca?: string; uf?: string
   incluirPossiveis?: boolean; empresaId?: string | null
+  offset?: number; catalogoHash?: string; cnae?: string
 }
 export interface Conversa { id: string; titulo: string; mandato_id: string | null; contexto: Contexto; versao: number; atualizado_em: string }
 export interface Empresa { id: string; nome: string; razaoSocial: string; cidade: string; uf: string; cnpjRaiz: string; cnaePrincipal: string; estado: string; motivo: string; referencia: string }
 export interface Resultado {
   titulo: string; resumo: string; modo: string; complementoIA?: string; avisoIA?: string
   citacoesIA?: { inicio: number; fim: number; url: string; titulo: string }[]; modeloIA?: string
+  catalogoHash?: string; paginacao?: { total: number; offset: number; proximoOffset: number | null }
   empresas: Empresa[]; blocos: { titulo: string; itens: string[] }[]
   fontes: { titulo: string; referencia: string; descricao: string; url?: string }[]; proximas: Tarefa[]
 }

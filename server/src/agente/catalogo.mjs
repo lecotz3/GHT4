@@ -55,14 +55,18 @@ export function criarCatalogo({ arquivo = ARQUIVO } = {}) {
     return cache;
   }
   return {
-    async buscar({ busca = '', uf = '', incluirPossiveis = false, limite = 12 } = {}) {
+    async buscar({ busca = '', uf = '', incluirPossiveis = false, limite = 12, offset = 0, catalogoHash, cnae = '' } = {}) {
       const base = await carregar();
+      if (catalogoHash && catalogoHash !== base.hash) { const e = new Error('O catálogo foi atualizado. Inicie uma nova busca.'); e.codigo = 'base_atualizada'; throw e; }
       const termos = normalizar(busca).trim().split(/\s+/).filter(Boolean);
       const filtradas = base.empresas.filter((e) => (incluirPossiveis || e.estado !== 'possivel')
         && (!uf || e.uf === uf)
+        && (!cnae || e.cnaePrincipal === cnae)
         && termos.every((t) => normalizar(`${e.nome} ${e.razaoSocial} ${e.cnpjRaiz} ${e.cidade}`).includes(t)));
       return {
-        empresas: filtradas.slice(0, limite), total: filtradas.length,
+        empresas: filtradas.slice(offset, offset + limite), total: filtradas.length, offset, limite,
+        proximoOffset: offset + limite < filtradas.length ? offset + limite : null,
+        cobertura: { receitaApurada: 0, intencaoApurada: 0, classificacao: filtradas.length, universo: filtradas.length },
         referencia: base.referencia, hash: base.hash, totalOrigem: base.totalOrigem,
       };
     },

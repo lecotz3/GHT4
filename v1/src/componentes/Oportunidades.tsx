@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
 import { api, ErroApi } from '../agente/api'
+import { RotinaOportunidade, PainelComercial } from './RotinaOportunidade'
 import { botao, campo, secundario, hojeLocal, dataCurta, type Oportunidade, type Etapa, type FichaOportunidade } from '../agente/prospeccao'
 
 type Lista = { oportunidades: Oportunidade[]; total: number; offset: number; limite: number; hoje: string; etapas: Etapa[] }
@@ -55,6 +56,7 @@ export function Oportunidades({ inicialId, aoVoltar, aoExpirar }: { inicialId: s
     {erro && <p role="alert" className="rounded-ficha border border-alerta-fio bg-alerta-fundo p-4 text-sm">{erro} <button className="underline" onClick={() => void carregar()}>Reabrir registro</button></p>}
     {carregando && <p role="status" className="text-sm text-suave">Carregando oportunidades…</p>}
     {!id && <>
+      <PainelComercial aoAbrir={abrir} aoFalhar={falhou} />
       <form onSubmit={filtrar} className="grid items-end gap-3 rounded-ficha border border-fio bg-papel p-4 sm:grid-cols-2 lg:grid-cols-5">
         <label className="text-sm">Empresa ou oportunidade<input className={`${campo} mt-1`} value={filtros.busca} onChange={(e) => setFiltros({ ...filtros, busca: e.target.value })} maxLength={120} /></label>
         <label className="text-sm">Frente<select className={`${campo} mt-1`} value={filtros.frente} onChange={(e) => setFiltros({ ...filtros, frente: e.target.value })}><option value="">Compra e venda</option><option value="compra">Compra</option><option value="venda">Venda</option></select></label>
@@ -86,6 +88,7 @@ export function Oportunidades({ inicialId, aoVoltar, aoExpirar }: { inicialId: s
         <p className="text-xs text-suave">{ficha.oportunidade.espaco ? `Compartilhada no espaço: ${ficha.oportunidade.espaco}` : 'Oportunidade privada'} · Responsável: {ficha.oportunidade.responsavel_nome}</p>
         <details className="text-xs text-suave"><summary className="cursor-pointer">Origem e limites dos dados</summary>{ficha.oportunidade.fontes.map((f,i) => <p key={i} className="mt-2">{f.titulo} · {f.referencia}. {f.descricao}</p>)}<p className="mt-2">A seleção vem de um resultado salvo do agente. O cadastro não demonstra intenção de compra ou venda. As atividades abaixo são registros declarados pela equipe.</p></details>
       </section>
+      <RotinaOportunidade key={id} ficha={ficha} aoSalvar={carregar} aoFalhar={falhou} />
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <EditarOportunidade key={`editar-${id}-${ficha.oportunidade.versao}`} ficha={ficha} aoSalvar={carregar} aoFalhar={falhou} />
         <RegistrarAtividade key={`atividade-${id}-${ficha.oportunidade.versao}`} ficha={ficha} aoSalvar={carregar} aoFalhar={falhou} />

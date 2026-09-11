@@ -12,6 +12,9 @@ const Contexto = z.object({
   busca: z.string().trim().max(120).optional(),
   uf: z.string().regex(/^$|^(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)$/).optional(),
   incluirPossiveis: z.boolean().optional(),
+  offset: z.number().int().min(0).max(1000000).optional(),
+  catalogoHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  cnae: z.string().regex(/^$|^\d{7}$/).optional(),
   empresaId: z.string().regex(/^cnpj\d{8}$/).nullable().optional(),
 }).strict();
 const Pedido = z.object({
@@ -53,10 +56,12 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
     req.exigir('agente.ler');
     const filtros = z.object({ busca: z.string().max(120).default(''), uf: Contexto.shape.uf,
       limite: z.coerce.number().int().min(1).max(30).default(12),
+      offset: z.coerce.number().int().min(0).max(1000000).default(0), catalogoHash: Contexto.shape.catalogoHash, cnae: Contexto.shape.cnae,
       incluirPossiveis: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
     }).parse(req.query);
     try { return await catalogo.buscar(filtros); }
-    catch { throw new ErroHttp(503, 'base_indisponivel', 'Não foi possível consultar a base. Tente novamente ou continue pelas pendências.'); }
+    catch (e) { if (e.codigo === 'base_atualizada') throw new ErroHttp(409, e.codigo, e.message);
+      throw new ErroHttp(503, 'base_indisponivel', 'Não foi possível consultar a base. Tente novamente ou continue pelas pendências.'); }
   });
 
   app.get('/api/agente/conversas', async (req) => {
@@ -119,7 +124,8 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
     const acoes = await acoesDe(conversa.id);
     let resultado;
     try { resultado = await executarTarefa({ ...p, contexto, catalogo, acoes }); }
-    catch { throw new ErroHttp(503, 'base_indisponivel', 'A base não pôde ser consultada. Seu pedido não foi perdido; tente novamente.'); }
+    catch (e) { if (e.codigo === 'base_atualizada') throw new ErroHttp(409, e.codigo, e.message);
+      throw new ErroHttp(503, 'base_indisponivel', 'A base não pôde ser consultada. Seu pedido não foi perdido; tente novamente.'); }
     const historico = p.tarefa === 'conversar' ? (await db.query(
       'SELECT pedido, resultado FROM agente_turnos WHERE conversa_id=$1 ORDER BY numero DESC LIMIT 4', [conversa.id])).rows.reverse()
       .map((t) => ({ pedido: t.pedido.texto, resumo: t.resultado.resumo,

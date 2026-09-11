@@ -36,6 +36,55 @@ async function montar(t) {
   return { db, app, usuario, selecionar, criar, criarCorpo };
 }
 
+test('lote aceita somente empresas do turno e preserva decisões anteriores', async (t) => {
+  const { usuario, selecionar, db } = await montar(t); const a = await usuario('a@teste.local');
+  const { c,turno } = await selecionar(a);
+  const url = `/api/agente/conversas/${c.id}/selecao/lote`;
+  const p = { turnoId: turno.id, empresas: [empresa.id], justificativa: 'Investigar o lote com a equipe.' };
+  assert.equal((await a.chamar('POST',url,p)).json().adicionadas,0);
+  const r = (await db.query('SELECT estado FROM agente_selecao WHERE conversa_id=$1',[c.id])).rows[0];
+  assert.equal(r.estado,'priorizar');
+  assert.equal((await a.chamar('POST',url,{ ...p,empresas: [empresa.id,'cnpj87654321'] })).statusCode,422);
+  const b = await usuario('b@teste.local');
+  assert.equal((await b.chamar('POST',url,p)).statusCode,404);
+});
+
+test('agenda persiste várias tarefas, exige responsável do espaço e protege atualizações concorrentes', async (t) => {
+  const { usuario, selecionar, criar } = await montar(t); const a = await usuario('a@teste.local'); const b = await usuario('b@teste.local');
+  const { s } = await selecionar(a); const { o } = await criar(a,s);
+  const id = randomUUID(), url = `/api/crm/oportunidades/${o.id}/tarefas/${id}`;
+  const p = { chave: randomUUID(), versao: 1, descricao: 'Revisar os produtos da companhia', tipo: 'pesquisa', prazo: hoje(), responsavelId: a.id, concluida: false };
+  assert.equal((await a.chamar('PUT',url,{ ...p,responsavelId: b.id })).statusCode,422);
+  assert.equal((await a.chamar('PUT',url,p)).statusCode,200);
+  assert.equal((await a.chamar('PUT',url,p)).statusCode,200);
+  assert.equal((await a.chamar('PUT',url,{ ...p,chave: randomUUID(),concluida: true })).statusCode,409);
+  assert.equal((await a.chamar('PUT',url,{ ...p,chave: randomUUID(),versao: 2,concluida: true })).statusCode,200);
+  const rotina = (await a.chamar('GET',`/api/crm/oportunidades/${o.id}/rotina`)).json();
+  assert.equal(rotina.tarefas.length,1); assert.equal(rotina.tarefas[0].concluida,true);
+  assert.equal((await b.chamar('GET',`/api/crm/oportunidades/${o.id}/rotina`)).statusCode,404);
+  const painel = (await a.chamar('GET','/api/crm/painel')).json();
+  assert.equal(painel.funil[0].quantidade,1); assert.equal(painel.pendencias.length,1);
+  assert.equal((await b.chamar('GET','/api/crm/painel')).json().pendencias.length,0);
+});
+
+test('não contatar vale para compra e venda da empresa no espaço e sócio controla retirada', async (t) => {
+  const { usuario, selecionar, criar, db } = await montar(t);
+  const a = await usuario('a@teste.local'); const socio = await usuario('s@teste.local','socio');
+  const m = await criarMandato(db,{ codigo: 'RESTRITO' }); await darAcesso(db,m.id,a.id); await darAcesso(db,m.id,socio.id,'socio');
+  const primeira = await selecionar(a,m.id,'compra'); const { o } = await criar(a,primeira.s);
+  const outra = await selecionar(a,m.id,'venda'); const venda = (await criar(a,outra.s)).o;
+  const url = `/api/crm/oportunidades/${o.id}/restricao`;
+  const p = { chave: randomUUID(), versao: 1, versaoRestricao: 0, ativa: true, categoria: 'solicitacao_da_empresa', motivo: 'Solicitação expressa registrada na reunião.' };
+  assert.equal((await a.chamar('PUT',url,p)).statusCode,200);
+  assert.equal((await a.chamar('PUT',url,p)).statusCode,200);
+  assert.equal((await a.chamar('GET',`/api/crm/oportunidades/${venda.id}/rotina`)).json().restricao.ativa,true);
+  const contato = { chave: randomUUID(),versao: 1,etapa: 'contatada',descricao: 'Registro declarado de contato da equipe',ocorridoEm: hoje(),canal: 'E-mail',participantes: 'Contato teste' };
+  assert.equal((await socio.chamar('POST',`/api/crm/oportunidades/${venda.id}/atividades`,contato)).statusCode,422);
+  assert.equal((await a.chamar('PUT',url,{ ...p,chave: randomUUID(),versao: 2,versaoRestricao: 1,ativa: false })).statusCode,403);
+  assert.equal((await socio.chamar('PUT',url,{ ...p,chave: randomUUID(),versao: 2,versaoRestricao: 1,ativa: false })).statusCode,200);
+  assert.equal((await socio.chamar('POST',`/api/crm/oportunidades/${venda.id}/atividades`,contato)).statusCode,200);
+});
+
 test('seleção guarda decisão e fonte do resultado; revisão é reversível e independente por frente', async (t) => {
   const { usuario } = await montar(t); const u = await usuario('an@teste.local');
   const r = await u.chamar('POST', '/api/agente/conversas', { id: randomUUID(), titulo: 'Tese em duas frentes', contexto: { frente: 'compra' } });

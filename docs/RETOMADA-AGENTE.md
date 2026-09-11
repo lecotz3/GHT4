@@ -69,3 +69,9 @@ Entregue em 10/09/2026: adaptador opcional OpenAI Responses, tarefas de conversa
 Validação: lint/build e 65 testes de domínio + 102 de servidor passaram. O provedor foi simulado; não houve uso de credencial nem pesquisa paga real. O provedor continua não escolhido e desativado, conforme resposta do usuário. Hospedagem também não escolhida; preparar a implantação, sem publicar em destino presumido.
 
 Próximos blocos: ampliar pesquisa/seleção/exportação, rotina do CRM, evidências/rede/matchmaking, pacote de operação e matriz de aceite. A IA não encerra o restante do plano.
+
+## Checkpoint — busca em páginas e rotina comercial
+
+Entregue: paginação com hash do catálogo para impedir mistura de snapshots, filtro por CNAE principal, cobertura explícita dos campos financeiros ausentes e adição de página inteira à investigação sem sobrescrever revisões anteriores. Agenda por oportunidade com múltiplas tarefas, responsáveis e reprogramação, painel de pendências e carteira por frente. Restrição de contato por empresa e espaço (compra e venda), motivo categorizado, bloqueio de tarefas de contato e avanço para contato; retirada restrita a sócio/administrador autorizado. Migration 0010.
+
+Validação: `npm run ci` passou com 65 testes de domínio e 105 de servidor, incluindo fonte/paginação, lote, agenda, permissões, concorrência e restrição entre frentes. As novas telas ainda serão incluídas no ensaio final de navegador. Próximo: acervo operacional (evidências/documentos/rede/teses), exportações e pacote de implantação/recuperação.
