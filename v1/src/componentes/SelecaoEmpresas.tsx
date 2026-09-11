@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { api, ErroApi } from '../agente/api'
+import { ExportarEntrega } from './ExportarEntrega'
 import { botao, campo, secundario, hojeLocal, type EscolhaEmpresa, type Selecao, type Oportunidade } from '../agente/prospeccao'
 
 const estados = { investigar: 'Investigar', priorizar: 'Priorizar', descartar: 'Descartar' }
-interface Props { conversaId: string; espaco: string | null; podeEditar: boolean; escolha: EscolhaEmpresa | null
+interface Props { conversaId: string; versao: number; espaco: string | null; podeEditar: boolean; escolha: EscolhaEmpresa | null
   aoEscolher: (e: EscolhaEmpresa | null) => void; aoAbrirCrm: (id: string) => void; aoExpirar: () => void }
 
-export function SelecaoEmpresas({ conversaId, espaco, podeEditar, escolha, aoEscolher, aoAbrirCrm, aoExpirar }: Props) {
+export function SelecaoEmpresas({ conversaId, versao, espaco, podeEditar, escolha, aoEscolher, aoAbrirCrm, aoExpirar }: Props) {
   const [selecao, setSelecao] = useState<Selecao[]>([])
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
@@ -47,6 +48,7 @@ export function SelecaoEmpresas({ conversaId, espaco, podeEditar, escolha, aoEsc
             : s.estado === 'priorizar' && podeEditar && <button className={botao} onClick={() => { aoEscolher(null); setCriando(s) }}>Criar oportunidade</button>}
         </div>
       </li>)}</ul>
+      {podeEditar && !!selecao.length && <ExportarEntrega origem={{ conversaId,versao,selecao:selecao.map((s)=>({id:s.id,versao:s.versao})) }} aoFalhar={falhou} />}
     </>}
   </section>
 }

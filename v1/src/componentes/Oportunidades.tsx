@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
 import { api, ErroApi } from '../agente/api'
 import { RotinaOportunidade, PainelComercial } from './RotinaOportunidade'
+import { AcervoOportunidade } from './AcervoOportunidade'
+import { ExportarEntrega } from './ExportarEntrega'
 import { botao, campo, secundario, hojeLocal, dataCurta, type Oportunidade, type Etapa, type FichaOportunidade } from '../agente/prospeccao'
 
 type Lista = { oportunidades: Oportunidade[]; total: number; offset: number; limite: number; hoje: string; etapas: Etapa[] }
@@ -12,7 +14,7 @@ function comChave<T extends object>(ref: RefObject<Envio>, corpo: T) {
   return { ...corpo, chave: ref.current!.chave }
 }
 
-export function Oportunidades({ inicialId, aoVoltar, aoExpirar }: { inicialId: string | null; aoVoltar: () => void; aoExpirar: () => void }) {
+export function Oportunidades({ inicialId, aoVoltar, aoExpirar, aoAbrirTrabalho }: { inicialId: string | null; aoVoltar: () => void; aoExpirar: () => void; aoAbrirTrabalho: (id:string) => void }) {
   const [id, setId] = useState(inicialId)
   const [lista, setLista] = useState<Lista | null>(null)
   const [ficha, setFicha] = useState<FichaOportunidade | null>(null)
@@ -81,6 +83,7 @@ export function Oportunidades({ inicialId, aoVoltar, aoExpirar }: { inicialId: s
       </>}
     </>}
     {id && ficha && <>
+      {ficha.permissoes.editar && <ExportarEntrega origem={{ oportunidadeId:id,versao:ficha.oportunidade.versao }} aoFalhar={falhou} />}
       <section className="space-y-3 rounded-ficha border border-fio bg-papel p-5">
         <p className="text-xs font-semibold text-comprador">{ficha.oportunidade.frente === 'compra' ? 'Compra' : 'Venda'} · {etapaNome(ficha.oportunidade.etapa)}</p>
         <h3 className="text-xl font-semibold">{ficha.oportunidade.titulo}</h3>
@@ -89,6 +92,7 @@ export function Oportunidades({ inicialId, aoVoltar, aoExpirar }: { inicialId: s
         <details className="text-xs text-suave"><summary className="cursor-pointer">Origem e limites dos dados</summary>{ficha.oportunidade.fontes.map((f,i) => <p key={i} className="mt-2">{f.titulo} · {f.referencia}. {f.descricao}</p>)}<p className="mt-2">A seleção vem de um resultado salvo do agente. O cadastro não demonstra intenção de compra ou venda. As atividades abaixo são registros declarados pela equipe.</p></details>
       </section>
       <RotinaOportunidade key={id} ficha={ficha} aoSalvar={carregar} aoFalhar={falhou} />
+      <AcervoOportunidade key={`acervo-${id}`} ficha={ficha} aoFalhar={falhou} aoAbrirTrabalho={aoAbrirTrabalho} aoAbrirOportunidade={abrir} aoAtualizar={carregar} />
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <EditarOportunidade key={`editar-${id}-${ficha.oportunidade.versao}`} ficha={ficha} aoSalvar={carregar} aoFalhar={falhou} />
         <RegistrarAtividade key={`atividade-${id}-${ficha.oportunidade.versao}`} ficha={ficha} aoSalvar={carregar} aoFalhar={falhou} />

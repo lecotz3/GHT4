@@ -81,7 +81,7 @@ export async function complementarComIA(resultado, entrada, redigir) {
     const complemento = await redigir({
       tarefa: entrada.tarefa, pedido: entrada.texto, contexto: entrada.contexto,
       evidencias: resultado.empresas, fontes: resultado.fontes,
-      execucao: entrada.execucao, historico: entrada.historico,
+      execucao: entrada.execucao, historico: entrada.historico, documentos: entrada.documentos,
     });
     const texto = typeof complemento === 'string' ? complemento : complemento?.texto;
     if (typeof texto !== 'string' || !texto.trim() || texto.length > 24000) throw new Error('Resposta inválida');

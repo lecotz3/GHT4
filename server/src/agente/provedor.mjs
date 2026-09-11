@@ -27,6 +27,7 @@ Proponha ações para revisão. Não dê parecer jurídico ou recomendação fin
 Use somente evidências recebidas para fatos sobre empresas; para atualidades use a pesquisa quando disponível,
 priorizando fontes primárias e identificando datas. Sem ferramenta web não alegue ter pesquisado a internet.
 Se faltam dados, diga o que falta e como apurar. Não transforme falha ou ausência de resultado em ausência de fato.
+Ao resumir documentos, cite nome e página/parágrafo de cada afirmação e avise quando há divergência entre fontes.
 Uma página que alega um vínculo não confirma a relação. Retorne citações clicáveis junto às afirmações web.
 Pedidos fora de escopo devem receber uma explicação breve e uma proposta de tarefa útil de M&A.`;
 
@@ -93,6 +94,7 @@ export function criarServicoIA(db, config, { fetchImpl = fetch } = {}) {
       const dados = web ? { consultaPublica: entrada.pedido } : {
         pedido: entrada.pedido, frente: entrada.contexto?.frente, objetivo: entrada.contexto?.objetivo,
         evidencias: entrada.evidencias, fontes: entrada.fontes, historico: entrada.historico,
+        documentos: (entrada.documentos || []).map((d) => ({ id:d.id,nome:d.nome,hash:d.hash,trechos:d.trechos })),
       };
       const input = JSON.stringify(dados);
       if (input.length > 48000) throw new Error('contexto_excessivo');

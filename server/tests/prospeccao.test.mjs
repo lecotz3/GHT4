@@ -1,9 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { criarApp } from '../src/app.mjs';
 import { bancoDeTeste, criarUsuario, criarMandato, darAcesso } from './ajuda.mjs';
 import { hoje } from '../src/crm/contratos.mjs';
+import { compararTeses, analisarComparaveis } from '../src/acervo/analises.mjs';
+import { PDFDocument } from 'pdfkit';
+import { extrairDocumento } from '../src/acervo/extrair.mjs';
+import { serializar } from '../src/acervo/exports.mjs';
 
 const empresa = { id: 'cnpj12345678', nome: 'Química de teste', razaoSocial: 'Química de teste Ltda', cnpjRaiz: '12345678',
   cidade: 'Campinas', uf: 'SP', estado: 'provavel', referencia: '2026-08', receita: null };
@@ -35,6 +39,90 @@ async function montar(t) {
   }
   return { db, app, usuario, selecionar, criar, criarCorpo };
 }
+
+test('Excel, PDF e JSON usam corte congelado verificável, sem notas privadas nem vazamento de escopo',async(t)=>{
+  const { usuario,selecionar,criar }=await montar(t);const a=await usuario('a@teste.local'),b=await usuario('b@teste.local');
+  const { c,s }=await selecionar(a),{ o }=await criar(a,s);
+  const pedido={id:randomUUID(),oportunidadeId:o.id,versao:o.versao};
+  const r=await a.chamar('POST','/api/exportacoes',pedido);assert.equal(r.statusCode,200,r.body);
+  const id=r.json().exportacao.id;
+  assert.equal((await a.chamar('POST','/api/exportacoes',pedido)).json().exportacao.id,id);
+  assert.equal((await a.chamar('POST','/api/exportacoes',{...pedido,versao:0})).statusCode,409);
+  const json=(await a.chamar('GET',`/api/exportacoes/${id}/json`)).json(),{hash,...payload}=json;
+  assert.equal(createHash('sha256').update(serializar(payload)).digest('hex'),hash);
+  assert.ok(!JSON.stringify(json).includes('Nota pessoal'));
+  const xlsx=await a.chamar('GET',`/api/exportacoes/${id}/xlsx`);assert.equal(xlsx.statusCode,200,xlsx.body);
+  assert.equal(xlsx.rawPayload.subarray(0,2).toString(),'PK');assert.ok(xlsx.rawPayload.includes(Buffer.from(hash)));
+  const pdf=await a.chamar('GET',`/api/exportacoes/${id}/pdf`);assert.equal(pdf.statusCode,200,pdf.body.slice(0,200));
+  const extraido=await extrairDocumento(pdf.rawPayload,'pdf');assert.equal(extraido.estado,'extraido');
+  assert.ok(extraido.trechos.some((t)=>t.texto.includes('Química de teste')));
+  assert.equal((await b.chamar('GET',`/api/exportacoes/${id}/json`)).statusCode,404);
+  const lista={id:randomUUID(),conversaId:c.id,versao:1,selecao:[{id:s.id,versao:s.versao}]};
+  assert.equal((await a.chamar('POST','/api/exportacoes',lista)).statusCode,200);
+  assert.equal((await a.chamar('POST','/api/exportacoes',{...lista,id:randomUUID(),selecao:[]})).statusCode,409);
+});
+
+test('acervo mantém versões, revisão exige sócio e contatos pessoais são omitidos da leitura do analista', async (t) => {
+  const { usuario,selecionar,criar,db }=await montar(t);
+  const a=await usuario('a@teste.local'),s=await usuario('s@teste.local','socio'),b=await usuario('b@teste.local');
+  const m=await criarMandato(db,{codigo:'ACERVO'});await darAcesso(db,m.id,a.id);await darAcesso(db,m.id,s.id,'socio');
+  const { o }=await criar(a,(await selecionar(a,m.id)).s),url=`/api/crm/oportunidades/${o.id}/acervo`;
+  const dados={titulo:'Receita informada',fonte:'Demonstração fornecida',referencia:'Página 7',data:hoje(),campo:'receita',estado:'reportado',descricao:'Receita líquida informada no demonstrativo.',valor:80,unidade:'BRL milhões',periodo:'2025',url:''};
+  const p={id:randomUUID(),serieId:null,versao:0,tipo:'evidencia',dados,revisado:false};
+  assert.equal((await a.chamar('POST',url,{...p,revisado:true})).statusCode,403);
+  assert.equal((await a.chamar('POST',url,p)).statusCode,200);
+  assert.equal((await a.chamar('POST',url,p)).statusCode,200);
+  const segunda={...p,id:randomUUID(),serieId:p.id,versao:1,dados:{...dados,valor:85},revisado:true};
+  assert.equal((await s.chamar('POST',url,segunda)).statusCode,200);
+  assert.equal((await s.chamar('POST',url,{...segunda,id:randomUUID()})).statusCode,409);
+  const versoes=(await a.chamar('GET',`${url}/${p.id}/versoes`)).json().versoes;
+  assert.deepEqual(versoes.map((v)=>v.dados.valor),[85,80]);
+  assert.equal((await b.chamar('GET',url)).statusCode,404);
+  const relacao={id:randomUUID(),serieId:null,versao:0,tipo:'relacao',revisado:true,dados:{titulo:'Contato confirmado',fonte:'Contato direto autorizado',referencia:'Reunião com a equipe',data:hoje(),pessoa:'Pessoa Teste',cargo:'Diretor de teste',vinculo:'Relação profissional declarada.',confirmacao:'confirmada',autorizacao:'Autorizado para este mandato.',email:'contato-restrito@teste.local',telefone:'11999999999'}};
+  assert.equal((await a.chamar('POST',url,relacao)).statusCode,403);
+  assert.equal((await s.chamar('POST',url,relacao)).statusCode,200);
+  const leitura=await a.chamar('GET',url);assert.ok(!leitura.body.includes('contato-restrito@'));assert.ok(!leitura.body.includes('11999999999'));
+  const historico=await a.chamar('GET',`${url}/${relacao.id}/versoes`);assert.ok(!historico.body.includes('contato-restrito@'));
+  assert.ok((await s.chamar('GET',url)).body.includes('contato-restrito@'));
+});
+
+test('documentos preservam original e hash, isolam escopo e alimentam somente conversa autorizada', async (t) => {
+  const { usuario,selecionar,criar }=await montar(t);const a=await usuario('a@teste.local'),b=await usuario('b@teste.local');
+  const { o }=await criar(a,(await selecionar(a)).s),url=`/api/crm/oportunidades/${o.id}/documentos`;
+  const texto='Atuação em especialidades químicas.\n\nConfirmar fabricantes representados.';
+  const p={id:randomUUID(),nome:'memoria.txt',base64:Buffer.from(texto).toString('base64'),autorizado:true};
+  const r=await a.chamar('POST',url,p);assert.equal(r.statusCode,200,r.body);assert.equal(r.json().documento.estado,'extraido');
+  const id=r.json().documento.id;
+  assert.equal((await a.chamar('POST',url,{...p,id:randomUUID()})).json().documento.id,id);
+  assert.equal((await a.chamar('GET',`${url}/${id}?baixar=1`)).body,texto);
+  assert.equal((await a.chamar('GET',`${url}/${id}`)).json().documento.trechos.length,2);
+  assert.equal((await b.chamar('GET',`${url}/${id}`)).statusCode,404);
+  assert.equal((await b.chamar('GET',`${url}/${id}?baixar=1`)).statusCode,404);
+  assert.equal((await a.chamar('POST',url,{...p,autorizado:false})).statusCode,422);
+  assert.equal((await a.chamar('POST',url,{...p,nome:'falso.pdf'})).statusCode,422);
+  const c=(await a.chamar('POST','/api/agente/conversas',{id:randomUUID(),titulo:'Análise do documento',contexto:{oportunidadeId:o.id,documentoIds:[id]}})).json().conversa;
+  const analise=await a.chamar('POST',`/api/agente/conversas/${c.id}/mensagens`,{chave:randomUUID(),versao:0,tarefa:'conversar',texto:'Resuma o documento selecionado.'});
+  assert.equal(analise.statusCode,200,analise.body);assert.ok(analise.json().turno.resultado.avisoIA);
+  assert.ok(analise.json().turno.resultado.fontes.some((f)=>f.titulo==='memoria.txt'));
+});
+
+test('extração de PDF conserva referências por página e recusa conteúdo inválido',async()=>{
+  const pdf=new PDFDocument(),partes=[];
+  const pronto=new Promise((resolve,reject)=>{pdf.on('data',(p)=>partes.push(p));pdf.on('end',()=>resolve(Buffer.concat(partes)));pdf.on('error',reject)});
+  pdf.text('Documento de teste da GHT4.');pdf.addPage().text('Segunda pagina da pesquisa.');pdf.end();
+  const r=await extrairDocumento(await pronto,'pdf');
+  assert.equal(r.estado,'extraido');assert.equal(r.trechos[1].local,'Página 2');assert.match(r.trechos[1].texto,/Segunda pagina/);
+  assert.equal((await extrairDocumento(Buffer.from('PKinvalido'),'docx')).estado,'falha_extracao');
+});
+
+test('encaixe separa cobertura de aderência e múltiplos não usam valores ausentes ou não revisados',()=>{
+  const a={produtos:'resinas',regioes:'SP',receitaMin:null,receitaMax:null,controle:'nao_apurado'};
+  const b={...a,produtos:'Resinas, solventes'};
+  const r=compararTeses(a,b);assert.equal(r.aderencia,1);assert.equal(r.cobertura,.5);
+  const linha={id:'x',revisado:true,dados:{empresa:'Teste',tipo:'transacao',periodo:'2025',fonte:'Fonte',ev:100,receita:50,ebitda:-10}};
+  assert.equal(analisarComparaveis([linha])[0].evReceita,2);assert.equal(analisarComparaveis([linha])[0].evEbitda,null);
+  assert.equal(analisarComparaveis([{...linha,revisado:false}])[0].evReceita,null);
+});
 
 test('lote aceita somente empresas do turno e preserva decisões anteriores', async (t) => {
   const { usuario, selecionar, db } = await montar(t); const a = await usuario('a@teste.local');

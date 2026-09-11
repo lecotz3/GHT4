@@ -25,6 +25,7 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
   const [equipe, setEquipe] = useState(false)
   const [versaoEquipe, setVersaoEquipe] = useState(0)
   const [crm, setCrm] = useState<{ id: string | null } | null>(null)
+  const [trabalhoExterno, setTrabalhoExterno] = useState<string | null>(null)
   const conviteInicial = useRef(convite)
   const aoExpirar = useCallback(() => { setUsuario(null); setEquipe(false); setCrm(null); setFase('login'); setErro('Sua sessão expirou. Faça login para retomar seus trabalhos.') }, [])
 
@@ -72,8 +73,8 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
     {convite ? <AceitarConvite token={convite} aoEntrar={(u) => { setUsuario(u); setEquipe(false); aoLimparConvite() }} aoLogin={() => { aoLimparConvite(); setUsuario(null); setFase('login'); setErro('') }} /> : usuario ? <>
       {erro && <p role="alert" className="mx-5 mt-3 text-sm text-alerta">{erro}</p>}
       {equipe && <Equipe aoExpirar={aoExpirar} aoVoltar={() => { setEquipe(false); setVersaoEquipe((v) => v + 1) }} />}
-      {crm && <Oportunidades inicialId={crm.id} aoVoltar={() => setCrm(null)} aoExpirar={aoExpirar} />}
-      <div hidden={equipe || Boolean(crm)}><EspacoDoAgente key={usuario.id} usuario={usuario} aoExpirar={aoExpirar} versaoEquipe={versaoEquipe} aoAbrirCrm={(id) => setCrm({ id })} /></div>
+      {crm && <Oportunidades inicialId={crm.id} aoVoltar={() => setCrm(null)} aoExpirar={aoExpirar} aoAbrirTrabalho={(id) => { setTrabalhoExterno(id); setCrm(null) }} />}
+      <div hidden={equipe || Boolean(crm)}><EspacoDoAgente key={usuario.id} usuario={usuario} aoExpirar={aoExpirar} versaoEquipe={versaoEquipe} trabalhoExterno={trabalhoExterno} aoAbrirCrm={(id) => setCrm({ id })} /></div>
     </> : <main className="mx-auto max-w-lg px-5 py-14">
       {fase === 'carregando' ? <p role="status">Abrindo seu espaço de trabalho…</p>
         : fase === 'offline' ? <section className="space-y-5"><h2 className="text-2xl font-semibold">Vamos conectar o agente</h2>
@@ -93,7 +94,7 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
   </div>
 }
 
-function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm }: { usuario: Usuario; aoExpirar: () => void; versaoEquipe: number; aoAbrirCrm: (id: string) => void }) {
+function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm, trabalhoExterno }: { usuario: Usuario; aoExpirar: () => void; versaoEquipe: number; aoAbrirCrm: (id: string) => void; trabalhoExterno: string | null }) {
   const [estado, setEstado] = useState<EstadoAgente | null>(null)
   const [conversas, setConversas] = useState<Conversa[]>([])
   const [mandatos, setMandatos] = useState<{ id: string; rotulo: string }[]>([])
@@ -130,7 +131,7 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm }: { usua
   }, [falhou])
   useEffect(() => { void carregar() }, [carregar, versaoEquipe])
 
-  async function abrir(id: string) {
+  const abrir = useCallback(async (id: string) => {
     if (enviando) return
     const n = ++requisicao.current
     setCarregando(true); setErro('')
@@ -139,11 +140,15 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm }: { usua
       if (requisicao.current !== n) return
       setAtiva(r.conversa); setContexto(r.conversa.contexto); setTitulo(r.conversa.titulo)
       setMandatoId(r.conversa.mandato_id || ''); setTurnos(r.turnos); setAcoes(r.acoes)
-      setTexto(''); setTarefa('ver_pendencias'); envioPendente.current = null
+      setTexto(r.conversa.contexto.documentoIds?.length ? 'Resuma os documentos selecionados, com referências por página ou parágrafo, divergências e próximos passos.' : ''); setTarefa(r.conversa.contexto.documentoIds?.length ? 'conversar' : 'ver_pendencias'); envioPendente.current = null
       setRevisao(null)
     } catch (e) { if (requisicao.current === n) falhou(e) }
     finally { if (requisicao.current === n) setCarregando(false) }
-  }
+  }, [enviando, falhou])
+  const externoConsumido = useRef<string | null>(null)
+  useEffect(() => { if (trabalhoExterno && trabalhoExterno !== externoConsumido.current && !enviando) {
+    externoConsumido.current = trabalhoExterno; void abrir(trabalhoExterno); void carregar()
+  } }, [trabalhoExterno, enviando, abrir, carregar])
   function novo() {
     if (enviando) return
     requisicao.current++; setAtiva(null); setTurnos([]); setAcoes([]); setTitulo(''); setMandatoId('')
@@ -222,6 +227,7 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm }: { usua
           <label className="text-sm font-medium">Espaço de trabalho<select className={`${campo} mt-1`} value={mandatoId} onChange={(e) => setMandatoId(e.target.value)} disabled={enviando}><option value="">Meu trabalho privado</option>{mandatos.map((m) => <option value={m.id} key={m.id}>{m.rotulo}</option>)}</select></label>
         </div>}
         {ativa && <p className="text-xs text-suave">{mandatos.find((m) => m.id === ativa.mandato_id)?.rotulo || 'Meu trabalho privado'} · {turnos.length ? 'Histórico salvo' : 'Trabalho criado'}{ativa.versao > 50 ? ' · Exibindo as últimas 50 tarefas' : ''}</p>}
+        {contexto.oportunidadeId && <p className="text-sm">Contexto: oportunidade vinculada · {contexto.documentoIds?.length || 0} documentos selecionados. <button className="text-comprador underline" onClick={() => aoAbrirCrm(contexto.oportunidadeId!)} disabled={enviando}>Conferir documentos e oportunidade</button></p>}
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{estado.tarefas.map((t) => <button key={t.id} className={`rounded-ficha border p-4 text-left transition ${tarefa === t.id ? 'border-comprador bg-comprador-fundo' : 'border-fio bg-papel hover:border-fio-forte'}`} onClick={() => { setTarefa(t.id); envioPendente.current = null }} disabled={enviando || carregando || !podeUsar} aria-pressed={tarefa === t.id}>
           <span className="block text-sm font-semibold">{t.titulo}</span><span className="mt-1 block text-xs leading-relaxed text-suave">{t.descricao}</span></button>)}</div>
         <form onSubmit={enviar} className="space-y-4 rounded-ficha border border-fio bg-papel p-5">
@@ -243,7 +249,7 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm }: { usua
           <div className="flex flex-wrap items-center gap-3"><button className={botao} disabled={enviando || carregando || !podeUsar || (tarefa === 'preparar_reuniao' && !contexto.empresaId) || (['conversar','pesquisar_web'].includes(tarefa) && (!estado.iaConfigurada || texto.trim().length < 10)) || (tarefa === 'pesquisar_web' && !estado.ia?.web)}>{enviando ? 'Preparando e salvando…' : ROTULOS[tarefa]}</button><span role="status" className="text-xs text-suave">{enviando ? 'Seu pedido está em andamento.' : 'O resultado e o contexto serão salvos neste trabalho.'}</span></div>
           {!podeUsar && <p className="text-sm text-suave">Seu acesso permite apenas consulta.</p>}
         </form>
-        {ativa && <SelecaoEmpresas key={`${ativa.id}-${versaoSelecao}`} conversaId={ativa.id} espaco={ativa.mandato_id ? mandatos.find((m) => m.id === ativa.mandato_id)?.rotulo || 'Espaço selecionado' : null}
+        {ativa && <SelecaoEmpresas key={`${ativa.id}-${versaoSelecao}`} conversaId={ativa.id} versao={ativa.versao} espaco={ativa.mandato_id ? mandatos.find((m) => m.id === ativa.mandato_id)?.rotulo || 'Espaço selecionado' : null}
           podeEditar={podeUsar && !enviando && !carregando} escolha={revisao} aoEscolher={setRevisao} aoAbrirCrm={aoAbrirCrm} aoExpirar={aoExpirar} />}
         <section className="space-y-5" aria-label="Histórico do trabalho">{[...turnos].reverse().map((t, i) => <div key={t.id} ref={i === 0 ? ultimaResposta : undefined} className="scroll-mt-5 rounded-ficha border border-fio bg-papel p-5 md:p-6">
           <p className="text-xs font-medium text-suave">Tarefa {t.numero} · {ROTULOS[t.pedido.tarefa]} · {t.pedido.contexto.frente === 'compra' ? 'Compra' : 'Venda'}</p>

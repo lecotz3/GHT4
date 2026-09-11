@@ -4,6 +4,7 @@ import { ErroHttp } from '../app.mjs';
 import { registrar } from '../auditoria/registrar.mjs';
 import { criarCatalogo } from '../agente/catalogo.mjs';
 import { TAREFAS, executarTarefa, complementarComIA } from '../agente/tarefas.mjs';
+import { autorizarOportunidade } from '../crm/acesso.mjs';
 
 const Id = z.string().uuid();
 const Contexto = z.object({
@@ -16,6 +17,7 @@ const Contexto = z.object({
   catalogoHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   cnae: z.string().regex(/^$|^\d{7}$/).optional(),
   empresaId: z.string().regex(/^cnpj\d{8}$/).nullable().optional(),
+  oportunidadeId: Id.optional(), documentoIds: z.array(Id).max(4).optional(),
 }).strict();
 const Pedido = z.object({
   chave: Id, versao: z.number().int().min(0),
@@ -120,6 +122,15 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
     }
     if (conversa.versao !== p.versao) throw new ErroHttp(409, 'trabalho_atualizado', 'O trabalho mudou em outra aba. Reabra-o antes de enviar.');
     const contexto = { ...conversa.contexto, ...p.contexto };
+    let documentos = [];
+    if (contexto.oportunidadeId) {
+      const o = await autorizarOportunidade(req,db,contexto.oportunidadeId);
+      if (o.mandato_id !== conversa.mandato_id) throw new ErroHttp(422,'escopo_diferente','Use um trabalho no mesmo espaço da oportunidade.');
+      if (p.tarefa === 'conversar' && contexto.documentoIds?.length) {
+        documentos = (await db.query('SELECT id,nome,trechos,hash,estado FROM crm_documentos WHERE oportunidade_id=$1 AND id=ANY($2::uuid[])',[o.id,contexto.documentoIds])).rows;
+        if (documentos.length !== new Set(contexto.documentoIds).size || documentos.some((d) => d.estado !== 'extraido')) throw new ErroHttp(422,'documento_indisponivel','Selecione documentos com texto extraído desta oportunidade.');
+      }
+    } else if (contexto.documentoIds?.length) throw new ErroHttp(422,'oportunidade_necessaria','Vincule a oportunidade dos documentos.');
     if (p.texto && ['buscar_empresas', 'preparar_reuniao'].includes(p.tarefa)) contexto.objetivo = p.texto.slice(0, 2000);
     const acoes = await acoesDe(conversa.id);
     let resultado;
@@ -130,7 +141,8 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
       'SELECT pedido, resultado FROM agente_turnos WHERE conversa_id=$1 ORDER BY numero DESC LIMIT 4', [conversa.id])).rows.reverse()
       .map((t) => ({ pedido: t.pedido.texto, resumo: t.resultado.resumo,
         analise: t.resultado.complementoIA?.slice(0, 3000), empresas: t.resultado.empresas?.slice(0, 12), fontes: t.resultado.fontes?.slice(0, 10) })) : [];
-    try { resultado = await complementarComIA(resultado, { ...p, contexto, historico,
+    if (documentos.length) resultado.fontes.push(...documentos.map((d) => ({ titulo:d.nome,referencia:d.hash,descricao:'Documento selecionado; consulte os parágrafos ou páginas na oportunidade.' })));
+    try { resultado = await complementarComIA(resultado, { ...p, contexto, historico, documentos,
       execucao: { usuarioId: req.usuario.id, conversaId: conversa.id, chave: p.chave, corpoHash: hash } },
     ['conversar','pesquisar_web'].includes(p.tarefa) ? (servicoIA?.redigir ?? redigirIA) : redigirIA); }
     catch (erro) {
@@ -140,6 +152,7 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
     // O provedor não decide permissões, cálculos nem gravações. Revalida o escopo antes da escrita.
     await req.revalidarSessao();
     await autorizar(req, conversa.id, 'agente.usar');
+    if (contexto.oportunidadeId) await autorizarOportunidade(req,db,contexto.oportunidadeId);
     const salvo = await db.transaction(async (tx) => {
       const atual = (await tx.query('SELECT * FROM agente_conversas WHERE id = $1 FOR UPDATE', [conversa.id])).rows[0];
       const repetido = (await tx.query('SELECT * FROM agente_turnos WHERE conversa_id = $1 AND chave = $2', [conversa.id, p.chave])).rows[0];

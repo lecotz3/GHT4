@@ -27,6 +27,9 @@ import { registrarRotasDoAgente } from './api/agente.mjs';
 import { registrarInstalacao } from './api/instalacao.mjs';
 import { registrarEquipe } from './api/equipe.mjs';
 import { registrarProspeccao } from './api/prospeccao.mjs';
+import { registrarAcervo } from './api/acervo.mjs';
+import { registrarDocumentos } from './api/documentos.mjs';
+import { registrarExportacoes } from './api/exportacoes.mjs';
 
 /** Erro que vira resposta HTTP em vez de 500. */
 export class ErroHttp extends Error {
@@ -53,7 +56,7 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
     logger,
     /* O corpo cru é preciso para o hash de idempotência: dois JSON iguais podem
        ter bytes diferentes, e o hash tem de ser do que o cliente mandou. */
-    bodyLimit: 2 * 1024 * 1024,
+    bodyLimit: 4 * 1024 * 1024,
   });
 
   await app.register(cookie);
@@ -120,7 +123,7 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
     if (erro instanceof z.ZodError) {
       return resposta.status(422).send({
         erro: 'corpo_invalido',
-        mensagem: 'O corpo da requisição não bate com o contrato.',
+        mensagem: `Confira os campos: ${erro.issues.slice(0,3).map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
         detalhe: erro.issues.map((i) => ({ campo: i.path.join('.'), problema: i.message })),
       });
     }
@@ -141,6 +144,9 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
   await app.register(registrarRotasDoAgente, { catalogo, redigirIA, servicoIA });
   await app.register(registrarEquipe);
   await app.register(registrarProspeccao);
+  await app.register(registrarAcervo);
+  await app.register(registrarDocumentos);
+  await app.register(registrarExportacoes);
 
   return app;
 }

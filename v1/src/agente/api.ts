@@ -26,6 +26,7 @@ export interface Contexto {
   frente?: 'compra' | 'venda'; objetivo?: string; busca?: string; uf?: string
   incluirPossiveis?: boolean; empresaId?: string | null
   offset?: number; catalogoHash?: string; cnae?: string
+  oportunidadeId?: string; documentoIds?: string[]
 }
 export interface Conversa { id: string; titulo: string; mandato_id: string | null; contexto: Contexto; versao: number; atualizado_em: string }
 export interface Empresa { id: string; nome: string; razaoSocial: string; cidade: string; uf: string; cnpjRaiz: string; cnaePrincipal: string; estado: string; motivo: string; referencia: string }
