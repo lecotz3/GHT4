@@ -12,6 +12,8 @@ Preparado em 11/09/2026. **Ainda não executado por membros da boutique.** Usar 
 
 Repetir a busca na outra frente. Comparar teses de comprador e alvo explicitamente cadastrados, sem tratar aderência como interesse de transação.
 
+Na primeira tarefa, usar **Preparar filtros pelo pedido**: `Distribuidoras em SP para compra; busca: Adequim; incluir possíveis`. A pessoa deve conferir o que mudou, aplicar e executar a pesquisa separadamente. Repetir com `em SP com faturamento acima de 50 milhões` e com `cidade: Campinas`: devem surgir pendências, sem aplicação. Explicar com as próprias palavras que o campo de texto pesquisa nome, cidade e CNPJ juntos. Mudar um filtro após gerar uma prévia deve exigir nova interpretação.
+
 ## Registro de cada tentativa
 
 | Campo | Preenchimento pela equipe |

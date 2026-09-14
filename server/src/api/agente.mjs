@@ -6,6 +6,7 @@ import { criarCatalogo } from '../agente/catalogo.mjs';
 import { TAREFAS, executarTarefa, complementarComIA } from '../agente/tarefas.mjs';
 import { autorizarOportunidade } from '../crm/acesso.mjs';
 import { ReferenciaModelo,filtrosDoContexto } from '../agente/filtros.mjs';
+import { registrarPropostas,mesmosFiltros } from './propostas.mjs';
 
 const Id = z.string().uuid();
 const Contexto = z.object({
@@ -28,7 +29,7 @@ const Pedido = z.object({
   contexto: Contexto.default({}),
 }).strict().refine((p) => p.tarefa !== 'registrar_passo' || p.texto.length > 0,
   { message: 'Descreva o próximo passo.', path: ['texto'] })
-  .refine((p) => !['conversar','pesquisar_web'].includes(p.tarefa) || p.texto.length >= 10,
+  .refine((p) => !['conversar','pesquisar_web','interpretar_busca'].includes(p.tarefa) || p.texto.length >= 10,
     { message: 'Descreva seu pedido com pelo menos 10 caracteres.', path: ['texto'] });
 
 export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), redigirIA = null, servicoIA = null } = {}) {
@@ -154,9 +155,13 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
         analise: t.resultado.complementoIA?.slice(0, 3000), empresas: t.resultado.empresas?.slice(0, 12), fontes: t.resultado.fontes?.slice(0, 10) })) : [];
     if (documentos.length) resultado.fontes.push(...documentos.map((d) => ({ titulo:d.nome,referencia:d.hash,descricao:'Documento selecionado; consulte os parágrafos ou páginas na oportunidade.' })));
     if(modelo)resultado.fontes.push({titulo:`Modelo de pesquisa: ${modelo.nome}`,referencia:`Versão ${contexto.modeloBusca.versao} · ${modelo.conteudo_hash}`,descricao:'Critérios conferidos contra a versão salva. Cadastro consultado no snapshot indicado no resultado.'});
+    if(p.tarefa==='buscar_empresas') {
+      const aplicada=(await db.query('SELECT turno_id,proposta_hash,filtros FROM agente_propostas_aplicadas WHERE conversa_id=$1 ORDER BY versao_conversa DESC LIMIT 1',[conversa.id])).rows[0];
+      if(aplicada && mesmosFiltros(aplicada.filtros,contexto))resultado.fontes.push({titulo:'Prévia de filtros revisada',referencia:`${aplicada.turno_id} · ${aplicada.proposta_hash}`,descricao:'Estes filtros correspondem à última proposta explicitamente aplicada neste trabalho.'});
+    }
     try { resultado = await complementarComIA(resultado, { ...p, contexto, historico, documentos,
       execucao: { usuarioId: req.usuario.id, conversaId: conversa.id, chave: p.chave, corpoHash: hash } },
-    ['conversar','pesquisar_web'].includes(p.tarefa) ? (servicoIA?.redigir ?? redigirIA) : redigirIA); }
+    ['conversar','pesquisar_web','interpretar_busca'].includes(p.tarefa) ? (servicoIA?.redigir ?? redigirIA) : redigirIA); }
     catch (erro) {
       if (erro.codigo === 'ia_em_andamento') throw new ErroHttp(409, 'ia_em_andamento', 'Este pedido já está em andamento. Aguarde e reabra o trabalho.');
       throw erro;
@@ -190,6 +195,7 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
     return { ...salvo, acoes: await acoesDe(conversa.id) };
   });
 
+  await registrarPropostas(app,{autorizar});
   app.patch('/api/agente/conversas/:id/acoes/:acaoId', async (req) => {
     const conversa = await autorizar(req, req.params.id, 'agente.usar');
     const { concluida } = z.object({ concluida: z.boolean() }).strict().parse(req.body);

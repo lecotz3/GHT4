@@ -1,12 +1,26 @@
 # Retomada da implementação do agente GHT4
 
-Atualizado em 11 de setembro de 2026. Branch de trabalho: `feat/agente-operacional`.
+Atualizado em 14 de setembro de 2026. Branch de trabalho: `feat/agente-operacional`.
 
 ## Objetivo em execução
 
 Entregar rapidamente um fluxo utilizável de agente para tarefas de M&A, começando por Distribuição e Trading Químico, com compra e venda equilibradas. O usuário autorizou implementar e pediu commits de tudo que for feito para permitir continuidade entre sessões.
 
-## Estado mais recente — modelos e atualização local
+## Estado mais recente — prévia de filtros e envio ao GitHub
+
+Nova tarefa **Preparar filtros pelo pedido**: interpretação local de pedidos curtos, adaptador opcional de IA com JSON Schema estrito, tabela antes/proposta/trecho e aplicação explícita. A migration `0013_propostas_busca.sql` guarda a aplicação imutável, com auditoria, versão e chave de repetição. Aplicar salva os filtros e abre Encontrar empresas; a pesquisa é separada e cita a prévia. Conflitos entre abas e mudanças nos critérios de partida impedem sobreposição. A IA recebe somente pedido e cinco filtros; falhas/recusas mantêm uma prévia local identificada.
+
+Limites importantes: UF única, frente, termo geral, CNAE principal e enquadramentos possíveis. Busca textual consulta nome/cidade/CNPJ juntos. O ensaio detectou que tratar `cidade: Campinas` como esse termo traria nomes de empresas de outros municípios; esse pedido agora gera pendência. Exemplo aplicável: `Distribuidoras em SP para compra; busca: Adequim; incluir possíveis`. Critérios financeiros, intenção e critérios não reconhecidos não são aplicados silenciosamente. Interpretação com modelo real continua sem avaliação; provedor não escolhido e nenhuma chamada paga feita.
+
+Verificação final: **189 testes (65 domínio + 124 servidor)**, lint, TypeScript, build e validações offline passaram. CUA voltou a funcionar: ensaio isolado verificou pendência por município, revisão/aplicação/pesquisa (Adequim/SP), criação/aplicação de modelo, texto do documento e painel de operação. Tabela da prévia, documentos e formulário de backup inspecionados visualmente, sem cortes de conteúdo. Nenhuma credencial ou conta real da equipe criada. Isso não substitui o roteiro de aceitação pela GHT4.
+
+Instância principal ativa em `http://127.0.0.1:5173/#vista=agente`, API 3311; migration 0013 aplicada. Cópia offline anterior em `.cache/antes-interpretacao-853d91eb869d4b7289b7083ce9e92dc0`. Helper ignorado atual: `.cache/agente-em-segundo-plano-20260914.mjs`; encerrar criando `.cache/parar-agente-20260914` e aguardando o fechamento. Saúde e interface retornaram 200. Logs ignorados em `server/iniciador-local.log` e `server/iniciador-local-erros.log`. QA usa banco descartável, separado de `server/.dados`.
+
+O usuário autorizou commit e envio para **https://github.com/lecotz3/GHT4.git**, já configurado como `origin`. O fetch com acesso de rede aprovado respondeu **Repository not found**; Git Credential Manager lista a conta `lecotz`. Foi solicitada confirmação do endereço/permissão, sem pedir segredos. Nenhum push anterior foi confirmado. Após resolver o acesso, buscar o remoto, conferir divergências e publicar `feat/agente-operacional` sem force push ou merge presumido em main. Manter todo o trabalho em commits locais enquanto isso.
+
+Próximo desenvolvimento: atualização operacional das fontes e painel de qualidade por campo; depois ranking calibrado, relatório setorial, documentos extensos e métricas. Provedor, hospedagem, dados autorizados e aceite com a boutique permanecem pendentes. A matriz B01–B26 é a referência; não declarar o plano inteiro concluído.
+
+## Checkpoint anterior — modelos e atualização local (11/09/2026)
 
 Modelos de pesquisa conectados ao agente: salvar filtros compartilhados no espaço ou na boutique, comparar versões e aplicar ao formulário antes de buscar. Analistas criam/usam; versionamento respeita o papel efetivo no servidor. O resultado cita a versão/hash e o servidor recusa filtros divergentes ou modelo de outro espaço. Histórico de conversas e documentos não entra no modelo. O campo de observações continua sem conversão automática em filtro.
 
@@ -40,7 +54,7 @@ Próxima prioridade: homologar a experiência com a GHT4, selecionar/configurar 
 - Não gravar credenciais em commits; configuração de IA e banco permanece no servidor.
 - Testar em banco isolado. Não usar bases externas como destino de testes.
 - Registrar aqui o que foi entregue, validações, limitações e próximo passo em cada commit funcional.
-- O usuário autorizou commits locais; não foi solicitado push ou publicação.
+- O usuário autorizou commits e, em 14/09/2026, push para `https://github.com/lecotz3/GHT4.git`. Isso não autoriza deploy em hospedagem presumida nem envio comercial a terceiros.
 
 ## Checkpoint de operação — 11/09/2026
 

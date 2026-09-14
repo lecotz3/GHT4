@@ -20,7 +20,7 @@ export async function api<T>(url: string, method = 'GET', corpo?: unknown, chave
   } finally { clearTimeout(timeout) }
 }
 
-export type Tarefa = 'conversar' | 'pesquisar_web' | 'buscar_empresas' | 'preparar_reuniao' | 'registrar_passo' | 'ver_pendencias'
+export type Tarefa = 'interpretar_busca' | 'conversar' | 'pesquisar_web' | 'buscar_empresas' | 'preparar_reuniao' | 'registrar_passo' | 'ver_pendencias'
 export interface Usuario { id: string; nome: string; papel: string }
 export interface Contexto {
   modeloBusca?: { id: string; versao: number; hash: string } | null
@@ -32,6 +32,7 @@ export interface Contexto {
 export interface Conversa { id: string; titulo: string; mandato_id: string | null; contexto: Contexto; versao: number; atualizado_em: string }
 export interface Empresa { id: string; nome: string; razaoSocial: string; cidade: string; uf: string; cnpjRaiz: string; cnaePrincipal: string; estado: string; motivo: string; referencia: string }
 export interface Resultado {
+  propostaBusca?: { modo: 'ia' | 'regras_locais'; filtrosAtuais: Contexto; filtrosPropostos: Contexto; alteracoes: {campo: keyof Contexto; valor: string | boolean; trecho: string}[]; pendencias: string[]; aplicavel: boolean; hash: string }
   titulo: string; resumo: string; modo: string; complementoIA?: string; avisoIA?: string
   citacoesIA?: { inicio: number; fim: number; url: string; titulo: string }[]; modeloIA?: string
   catalogoHash?: string; paginacao?: { total: number; offset: number; proximoOffset: number | null }

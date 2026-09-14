@@ -94,6 +94,14 @@ Seguir [Configurar IA](configurar-ia.md). Sem seleção automática de fornecedo
 
 Administradores encontram **Equipe → Operação e continuidade**. A cópia local exige senha de acesso, senha do arquivo e ciência de que inclui trabalhos privados. Guardar arquivo e senha separadamente. Última solicitação não confirma download/restore. A restauração preserva a base original e segue o [guia de implantação e continuidade](implantacao-privada.md).
 
+## Preparar filtros pelo pedido
+
+Escolha **Preparar filtros pelo pedido** e descreva os critérios. Sem provedor, um exemplo reconhecido é: `Distribuidoras em SP para compra; busca: Adequim; incluir possíveis`. As regras locais reconhecem UF pela sigla, frente, um termo de busca, CNAE principal explícito e inclusão de enquadramentos possíveis. Com provedor configurado, a interpretação usa a IA e continua limitada aos mesmos campos.
+
+Confira a tabela **Antes / Proposta / Trecho identificado**. Campos não mencionados preservam o valor anterior. Pendências impedem aplicar: reescreva o pedido ou ajuste os filtros do formulário. Faturamento, intenção, várias UFs e exclusões não são filtros executáveis dessa consulta. O termo de busca consulta nome, cidade e CNPJ juntos: `cidade: Campinas` não é convertido em um filtro exclusivo de município. Para aceitar o recorte amplo, escreva `busca: Campinas` e confira os cadastros.
+
+Marque que conferiu a proposta e clique **Aplicar filtros revisados**. O agente salva os critérios e abre **Encontrar empresas**. Execute a pesquisa para receber resultados; a entrega cita a prévia aplicada. Se os filtros mudarem depois da geração da prévia, prepare outra. A aplicação permanece no histórico de auditoria, com controle de versão para evitar sobreposição entre abas.
+
 ## Próximas entregas
 
 Ver [Retomada](../RETOMADA-AGENTE.md) e a [matriz B01–B26](../PLANO-EXECUCAO-AGENTE.md). Prioridades: executar o [roteiro com a equipe](aceitacao-piloto.md), escolher provedor/hospedagem, validar dados reais e fechar integrações pendentes. Pacote preparado não significa serviço publicado.

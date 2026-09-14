@@ -1,4 +1,6 @@
+import { interpretarLocal } from './interpretacao.mjs';
 export const TAREFAS = Object.freeze([
+  { id: 'interpretar_busca', titulo: 'Preparar filtros pelo pedido', descricao: 'Descreva a busca e confira os critérios antes de aplicá-los.' },
   { id: 'conversar', titulo: 'Conversar com o agente', descricao: 'Peça uma análise ou próximo passo com os dados deste trabalho.' },
   { id: 'pesquisar_web', titulo: 'Pesquisar fontes públicas', descricao: 'Investigue uma empresa, notícia ou mercado na internet, com referências.' },
   { id: 'buscar_empresas', titulo: 'Encontrar empresas', descricao: 'Consulte a base química por nome, cidade e estado.' },
@@ -9,6 +11,7 @@ export const TAREFAS = Object.freeze([
 
 export async function executarTarefa({ tarefa, texto, contexto, catalogo, acoes }) {
   const resposta = { modo: 'assistido', titulo: '', resumo: '', blocos: [], empresas: [], fontes: [], proximas: [] };
+  if(tarefa==='interpretar_busca')return {...resposta,titulo:'Prévia dos critérios de pesquisa',resumo:'Confira os critérios e as pendências. Nenhum filtro foi alterado e nenhuma busca foi executada.',propostaBusca:interpretarLocal(texto,contexto)};
   const fonte = (referencia) => ({ titulo: 'Receita Federal — cadastro CNPJ', referencia,
     descricao: 'Snapshot local. O cadastro não informa faturamento, intenção de venda ou interesse em contratar assessoria.' });
 
@@ -83,6 +86,10 @@ export async function complementarComIA(resultado, entrada, redigir) {
       evidencias: resultado.empresas, fontes: resultado.fontes,
       execucao: entrada.execucao, historico: entrada.historico, documentos: entrada.documentos,
     });
+    if(entrada.tarefa==='interpretar_busca') {
+      if(!complemento?.propostaBusca)throw new Error('interpretacao_invalida');
+      return {...resultado,modo:'assistido_com_ia',propostaBusca:complemento.propostaBusca,modeloIA:complemento.modelo,usoIA:complemento.uso};
+    }
     const texto = typeof complemento === 'string' ? complemento : complemento?.texto;
     if (typeof texto !== 'string' || !texto.trim() || texto.length > 24000) throw new Error('Resposta inválida');
     return { ...resultado, complementoIA: texto, modo: 'assistido_com_ia',
@@ -90,6 +97,7 @@ export async function complementarComIA(resultado, entrada, redigir) {
       fontes: [...resultado.fontes, ...(complemento.fontes ?? [])] };
   } catch (erro) {
     if (erro.codigo === 'ia_em_andamento') throw erro;
+    if(entrada.tarefa==='interpretar_busca')return {...resultado,avisoIA:'A IA não retornou uma interpretação válida. A prévia abaixo usa somente as regras locais; confira as pendências antes de aplicar.'};
     if(erro.message==='contexto_excessivo')return {...resultado,avisoIA:'O conjunto de documentos e histórico ultrapassa o limite de 48 mil caracteres desta análise. Selecione menos documentos ou um arquivo menor e comece um novo trabalho. Nenhum pedido foi enviado ao provedor; o material completo continua na oportunidade.'};
     return { ...resultado, avisoIA: 'A IA não retornou uma resposta utilizável. Pode haver indisponibilidade, limite diário ou ausência de fontes. Os dados e o pedido foram preservados; isso não indica ausência de fatos sobre a empresa.' };
   }

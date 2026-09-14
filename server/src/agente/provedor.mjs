@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { FORMATO_INTERPRETACAO,INSTRUCOES_INTERPRETACAO,validarInterpretacao } from './interpretacao.mjs';
+import { filtrosDoContexto } from './filtros.mjs';
 
 export class ExecucaoIAEmAndamento extends Error {
   constructor() { super('pedido_ja_reservado'); this.codigo = 'ia_em_andamento'; }
@@ -89,9 +91,10 @@ export function criarServicoIA(db, config, { fetchImpl = fetch } = {}) {
     async redigir(entrada) {
       const { execucao: e } = entrada;
       const web = entrada.tarefa === 'pesquisar_web';
+      const interpretar=entrada.tarefa==='interpretar_busca';
       if (web && !config.web) throw new Error('web_desabilitada');
       // Pesquisa recebe somente a consulta pública explícita; nenhuma nota ou histórico privado.
-      const dados = web ? { consultaPublica: entrada.pedido } : {
+      const dados = interpretar ? {pedido:entrada.pedido,filtrosAtuais:filtrosDoContexto(entrada.contexto)} : web ? { consultaPublica: entrada.pedido } : {
         pedido: entrada.pedido, frente: entrada.contexto?.frente, objetivo: entrada.contexto?.objetivo,
         evidencias: entrada.evidencias, fontes: entrada.fontes, historico: entrada.historico,
         documentos: (entrada.documentos || []).map((d) => ({ id:d.id,nome:d.nome,hash:d.hash,trechos:d.trechos })),
@@ -116,7 +119,8 @@ export function criarServicoIA(db, config, { fetchImpl = fetch } = {}) {
       if (reserva.estado === 'concluida') return reserva.resultado;
       const inicio = Date.now();
       try {
-        const body = { model: config.modelo, instructions: INSTRUCOES, input, store: false,
+        const body = { model: config.modelo, instructions: interpretar?INSTRUCOES_INTERPRETACAO:INSTRUCOES, input, store: false,
+          ...(interpretar?{text:{format:FORMATO_INTERPRETACAO}}:{}),
           max_output_tokens: config.tokens, ...(web ? { tools: [{ type: 'web_search', search_context_size: 'low' }],
             tool_choice: 'required', max_tool_calls: 2, include: ['web_search_call.action.sources'] } : {}) };
         const r = await fetchImpl('https://api.openai.com/v1/responses', {
@@ -132,6 +136,10 @@ export function criarServicoIA(db, config, { fetchImpl = fetch } = {}) {
           partes.push(parte);
         }
         const resultado = lerResposta(JSON.parse(Buffer.concat(partes).toString('utf8')), { web, modelo: config.modelo });
+        if(interpretar) {
+          resultado.propostaBusca=validarInterpretacao(JSON.parse(resultado.texto),entrada.pedido,entrada.contexto);
+          resultado.texto='Prévia estruturada para revisão humana.';
+        }
         await db.query(`UPDATE ia_execucoes SET estado='concluida', resultado=$2, tokens_entrada=$3,
           tokens_saida=$4, duracao_ms=$5 WHERE id=$1`, [reserva.id, JSON.stringify(resultado), resultado.uso.entrada, resultado.uso.saida, Date.now() - inicio]);
         return resultado;
