@@ -146,7 +146,10 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
     });
   });
 
-  app.get('/api/saude', async () => ({ ok: true, agora: new Date().toISOString() }));
+  app.get('/api/saude', async () => {
+    await db.query('SELECT 1');
+    return { ok: true, agora: new Date().toISOString() };
+  });
 
   await app.register(registrarRotasDeSessao);
   await app.register(registrarRotasDeMandato);

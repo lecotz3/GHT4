@@ -1,5 +1,7 @@
 # Build da interface na Vercel
 
+**Atualização:** o deploy completo do agente agora usa API e PostgreSQL, descritos em [deploy Vercel do agente](deploy-vercel-agente.md). As instruções abaixo registram a correção original do erro 127 para a interface; para o deployment final, usar o `vercel.json` atual e o novo guia.
+
 ## Correção do erro 127
 
 O log informado em 14/09/2026 termina em `sh: line 1: tsc: command not found`. A Vercel executou a instalação na raiz, cujo `package.json` não tem dependências. O build da raiz delega para `v1`, onde estão TypeScript, Vite e o lockfile. A instalação padrão da raiz não instala esse subprojeto.

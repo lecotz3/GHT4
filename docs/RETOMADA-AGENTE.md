@@ -1,6 +1,18 @@
 # Retomada da implementação do agente GHT4
 
-Atualizado em 15 de setembro de 2026. Branch atual: `fix/vercel-build`, criada a partir da `main` local para a correção do build da Vercel. Histórico da implementação em `feat/agente-operacional` e do plano de relações em `feat/plano-relacoes-ght4`.
+Atualizado em 15 de setembro de 2026. Branch atual: `feat/vercel-agente`. O usuário redirecionou a implantação final para a Vercel, mantendo o PostgreSQL já criado no Render.
+
+## Implantação Vercel e catálogo persistente — em validação
+
+Projeto existente confirmado no painel: `leoleal11/ght-4`, domínio `ght-4.vercel.app`. A produção observada ainda era o commit antigo `b1a078b`; a prévia de `fix/vercel-build` estava Ready. Não confundir essa prévia da interface com o agente completo.
+
+PostgreSQL `ght4` observado Available no Render, workspace `Leonardo's workspace`, Virginia, versão 18, plano Free, vencimento exibido em 15/10/2026. Não foi contratado plano pago nem criado serviço web Render por nós. A conexão GitHub do Render permanecia pendente quando o usuário escolheu Vercel.
+
+Migration 0014, importador e leitor SQL implementados. O catálogo conserva todos os registros em snapshots; atualiza a seleção ativa em transação, rejeita duplicados e conserva registros históricos. IDs externos `cnpj<raiz>` continuam estáveis. Não são fabricados estabelecimentos: o arquivo disponível não traz seus CNPJs completos. Dados de contato e hipóteses pessoais do protótipo não são importados. A busca operacional ainda mantém o recorte Distribuição e Trading Químico.
+
+Ensaio isolado PGlite importou 38.583 registros e comparou exatamente todos os 6.165 resultados com o leitor anterior; 1.613 sem possíveis; repetição idempotente. `npm run ci` passou com 65 testes de domínio + 127 do servidor antes do adaptador Vercel. Outros 3 testes do adaptador passaram (login/cookie/corpo JSON e bruto, origem, resposta binária e erro sem segredos). Isso ainda não substitui validação remota em PostgreSQL.
+
+A API usa `api/[...path].mjs` na Vercel, conectada ao PostgreSQL externo com TLS. `ferramentas/build-vercel.mjs` compila e, somente em Production, prepara o banco via `DATABASE_URL`; migrations/importação são serializadas por advisory lock. Primeiro administrador pode ser criado pelo ambiente secreto de preparação; não há cadastro administrativo público nem redefinição automática. Consulte `runbooks/deploy-vercel-agente.md`. O deploy final e o login remoto precisam ser confirmados no painel e no domínio antes de declarar conclusão.
 
 ## Objetivo em execução
 

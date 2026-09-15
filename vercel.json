@@ -1,7 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "installCommand": "npm ci --prefix v1 --include=dev",
-  "buildCommand": "npm run build",
-  "outputDirectory": "v1/dist"
+  "installCommand": "npm ci --prefix v1 --include=dev && npm ci --prefix server --omit=dev",
+  "buildCommand": "node ferramentas/build-vercel.mjs",
+  "outputDirectory": "v1/dist",
+  "functions": {
+    "api/[...path].mjs": {
+      "maxDuration": 60,
+      "includeFiles": "server/src/db/migracoes/**"
+    }
+  }
 }

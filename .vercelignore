@@ -1,0 +1,7 @@
+.git
+.cache
+server/.dados
+**/.env*
+**/*.log
+implantacao/segredos
+implantacao/backups
