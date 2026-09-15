@@ -5,7 +5,7 @@
   "buildCommand": "node ferramentas/build-vercel.mjs",
   "outputDirectory": "v1/dist",
   "functions": {
-    "api/[...path].mjs": {
+    "api/**/*.mjs": {
       "maxDuration": 60,
       "includeFiles": "server/src/db/migracoes/**"
     }
