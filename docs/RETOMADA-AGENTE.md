@@ -1,10 +1,40 @@
 # Retomada da implementação do agente GHT4
 
-Atualizado em 14 de setembro de 2026. Branch de trabalho: `feat/agente-operacional`.
+Atualizado em 15 de setembro de 2026. Branch atual: `feat/vercel-agente`. O usuário redirecionou a implantação final para a Vercel, mantendo o PostgreSQL já criado no Render.
+
+## Implantação Vercel e catálogo persistente — em validação
+
+Projeto existente confirmado no painel: `leoleal11/ght-4`, domínio `ght-4.vercel.app`. A produção observada ainda era o commit antigo `b1a078b`; a prévia de `fix/vercel-build` estava Ready. Não confundir essa prévia da interface com o agente completo.
+
+PostgreSQL `ght4` observado Available no Render, workspace `Leonardo's workspace`, Virginia, versão 18, plano Free, vencimento exibido em 15/10/2026. Não foi contratado plano pago nem criado serviço web Render por nós. A conexão GitHub do Render permanecia pendente quando o usuário escolheu Vercel.
+
+Migration 0014, importador e leitor SQL implementados. O catálogo conserva todos os registros em snapshots; atualiza a seleção ativa em transação, rejeita duplicados e conserva registros históricos. IDs externos `cnpj<raiz>` continuam estáveis. Não são fabricados estabelecimentos: o arquivo disponível não traz seus CNPJs completos. Dados de contato e hipóteses pessoais do protótipo não são importados. A busca operacional ainda mantém o recorte Distribuição e Trading Químico.
+
+Ensaio isolado PGlite importou 38.583 registros e comparou exatamente todos os 6.165 resultados com o leitor anterior; 1.613 sem possíveis; repetição idempotente. `npm run ci` passou com 65 testes de domínio + 127 do servidor antes do adaptador Vercel. Outros 3 testes do adaptador passaram (login/cookie/corpo JSON e bruto, origem, resposta binária e erro sem segredos). Isso ainda não substitui validação remota em PostgreSQL.
+
+A API usa `api/[...path].mjs` na Vercel, conectada ao PostgreSQL externo com TLS. `ferramentas/build-vercel.mjs` compila e, somente em Production, prepara o banco via `DATABASE_URL`; migrations/importação são serializadas por advisory lock. Primeiro administrador pode ser criado pelo ambiente secreto de preparação; não há cadastro administrativo público nem redefinição automática. Consulte `runbooks/deploy-vercel-agente.md`. O deploy final e o login remoto precisam ser confirmados no painel e no domínio antes de declarar conclusão.
 
 ## Objetivo em execução
 
 Entregar rapidamente um fluxo utilizável de agente para tarefas de M&A, começando por Distribuição e Trading Químico, com compra e venda equilibradas. O usuário autorizou implementar e pediu commits de tudo que for feito para permitir continuidade entre sessões.
+
+## Correção do build na Vercel — 15/09/2026
+
+O usuário informou o log `sh: line 1: tsc: command not found` (saída 127). A instalação automática da raiz não instalava o subprojeto `v1`. Adicionado `vercel.json` com `npm ci --prefix v1 --include=dev`, build `npm run build`, saída `v1/dist` e preset Vite. Node da raiz fixado em `24.x`, alinhado ao CI/Docker. Procedimento e limites em `runbooks/build-vercel.md`.
+
+Validação em cópia isolada de arquivos versionados, sem `node_modules` prévio: instalação de 63 pacotes pelo lockfile e build com saída zero, TypeScript e Vite 8.2.1, 473 módulos. Ensaio feito no Windows com Node 24.14.1; não equivale a deployment confirmado na Vercel. A primeira instalação ficou sem acesso à rede no sandbox; a repetição com acesso autorizado concluiu normalmente. Sem alterações no banco ou em credenciais.
+
+A configuração publica somente a interface. API Fastify, Postgres, autenticação e rotas `/api` ainda precisam ser implantados/conectados no destino. Não declarar o agente remoto funcional só pelo build. Próximo passo de hospedagem: usar o commit corrigido ou os valores do guia no painel, acompanhar o novo deployment e definir o destino da API/banco.
+
+## Correção de inicialização no Windows — 14/09/2026
+
+Um reinício encontrou as 13 migrations convertidas de LF para CRLF no diretório de trabalho, causando divergência de hash. Antes de qualquer correção, os hashes de todos os arquivos normalizados para LF foram comparados aos registros do banco e coincidiram. Foram restaurados somente os bytes originais dos arquivos; SQL e hashes registrados no banco não foram alterados. `.gitattributes` fixa LF para `server/src/db/migracoes/*.sql` para evitar nova conversão pelo Git. Cópia local da base preservada antes da manutenção. Alterações de acesso ficam no banco e na auditoria; credenciais não entram no repositório.
+
+## Planejamento solicitado — catálogo químico e relações para apresentações
+
+O usuário pediu entender como consultar as empresas além das seis da CVM e planejar um agente que encontre relações profissionais entre membros da GHT4 e empresas-alvo. Entregue o plano `planejamento-prospeccao/PLANO-RELACOES-E-ACESSO.md`, com fontes oficiais, limites do LinkedIn, fases P0–P6, experiência diária, entidades, critérios e aceite. Contagens reconferidas: arquivo amplo com 38.583 registros, recorte operacional com 6.165 incluindo possíveis, 1.613 sem possíveis, 12 por página, referência 2026-08. A interface antiga só oferece Demonstração/CVM; a busca do agente fixa Distribuição e Trading Químico. Não afirmar que todos os subsegmentos já estão acessíveis.
+
+Próxima prioridade específica: P0, explorador do catálogo com fonte/subsegmento/contagem; depois P1, importação de contatos e resolução de identidades. O acervo tem relações manuais, mas não há descoberta automática operacional de caminhos nem conector LinkedIn/e-mail/agenda. As perguntas sobre ambiente de e-mail e participantes foram encaminhadas; planejar provisoriamente 3–5 membros e 50 empresas, sem tratar isso como autorização de acesso às contas. Não enviar mensagens. A etapa atual entregou planejamento; a implementação desse novo fluxo permanece por fazer.
 
 ## Estado mais recente — prévia de filtros e envio ao GitHub
 

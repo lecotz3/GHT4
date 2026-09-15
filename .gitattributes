@@ -1,0 +1,2 @@
+# Preserva os bytes usados na verificação de integridade das migrations.
+server/src/db/migracoes/*.sql text eol=lf

@@ -17,14 +17,19 @@ function literal(texto, nome) {
   return JSON.parse(texto.slice(de, fim));
 }
 
-export function lerCatalogo(texto) {
+export function lerFonteCatalogo(texto) {
   const colunas = literal(texto, 'COLUNAS_QUIMICOS');
   const linhas = literal(texto, 'LINHAS_QUIMICOS');
   const referencia = literal(texto, 'REFERENCIA_QUIMICOS');
-  if (!Array.isArray(colunas) || !Array.isArray(linhas) || !/^\d{4}-\d{2}$/.test(referencia)) {
+  if (!Array.isArray(colunas) || !Array.isArray(linhas) || !/^\d{4}-(0[1-9]|1[0-2])$/.test(referencia)) {
     throw new Error('Formato de catálogo inválido.');
   }
   const hash = createHash('sha256').update(texto).digest('hex');
+  return { colunas, linhas, referencia, hash };
+}
+
+export function lerCatalogo(texto) {
+  const { colunas, linhas, referencia, hash } = lerFonteCatalogo(texto);
   const empresas = linhas.map((linha) => {
     const e = Object.fromEntries(colunas.map((c, i) => [c, linha[i]]));
     const classificacao = classificar(e);

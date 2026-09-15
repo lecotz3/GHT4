@@ -18,12 +18,15 @@ import { criarApp } from './app.mjs';
 import { configurarIA, criarServicoIA } from './agente/provedor.mjs';
 import { validarOperacao } from './operacao/configuracao.mjs';
 import { servirInterface } from './operacao/estatico.mjs';
+import { ambienteDoServidor } from './operacao/ambiente.mjs';
+import { criarCatalogoBanco } from './agente/catalogo-banco.mjs';
 
-const PORTA = Number(process.env.PORTA) || 3311;
-const HOST = process.env.HOST || '127.0.0.1';
+const ambiente = ambienteDoServidor();
+const PORTA = ambiente.porta;
+const HOST = ambiente.host;
 const EM_MEMORIA = process.env.GHT4_MEMORIA === '1';
 
-validarOperacao(process.env);
+validarOperacao({ ...process.env, GHT4_ORIGEM_PUBLICA: ambiente.origemPublica });
 const db = await abrir({ emMemoria: EM_MEMORIA });
 
 /* Migrar na subida: em desenvolvimento é o que evita "esqueci de migrar" virar
@@ -35,8 +38,9 @@ if (aplicadas.length) console.log(`  migrations aplicadas: ${aplicadas.join(', '
 const app = await criarApp(db, {
   logger: { level: process.env.LOG_NIVEL || 'info' },
   instalacaoInicial: process.env.GHT4_CONFIGURACAO_INICIAL === '1',
+  catalogo: ambiente.catalogo === 'banco' ? criarCatalogoBanco(db) : undefined,
   servicoIA: criarServicoIA(db, configurarIA(process.env)),
-  origemPublica: process.env.GHT4_ORIGEM_PUBLICA,
+  origemPublica: ambiente.origemPublica,
 });
 if(process.env.GHT4_SERVIR_INTERFACE)await servirInterface(app,process.env.GHT4_SERVIR_INTERFACE);
 
