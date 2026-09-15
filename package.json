@@ -5,7 +5,7 @@
   "type": "module",
   "description": "GHT4 - agente de prospeccao M&A. Raiz do repositorio: orquestra v1 (interface), packages (regras puras) e ferramentas (ingestao).",
   "engines": {
-    "node": ">=22"
+    "node": "24.x"
   },
   "scripts": {
     "iniciar": "node ferramentas/iniciar-agente.mjs",

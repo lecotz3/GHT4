@@ -8,6 +8,8 @@ Já estão disponíveis busca no cadastro químico real, preparação de reuniõ
 
 O fluxo agora inclui **Revisar empresa → Priorizar → Criar oportunidade**. Em **Oportunidades**, acompanhe responsáveis, prazos, atividades e etapas, com histórico e acesso por espaço. Consulte o [plano de execução do agente](docs/PLANO-EXECUCAO-AGENTE.md) para as próximas entregas.
 
+Para compilar a interface na Vercel, consulte [configuração do build](docs/runbooks/build-vercel.md). O `vercel.json` instala as dependências de `v1` e publica `v1/dist`. API, login e banco exigem a implantação do servidor descrita no guia; o build da interface sozinho não disponibiliza o agente completo.
+
 ## Demonstração anterior
 
 As seções abaixo descrevem o protótipo anterior, preservado e acessível por **Explorar demonstração**. Para o estado atual do agente e seus limites, use os dois guias acima.

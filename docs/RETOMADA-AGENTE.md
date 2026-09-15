@@ -1,10 +1,18 @@
 # Retomada da implementação do agente GHT4
 
-Atualizado em 14 de setembro de 2026. Branch atual: `main` (integração autorizada pelo usuário; histórico da etapa em `feat/agente-operacional`).
+Atualizado em 15 de setembro de 2026. Branch atual: `fix/vercel-build`, criada a partir da `main` local para a correção do build da Vercel. Histórico da implementação em `feat/agente-operacional` e do plano de relações em `feat/plano-relacoes-ght4`.
 
 ## Objetivo em execução
 
 Entregar rapidamente um fluxo utilizável de agente para tarefas de M&A, começando por Distribuição e Trading Químico, com compra e venda equilibradas. O usuário autorizou implementar e pediu commits de tudo que for feito para permitir continuidade entre sessões.
+
+## Correção do build na Vercel — 15/09/2026
+
+O usuário informou o log `sh: line 1: tsc: command not found` (saída 127). A instalação automática da raiz não instalava o subprojeto `v1`. Adicionado `vercel.json` com `npm ci --prefix v1 --include=dev`, build `npm run build`, saída `v1/dist` e preset Vite. Node da raiz fixado em `24.x`, alinhado ao CI/Docker. Procedimento e limites em `runbooks/build-vercel.md`.
+
+Validação em cópia isolada de arquivos versionados, sem `node_modules` prévio: instalação de 63 pacotes pelo lockfile e build com saída zero, TypeScript e Vite 8.2.1, 473 módulos. Ensaio feito no Windows com Node 24.14.1; não equivale a deployment confirmado na Vercel. A primeira instalação ficou sem acesso à rede no sandbox; a repetição com acesso autorizado concluiu normalmente. Sem alterações no banco ou em credenciais.
+
+A configuração publica somente a interface. API Fastify, Postgres, autenticação e rotas `/api` ainda precisam ser implantados/conectados no destino. Não declarar o agente remoto funcional só pelo build. Próximo passo de hospedagem: usar o commit corrigido ou os valores do guia no painel, acompanhar o novo deployment e definir o destino da API/banco.
 
 ## Correção de inicialização no Windows — 14/09/2026
 
