@@ -6,6 +6,10 @@ Atualizado em 14 de setembro de 2026. Branch de trabalho: `feat/agente-operacion
 
 Entregar rapidamente um fluxo utilizável de agente para tarefas de M&A, começando por Distribuição e Trading Químico, com compra e venda equilibradas. O usuário autorizou implementar e pediu commits de tudo que for feito para permitir continuidade entre sessões.
 
+## Correção de inicialização no Windows — 14/09/2026
+
+Um reinício encontrou as 13 migrations convertidas de LF para CRLF no diretório de trabalho, causando divergência de hash. Antes de qualquer correção, os hashes de todos os arquivos normalizados para LF foram comparados aos registros do banco e coincidiram. Foram restaurados somente os bytes originais dos arquivos; SQL e hashes registrados no banco não foram alterados. `.gitattributes` fixa LF para `server/src/db/migracoes/*.sql` para evitar nova conversão pelo Git. Cópia local da base preservada antes da manutenção. Alterações de acesso ficam no banco e na auditoria; credenciais não entram no repositório.
+
 ## Estado mais recente — prévia de filtros e envio ao GitHub
 
 Nova tarefa **Preparar filtros pelo pedido**: interpretação local de pedidos curtos, adaptador opcional de IA com JSON Schema estrito, tabela antes/proposta/trecho e aplicação explícita. A migration `0013_propostas_busca.sql` guarda a aplicação imutável, com auditoria, versão e chave de repetição. Aplicar salva os filtros e abre Encontrar empresas; a pesquisa é separada e cita a prévia. Conflitos entre abas e mudanças nos critérios de partida impedem sobreposição. A IA recebe somente pedido e cinco filtros; falhas/recusas mantêm uma prévia local identificada.
