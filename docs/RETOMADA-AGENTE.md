@@ -1,6 +1,6 @@
 # Retomada da implementação do agente GHT4
 
-Atualizado em 14 de setembro de 2026. Branch de trabalho: `feat/agente-operacional`.
+Atualizado em 14 de setembro de 2026. Branch atual: `main` (integração autorizada pelo usuário; histórico da etapa em `feat/agente-operacional`).
 
 ## Objetivo em execução
 
@@ -9,6 +9,12 @@ Entregar rapidamente um fluxo utilizável de agente para tarefas de M&A, começa
 ## Correção de inicialização no Windows — 14/09/2026
 
 Um reinício encontrou as 13 migrations convertidas de LF para CRLF no diretório de trabalho, causando divergência de hash. Antes de qualquer correção, os hashes de todos os arquivos normalizados para LF foram comparados aos registros do banco e coincidiram. Foram restaurados somente os bytes originais dos arquivos; SQL e hashes registrados no banco não foram alterados. `.gitattributes` fixa LF para `server/src/db/migracoes/*.sql` para evitar nova conversão pelo Git. Cópia local da base preservada antes da manutenção. Alterações de acesso ficam no banco e na auditoria; credenciais não entram no repositório.
+
+## Planejamento solicitado — catálogo químico e relações para apresentações
+
+O usuário pediu entender como consultar as empresas além das seis da CVM e planejar um agente que encontre relações profissionais entre membros da GHT4 e empresas-alvo. Entregue o plano `planejamento-prospeccao/PLANO-RELACOES-E-ACESSO.md`, com fontes oficiais, limites do LinkedIn, fases P0–P6, experiência diária, entidades, critérios e aceite. Contagens reconferidas: arquivo amplo com 38.583 registros, recorte operacional com 6.165 incluindo possíveis, 1.613 sem possíveis, 12 por página, referência 2026-08. A interface antiga só oferece Demonstração/CVM; a busca do agente fixa Distribuição e Trading Químico. Não afirmar que todos os subsegmentos já estão acessíveis.
+
+Próxima prioridade específica: P0, explorador do catálogo com fonte/subsegmento/contagem; depois P1, importação de contatos e resolução de identidades. O acervo tem relações manuais, mas não há descoberta automática operacional de caminhos nem conector LinkedIn/e-mail/agenda. As perguntas sobre ambiente de e-mail e participantes foram encaminhadas; planejar provisoriamente 3–5 membros e 50 empresas, sem tratar isso como autorização de acesso às contas. Não enviar mensagens. A etapa atual entregou planejamento; a implementação desse novo fluxo permanece por fazer.
 
 ## Estado mais recente — prévia de filtros e envio ao GitHub
 

@@ -26,7 +26,7 @@ Implementação não substitui aceite comercial, licença de dados ou ensaio no 
 | B10 — Ranking | Ordenação cadastral, revisão humana, cobertura e regras puras anteriores | Integrar ranking financeiro/comercial à coorte e calibrar com dados reais |
 | B11 — Linguagem natural | Pedido → prévia de cinco filtros, regras locais e adaptador estruturado de IA, revisão/aplicação explícita e versão citada | Avaliar interpretação com modelo real e ampliar critérios quando houver dados; município exato, múltiplas UFs e filtros financeiros não suportados |
 | B12 — Modelos | Modelos compartilhados, histórico, comparação e versão citada na pesquisa | Homologar biblioteca inicial e ampliar critérios com dados disponíveis |
-| B13 — Rede | Relações com origem/autorização e confirmação; contatos protegidos por papel | Importar rede interna permitida e validar vínculos |
+| B13 — Rede | Relações manuais com origem/autorização e confirmação; contatos protegidos por papel; plano de caminhos de apresentação preparado | Catálogo amplo, importação autorizada, identidade, busca de caminhos, confirmação pelo titular e conectores conforme [plano específico](planejamento-prospeccao/PLANO-RELACOES-E-ACESSO.md) |
 | B14 — CRM | Oportunidades, etapas com evidência, atividades, responsáveis, prazos, tarefas e painel por frente | Observar rotina e definir eventual integração com CRM/calendário existente |
 | B15 — Abordagem | Roteiro de reunião, não contatar, motivos e bloqueio de avanço | Revisar mensagens com contexto real; envio externo não está ativado |
 | B16 — Comparáveis | Cadastro, revisão, origem/licença, períodos, unidades e múltiplos descritivos | Bases licenciadas e ajustes revisados; sem valuation automático da empresa-alvo |
@@ -42,6 +42,8 @@ Implementação não substitui aceite comercial, licença de dados ou ensaio no 
 | B26 — Compartilhamento/escala | Postgres compatível, pacote Docker/Caddy e build pela mesma origem | Docker no destino, duas máquinas, migração local→Postgres, carga e p95 reais |
 
 ## Ordem para fechar o piloto
+
+Prioridade solicitada em 14/09: explicar/acessar o universo químico além da CVM e planejar descoberta de relações entre membros da GHT4 e empresas. A sequência detalhada está no [plano de relações e acesso](planejamento-prospeccao/PLANO-RELACOES-E-ACESSO.md). Próximos blocos desse caso: explorador do catálogo químico (P0) e importação de contatos/identidades (P1). O documento não representa conectores implantados.
 
 1. **Produto:** prévia, modelos, leitura documental e painel de backup conferidos em ensaio isolado de navegador em 14/09. Executar o roteiro completo com a GHT4, incluindo os demais formulários do acervo, e corrigir obstáculos.
 2. **IA:** escolher provedor/modelo, política de envio e orçamento. Configurar no servidor e executar casos reais com fonte, lacunas, documento hostil e indisponibilidade.
