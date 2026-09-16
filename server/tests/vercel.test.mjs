@@ -17,6 +17,7 @@ test('Vercel preserva login, cookie, JSON, permissões e corpo não pré-process
   const env={GHT4_ADMIN_EMAIL:'vercel@example.test',GHT4_ADMIN_NOME:'Operador QA',GHT4_ADMIN_SENHA_INICIAL:'senha-sintetica-vercel'};
   assert.equal((await prepararAdministrador(db,env)).criado,true);
   assert.equal((await prepararAdministrador(db,{...env,GHT4_ADMIN_SENHA_INICIAL:'nao-deve-redefinir'})).criado,false);
+  assert.equal((await prepararAdministrador(db,{GHT4_ADMIN_EMAIL:env.GHT4_ADMIN_EMAIL})).criado,false);
   const app=await criarApp(db,{origemPublica:'https://ght4.example.test'}); t.after(()=>app.close());
   const handler=criarHandlerVercel(async()=>app);
   assert.equal((await executar(handler)).statusCode,200);
