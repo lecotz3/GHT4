@@ -15,6 +15,7 @@ async function executar(handler, {method='GET',url='/api/saude',body,raw,headers
 test('Vercel preserva login, cookie, JSON, permissões e corpo não pré-processado',async t=>{
   const db=await bancoDeTeste(); t.after(()=>db.close());
   const env={GHT4_ADMIN_EMAIL:'vercel@example.test',GHT4_ADMIN_NOME:'Operador QA',GHT4_ADMIN_SENHA_INICIAL:'senha-sintetica-vercel'};
+  await assert.rejects(prepararAdministrador(db,{GHT4_ADMIN_EMAIL:env.GHT4_ADMIN_EMAIL}),/juntos/);
   assert.equal((await prepararAdministrador(db,env)).criado,true);
   assert.equal((await prepararAdministrador(db,{...env,GHT4_ADMIN_SENHA_INICIAL:'nao-deve-redefinir'})).criado,false);
   assert.equal((await prepararAdministrador(db,{GHT4_ADMIN_EMAIL:env.GHT4_ADMIN_EMAIL})).criado,false);

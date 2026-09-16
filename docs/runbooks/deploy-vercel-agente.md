@@ -7,7 +7,7 @@ Destino solicitado pelo usuário: projeto existente `leoleal11/ght-4`. Interface
 - Raiz: raiz do Git, onde ficam `vercel.json`, `api/` e `v1/`.
 - Node: 24.x; preset Vite; saída `v1/dist`.
 - Instalação e build: usar os valores versionados em `vercel.json` (dependências de interface e servidor).
-- Publicar a branch `feat/vercel-agente` no projeto e criar um deployment Production desse commit. Repetir um deployment antigo não inclui estes arquivos.
+- A versão completa está integrada à `main`, branch de produção do projeto. Publicar o commit atual dessa branch; repetir um deployment antigo não inclui os arquivos novos.
 
 Variáveis configuradas somente em **Production**, com valores secretos fora do Git:
 

@@ -1,6 +1,14 @@
 # Retomada da implementação do agente GHT4
 
-Atualizado em 15 de setembro de 2026. Branch atual: `feat/vercel-agente`. O usuário redirecionou a implantação final para a Vercel, mantendo o PostgreSQL já criado no Render.
+Atualizado em 16 de setembro de 2026. Branch atual: `main`, com a versão completa integrada. O usuário redirecionou a implantação final para a Vercel, mantendo o PostgreSQL já criado no Render.
+
+## Checkpoint de produção — 16/09/2026
+
+Commits `5813688` e `24a906e` enviados à main. Corrigida a preparação para permitir retirar a senha inicial depois que houver usuários; a validação acontece após migrations e antes da importação. Três testes do adaptador passaram, incluindo rejeição de instalação parcial, remoção posterior da senha e preservação do login existente.
+
+Deployment Production `6X1uDpgeXtwagVYWkSRCtD8Tcpmv`, commit `24a906e`, compilou a v1 e conectou ao PostgreSQL. O log mostrou migrations já aplicadas, mas falhou em criar administrador: falta `GHT4_ADMIN_SENHA_INICIAL`. `DATABASE_URL` e `GHT4_ADMIN_EMAIL` estão salvas em Production. A senha foi deixada para entrada e envio diretos pelo usuário no modal da Vercel. Não houve publicação final nem login remoto validado. Branch de produção continua main; tentativa de mudar branch retornou erro e não foi repetida.
+
+Próximo passo: usuário salva a senha (mínimo 12 caracteres); repetir o deployment de produção com as variáveis atualizadas, verificar catálogo, login e persistência em `https://ght-4.vercel.app`. Não promover preview sem reconstruir com as variáveis Production. Depois confirmar primeiro acesso e retirar a senha inicial. Nenhuma senha entrou no Git.
 
 ## Implantação Vercel e catálogo persistente — em validação
 
