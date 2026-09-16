@@ -20,6 +20,8 @@ Variáveis configuradas somente em **Production**, com valores secretos fora do 
 | `GHT4_ADMIN_NOME` | Nome do administrador. |
 | `GHT4_ADMIN_SENHA_INICIAL` | Definida pelo usuário na hospedagem, pelo menos 12 caracteres. Remover após confirmar a primeira entrada. |
 
+Na instalação atual, o usuário cadastrou a senha com a chave secreta `ght4`. O bootstrap aceita essa chave como alias quando `GHT4_ADMIN_SENHA_INICIAL` não está definida. Ela segue as mesmas validações e só serve para criar o primeiro administrador; contas existentes nunca têm a senha redefinida pelo build.
+
 Não configurar `PG_TLS_MODE=disable`, `PGSSL_INSEGURO=1`, `GHT4_APENAS_LOCAL=1` ou bootstrap público. A conexão externa valida TLS. Não colocar segredos em variáveis `VITE_*`.
 
 O build de Production exige banco configurado, aplica migrations e importa o catálogo antes da publicação. Chamadas comuns da API não executam migrations. O comando de preparação usa um advisory lock para serializar builds sobre o mesmo banco. Importação em transação: se falhar, o snapshot anterior continua ativo. O administrador inicial só é criado se não houver usuários; o mesmo ambiente não redefine a senha de contas existentes.

@@ -3,7 +3,8 @@ import { administrarAcesso } from './acesso.mjs';
 // Somente no comando de preparação, com acesso aos segredos da hospedagem.
 // Nunca redefine uma conta existente nem habilita bootstrap público.
 export async function prepararAdministrador(db, env) {
-  const email = env.GHT4_ADMIN_EMAIL, senha = env.GHT4_ADMIN_SENHA_INICIAL;
+  // Alias do segredo inicial já cadastrado pelo administrador na Vercel.
+  const email = env.GHT4_ADMIN_EMAIL, senha = env.GHT4_ADMIN_SENHA_INICIAL || env.ght4;
   if (!email && !senha) return { configurado: false };
   const total = Number((await db.query('SELECT count(*) AS n FROM usuarios')).rows[0].n);
   if (total) return { configurado: true, criado: false };
