@@ -6,9 +6,9 @@ Atualizado em 16 de setembro de 2026. Branch atual: `main`, com a versão comple
 
 Commits `5813688` e `24a906e` enviados à main. Corrigida a preparação para permitir retirar a senha inicial depois que houver usuários; a validação acontece após migrations e antes da importação. Três testes do adaptador passaram, incluindo rejeição de instalação parcial, remoção posterior da senha e preservação do login existente.
 
-Deployment Production `6X1uDpgeXtwagVYWkSRCtD8Tcpmv`, commit `24a906e`, compilou a v1 e conectou ao PostgreSQL. O log mostrou migrations já aplicadas, mas falhou em criar administrador: falta `GHT4_ADMIN_SENHA_INICIAL`. `DATABASE_URL` e `GHT4_ADMIN_EMAIL` estão salvas em Production. A senha foi deixada para entrada e envio diretos pelo usuário no modal da Vercel. Não houve publicação final nem login remoto validado. Branch de produção continua main; tentativa de mudar branch retornou erro e não foi repetida.
+Deployment Production `6tNHq7udek5ZPQQAc1xwfkcDeEKK`, commit `b676689`, confirmado Ready e associado a `https://ght-4.vercel.app`. O usuário salvou a senha como segredo `ght4` em Production; o bootstrap aceita esse alias e preserva contas existentes. Build confirmou administrador criado e catálogo persistente com 38.583 registros, snapshot `20015aad-f121-4420-a18c-5e1204393a25`. Nenhum segredo foi lido ou gravado no Git.
 
-Próximo passo: usuário salva a senha (mínimo 12 caracteres); repetir o deployment de produção com as variáveis atualizadas, verificar catálogo, login e persistência em `https://ght-4.vercel.app`. Não promover preview sem reconstruir com as variáveis Production. Depois confirmar primeiro acesso e retirar a senha inicial. Nenhuma senha entrou no Git.
+Verificação pública concluída: interface abre em `/#vista=agente` com formulário de login; `/api/saude` retorna 200 e `ok:true`, `/api/eu` retorna 401 sem sessão, `/api/instalacao` retorna `disponivel:false`. Três testes do adaptador passaram, incluindo bootstrap com alias e login autenticado em banco isolado. Falta ensaio autenticado remoto de pesquisa e persistência: foi solicitado ao usuário entrar diretamente no domínio com a senha salva. Após esse ensaio, retirar o segredo de bootstrap `ght4` da hospedagem. O provedor de IA continua sem configuração.
 
 ## Implantação Vercel e catálogo persistente — em validação
 
