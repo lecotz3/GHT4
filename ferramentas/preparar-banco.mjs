@@ -19,21 +19,16 @@ function descrever(erro) {
 // Executado antes do deploy, nunca como chamada pública ou a cada pesquisa.
 try {
   if (!process.env.DATABASE_URL) throw new Error('Defina DATABASE_URL do PostgreSQL de destino. Este comando não abre o banco local.');
-  /* O par do administrador é conferido antes de migrar e importar: pela metade,
-     a preparação só quebraria no último passo, depois de todo o trabalho. */
-  const { GHT4_ADMIN_EMAIL: email, GHT4_ADMIN_SENHA_INICIAL: senha } = process.env;
-  if (Boolean(email) !== Boolean(senha)) {
-    throw new Error(`Configure GHT4_ADMIN_EMAIL e GHT4_ADMIN_SENHA_INICIAL juntos — falta ${email ? 'a senha' : 'o e-mail'} — ou não configure nenhum dos dois.`);
-  }
   const db = await abrir();
   if (db.tipo !== 'postgres') throw new Error('A preparação exige PostgreSQL persistente.');
   const trava = await db.conectar();
   try {
     await trava.query('SELECT pg_advisory_lock(742814)');
     await migrar(db);
+    // Contas existentes dispensam a senha inicial, que pode ser retirada da hospedagem.
+    const administrador = await prepararAdministrador(db, process.env);
     const texto = await readFile(new URL('../data-quimicos.js', import.meta.url), 'utf8');
     const resultado = await importarCatalogo(db, { texto });
-    const administrador = await prepararAdministrador(db, process.env);
     console.log(JSON.stringify({ catalogo: resultado, administrador }));
   } finally {
     /* A trava cai sozinha ao encerrar a sessão. Falhar em liberá-la não pode
