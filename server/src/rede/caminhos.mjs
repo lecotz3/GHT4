@@ -78,10 +78,31 @@ export async function caminhosDeAcesso(db, { empresaId = null, nomeEmpresa = '',
       [escopo, empresaId])).rows[0] ?? null
     : null;
 
+  /* O plano de relações exige separar quatro situações, e três delas parecem a
+     mesma coisa de longe: ninguém mapeado, mapeado mas ninguém da casa
+     perguntado, perguntado e sem caminho. Só a terceira autoriza desistir da
+     empresa; as duas primeiras mandam trabalhar. Por isso a contagem de
+     perguntas feitas entra no resultado, e não só a de caminhos achados. */
+  const perguntas = alvos.length
+    ? (await db.query(
+      `SELECT count(DISTINCT r.pessoa_alvo_id)::int AS alvos_perguntados,
+              count(*)::int AS respostas,
+              count(*) FILTER (WHERE r.resposta = 'nao_conheco')::int AS negativas
+         FROM rede_reconhecimentos r WHERE r.pessoa_alvo_id = ANY($1::uuid[])`,
+      [alvos.map((a) => a.id)])).rows[0]
+    : { alvos_perguntados: 0, respostas: 0, negativas: 0 };
+
   const cobertura = {
     fontesConectadas: ['Rede interna cadastrada pela própria casa'],
     fontesNaoConectadas: ['LinkedIn e Sales Navigator', 'E-mail e agenda corporativos', 'CRM externo'],
     consultada: true,
+    pessoasPerguntadas: perguntas.alvos_perguntados,
+    respostas: perguntas.respostas,
+    negativas: perguntas.negativas,
+    /* 'nao_mapeada' · 'nao_perguntada' · 'perguntada' — o estado da APURAÇÃO,
+       que é independente de ter ou não caminho. */
+    situacao: !alvos.length ? 'nao_mapeada'
+      : perguntas.alvos_perguntados === 0 ? 'nao_perguntada' : 'perguntada',
   };
   const limitacoes = [
     'A rede é conhecimento da casa, digitado por quem o tem. O cadastro público não informa dirigentes nem contatos, e nada aqui foi descoberto automaticamente.',

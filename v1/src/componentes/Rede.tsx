@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api, ErroApi, type PessoaRede } from '../agente/api'
+import { Reconhecimento } from './Reconhecimento'
 
 const campo = 'w-full rounded-ficha border border-fio-forte bg-papel px-3 py-2.5 text-sm focus:outline-comprador'
 const botao = 'rounded-ficha bg-tinta px-4 py-2.5 text-sm font-semibold text-papel disabled:opacity-50'
 const secundario = 'rounded-ficha border border-fio-forte bg-papel px-3 py-2 text-sm hover:bg-papel-2 disabled:opacity-50'
-const aba = (ativa: boolean) => `rounded-ficha px-3 py-1.5 text-sm ${ativa ? 'bg-tinta font-semibold text-papel' : 'border border-fio-forte bg-papel hover:bg-papel-2'}`
+const estiloAba = (ativa: boolean) => `rounded-ficha px-3 py-1.5 text-sm ${ativa ? 'bg-tinta font-semibold text-papel' : 'border border-fio-forte bg-papel hover:bg-papel-2'}`
 
 type Lado = 'ght4' | 'mercado' | 'externo'
 type Opcao = { id: string; rotulo: string }
@@ -38,7 +39,8 @@ const vazio = { nome: '', cargo: '', senioridade: 'outro', organizacao: '', empr
 export function Rede({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpirar: () => void }) {
   const [estado, setEstado] = useState<Estado | null>(null)
   const [pessoas, setPessoas] = useState<PessoaRede[]>([])
-  const [lado, setLado] = useState<Lado>('mercado')
+  const [aba, setAba] = useState<Lado | 'reconhecimento'>('mercado')
+  const lado: Lado = aba === 'reconhecimento' ? 'mercado' : aba
   const [busca, setBusca] = useState('')
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
@@ -110,13 +112,20 @@ export function Rede({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpirar:
     {aviso && <p role="status" className="text-sm">{aviso}</p>}
 
     <div className="flex flex-wrap items-center gap-2">
-      {(['mercado', 'externo', 'ght4'] as Lado[]).map((l) => <button key={l} className={aba(lado === l)}
-        onClick={() => { setLado(l); setLigar(null) }} disabled={ocupado}>
+      <button className={estiloAba(aba === 'reconhecimento')} onClick={() => { setAba('reconhecimento'); setLigar(null) }} disabled={ocupado}>
+        Passada de reconhecimento
+      </button>
+      {(['mercado', 'externo', 'ght4'] as Lado[]).map((l) => <button key={l} className={estiloAba(aba === l)}
+        onClick={() => { setAba(l); setLigar(null) }} disabled={ocupado}>
         {l === 'mercado' ? 'Quem decide nas empresas' : l === 'externo' ? 'Intermediários' : 'Pessoas da GHT4'}
       </button>)}
-      <input className={`${campo} ml-auto max-w-xs`} value={busca} onChange={(e) => setBusca(e.target.value)}
-        placeholder="Filtrar por nome, cargo ou empresa" maxLength={120} aria-label="Filtrar a rede" />
+      {aba !== 'reconhecimento' && <input className={`${campo} ml-auto max-w-xs`} value={busca} onChange={(e) => setBusca(e.target.value)}
+        placeholder="Filtrar por nome, cargo ou empresa" maxLength={120} aria-label="Filtrar a rede" />}
     </div>
+
+    {aba === 'reconhecimento'
+      ? <Reconhecimento aoFalhar={falhou} aoMudar={() => void carregar()} />
+      : <>
     <p className="text-xs text-suave">{descricaoDoLado}</p>
 
     {estado?.podeEditar && <form onSubmit={cadastrar} className="space-y-4 rounded-ficha border border-fio bg-papel p-5">
@@ -193,6 +202,7 @@ export function Rede({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpirar:
           aoSalvar={(texto) => { setLigar(null); setAviso(texto); void carregar() }} />}
       </article>)}
     </section>
+    </>}
   </main>
 }
 

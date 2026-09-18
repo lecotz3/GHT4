@@ -4,9 +4,11 @@ Preparado em 14/09/2026 a partir do caso de uso informado pelo usuário. Este do
 
 ## 0. Estado da implementação em 18/09/2026
 
-P1 e a primeira metade de P2 estão no ar. O que existe: pessoas, vínculos, evidência e titular no Postgres da aplicação; busca de caminhos com até duas ligações; as cinco categorias da seção 5; as quatro respostas do titular da seção 4, incluindo "não quero intermediar", que preserva o vínculo e retira o caminho da recomendação; e a habilidade **Abrir caminho até a liderança** no agente, com rascunho de pedido de apresentação. Uso e limites em [`docs/runbooks/rede-e-acesso.md`](../runbooks/rede-e-acesso.md).
+P1 e P2 estão no ar, com P3 parcial. O que existe: pessoas, vínculos, evidência e titular no Postgres da aplicação; busca de caminhos com até duas ligações, inclusive com intermediário; as cinco categorias da seção 5, com o caminho herdando a fragilidade do elo menos comprovado; as quatro respostas do titular da seção 4, incluindo "não quero intermediar", que preserva o vínculo e retira o caminho da recomendação; a habilidade **Abrir caminho até a liderança** no agente, com rascunho de pedido de apresentação; a **passada de reconhecimento**, que inverte o preenchimento da rede de lembrar para reconhecer e registra o "não conheço"; e o importador do **quadro societário público**, atrás de confirmação explícita da decisão de LGPD. Uso e limites em [`docs/runbooks/rede-e-acesso.md`](../runbooks/rede-e-acesso.md).
 
-O que não existe: importação por lote, separação de homônimos, qualquer conector externo (LinkedIn, Sales Navigator, e-mail, agenda) e a confirmação feita pelo próprio titular dentro do produto. Nenhuma rede real foi processada; os ensaios usaram dados sintéticos. O restante deste documento continua sendo o plano, não o entregue.
+As quatro situações que a seção 2 exige distinguir passaram a existir como estado do resultado: `nao_mapeada`, `nao_perguntada`, `perguntada sem caminho` e `perguntada com caminho`. A segunda é a que mais engana — parece ausência de relacionamento e é ausência de pergunta.
+
+O que não existe: importação por lote de fontes externas, fila de revisão de homônimos na interface (o importador conta e reporta, sem fundir), histórico profissional das pessoas da casa, qualquer conector externo (LinkedIn, Sales Navigator, e-mail, agenda) e a confirmação feita pelo próprio titular dentro do produto. **Nenhuma rede real foi processada e nenhum nome de sócio foi gravado**: os ensaios usaram dados sintéticos, e `INCLUIR_NOME_SOCIOS` continua `false`. O restante deste documento continua sendo o plano, não o entregue.
 
 ## 1. Como consultar as empresas hoje
 

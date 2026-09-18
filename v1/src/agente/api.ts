@@ -58,12 +58,30 @@ export interface Caminho {
   parcelas: { senioridade: number; vinculo: number; confirmacao: number; ligacoes: number }
   porque: string; ressalvas: string[]
 }
+export interface PendenteReconhecimento {
+  id: string; nome: string; cargo: string; senioridade: string
+  organizacao: string; empresa_id: string | null
+  origem: 'manual' | 'cadastro_publico'; origem_referencia: string
+}
+export interface FilaReconhecimento {
+  quem: { id: string; nome: string } | null
+  pendentes: PendenteReconhecimento[]
+  respostas: { id: string; rotulo: string; gera: string | null }[]
+  total: number; respondidas: number; cobertura: number; aviso?: string
+}
+
 export interface MapaDeAcesso {
   empresaId: string | null; nomeEmpresa: string
   caminhos: Caminho[]; semCaminho: PessoaRede[]
   pessoasConhecidas: number; lideresConhecidos: number
   restricao: { ativa: boolean; categoria: string; motivo: string } | null
-  cobertura: { fontesConectadas: string[]; fontesNaoConectadas: string[]; consultada: boolean }
+  cobertura: {
+    fontesConectadas: string[]; fontesNaoConectadas: string[]; consultada: boolean
+    pessoasPerguntadas: number; respostas: number; negativas: number
+    /* O estado da APURAÇÃO, independente de haver caminho. 'nao_perguntada' é o
+       que mais engana: parece ausência de relacionamento e é ausência de pergunta. */
+    situacao: 'nao_mapeada' | 'nao_perguntada' | 'perguntada'
+  }
   limitacoes: string[]
 }
 

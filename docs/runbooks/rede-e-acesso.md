@@ -42,6 +42,58 @@ Cadastrar pessoas sem ligá-las produz uma agenda, não uma rede. O vínculo é 
 
 As duas últimas **não apagam o vínculo**. Apagar perderia a informação de que ele já foi avaliado, e alguém o recadastraria semanas depois batendo na mesma porta.
 
+## Encher a rede: roster primeiro, pergunta depois
+
+Pedir à casa que mapeie a própria rede não funciona. "Liste quem você conhece no setor" é esforço de memória sem âncora, e ninguém responde. O que funciona é mostrar o nome e perguntar se reconhece — **lembrar é caro, reconhecer é barato**, e essa diferença é o que separa um grafo cheio de um grafo vazio.
+
+Daí a ordem, que não se inverte:
+
+| | Pergunta | O que acontece |
+| --- | --- | --- |
+| 1 | "Liste quem você conhece no setor" | Ninguém responde |
+| 2 | "Conhece alguém na Química Alfa?" | "Hmm… talvez?" Nome de empresa não puxa memória |
+| 3 | "**Carlos Nunes, sócio-administrador da Química Alfa desde 2009.** Conhece?" | Sim ou não, em dois segundos |
+
+A pergunta 3 só existe depois de haver a lista de nomes. É o que o importador do quadro societário produz.
+
+### Passada de reconhecimento (Rede → primeira aba)
+
+Escolha por quem está respondendo, opcionalmente filtre por empresa, e responda uma pessoa por vez. A fila vem **por poder de decisão**: quem aprova a transação aparece antes de quem não aprova, porque é ali que a atenção de quem responde vale mais.
+
+Quatro respostas. As três positivas viram vínculo e pedem a evidência; a negativa não pede nada.
+
+**O "não conheço" é o registro mais importante da tela.** Sem ele o produto não distingue *"a rede não foi consultada"* de *"foi consultada e não há caminho"* — e essas duas respostas levam a decisões opostas: uma manda procurar outra via, a outra manda parar. Ele também impede que o mesmo par seja perguntado de novo daqui a um mês por outro analista.
+
+O resultado do agente passa a distinguir quatro situações, não duas:
+
+| Situação | O que o agente diz |
+| --- | --- |
+| `nao_mapeada` | Ninguém desta empresa está cadastrado |
+| `nao_perguntada` | Há gente mapeada e ninguém da casa foi perguntado. **Isto é "não apurado", não "não há caminho"** |
+| `perguntada`, sem caminho | A busca por dentro da rede se esgotou; procure uma ponte de fora |
+| `perguntada`, com caminho | Os caminhos, ordenados |
+
+## Importar o quadro societário público
+
+Os alvos da casa são distribuidoras químicas **fechadas**. Nelas o sócio-administrador é o decisor — e o quadro societário é dado aberto da Receita, a mesma fonte do catálogo. Para esse segmento é melhor que LinkedIn: é a estrutura legal de poder, não o que a pessoa escolheu publicar.
+
+`ferramentas/importar-cnpj.mjs` **já lê** esse arquivo e descarta os nomes de propósito (`INCLUIR_NOME_SOCIOS = false`), com a nota de LGPD no topo daquele arquivo explicando por quê.
+
+```
+node ferramentas/importar-quadro-societario.mjs --ensaio                    # conta, não grava
+node ferramentas/importar-quadro-societario.mjs --confirmo-a-decisao-lgpd   # grava
+```
+
+`--ensaio` existe para a casa ver o volume e a cara do dado **antes** de decidir. Sem o segundo argumento o script recusa e explica: gravar põe nome de pessoa física de terceiro no banco, sem que o titular tenha sido consultado, o que pede base legal registrada. A decisão é da casa, não de quem roda o comando — e o argumento obrigatório é o lugar onde ela aparece no histórico.
+
+**Quem nunca entra**, qualquer que seja o resto: sócio menor de idade, sócio incapaz, procurador, cotas em tesouraria e sociedade consorciada. Os dois primeiros porque uma lista de prospecção comercial não é lugar para eles, e o dado ser público não torna o uso adequado.
+
+**O que fica de fora de propósito:** a faixa etária do sócio, que existe na fonte. O produto já se proíbe de inferir sucessão pela idade dos sócios; ter o campo à mão só criaria a tentação de segmentar pessoa por idade.
+
+**Homônimos.** Nome repetido dentro da mesma empresa é a mesma pessoa listada com duas qualificações — fica a de maior senioridade. Nome repetido entre empresas diferentes é contado e reportado, e **não é fundido**: vira revisão humana. Fusão automática fabrica relacionamento, que é o pior defeito possível aqui.
+
+O código de qualificação da Receita vira cargo e senioridade em `server/src/rede/qualificacoes.mjs`. Código que não estiver na tabela entra como `outro`, com o número à vista — conservador e visível, em vez de um cargo adivinhado.
+
 ## Usar (no agente)
 
 1. **Encontrar empresas**, e no resultado clicar **Abrir caminho** na empresa.
@@ -75,12 +127,19 @@ Dentro da categoria, uma pontuação com as parcelas à vista: cargo do alvo (co
 | `server/src/agente/tarefas.mjs` | A habilidade `mapear_acesso`. Recebe a rede como porta, igual ao catálogo. |
 | `v1/src/componentes/Rede.tsx` | A tela de cadastro. |
 | `server/tests/rede.test.mjs` | 14 testes, incluindo caminho com ponte, categorias e a recusa do banco a par fora de ordem. |
+| `server/src/db/migracoes/0016_reconhecimento_e_quadro_societario.sql` | `origem` das pessoas e a tabela `rede_reconhecimentos`. |
+| `server/src/rede/qualificacoes.mjs` | Código de qualificação da RFB → cargo e senioridade, com a lista de quem nunca entra. |
+| `server/src/api/reconhecimento.mjs` | `/api/rede/reconhecimento`, a fila e a resposta. |
+| `ferramentas/importar-quadro-societario.mjs` | Quadro societário público → roster, atrás da decisão. |
+| `v1/src/componentes/Reconhecimento.tsx` | A passada, uma pessoa por vez. |
+| `server/tests/reconhecimento.test.mjs` | 8 testes, incluindo a exclusão de menores e os quatro estados de apuração. |
 
 `packages/domain/conexoes.mjs` e a tela `Conexoes.tsx` continuam sendo a **demonstração offline**, com armazenamento local e pesos ilustrativos. Não compartilham código com esta implementação, e seus pesos não foram promovidos ao ranking operacional — o plano pede exatamente isso.
 
 ## O que falta do plano
 
-- Importação por lote (LinkedIn, CRM) com prévia, duplicidades e retirada do lote.
-- Fusão e separação de homônimos com reversão.
+- Importação por lote de fontes externas (LinkedIn, CRM) com prévia, duplicidades e retirada do lote. O quadro societário público já entra; o resto não.
+- Fila de revisão de homônimos na interface, com fusão reversível. Hoje o importador conta e reporta, sem fundir.
+- Histórico profissional das pessoas da casa, que é a fonte mais barata de intermediários: quem passou pela mesma empresa na mesma janela vira candidato a ponte. Candidato gera pergunta, nunca aresta.
 - Conexão com e-mail e agenda para atualizar recência.
 - Confirmação pelo próprio titular dentro do produto. Hoje quem registra a resposta pode ser outra pessoa; o carimbo guarda quem anotou, e a auditoria guarda o resto.

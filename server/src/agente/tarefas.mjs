@@ -146,9 +146,17 @@ export async function executarTarefa({ tarefa, texto, contexto, catalogo, acoes,
       itens: [...r.semCaminho.map((p) => `${p.nome}${p.cargo ? `, ${p.cargo}` : ''} — ${p.senioridadeRotulo}.`),
         'Perguntar na casa quem conhece estas pessoas costuma render mais que uma abordagem fria.'] });
 
-    if (!r.pessoasConhecidas) blocos.push({ titulo: 'A casa ainda não mapeou esta empresa', itens: [
+    if (r.cobertura.situacao === 'nao_mapeada') blocos.push({ titulo: 'A casa ainda não mapeou esta empresa', itens: [
       'Nenhuma pessoa desta empresa está cadastrada na rede. Isso diz o que a casa registrou até agora, não que não haja a quem recorrer.',
       'Cadastre em Rede quem você já conhece lá dentro, e o vínculo de quem da GHT4 alcança essa pessoa.',
+    ] });
+    else if (r.cobertura.situacao === 'nao_perguntada') blocos.push({ titulo: 'Ninguém da casa foi perguntado ainda', itens: [
+      `${r.pessoasConhecidas} ${r.pessoasConhecidas === 1 ? 'pessoa está mapeada' : 'pessoas estão mapeadas'} nesta empresa, e nenhuma delas foi mostrada a alguém da GHT4.`,
+      'Rode a passada de reconhecimento em Rede antes de concluir que não há caminho. Ausência de resposta não é resposta.',
+    ] });
+    else if (!uteis.length) blocos.push({ titulo: 'Perguntado, e sem caminho até aqui', itens: [
+      `${r.cobertura.pessoasPerguntadas} de ${r.pessoasConhecidas} pessoas já foram mostradas a alguém da casa, com ${r.cobertura.negativas} "não conheço".`,
+      'Aqui a busca por dentro da rede se esgotou. O passo seguinte é procurar uma ponte de fora, não insistir na mesma lista.',
     ] });
 
     const abertura = r.restricao && !r.restricao.ativa ? 'Restrição de contato já registrada e retirada para este espaço. ' : '';
@@ -157,7 +165,9 @@ export async function executarTarefa({ tarefa, texto, contexto, catalogo, acoes,
       : r.caminhos.length
         ? `Há ${r.caminhos.length} ${r.caminhos.length === 1 ? 'caminho registrado' : 'caminhos registrados'}, nenhum utilizável hoje: o titular respondeu que não quer intermediar ou que a informação está desatualizada.`
         : r.pessoasConhecidas
-          ? `${r.pessoasConhecidas} ${r.pessoasConhecidas === 1 ? 'pessoa mapeada' : 'pessoas mapeadas'} nesta empresa, nenhuma com vínculo ativo até a GHT4. O passo útil aqui é descobrir quem da casa alcança alguém desta lista.`
+          ? r.cobertura.situacao === 'nao_perguntada'
+            ? `${r.pessoasConhecidas} ${r.pessoasConhecidas === 1 ? 'pessoa mapeada' : 'pessoas mapeadas'} nesta empresa, e nenhuma ainda foi mostrada a alguém da casa. Isto é "não apurado", não "não há caminho".`
+            : `${r.cobertura.pessoasPerguntadas} de ${r.pessoasConhecidas} pessoas já foram perguntadas e nenhum vínculo apareceu. A busca por dentro da rede se esgotou para esta empresa.`
           : 'Nenhuma pessoa desta empresa está mapeada na rede da casa. A rede foi consultada e não retornou resultado — o que é diferente de não haver relacionamento.';
 
     return { ...resposta, titulo: `Caminho até a liderança — ${empresa.nome}`,

@@ -82,11 +82,11 @@ export async function registrarRede(app) {
         throw new ErroHttp(422, 'usuario_inexistente', 'A conta indicada não existe.');
       }
       const linha = (await tx.query(
-        `INSERT INTO rede_pessoas (id,lado,nome,cargo,senioridade,organizacao,organizacao_normalizada,
+        `INSERT INTO rede_pessoas (id,lado,nome,nome_normalizado,cargo,senioridade,organizacao,organizacao_normalizada,
            empresa_id,usuario_id,email,telefone,linkedin,observacoes,criado_por)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
          ON CONFLICT (id) DO NOTHING RETURNING ${CAMPOS}`,
-        [p.id, p.lado, p.nome, p.cargo, p.senioridade, p.organizacao, normalizar(p.organizacao),
+        [p.id, p.lado, p.nome, normalizar(p.nome), p.cargo, p.senioridade, p.organizacao, normalizar(p.organizacao),
           p.empresaId, p.usuarioId, p.email, p.telefone, p.linkedin, p.observacoes, u.id])).rows[0];
       if (!linha) {
         // Reenvio do mesmo formulário: devolve o que já existe em vez de duplicar a pessoa.
@@ -114,11 +114,11 @@ export async function registrarRede(app) {
       // Mesma regra do cadastro, cobrada aqui contra o lado que o banco guarda.
       if (antes.lado === 'mercado' && !p.organizacao && !p.empresaId) throw new ErroHttp(422, 'organizacao_necessaria', 'Informe a empresa desta pessoa, ou vincule-a a uma empresa do catálogo.');
       const linha = (await tx.query(
-        `UPDATE rede_pessoas SET nome=$2,cargo=$3,senioridade=$4,organizacao=$5,organizacao_normalizada=$6,
+        `UPDATE rede_pessoas SET nome=$2,nome_normalizado=$14,cargo=$3,senioridade=$4,organizacao=$5,organizacao_normalizada=$6,
            empresa_id=$7,usuario_id=$8,email=$9,telefone=$10,linkedin=$11,observacoes=$12,ativo=$13,
            versao=versao+1,atualizado_em=now() WHERE id=$1 RETURNING ${CAMPOS}`,
         [id, p.nome, p.cargo, p.senioridade, p.organizacao, normalizar(p.organizacao),
-          p.empresaId, p.usuarioId, p.email, p.telefone, p.linkedin, p.observacoes, p.ativo])).rows[0];
+          p.empresaId, p.usuarioId, p.email, p.telefone, p.linkedin, p.observacoes, p.ativo, normalizar(p.nome)])).rows[0];
       await registrar(tx, { usuarioId: u.id, entidade: 'rede_pessoa', entidadeId: id, acao: p.ativo ? 'editar' : 'desativar',
         antes: { nome: antes.nome, cargo: antes.cargo, senioridade: antes.senioridade, organizacao: antes.organizacao, ativo: antes.ativo },
         depois: { nome: p.nome, cargo: p.cargo, senioridade: p.senioridade, organizacao: p.organizacao, ativo: p.ativo } });
