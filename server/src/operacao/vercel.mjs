@@ -1,4 +1,4 @@
-import { abrir } from '../db/cliente.mjs';
+import { abrir, urlBanco } from '../db/cliente.mjs';
 import { criarApp } from '../app.mjs';
 import { criarCatalogoBanco } from '../agente/catalogo-banco.mjs';
 import { configurarIA, criarServicoIA } from '../agente/provedor.mjs';
@@ -14,7 +14,7 @@ export function origemVercel(env) {
 let pronta;
 export function obterAppVercel() {
   if (!pronta) pronta = (async () => {
-    if (!process.env.DATABASE_URL || process.env.GHT4_APENAS_LOCAL === '1' || process.env.PG_TLS_MODE === 'disable' || process.env.PGSSL_INSEGURO === '1') {
+    if (!urlBanco() || process.env.GHT4_APENAS_LOCAL === '1' || process.env.PG_TLS_MODE === 'disable' || process.env.PGSSL_INSEGURO === '1') {
       throw new Error('A Vercel exige PostgreSQL externo com TLS validado.');
     }
     const db = await abrir();

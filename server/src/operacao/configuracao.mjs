@@ -1,7 +1,8 @@
 export function validarOperacao(env) {
   if(env.NODE_ENV!=='production')return;
   const erros=[];
-  if(!env.DATABASE_URL || env.GHT4_APENAS_LOCAL==='1' || env.GHT4_MEMORIA==='1')erros.push('Postgres persistente é obrigatório em produção.');
+  // POSTGRES_URL: nome injetado pela integracao Supabase-Vercel. Ver urlBanco().
+  if(!(env.DATABASE_URL||env.POSTGRES_URL) || env.GHT4_APENAS_LOCAL==='1' || env.GHT4_MEMORIA==='1')erros.push('Postgres persistente é obrigatório em produção.');
   if(!env.GHT4_SERVIR_INTERFACE)erros.push('Defina GHT4_SERVIR_INTERFACE com o diretório do build.');
   try { const u=new URL(env.GHT4_ORIGEM_PUBLICA);if(u.protocol!=='https:' || u.origin!==env.GHT4_ORIGEM_PUBLICA)throw new Error(); }
   catch { erros.push('Defina GHT4_ORIGEM_PUBLICA como a origem HTTPS, sem caminho nem barra final.'); }

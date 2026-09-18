@@ -24,6 +24,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { CA_SUPABASE } from './ca-supabase.mjs';
 
 export const RAIZ_SERVIDOR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), '..', '..',
@@ -41,9 +42,78 @@ const CAMINHO_PADRAO = process.env.GHT4_DADOS_DIR || path.join(RAIZ_SERVIDOR, '.
 let instancia = null;
 let tipoAtual = null;
 
+/* ---------------------------------------------------------------------------
+ *  Conexão de sessão, para migrations e ingestão em massa.
+ *
+ *  Pooler em modo transação (Supabase na 6543, PgBouncer em geral) devolve a
+ *  conexão ao pool no fim de CADA transação. Duas coisas dependem da sessão
+ *  sobreviver a isso e por isso não funcionam ali:
+ *
+ *    · `pg_advisory_lock`, que serializa dois deploys sobre o mesmo banco —
+ *      a trava é da sessão, e a sessão troca embaixo do pé;
+ *    · a transação longa da importação do catálogo, que segura uma conexão
+ *      do pool de transação por dezenas de segundos.
+ *
+ *  DATABASE_URL_DIRETA aponta para a porta de sessão (5432). Sem ela, cai em
+ *  DATABASE_URL — que é o certo quando o destino não é um pooler.
+ * ------------------------------------------------------------------------- */
+export function urlDireta() {
+  if (process.env.DATABASE_URL_DIRETA) return process.env.DATABASE_URL_DIRETA;
+  const url = urlBanco();
+  return url ? sessaoDoPooler(url) ?? url : null;
+}
+
+/**
+ * A mesma credencial, na porta de sessão.
+ *
+ * O Supavisor (pooler do Supabase) atende transação na 6543 e sessão na 5432 no
+ * MESMO host, com o MESMO usuário e senha. Derivar a segunda da primeira evita
+ * guardar o mesmo segredo duas vezes na hospedagem, e é o que faz a integração
+ * Supabase↔Vercel bastar sozinha.
+ *
+ * `POSTGRES_URL_NON_POOLING`, que essa integração também injeta, parece o
+ * candidato óbvio e NÃO serve: aponta para db.<ref>.supabase.co, que só publica
+ * registro AAAA, e o build da Vercel não tem saída IPv6.
+ *
+ * Devolve null quando a URL não é um pooler do Supabase na 6543 — aí quem chama
+ * fica com a original, que é o certo para qualquer outro Postgres.
+ */
+export function sessaoDoPooler(url) {
+  try {
+    const u = new URL(url);
+    if (!u.hostname.endsWith('.pooler.supabase.com') || u.port !== '6543') return null;
+    u.port = '5432';
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A connection string da aplicação.
+ *
+ * `DATABASE_URL` manda. `POSTGRES_URL` é o nome que a integração oficial
+ * Supabase↔Vercel injeta sozinha no projeto — aceitá-lo é o que permite ligar
+ * banco e hospedagem sem ninguém copiar senha de um painel para o outro.
+ */
+export function urlBanco() {
+  return process.env.DATABASE_URL || process.env.POSTGRES_URL || null;
+}
+
+/** Host, porta e banco. Nunca usuário ou senha: isto vai para log de deploy. */
+export function descreverAlvo(url) {
+  if (!url) return 'PGlite local (sem DATABASE_URL)';
+  try {
+    const u = new URL(url);
+    return `${u.hostname}:${u.port || 5432}${u.pathname}`;
+  } catch {
+    return '(connection string malformada)';
+  }
+}
+
 /** 'postgres' quando há DATABASE_URL, 'pglite' caso contrário. */
 export function tipoDeBanco() {
-  return process.env.GHT4_APENAS_LOCAL === '1' ? 'pglite' : process.env.DATABASE_URL ? 'postgres' : 'pglite';
+  return process.env.GHT4_APENAS_LOCAL === '1' ? 'pglite' : urlBanco() ? 'postgres' : 'pglite';
 }
 
 /* ---------------------------------------------------------------------------
@@ -88,16 +158,33 @@ function adaptarPg(pool) {
   };
 }
 
+/* ---------------------------------------------------------------------------
+ *  TLS da conexão.
+ *
+ *  A regra é uma: verificar sempre, e dizer contra QUEM verificar. Postgres
+ *  gerenciado costuma assinar com autoridade própria, que não está no bundle do
+ *  Node — sem âncora, o driver recusa com SELF_SIGNED_CERT_IN_CHAIN antes mesmo
+ *  de mandar a senha. A saída comum é desligar a verificação; a saída certa é
+ *  fornecer a raiz. Ver server/src/db/ca-supabase.mjs.
+ * ------------------------------------------------------------------------- */
+function opcoesTls(url) {
+  const host = new URL(url).hostname;
+  // Banco na própria máquina não atravessa rede: exigir TLS ali só atrapalha.
+  if (process.env.PG_TLS_MODE === 'disable' || ['localhost','127.0.0.1','[::1]'].includes(host)) return false;
+  /* Escotilha de emergência, e só isso. Aceita qualquer servidor que se diga o
+     banco, o que num produto que trafega sessão e carteira de clientes é caro.
+     Documentada como "nunca em produção" em server/.env.example. */
+  if (process.env.PGSSL_INSEGURO === '1') return { rejectUnauthorized: false };
+  // PG_CA_CERT atende quem está atrás de proxy com certificado próprio.
+  const ca = process.env.PG_CA_CERT || (/(^|\.)supabase\.(com|co)$/.test(host) ? CA_SUPABASE : null);
+  return ca ? { ca, rejectUnauthorized: true } : { rejectUnauthorized: true };
+}
+
 async function abrirPostgres(url) {
   const { default: pg } = await import('pg');
   const pool = new pg.Pool({
     connectionString: url,
-    /* Supabase e a maioria dos Postgres gerenciados exigem TLS. `rejectUnauthorized`
-       fica ligado por padrão; quem estiver atrás de um proxy com certificado
-       próprio ajusta por PGSSLMODE, sem afrouxar isto no código. */
-    ssl: process.env.PG_TLS_MODE === 'disable' || ['localhost','127.0.0.1','[::1]'].includes(new URL(url).hostname)
-      ? false
-      : { rejectUnauthorized: process.env.PGSSL_INSEGURO !== '1' },
+    ssl: opcoesTls(url),
     max: Number(process.env.PG_POOL_MAX) || 10,
     connectionTimeoutMillis: 15_000,
     idleTimeoutMillis: 30_000,
@@ -128,7 +215,7 @@ async function abrirPglite({ emMemoria, caminho }) {
 export async function abrir({ emMemoria = false, caminho = CAMINHO_PADRAO, url = null } = {}) {
   if (instancia) return instancia;
 
-  const destino = process.env.GHT4_APENAS_LOCAL === '1' ? null : url ?? process.env.DATABASE_URL;
+  const destino = process.env.GHT4_APENAS_LOCAL === '1' ? null : url ?? urlBanco();
   if (destino) {
     instancia = await abrirPostgres(destino);
     tipoAtual = 'postgres';

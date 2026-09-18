@@ -28,7 +28,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { abrir, consultar, fechar } from './cliente.mjs';
+import { abrir, consultar, fechar, urlDireta } from './cliente.mjs';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const PASTA = path.join(AQUI, 'migracoes');
@@ -102,7 +102,8 @@ export async function migrar(db, { silencioso = false } = {}) {
 
 /* ---- execução direta ------------------------------------------------------ */
 if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith('migrar.mjs')) {
-  const db = await abrir();
+  // Migration em pooler de transação não é confiável: usa a porta de sessão.
+  const db = await abrir({ url: urlDireta() });
 
   if (process.argv.includes('--status')) {
     await db.exec(TABELA);

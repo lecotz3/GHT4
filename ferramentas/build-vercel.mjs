@@ -4,6 +4,7 @@ const build = spawnSync(npm, ['run','build'], {stdio:'inherit',shell:process.pla
 if (build.error || build.status !== 0) process.exit(build.status || 1);
 // Credenciais de produção só são configuradas no ambiente Production da Vercel.
 if (process.env.VERCEL_ENV === 'production') {
-  if (!process.env.DATABASE_URL) { console.error('Configure DATABASE_URL em Production antes do deploy do agente.'); process.exit(1); }
+  // POSTGRES_URL vem da integracao Supabase-Vercel; ver urlBanco() em server/src/db/cliente.mjs.
+  if (!process.env.DATABASE_URL && !process.env.POSTGRES_URL) { console.error('Configure DATABASE_URL (ou ligue a integracao Supabase) em Production antes do deploy do agente.'); process.exit(1); }
   await import('./preparar-banco.mjs');
 }

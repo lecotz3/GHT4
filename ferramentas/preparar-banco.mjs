@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { abrir, fechar } from '../server/src/db/cliente.mjs';
+import { abrir, fechar, urlDireta, descreverAlvo, urlBanco } from '../server/src/db/cliente.mjs';
 import { migrar } from '../server/src/db/migrar.mjs';
 import { importarCatalogo } from '../server/src/agente/importar-catalogo.mjs';
 import { prepararAdministrador } from '../server/src/operacao/administrador-inicial.mjs';
@@ -18,8 +18,13 @@ function descrever(erro) {
 
 // Executado antes do deploy, nunca como chamada pública ou a cada pesquisa.
 try {
-  if (!process.env.DATABASE_URL) throw new Error('Defina DATABASE_URL do PostgreSQL de destino. Este comando não abre o banco local.');
-  const db = await abrir();
+  if (!urlBanco()) throw new Error('Defina DATABASE_URL (ou POSTGRES_URL) do PostgreSQL de destino. Este comando não abre o banco local.');
+  /* Migrations, advisory lock e importação do catálogo precisam de sessão que
+     sobreviva ao fim da transação — ver urlDireta() em server/src/db/cliente.mjs.
+     Num Supabase, isto é a porta 5432; a API fica na 6543. */
+  const destino = urlDireta();
+  console.log(`Preparando ${descreverAlvo(destino)}`);
+  const db = await abrir({ url: destino });
   if (db.tipo !== 'postgres') throw new Error('A preparação exige PostgreSQL persistente.');
   const trava = await db.conectar();
   try {

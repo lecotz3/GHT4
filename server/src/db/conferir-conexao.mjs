@@ -15,25 +15,19 @@
  *    npm run conferir --prefix server
  * ========================================================================== */
 
-import { abrir, fechar, tipoDeBanco, consultar } from './cliente.mjs';
+import { abrir, fechar, tipoDeBanco, consultar, urlDireta, descreverAlvo, urlBanco } from './cliente.mjs';
 import { migracoesEmDisco } from './migrar.mjs';
-
-/** Host e banco, sem usuário e sem senha. */
-function alvoLegivel(url) {
-  if (!url) return 'PGlite local (sem DATABASE_URL)';
-  try {
-    const u = new URL(url);
-    return `${u.hostname}:${u.port || 5432}${u.pathname}`;
-  } catch {
-    return '(DATABASE_URL malformada)';
-  }
-}
 
 console.log('\nGHT4 · conferindo a conexão\n');
 
 const tipo = tipoDeBanco();
 console.log(`  driver:  ${tipo}`);
-console.log(`  alvo:    ${alvoLegivel(process.env.DATABASE_URL)}`);
+console.log(`  alvo:    ${descreverAlvo(urlBanco())}`);
+/* Só vale dizer quando os destinos diferem — é o caso do Supabase, onde a API
+   usa o pooler de transação e as migrations usam a porta de sessão. */
+if (urlDireta() !== urlBanco()) {
+  console.log(`  direta:  ${descreverAlvo(urlDireta())}  (migrations e importação)`);
+}
 
 if (tipo === 'pglite') {
   console.log('\n  Sem DATABASE_URL: rodando em PGlite (Postgres em WebAssembly).');
