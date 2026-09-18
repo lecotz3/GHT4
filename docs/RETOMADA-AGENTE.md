@@ -1,6 +1,25 @@
 # Retomada da implementação do agente GHT4
 
-Atualizado em 16 de setembro de 2026. Branch atual: `main`, com a versão completa integrada. O usuário redirecionou a implantação final para a Vercel, mantendo o PostgreSQL já criado no Render.
+Atualizado em 18 de setembro de 2026. Branch atual: `main`, com a versão completa integrada. O usuário redirecionou a implantação final para a Vercel; o PostgreSQL está migrando do Render para o Supabase.
+
+## Checkpoint — 18/09/2026
+
+**Deploys falhando desde 15/09.** A causa não estava no código: a detecção de monorepo da Vercel havia criado um segundo projeto, chamado `server`, com Framework Preset Fastify e Root Directory `server`. Com "Include files outside the root directory" ligado, ele herdava o `vercel.json` da raiz e executava `cd v1` de dentro de `server/`, morrendo em 3 a 6 segundos com `sh: line 1: cd: v1: No such file or directory`. O projeto real `ght-4` esteve Ready o tempo todo. O projeto `server` foi apagado depois de conferir que não tinha variáveis de ambiente nem deployment bem-sucedido recente.
+
+**Preparação para o Supabase.** Commit `60e57a4`, deployment Production Ready em 1m11s. Quatro falhas latentes foram encontradas e corrigidas antes de qualquer tentativa de deploy contra o banco novo:
+
+| Achado | Consequência se não corrigido |
+| --- | --- |
+| `DATABASE_URL_DIRETA` documentada, mas nenhum código a lia | advisory lock e importação do catálogo rodariam no pooler de transação, que perde a sessão |
+| Raiz `Supabase Root 2021 CA` ausente do bundle do Node | `SELF_SIGNED_CERT_IN_CHAIN`: nenhuma conexão |
+| `POSTGRES_URL_NON_POOLING` é IPv6-only | o build da Vercel não a alcança |
+| A integração não re-sincroniza após "Reset database password" | `POSTGRES_URL` fica com a senha antiga |
+
+**Banco novo conferido.** Projeto `lecotz3s Project`, ref `xxmmwqbmqvfrplpmkvtv`, `sa-east-1`, NANO, Free. As 14 migrations aplicaram nativamente no PostgreSQL 17.6 e a importação reproduziu os 38.583 registros, snapshot `f7d5b4d7-7aff-4f40-ad98-2296d23167e5`. Contagens conferidas tabela a tabela contra o Render: catálogo, migrations, papéis, fontes e controles idênticos.
+
+Não houve `pg_dump`. O Render roda PostgreSQL 18.6 e o Supabase Free 17.6, e restaurar para trás não é suportado; como o schema vem das migrations versionadas e o catálogo vem de `data-quimicos.js`, reconstruir é determinístico e dispensa a cópia. Só a conta de administrador não se reproduz, e o build de Production a recria.
+
+**Pendente:** trocar `DATABASE_URL` em Production pela string do pooler de transação do Supabase (porta 6543) e redeployar. Até lá, produção continua no Render — `urlBanco()` dá precedência a `DATABASE_URL`. Rollback é recolar a string do Render. O Free do Supabase pausa o projeto após uma semana sem atividade; este já foi encontrado pausado uma vez.
 
 ## Checkpoint de produção — 16/09/2026
 
