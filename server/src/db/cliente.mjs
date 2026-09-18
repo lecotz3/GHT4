@@ -180,10 +180,30 @@ function opcoesTls(url) {
   return ca ? { ca, rejectUnauthorized: true } : { rejectUnauthorized: true };
 }
 
+/* A integracao Supabase escreve `?sslmode=require` na POSTGRES_URL, e o pg
+   monta a propria configuracao de TLS a partir desse parametro — que sobrepoe a
+   nossa e leva junto a raiz embarcada, deixando o handshake sem ancora
+   (SELF_SIGNED_CERT_IN_CHAIN). Aqui os parametros de TLS saem da string e quem
+   decide passa a ser opcoesTls(), um lugar so. Uma DATABASE_URL escrita a mao
+   normalmente nao tem query nenhuma, e por isso este caminho ficou invisivel
+   ate a integracao entrar. */
+export function semParametrosTls(url) {
+  try {
+    const u = new URL(url);
+    let mudou = false;
+    for (const chave of ['sslmode', 'ssl', 'sslrootcert', 'sslcert', 'sslkey', 'uselibpqcompat']) {
+      if (u.searchParams.has(chave)) { u.searchParams.delete(chave); mudou = true; }
+    }
+    if (!mudou) return url;
+    // Sem parametros restantes, tirar o '?' que a serializacao deixaria pendurado.
+    return u.toString().replace(/\?$/, '');
+  } catch { return url; }
+}
+
 async function abrirPostgres(url) {
   const { default: pg } = await import('pg');
   const pool = new pg.Pool({
-    connectionString: url,
+    connectionString: semParametrosTls(url),
     ssl: opcoesTls(url),
     max: Number(process.env.PG_POOL_MAX) || 10,
     connectionTimeoutMillis: 15_000,

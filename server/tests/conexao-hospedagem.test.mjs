@@ -10,7 +10,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { X509Certificate } from 'node:crypto';
-import { urlBanco, urlDireta, descreverAlvo } from '../src/db/cliente.mjs';
+import { urlBanco, urlDireta, descreverAlvo, semParametrosTls } from '../src/db/cliente.mjs';
 import { CA_SUPABASE } from '../src/db/ca-supabase.mjs';
 import { validarOperacao } from '../src/operacao/configuracao.mjs';
 
@@ -97,4 +97,23 @@ test('o alvo legível mostra onde conecta e nunca a credencial', () => {
   assert.doesNotMatch(descricao, /segredo|postgres\.abc/);
   assert.match(descreverAlvo(null), /PGlite/);
   assert.match(descreverAlvo('nao-e-uma-url'), /malformada/);
+});
+
+test('sslmode sai da connection string para o TLS ficar com quem embarca a raiz', () => {
+  /* A integracao Supabase escreve ?sslmode=require. O pg monta o proprio ssl a
+     partir dai e sobrepoe o nosso, indo embora com a raiz embarcada — o deploy
+     morria em SELF_SIGNED_CERT_IN_CHAIN mesmo com a CA correta no codigo. */
+  const limpa = semParametrosTls(`${POOLER}:6543/postgres?sslmode=require`);
+  assert.equal(limpa, `${POOLER}:6543/postgres`, 'nem o parametro nem o ? podem sobrar');
+
+  // O que nao e de TLS fica: mexer nisso mudaria a conexao por tabela.
+  assert.equal(
+    semParametrosTls(`${POOLER}:6543/postgres?sslmode=require&application_name=ght4`),
+    `${POOLER}:6543/postgres?application_name=ght4`,
+  );
+
+  // Sem parametro de TLS, a string tem de voltar intacta, byte a byte.
+  const semQuery = `${POOLER}:5432/postgres`;
+  assert.equal(semParametrosTls(semQuery), semQuery);
+  assert.equal(semParametrosTls('nao-e-uma-url'), 'nao-e-uma-url');
 });
