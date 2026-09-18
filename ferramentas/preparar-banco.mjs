@@ -16,6 +16,25 @@ function descrever(erro) {
   return partes.filter(Boolean).join(' · ');
 }
 
+/* 28P01 nao diz qual metade da credencial esta errada, e a string nao pode ser
+   impressa. Isto imprime a ESTRUTURA dela: nada que sirva para entrar no banco.
+   O erro quase sempre e de formato, nao de senha — usuario sem o sufixo de
+   tenant que o pooler exige, caractere reservado sem percent-encoding, ou valor
+   colado pela metade. Sem isto, a unica pista e um 28P01 sem contexto. */
+function estruturaDaUrl(url) {
+  try {
+    const u = new URL(url);
+    const autoridade = url.slice(url.indexOf('//') + 2).split('/')[0];
+    return [
+      `usuario=${u.username || '(vazio)'}`,
+      `senha=${u.password.length} caracteres${u.password.includes('%') ? ', com percent-encoding' : ''}`,
+      `arrobas na autoridade=${(autoridade.match(/@/g) || []).length}`,
+      `host=${u.hostname}:${u.port || '(padrao)'}`,
+      `banco=${u.pathname.slice(1) || '(vazio)'}`,
+    ].join(' · ');
+  } catch { return '(connection string malformada)'; }
+}
+
 // Executado antes do deploy, nunca como chamada pública ou a cada pesquisa.
 try {
   if (!urlBanco()) throw new Error('Defina DATABASE_URL (ou POSTGRES_URL) do PostgreSQL de destino. Este comando não abre o banco local.');
@@ -45,5 +64,7 @@ try {
 } catch (erro) {
   // Não imprimir connection strings ou objetos de conexão em logs de deployment.
   console.error('Falha ao preparar banco e catálogo.', descrever(erro));
+  // Credencial recusada: o util e saber como a string esta formada, nao o que ela contem.
+  if (erro.code === '28P01') console.error('  estrutura da conexão:', estruturaDaUrl(urlDireta()));
   process.exitCode = 1;
 } finally { await fechar(); }
