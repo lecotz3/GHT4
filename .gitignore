@@ -15,3 +15,10 @@ ferramentas/.cache-cvm/
 # O arquivo de Socios guarda NOME DE PESSOA FISICA. Fora do git por isso, e nao
 # so pelo tamanho: ver a nota de LGPD no topo de importar-cnpj.mjs.
 ferramentas/.cache-cnpj/
+
+# Variaveis de ambiente, em qualquer lugar da arvore. server/.gitignore ja cobre
+# server/.env, mas `vercel env pull` grava onde for mandado e um .env na raiz
+# passaria. Segredo nao entra no git nem por acidente.
+.env
+.env.*
+!.env.example
