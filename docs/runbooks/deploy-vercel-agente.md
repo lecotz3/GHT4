@@ -33,6 +33,9 @@ Não configurar `PG_TLS_MODE=disable`, `PGSSL_INSEGURO=1`, `GHT4_APENAS_LOCAL=1`
 
 A `POSTGRES_URL` da integração vem com `?sslmode=require`. O `pg` monta a própria configuração de TLS a partir desse parâmetro e **sobrepõe** a que passamos em `ssl`, levando junto a raiz embarcada: o deploy morre em `SELF_SIGNED_CERT_IN_CHAIN` com a CA correta ali no código. Por isso `semParametrosTls()` tira os parâmetros de TLS da string antes de ela chegar ao pool. Uma `DATABASE_URL` escrita à mão não costuma ter query nenhuma, e esse caminho fica invisível até a integração entrar em uso.
 
+Toda a API é uma função só, `api/[...path].mjs`, e o `vercel.json` traz um `rewrites` explícito de `/api/(.*)` para ela. Sem esse rewrite a plataforma resolvia pelo nome do arquivo e entregava apenas caminhos de **um** segmento: `/api/saude` chegava, `/api/equipe/convites` voltava como 404 da borda, com `X-Vercel-Error: NOT_FOUND`, sem a função sequer rodar — quase toda a API fora do ar sem nenhum erro no log. Os testes locais não alcançam isso, porque ali o Fastify recebe a requisição direto.
+
+Depois de qualquer mudança em `vercel.json`, conferir no ar um caminho de dois e um de três segmentos. A distinção que importa não é o código, é a origem da resposta: 401 com corpo JSON significa que a rota existe e pediu sessão; 404 com corpo JSON é o Fastify dizendo que a rota não existe; 404 com `X-Vercel-Error` é a requisição parando na borda.
 O build de Production exige banco configurado, aplica migrations e importa o catálogo antes da publicação. Chamadas comuns da API não executam migrations. Importação em transação: se falhar, o snapshot anterior continua ativo. O administrador inicial só é criado se não houver usuários; o mesmo ambiente não redefine a senha de contas existentes.
 
 Preview recebe o build da interface, mas não deve receber os segredos do banco de produção. Para testar a API em Preview, preparar um banco isolado e configurar explicitamente suas variáveis nesse ambiente.
@@ -63,8 +66,9 @@ O segredo de bootstrap (`GHT4_ADMIN_SENHA_INICIAL`, ou `ght4` nesta instalação
 1. Confirmar commit e status Ready no deployment Production.
 2. Abrir `/` e `/api/saude` no domínio final; saúde deve responder JSON com `ok: true`.
 3. Sem sessão, `/api/eu` deve negar acesso; bootstrap administrativo público deve continuar indisponível.
-4. Entrar com a conta remota, executar busca e confirmar total e referência; salvar trabalho e conferir persistência após nova sessão.
-5. Remover a senha inicial do ambiente depois do primeiro acesso. A senha derivada permanece no banco; não se deve copiar a pasta PGlite local para a Vercel.
+4. Sem sessão, `GET /api/equipe` e `POST /api/equipe/usuarios/<uuid>/senha` devem negar acesso **com corpo JSON**. Um 404 com cabeçalho `X-Vercel-Error` ali quer dizer que caminhos de mais de um segmento não estão chegando à função, e a interface abriria com quase tudo quebrado por dentro.
+5. Entrar com a conta remota, executar busca e confirmar total e referência; salvar trabalho e conferir persistência após nova sessão.
+6. Remover a senha inicial do ambiente depois do primeiro acesso. A senha derivada permanece no banco; não se deve copiar a pasta PGlite local para a Vercel.
 
 ## Continuidade e limites
 
