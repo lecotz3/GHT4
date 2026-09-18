@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { ErroHttp } from '../app.mjs';
-const protegidas=new Set(['/api/sessao','/api/instalacao','/api/convites/aceitar','/api/convites/consultar','/api/operacao/backup']);
+const protegidas=new Set(['/api/sessao','/api/instalacao','/api/convites/aceitar','/api/convites/consultar','/api/operacao/backup','/api/eu/senha']);
 export function limitarAcesso(app) {
   app.addHook('preValidation',async(req,res)=>{
     const rota=req.url.split('?')[0];if(req.method!=='POST'||!protegidas.has(rota))return;

@@ -118,3 +118,86 @@ test('convites recusam papéis privilegiados, espaços inexistentes e dados inv�
   assert.equal((await anonimo('POST', '/api/convites/consultar', { token: 'inválido' })).statusCode, 422);
   assert.equal((await admin.chamar('DELETE', '/api/equipe/convites/invalido')).statusCode, 422);
 });
+
+test('cadastro direto cria conta pronta para entrar e cancela convite pendente do mesmo e-mail', async (t) => {
+  const { admin, anonimo, usuario, convidar } = await montar(t);
+  const inicial = 'Senha inicial dada pelo administrador 2026';
+
+  // Um convite pendente para o mesmo e-mail perde o sentido quando a conta nasce aqui.
+  const pendente = await convidar('novo@teste.local');
+  const r = await admin.chamar('POST', '/api/equipe/usuarios',
+    { nome: 'Pessoa nova', email: 'Novo@Teste.Local', papel: 'analista', senha: inicial, espacos: [] });
+  assert.equal(r.statusCode, 201, r.body);
+  const criado = r.json();
+  assert.equal(criado.email, 'novo@teste.local', 'e-mail é normalizado, como no convite');
+  assert.equal(criado.papel, 'analista');
+  assert.equal(criado.ativo, true);
+  assert.ok(!('senha' in criado) && !('senha_hash' in criado), 'a resposta não devolve segredo');
+  assert.equal((await anonimo('POST', '/api/convites/consultar', { token: pendente.token })).statusCode, 410);
+
+  // O que importa: a pessoa entra com a senha que o administrador definiu.
+  const entrada = await anonimo('POST', '/api/sessao', { email: 'novo@teste.local', senha: inicial });
+  assert.equal(entrada.statusCode, 200, entrada.body);
+
+  // E-mail já em uso não vira segunda conta.
+  assert.equal((await admin.chamar('POST', '/api/equipe/usuarios',
+    { nome: 'Outra', email: 'novo@teste.local', papel: 'leitura', senha: inicial })).statusCode, 409);
+
+  const analista = await usuario('analista@teste.local', 'analista');
+  assert.equal((await analista.chamar('POST', '/api/equipe/usuarios',
+    { nome: 'X', email: 'x@teste.local', papel: 'leitura', senha: inicial })).statusCode, 403);
+});
+
+test('cadastro direto recusa papel privilegiado, senha curta e espaço inexistente', async (t) => {
+  const { admin } = await montar(t);
+  const corpo = { nome: 'Pessoa', email: 'pessoa@teste.local', papel: 'analista', senha: 'Senha longa o bastante 2026' };
+  for (const extra of [{ papel: 'admin' }, { senha: 'curta' }, { espacos: [randomUUID()] }, { email: 'errado' }, { nome: ' ' }]) {
+    assert.equal((await admin.chamar('POST', '/api/equipe/usuarios', { ...corpo, ...extra })).statusCode, 422, JSON.stringify(extra));
+  }
+});
+
+test('administrador redefine a senha de um membro, derruba as sessões dele e não alcança outro admin', async (t) => {
+  const { db, admin, anonimo, usuario } = await montar(t);
+  const membro = await usuario('membro@teste.local', 'analista');
+  assert.equal((await membro.chamar('GET', '/api/eu')).statusCode, 200);
+
+  const nova = 'Senha redefinida pelo administrador 2026';
+  assert.equal((await admin.chamar('POST', `/api/equipe/usuarios/${membro.id}/senha`, { senha: nova })).statusCode, 200);
+
+  /* A sessão que estava aberta morre junto: redefinir senha por administração
+     costuma ser resposta a suspeita, e deixar a sessão viva anularia o gesto. */
+  assert.equal((await membro.chamar('GET', '/api/eu')).statusCode, 401);
+  assert.equal((await anonimo('POST', '/api/sessao', { email: 'membro@teste.local', senha })).statusCode, 401, 'a senha antiga morreu');
+  assert.equal((await anonimo('POST', '/api/sessao', { email: 'membro@teste.local', senha: nova })).statusCode, 200);
+
+  // Conta administradora fica fora: a recuperação dela exige acesso ao banco.
+  const outro = await criarUsuario(db, { email: 'admin2@teste.local', papel: 'admin', senha });
+  assert.equal((await admin.chamar('POST', `/api/equipe/usuarios/${outro.id}/senha`, { senha: nova })).statusCode, 422);
+  assert.equal((await membro.chamar('POST', `/api/equipe/usuarios/${outro.id}/senha`, { senha: nova })).statusCode, 401);
+  assert.equal((await admin.chamar('POST', `/api/equipe/usuarios/${randomUUID()}/senha`, { senha: nova })).statusCode, 404);
+  assert.equal((await admin.chamar('POST', `/api/equipe/usuarios/${membro.id}/senha`, { senha: 'curta' })).statusCode, 422);
+});
+
+test('trocar a própria senha exige a atual, revoga as outras sessões e mantém a de quem trocou', async (t) => {
+  const { admin, anonimo, comCookie, login } = await montar(t);
+  const outraSessao = await login('admin@teste.local');
+  const nova = 'Senha trocada pelo proprio titular 2026';
+
+  assert.equal((await admin.chamar('POST', '/api/eu/senha', { atual: 'errada', nova })).statusCode, 401);
+  assert.equal((await admin.chamar('POST', '/api/eu/senha', { atual: senha, nova: senha })).statusCode, 422, 'repetir a senha não é troca');
+  assert.equal((await admin.chamar('POST', '/api/eu/senha', { atual: senha, nova: 'curta' })).statusCode, 422);
+  assert.equal((await anonimo('POST', '/api/eu/senha', { atual: senha, nova })).statusCode, 401);
+
+  const r = await admin.chamar('POST', '/api/eu/senha', { atual: senha, nova });
+  assert.equal(r.statusCode, 200, r.body);
+  assert.equal(r.headers['cache-control'], 'no-store');
+
+  /* Quem troca a senha está tirando cópias de circulação. A outra sessão cai; a
+     desta chamada é reemitida no cookie da resposta, senão trocar a senha
+     deslogaria quem acabou de trocá-la. */
+  assert.equal((await outraSessao('GET', '/api/eu')).statusCode, 401);
+  const renovada = comCookie(r.headers['set-cookie'].split(';')[0]);
+  assert.equal((await renovada('GET', '/api/eu')).statusCode, 200);
+  assert.equal((await anonimo('POST', '/api/sessao', { email: 'admin@teste.local', senha })).statusCode, 401);
+  assert.equal((await anonimo('POST', '/api/sessao', { email: 'admin@teste.local', senha: nova })).statusCode, 200);
+});

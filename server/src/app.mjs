@@ -32,6 +32,7 @@ import { registrarDocumentos } from './api/documentos.mjs';
 import { registrarExportacoes } from './api/exportacoes.mjs';
 import { registrarOperacao } from './api/operacao.mjs';
 import { limitarAcesso } from './operacao/limites.mjs';
+import { registrar } from './auditoria/registrar.mjs';
 
 /** Erro que vira resposta HTTP em vez de 500. */
 export class ErroHttp extends Error {
@@ -220,6 +221,43 @@ async function registrarRotasDeSessao(app) {
       id: u.id, nome: u.nome, email: u.email, papel: u.papel,
       mandatos: u.mandatos,
     };
+  });
+
+  /* Trocar a própria senha. Até aqui não havia como: a senha do primeiro
+     administrador nascia do segredo de bootstrap da hospedagem e não tinha
+     sucessora, o que deixava a conta sem caminho de manutenção pela interface.
+
+     Exige a senha atual de propósito. Um cookie roubado não pode bastar para
+     trocar a senha e expulsar o dono; a senha atual é o que prova presença. */
+  app.post('/api/eu/senha', async (req, resposta) => {
+    const u = req.exigirAutenticado();
+    const { atual, nova } = z.object({
+      atual: z.string().min(1).max(256),
+      nova: z.string().min(12).max(256),
+    }).strict().parse(req.body);
+    if (atual === nova) throw new ErroHttp(422, 'senha_repetida', 'A nova senha precisa ser diferente da atual.');
+
+    const { conferir, derivar } = await import('./seguranca/senha.mjs');
+    const linha = await consultarUm(db, 'SELECT senha_hash, senha_sal FROM usuarios WHERE id = $1', [u.id]);
+    if (!(await conferir(atual, linha?.senha_hash, linha?.senha_sal))) {
+      throw new ErroHttp(401, 'credenciais_invalidas', 'A senha atual não confere.');
+    }
+
+    const { hash, sal } = await derivar(nova);
+    await db.transaction(async (tx) => {
+      await tx.query('UPDATE usuarios SET senha_hash = $2, senha_sal = $3, atualizado_em = now() WHERE id = $1', [u.id, hash, sal]);
+      await registrar(tx, { usuarioId: u.id, entidade: 'usuario', entidadeId: u.id, acao: 'trocar_senha',
+        justificativa: 'Troca pelo próprio titular. Demais sessões revogadas.' });
+    });
+
+    /* Quem trocou a senha costuma estar trocando porque desconfia de algo.
+       Derrubar todas as sessões e emitir uma nova aqui tira qualquer cópia de
+       circulação sem deslogar quem acabou de trocar. */
+    await sessao.encerrarTodasDe(db, u.id);
+    const s = await sessao.criar(db, { usuarioId: u.id, ip: req.ip, agente: req.headers['user-agent'] ?? null });
+    resposta.setCookie(sessao.NOME_COOKIE, s.token, sessao.opcoesDoCookie({ expiraEm: s.expiraEm }));
+    resposta.header('Cache-Control', 'no-store');
+    return { trocada: true };
   });
 }
 

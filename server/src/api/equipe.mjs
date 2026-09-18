@@ -94,6 +94,67 @@ export async function registrarEquipe(app) {
     return res.status(201).send(u);
   });
 
+  /* Cadastro direto, com a senha definida por quem administra.
+
+     O convite continua sendo o caminho preferido, porque nele só a própria
+     pessoa conhece a própria senha. Este existe porque o convite depende de
+     entregar um link por fora do agente, e isso trava dois casos reais: criar
+     contas de teste, e atender quem está ao lado. O preço é que a senha nasce
+     conhecida por duas pessoas — a tela diz isso, e a auditoria registra quem
+     criou. Quem recebe pode trocá-la sozinho em /api/eu/senha. */
+  app.post('/api/equipe/usuarios', async (req, res) => {
+    const u = req.exigir('usuario.criar');
+    const p = z.object({ nome: z.string().trim().min(2).max(120),
+      email: z.string().trim().email().max(200).transform((v) => v.toLowerCase()),
+      papel: z.enum(['socio', 'analista', 'leitura']), senha: z.string().min(12).max(256),
+      espacos: IDs.default([]) }).strict().parse(req.body);
+    const { hash, sal } = await derivar(p.senha);
+    const usuario = await db.transaction(async (tx) => {
+      if ((await tx.query('SELECT id FROM usuarios WHERE lower(email) = $1', [p.email])).rows.length) {
+        throw new ErroHttp(409, 'usuario_existente', 'Este e-mail já tem acesso. Use a lista da equipe para administrar a conta.');
+      }
+      const existentes = (await tx.query("SELECT id FROM mandatos WHERE id = ANY($1::uuid[]) AND situacao = 'ativo'", [p.espacos])).rows;
+      if (existentes.length !== p.espacos.length) throw new ErroHttp(422, 'espaco_invalido', 'Um dos espaços não está disponível. Atualize a lista.');
+      // Um convite pendente para o mesmo e-mail perde a razão de existir.
+      await tx.query('UPDATE convites_equipe SET revogado_em = now() WHERE lower(email) = $1 AND usado_em IS NULL AND revogado_em IS NULL', [p.email]);
+      const novo = (await tx.query(`INSERT INTO usuarios (nome,email,papel,senha_hash,senha_sal)
+        VALUES ($1,$2,$3,$4,$5) RETURNING id,nome,email,papel,ativo`, [p.nome,p.email,p.papel,hash,sal])).rows[0];
+      for (const id of p.espacos) await tx.query('INSERT INTO mandato_membros (mandato_id,usuario_id,papel) VALUES ($1,$2,$3)', [id,novo.id,p.papel]);
+      await registrar(tx, { usuarioId: u.id, entidade: 'usuario', entidadeId: novo.id, acao: 'criar',
+        depois: { email: p.email, papel: p.papel, espacos: p.espacos },
+        justificativa: 'Cadastro direto pelo administrador; senha inicial definida por ele.' });
+      return novo;
+    }).catch((erro) => {
+      if (erro.code === '23505') throw new ErroHttp(409, 'usuario_existente', 'Este e-mail acabou de ser cadastrado. Atualize a lista.');
+      throw erro;
+    });
+    res.header('Cache-Control', 'no-store');
+    return res.status(201).send(usuario);
+  });
+
+  /* Redefinir a senha de outra pessoa.
+
+     Não alcança conta `admin`: é a mesma recusa que o PATCH abaixo já faz, e
+     está aqui para que ninguém tome uma conta administradora a partir de outra.
+     Recuperar admin segue sendo ferramentas/administrar-acesso.mjs, que exige
+     acesso ao banco — quem tem isso já tem tudo. */
+  app.post('/api/equipe/usuarios/:id/senha', async (req, res) => {
+    const u = req.exigir('usuario.editar'); const id = Id.parse(req.params.id);
+    const { senha } = z.object({ senha: z.string().min(12).max(256) }).strict().parse(req.body);
+    const { hash, sal } = await derivar(senha);
+    await db.transaction(async (tx) => {
+      const alvo = (await tx.query('SELECT id,papel FROM usuarios WHERE id = $1 FOR UPDATE', [id])).rows[0];
+      if (!alvo) throw new ErroHttp(404, 'usuario_inexistente', 'Membro não encontrado.');
+      if (alvo.papel === 'admin') throw new ErroHttp(422, 'conta_administradora', 'A gestão de outros administradores exige um procedimento próprio.');
+      await tx.query('UPDATE usuarios SET senha_hash = $2, senha_sal = $3, atualizado_em = now() WHERE id = $1', [id,hash,sal]);
+      await tx.query('UPDATE sessoes SET encerrada_em = now() WHERE usuario_id = $1 AND encerrada_em IS NULL', [id]);
+      await registrar(tx, { usuarioId: u.id, entidade: 'usuario', entidadeId: id, acao: 'redefinir_senha',
+        justificativa: 'Redefinição pelo administrador. Sessões da conta revogadas.' });
+    });
+    res.header('Cache-Control', 'no-store');
+    return { redefinida: true };
+  });
+
   app.patch('/api/equipe/usuarios/:id', async (req) => {
     const u = req.exigir('usuario.desativar'); const id = Id.parse(req.params.id);
     const { ativo } = z.object({ ativo: z.boolean() }).strict().parse(req.body);
