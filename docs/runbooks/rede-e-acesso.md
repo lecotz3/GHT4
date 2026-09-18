@@ -86,6 +86,21 @@ node ferramentas/importar-quadro-societario.mjs --confirmo-a-decisao-lgpd   # gr
 
 `--ensaio` existe para a casa ver o volume e a cara do dado **antes** de decidir. Sem o segundo argumento o script recusa e explica: gravar põe nome de pessoa física de terceiro no banco, sem que o titular tenha sido consultado, o que pede base legal registrada. A decisão é da casa, não de quem roda o comando — e o argumento obrigatório é o lugar onde ela aparece no histórico.
 
+### Dimensionar antes de decidir
+
+O `--ensaio` precisa de um arquivo que traga os nomes, e `data-quimicos.js` não traz. Reimportar o cadastro inteiro com `INCLUIR_NOME_SOCIOS = true` custaria ~5 GB de download e **reescreveria o catálogo de produção** — pedir que o produto mude antes de a decisão ser tomada é a ordem errada.
+
+Para isso existe uma ferramenta separada:
+
+```
+node ferramentas/dimensionar-quadro-societario.mjs --mes=2026-08
+node ferramentas/importar-quadro-societario.mjs --arquivo=.cache/quadro-societario-2026-08.js --ensaio
+```
+
+Ela baixa **apenas** os `Socios*.zip` (centenas de MB, contra 3,5 GB só de Estabelecimentos), guarda somente as linhas cuja raiz de CNPJ já está no catálogo, e somente os quatro campos que o roster usa. Faixa etária e CPF mascarado são descartados na leitura.
+
+A saída vai para `.cache/`, que está no `.gitignore`. Se a resposta da casa for não, apaga-se com um `rm` e nada mais precisa ser desfeito.
+
 **Quem nunca entra**, qualquer que seja o resto: sócio menor de idade, sócio incapaz, procurador, cotas em tesouraria e sociedade consorciada. Os dois primeiros porque uma lista de prospecção comercial não é lugar para eles, e o dado ser público não torna o uso adequado.
 
 **O que fica de fora de propósito:** a faixa etária do sócio, que existe na fonte. O produto já se proíbe de inferir sucessão pela idade dos sócios; ter o campo à mão só criaria a tentação de segmentar pessoa por idade.

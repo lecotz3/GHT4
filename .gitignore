@@ -9,3 +9,9 @@ ferramentas/.cache-cvm/
 #   node ferramentas/cruzar-ibama.mjs --cache
 # O resultado (data-ibama.js) segue a mesma regra do data-real.js: e versionado.
 .cache/
+
+# ZIPs brutos do CNPJ (~5 GB com --cache), recriados por:
+#   node ferramentas/importar-cnpj.mjs --cache
+# O arquivo de Socios guarda NOME DE PESSOA FISICA. Fora do git por isso, e nao
+# so pelo tamanho: ver a nota de LGPD no topo de importar-cnpj.mjs.
+ferramentas/.cache-cnpj/

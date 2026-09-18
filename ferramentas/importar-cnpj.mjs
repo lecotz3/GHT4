@@ -66,7 +66,7 @@ import zlib from 'node:zlib';
 import readline from 'node:readline';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tabelaSubsetorPorCnae, cnaesDeDescoberta } from '../packages/domain/taxonomia.mjs';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -124,7 +124,7 @@ const ARQUIVAR   = flag('arquivar');
 
 /** Destrói o pool de conexões para o laço de eventos poder esvaziar. Ver o
     bloco de encerramento no fim do arquivo, que explica por quê. */
-async function encerrar() {
+export async function encerrar() {
   const pool = globalThis[Symbol.for('undici.globalDispatcher.1')];
   if (pool && typeof pool.destroy === 'function') { try { await pool.destroy(); } catch { /* já destruído */ } }
 }
@@ -143,7 +143,7 @@ async function listar(caminho) {
   return hrefs.filter((h) => h !== caminho + '/' && h !== caminho);
 }
 
-async function mesesDisponiveis() {
+export async function mesesDisponiveis() {
   const itens = await listar(BASE);
   return itens.map((h) => (h.match(/(\d{4}-\d{2})\/?$/) || [])[1]).filter(Boolean).sort();
 }
@@ -190,7 +190,7 @@ function contador(estado) {
 }
 
 /** Devolve as linhas de texto (latin1) de um .zip do repositório. */
-async function* linhasDoZip(mes, arquivo) {
+export async function* linhasDoZip(mes, arquivo) {
   const bruto = await abrirZipBruto(mes, arquivo);
   const estado = { bytes: 0 };
 
@@ -231,7 +231,7 @@ async function abrirZipBruto(mes, arquivo) {
 }
 
 /* ---- CSV da RFB: latin1, ";" como separador, campos entre aspas ------------ */
-function campos(linha) {
+export function campos(linha) {
   const saida = [];
   let atual = '';
   let dentro = false;
@@ -246,7 +246,7 @@ function campos(linha) {
 }
 
 const MINUSCULAS = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'em', 'a', 'o', 'para', 'com', 'por']);
-function nomeBonito(s) {
+export function nomeBonito(s) {
   const limpo = String(s || '').replace(/\s+/g, ' ').trim();
   return limpo.split(' ').map((p, i) => {
     const b = p.toLowerCase();
@@ -266,7 +266,7 @@ const anosDesde = (aaaammdd) => {
   const d = new Date(ano, mes - 1, dia);
   return Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 3600 * 1000));
 };
-const iso = (aaaammdd) => /^\d{8}$/.test(aaaammdd)
+export const iso = (aaaammdd) => /^\d{8}$/.test(aaaammdd)
   ? `${aaaammdd.slice(0, 4)}-${aaaammdd.slice(4, 6)}-${aaaammdd.slice(6, 8)}` : null;
 
 /* Faixa etária do sócio, na codificação da RFB. */
@@ -723,11 +723,16 @@ async function principal() {
    abertas dispara uma assertion do libuv no Windows (UV_HANDLE_CLOSING): o
    script imprime tudo certo e devolve código 127. Destruir o pool e deixar o
    laço de eventos esvaziar sozinho é o encerramento correto. */
-try {
-  await principal();
-} catch (erro) {
-  console.error(`\n  ERRO: ${erro.message}\n`);
-  process.exitCode = 1;
-} finally {
-  await encerrar();
+/* A execução fica atrás desta guarda para que outras ferramentas possam
+   importar daqui os utilitários de rede e de CSV sem disparar, só por dar
+   `import`, uma importação de 5 GB. */
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+  try {
+    await principal();
+  } catch (erro) {
+    console.error(`\n  ERRO: ${erro.message}\n`);
+    process.exitCode = 1;
+  } finally {
+    await encerrar();
+  }
 }
