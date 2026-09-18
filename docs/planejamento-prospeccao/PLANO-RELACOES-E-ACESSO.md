@@ -2,6 +2,12 @@
 
 Preparado em 14/09/2026 a partir do caso de uso informado pelo usuário. Este documento planeja a implementação; não declara conectores ativados, relações descobertas ou apresentações realizadas. Piloto proposto: Distribuição e Trading Químico, 50 empresas e 3–5 participantes voluntários. Participantes e ambiente de e-mail/agenda aguardam resposta; o piloto também pode começar com uma única pessoa.
 
+## 0. Estado da implementação em 18/09/2026
+
+P1 e a primeira metade de P2 estão no ar. O que existe: pessoas, vínculos, evidência e titular no Postgres da aplicação; busca de caminhos com até duas ligações; as cinco categorias da seção 5; as quatro respostas do titular da seção 4, incluindo "não quero intermediar", que preserva o vínculo e retira o caminho da recomendação; e a habilidade **Abrir caminho até a liderança** no agente, com rascunho de pedido de apresentação. Uso e limites em [`docs/runbooks/rede-e-acesso.md`](../runbooks/rede-e-acesso.md).
+
+O que não existe: importação por lote, separação de homônimos, qualquer conector externo (LinkedIn, Sales Navigator, e-mail, agenda) e a confirmação feita pelo próprio titular dentro do produto. Nenhuma rede real foi processada; os ensaios usaram dados sintéticos. O restante deste documento continua sendo o plano, não o entregue.
+
 ## 1. Como consultar as empresas hoje
 
 A tela antiga **Real · CVM** utiliza as companhias abertas do arquivo CVM. As seis empresas químicas mostradas nessa visão não são o universo cadastral disponível no projeto.

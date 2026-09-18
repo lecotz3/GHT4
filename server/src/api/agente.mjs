@@ -5,6 +5,7 @@ import { registrar } from '../auditoria/registrar.mjs';
 import { criarCatalogo } from '../agente/catalogo.mjs';
 import { TAREFAS, executarTarefa, complementarComIA } from '../agente/tarefas.mjs';
 import { autorizarOportunidade } from '../crm/acesso.mjs';
+import { caminhosDeAcesso } from '../rede/caminhos.mjs';
 import { ReferenciaModelo,filtrosDoContexto } from '../agente/filtros.mjs';
 import { registrarPropostas,mesmosFiltros } from './propostas.mjs';
 
@@ -145,8 +146,20 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
     } else if (contexto.documentoIds?.length) throw new ErroHttp(422,'oportunidade_necessaria','Vincule a oportunidade dos documentos.');
     if (p.texto && ['buscar_empresas', 'preparar_reuniao'].includes(p.tarefa)) contexto.objetivo = p.texto.slice(0, 2000);
     const acoes = await acoesDe(conversa.id);
+
+    /* A rede entra como porta, igual ao catálogo: a tarefa não conhece o banco,
+       e o escopo da restrição de contato é decidido aqui, onde se sabe de que
+       trabalho a pergunta veio. `rede.ler` é cobrada mesmo sendo permissão de
+       todos os papéis — é a rota que declara o que toca, não a tabela. */
+    let rede = null;
+    if (p.tarefa === 'mapear_acesso') {
+      req.exigir('rede.ler');
+      const escopo = conversa.mandato_id ? `mandato:${conversa.mandato_id}` : `usuario:${conversa.usuario_id}`;
+      rede = { caminhos: (args) => caminhosDeAcesso(db, { ...args, escopo, usuario: req.usuario }) };
+    }
+
     let resultado;
-    try { resultado = await executarTarefa({ ...p, contexto, catalogo, acoes }); }
+    try { resultado = await executarTarefa({ ...p, contexto, catalogo, acoes, rede }); }
     catch (e) { if (e.codigo === 'base_atualizada') throw new ErroHttp(409, e.codigo, e.message);
       throw new ErroHttp(503, 'base_indisponivel', 'A base não pôde ser consultada. Seu pedido não foi perdido; tente novamente.'); }
     const historico = p.tarefa === 'conversar' ? (await db.query(

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { MarcaGHT4 } from './MarcaGHT4'
 import { Equipe } from './Equipe'
+import { Rede } from './Rede'
 import { AceitarConvite } from './AceitarConvite'
 import { Oportunidades } from './Oportunidades'
 import { SelecaoEmpresas } from './SelecaoEmpresas'
@@ -13,7 +14,7 @@ const campo = 'w-full rounded-ficha border border-fio-forte bg-papel px-3 py-2.5
 const botao = 'rounded-ficha border border-tinta bg-tinta px-4 py-2.5 text-sm font-semibold text-papel transition hover:bg-tinta-2 disabled:cursor-not-allowed disabled:opacity-50'
 const secundario = 'rounded-ficha border border-fio-forte bg-papel px-3 py-2 text-sm font-medium hover:bg-papel-2 disabled:opacity-50'
 const ESTADOS = ['', 'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO']
-const ROTULOS: Record<Tarefa, string> = { interpretar_busca: 'Preparar filtros pelo pedido', conversar: 'Conversar com o agente', pesquisar_web: 'Pesquisar fontes públicas', buscar_empresas: 'Encontrar empresas', preparar_reuniao: 'Preparar reunião', registrar_passo: 'Registrar próximo passo', ver_pendencias: 'Rever pendências' }
+const ROTULOS: Record<Tarefa, string> = { interpretar_busca: 'Preparar filtros pelo pedido', conversar: 'Conversar com o agente', pesquisar_web: 'Pesquisar fontes públicas', buscar_empresas: 'Encontrar empresas', preparar_reuniao: 'Preparar reunião', mapear_acesso: 'Abrir caminho até a liderança', registrar_passo: 'Registrar próximo passo', ver_pendencias: 'Rever pendências' }
 const mensagem = (e: unknown) => e instanceof Error ? e.message : 'Não foi possível concluir esta ação.'
 
 export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: () => void; convite: string | null; aoLimparConvite: () => void }) {
@@ -25,11 +26,12 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
   const [senha, setSenha] = useState('')
   const [ocupado, setOcupado] = useState(false)
   const [equipe, setEquipe] = useState(false)
+  const [rede, setRede] = useState(false)
   const [versaoEquipe, setVersaoEquipe] = useState(0)
   const [crm, setCrm] = useState<{ id: string | null } | null>(null)
   const [trabalhoExterno, setTrabalhoExterno] = useState<string | null>(null)
   const conviteInicial = useRef(convite)
-  const aoExpirar = useCallback(() => { setUsuario(null); setEquipe(false); setCrm(null); setFase('login'); setErro('Sua sessão expirou. Faça login para retomar seus trabalhos.') }, [])
+  const aoExpirar = useCallback(() => { setUsuario(null); setEquipe(false); setRede(false); setCrm(null); setFase('login'); setErro('Sua sessão expirou. Faça login para retomar seus trabalhos.') }, [])
 
   async function iniciar() {
     setFase('carregando'); setErro('')
@@ -58,7 +60,7 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
   }
   async function sair() {
     setOcupado(true); setErro('')
-    try { await api('/api/sessao', 'DELETE'); setUsuario(null); setEquipe(false); setCrm(null); setSenha(''); setFase('login') }
+    try { await api('/api/sessao', 'DELETE'); setUsuario(null); setEquipe(false); setRede(false); setCrm(null); setSenha(''); setFase('login') }
     catch (falha) { setErro(mensagem(falha)) }
     finally { setOcupado(false) }
   }
@@ -68,15 +70,16 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
       <MarcaGHT4 />
       <div><p className="text-xs font-semibold text-suave">GHT4 Advisory</p><h1 className="text-xl font-semibold">Agente de M&amp;A</h1></div>
       <div className="ml-auto flex items-center gap-3 text-sm">
-        {usuario && !convite && <><span>{usuario.nome}</span>{!equipe && !crm && <button className={secundario} onClick={() => setCrm({ id: null })}>Oportunidades</button>}{usuario.papel === 'admin' && !equipe && !crm && <button className={secundario} onClick={() => setEquipe(true)}>Equipe</button>}<button className={secundario} onClick={() => void sair()} disabled={ocupado}>Sair</button></>}
+        {usuario && !convite && <><span>{usuario.nome}</span>{!equipe && !crm && !rede && <button className={secundario} onClick={() => setCrm({ id: null })}>Oportunidades</button>}{!equipe && !crm && !rede && <button className={secundario} onClick={() => setRede(true)}>Rede</button>}{usuario.papel === 'admin' && !equipe && !crm && !rede && <button className={secundario} onClick={() => setEquipe(true)}>Equipe</button>}<button className={secundario} onClick={() => void sair()} disabled={ocupado}>Sair</button></>}
         {!convite && <button className="text-xs text-suave underline underline-offset-4" onClick={aoExplorar}>Explorar demonstração</button>}
       </div>
     </header>
     {convite ? <AceitarConvite token={convite} aoEntrar={(u) => { setUsuario(u); setEquipe(false); aoLimparConvite() }} aoLogin={() => { aoLimparConvite(); setUsuario(null); setFase('login'); setErro('') }} /> : usuario ? <>
       {erro && <p role="alert" className="mx-5 mt-3 text-sm text-alerta">{erro}</p>}
       {equipe && <Equipe aoExpirar={aoExpirar} aoVoltar={() => { setEquipe(false); setVersaoEquipe((v) => v + 1) }} />}
+      {rede && <Rede aoExpirar={aoExpirar} aoVoltar={() => setRede(false)} />}
       {crm && <Oportunidades inicialId={crm.id} aoVoltar={() => setCrm(null)} aoExpirar={aoExpirar} aoAbrirTrabalho={(id) => { setTrabalhoExterno(id); setCrm(null) }} />}
-      <div hidden={equipe || Boolean(crm)}><EspacoDoAgente key={usuario.id} usuario={usuario} aoExpirar={aoExpirar} versaoEquipe={versaoEquipe} trabalhoExterno={trabalhoExterno} aoAbrirCrm={(id) => setCrm({ id })} /></div>
+      <div hidden={equipe || rede || Boolean(crm)}><EspacoDoAgente key={usuario.id} usuario={usuario} aoExpirar={aoExpirar} versaoEquipe={versaoEquipe} trabalhoExterno={trabalhoExterno} aoAbrirCrm={(id) => setCrm({ id })} /></div>
     </> : <main className="mx-auto max-w-lg px-5 py-14">
       {fase === 'carregando' ? <p role="status">Abrindo seu espaço de trabalho…</p>
         : fase === 'offline' ? <section className="space-y-5"><h2 className="text-2xl font-semibold">Vamos conectar o agente</h2>
@@ -162,6 +165,10 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm, trabalho
     setContexto((c) => ({ ...c, empresaId: e.id })); setTarefa('preparar_reuniao'); setTexto(''); envioPendente.current = null
     document.getElementById('pedido-agente')?.focus()
   }
+  function mapear(e: Empresa) {
+    setContexto((c) => ({ ...c, empresaId: e.id })); setTarefa('mapear_acesso'); setTexto(''); envioPendente.current = null
+    document.getElementById('pedido-agente')?.focus()
+  }
   async function enviar(e?: FormEvent, contextoPedido = contexto, tarefaPedido = tarefa, textoPedido = texto) {
     e?.preventDefault(); if (enviando || carregando || !podeUsar) return
     setEnviando(true); setErro('')
@@ -243,6 +250,9 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm, trabalho
             {contexto.modeloBusca && <p className="text-xs text-suave">Modelo aplicado · versão {contexto.modeloBusca.versao}. A versão será registrada na fonte da pesquisa. <button type="button" className="underline" disabled={enviando} onClick={() => setContexto(c => ({ ...c, modeloBusca: null }))}>Usar estes filtros como pesquisa personalizada</button></p>}
           </>}
           {tarefa === 'preparar_reuniao' && <p className="text-sm">{contexto.empresaId ? `Empresa: ${empresaEscolhida?.nome || contexto.empresaId}` : 'Primeiro encontre uma empresa e selecione “Preparar reunião” no resultado.'}</p>}
+          {tarefa === 'mapear_acesso' && <p className="rounded-ficha bg-papel-2 p-3 text-sm">{contexto.empresaId
+            ? `Empresa: ${empresaEscolhida?.nome || contexto.empresaId}. O agente consulta a rede de relacionamento da casa — nada é enviado para fora, e o cadastro público não informa dirigentes nem contatos.`
+            : 'Primeiro encontre uma empresa e selecione “Abrir caminho” no resultado.'}</p>}
           {tarefa === 'preparar_reuniao' && contexto.objetivo && <p className="text-xs leading-relaxed text-suave">Objetivo salvo: {contexto.objetivo}</p>}
           {tarefa === 'interpretar_busca' && <p className="rounded-ficha bg-papel-2 p-3 text-sm">{estado.iaConfigurada ? 'O pedido e os cinco filtros atuais serão enviados ao provedor configurado. Documentos, objetivo e histórico ficam fora desta interpretação.' : 'Regras locais disponíveis, sem IA. Exemplo: Distribuidoras em SP para compra; busca: Adequim; incluir possíveis. Pedidos não reconhecidos ficam como pendências.'} A prévia será salva para você conferir antes de aplicar.</p>}
           {['conversar','pesquisar_web'].includes(tarefa) && <p className="rounded-ficha bg-papel-2 p-3 text-sm">{!estado.iaConfigurada ? 'A integração está preparada. O administrador precisa configurar provedor, modelo e credencial no servidor para ativar esta tarefa.' : tarefa === 'pesquisar_web' ? estado.ia?.web ? 'Escreva somente informações públicas. Esta consulta será enviada ao serviço de pesquisa; as notas e o histórico do trabalho ficam fora da busca.' : 'A pesquisa web ainda está desabilitada na configuração do servidor.' : 'Seu pedido, a empresa selecionada e as últimas quatro tarefas serão enviados ao provedor. A resposta propõe ações para você revisar.'}</p>}
@@ -250,7 +260,7 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm, trabalho
             <textarea id="pedido-agente" className={`${campo} mt-1 min-h-24 resize-y`} value={texto} onChange={(e) => setTexto(e.target.value)} maxLength={4000} required={tarefa === 'registrar_passo' || tarefa === 'interpretar_busca'} disabled={enviando} placeholder={tarefa === 'interpretar_busca' ? 'Ex.: Distribuidoras em SP para compra; busca: Adequim; incluir possíveis.' : tarefa === 'registrar_passo' ? 'Ex.: confirmar a carteira de fornecedores com o responsável até sexta-feira.' : 'Ex.: entender a atuação em especialidades e preparar uma primeira conversa.'} />
             {tarefa === 'buscar_empresas' && <span className="mt-1 block text-xs text-suave">As observações ficam no histórico. Nesta versão, a busca usa os filtros acima.</span>}
           </label>}
-          <div className="flex flex-wrap items-center gap-3"><button className={botao} disabled={enviando || carregando || !podeUsar || (tarefa === 'interpretar_busca' && texto.trim().length < 10) || (tarefa === 'preparar_reuniao' && !contexto.empresaId) || (['conversar','pesquisar_web'].includes(tarefa) && (!estado.iaConfigurada || texto.trim().length < 10)) || (tarefa === 'pesquisar_web' && !estado.ia?.web)}>{enviando ? 'Preparando e salvando…' : ROTULOS[tarefa]}</button><span role="status" className="text-xs text-suave">{enviando ? 'Seu pedido está em andamento.' : 'O resultado e o contexto serão salvos neste trabalho.'}</span></div>
+          <div className="flex flex-wrap items-center gap-3"><button className={botao} disabled={enviando || carregando || !podeUsar || (tarefa === 'interpretar_busca' && texto.trim().length < 10) || (tarefa === 'preparar_reuniao' && !contexto.empresaId) || (tarefa === 'mapear_acesso' && !contexto.empresaId) || (['conversar','pesquisar_web'].includes(tarefa) && (!estado.iaConfigurada || texto.trim().length < 10)) || (tarefa === 'pesquisar_web' && !estado.ia?.web)}>{enviando ? 'Preparando e salvando…' : ROTULOS[tarefa]}</button><span role="status" className="text-xs text-suave">{enviando ? 'Seu pedido está em andamento.' : 'O resultado e o contexto serão salvos neste trabalho.'}</span></div>
           {!podeUsar && <p className="text-sm text-suave">Seu acesso permite apenas consulta.</p>}
         </form>
         {tarefa === 'buscar_empresas' && <ModelosBusca key={mandatoId || 'casa'} contexto={contexto} mandatoId={mandatoId || null} bloqueado={enviando || carregando || !podeUsar} podeEditar={podeUsar} aoAplicar={c => { setContexto(c); envioPendente.current = null }} aoFalhar={falhou} />}
@@ -259,7 +269,7 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm, trabalho
         <section className="space-y-5" aria-label="Histórico do trabalho">{[...turnos].reverse().map((t, i) => <div key={t.id} ref={i === 0 ? ultimaResposta : undefined} className="scroll-mt-5 rounded-ficha border border-fio bg-papel p-5 md:p-6">
           <p className="text-xs font-medium text-suave">Tarefa {t.numero} · {ROTULOS[t.pedido.tarefa]} · {t.pedido.contexto.frente === 'compra' ? 'Compra' : 'Venda'}</p>
           {t.pedido.texto && <p className="mt-2 whitespace-pre-wrap border-l-2 border-fio pl-3 text-sm text-suave">{t.pedido.texto}</p>}
-          <Resposta resultado={t.resultado} aoPreparar={preparar} aoRevisar={(empresa) => setRevisao({ empresa, turnoId: t.id, frente: t.pedido.contexto.frente === 'compra' ? 'compra' : 'venda' })} desabilitado={enviando || !podeUsar || carregando} />
+          <Resposta resultado={t.resultado} aoPreparar={preparar} aoMapear={mapear} aoRevisar={(empresa) => setRevisao({ empresa, turnoId: t.id, frente: t.pedido.contexto.frente === 'compra' ? 'compra' : 'venda' })} desabilitado={enviando || !podeUsar || carregando} />
           {ativa && t.resultado.propostaBusca && <PreviaBusca turno={t} conversa={ativa} contextoAtual={contexto} bloqueado={enviando || carregando || !podeUsar} aoOcupar={setEnviando} aoFalhar={falhou} aoAplicar={c => { setAtiva(c); setContexto(c.contexto); setTarefa('buscar_empresas'); setTexto(''); envioPendente.current = null; setConversas(cs => [c, ...cs.filter(x => x.id !== c.id)]) }} />}
           {ativa && !!t.resultado.empresas.length && podeUsar && <LoteDoResultado turno={t} conversaId={ativa.id} desabilitado={enviando || carregando} aoSalvar={() => setVersaoSelecao((v) => v + 1)} aoFalhar={falhou} />}
           {t.resultado.paginacao?.proximoOffset != null && <button className={`${secundario} mt-4`} disabled={enviando || carregando || !podeUsar} onClick={() => void enviar(undefined,
@@ -285,7 +295,7 @@ function LoteDoResultado({ turno, conversaId, desabilitado, aoSalvar, aoFalhar }
       <button className={secundario} disabled={desabilitado || ocupado}>{ocupado ? 'Salvando…' : 'Adicionar página à lista de investigação'}</button>{aviso && <p role="status">{aviso}</p>}</form></details>
 }
 
-function Resposta({ resultado: r, aoPreparar, aoRevisar, desabilitado }: { resultado: Resultado; aoPreparar: (e: Empresa) => void; aoRevisar: (e: Empresa) => void; desabilitado: boolean }) {
+function Resposta({ resultado: r, aoPreparar, aoMapear, aoRevisar, desabilitado }: { resultado: Resultado; aoPreparar: (e: Empresa) => void; aoMapear: (e: Empresa) => void; aoRevisar: (e: Empresa) => void; desabilitado: boolean }) {
   return <div className="mt-4 space-y-4">
     <div><h3 className="text-lg font-semibold">{r.titulo}</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{r.resumo}</p></div>
     {!!r.empresas.length && <ul className="divide-y divide-fio rounded-ficha border border-fio">{r.empresas.map((e) => <li key={e.id} className="flex flex-wrap items-center gap-3 p-3">
@@ -293,13 +303,71 @@ function Resposta({ resultado: r, aoPreparar, aoRevisar, desabilitado }: { resul
         <p className="mt-1 text-xs text-suave">{e.estado === 'provavel' ? 'Enquadramento provável' : e.estado === 'possivel' ? 'Enquadramento possível' : 'Enquadramento confirmado'}</p>
         <details className="mt-2 text-xs text-suave"><summary className="cursor-pointer">Ver cadastro e evidência</summary><p className="mt-2">{e.razaoSocial} · CNAE {e.cnaePrincipal}</p><p className="mt-1">{e.motivo}</p></details></div>
       <button className={secundario} onClick={() => aoPreparar(e)} disabled={desabilitado}>Preparar reunião</button>
+      <button className={secundario} onClick={() => aoMapear(e)} disabled={desabilitado}>Abrir caminho</button>
       <button className={secundario} onClick={() => aoRevisar(e)} disabled={desabilitado}>Revisar empresa</button>
     </li>)}</ul>}
+    {r.caminhos && <MapaDeAcessoPainel mapa={r.caminhos} />}
     {r.blocos.map((b) => <section key={b.titulo}><h4 className="text-sm font-semibold">{b.titulo}</h4><ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed">{b.itens.map((s, i) => <li key={i} className="whitespace-pre-wrap">{s}</li>)}</ul></section>)}
     {r.complementoIA && <section><h4 className="text-sm font-semibold">Análise de IA para revisão</h4><TextoComFontes texto={r.complementoIA} citacoes={r.citacoesIA || []} />{r.modeloIA && <p className="mt-2 text-xs text-suave">Modelo: {r.modeloIA} · As conclusões exigem revisão humana.</p>}</section>}
     {r.avisoIA && <p className="text-sm text-suave">{r.avisoIA}</p>}
     {!!r.fontes.length && <details className="border-t border-fio pt-3 text-xs text-suave"><summary className="cursor-pointer font-semibold">Fontes e limites desta entrega</summary>{r.fontes.map((f) => <p key={`${f.titulo}-${f.referencia}-${f.url}`} className="mt-2 leading-relaxed">{f.url ? <a href={f.url} target="_blank" rel="noreferrer" className="underline">{f.titulo}</a> : <b>{f.titulo}</b>} · {f.referencia}. {f.descricao}</p>)}</details>}
   </div>
+}
+
+/**
+ * Cada caminho mostra a conta inteira: a rota de ponta a ponta, o que sustenta
+ * cada ligação e o que ainda desmente a confiança nela. Um número solto valeria
+ * pouco aqui — quem vai fazer a ligação precisa poder discordar lendo.
+ *
+ * Caminhos que o titular barrou continuam na lista, apagados e separados. Some-los
+ * faria alguém recadastrar a mesma relação semanas depois e bater na mesma porta.
+ */
+function MapaDeAcessoPainel({ mapa }: { mapa: NonNullable<Resultado['caminhos']> }) {
+  if (mapa.restricao?.ativa) return null
+  if (!mapa.caminhos.length && !mapa.semCaminho.length) return null
+  const uteis = mapa.caminhos.filter((c) => c.recomendavel)
+  const barrados = mapa.caminhos.filter((c) => !c.recomendavel)
+  return <section aria-label="Caminhos de acesso">
+    <h4 className="text-sm font-semibold">Quem alcança quem</h4>
+    <ul className="mt-2 space-y-3">
+      {[...uteis, ...barrados].map((c) => <li key={c.ligacoes.map((l) => l.id).join('-')}
+        className={`rounded-ficha border p-3 ${c.recomendavel ? 'border-fio' : 'border-dashed border-fio opacity-70'}`}>
+        <div className="flex flex-wrap items-baseline gap-2">
+          <p className="text-sm font-semibold">{c.rota}</p>
+          <span className="rounded-ficha border border-fio-forte px-2 py-0.5 text-xs">{c.categoriaRotulo}</span>
+          <span className="text-xs text-suave">{c.alvo.senioridadeRotulo}</span>
+          {c.saltos > 1 && <span className="text-xs text-suave">uma ponte no meio</span>}
+        </div>
+        <p className="mt-2 text-xs text-suave">{c.categoriaDescricao}</p>
+        <ul className="mt-2 space-y-1.5 text-sm leading-relaxed">
+          {c.ligacoes.map((l) => <li key={l.id} className="border-l-2 border-fio pl-3">
+            <span className="font-medium">{l.de} → {l.para}</span> · {l.tipoRotulo}, vínculo {l.forcaRotulo.toLowerCase()}
+            {l.periodo ? ` (${l.periodo})` : ''} · {l.confirmadoEm
+              ? `${l.disposicaoRotulo.toLowerCase()}, registrado por ${l.confirmadoPor ?? 'alguém da casa'} em ${l.confirmadoEm}`
+              : l.disposicaoRotulo.toLowerCase()}
+            <span className="mt-0.5 block text-xs text-suave">{l.evidencia}</span>
+          </li>)}
+        </ul>
+        <p className="mt-2 text-xs text-suave">
+          Ordenação {c.pontuacao} = cargo {c.parcelas.senioridade} + elo mais fraco {c.parcelas.vinculo}
+          {' '}+ confirmação {c.parcelas.confirmacao}{c.parcelas.ligacoes ? ` ${c.parcelas.ligacoes} pela ponte` : ''}
+        </p>
+        {c.alvo.camposOmitidos.length
+          ? <p className="mt-1 text-xs text-suave">Contato registrado ({c.alvo.camposOmitidos.join(', ')}), oculto para o seu acesso.</p>
+          : [c.alvo.email, c.alvo.telefone, c.alvo.linkedin].filter(Boolean).length
+            ? <p className="mt-1 text-xs text-suave">Contato: {[c.alvo.email, c.alvo.telefone, c.alvo.linkedin].filter(Boolean).join(' · ')}</p>
+            : null}
+        {!!c.ressalvas.length && <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-suave">{c.ressalvas.map((s, i) => <li key={i}>{s}</li>)}</ul>}
+      </li>)}
+      {mapa.semCaminho.map((p) => <li key={p.id} className="rounded-ficha border border-dashed border-fio p-3">
+        <p className="text-sm font-semibold">{p.nome}{p.cargo ? ` · ${p.cargo}` : ''}</p>
+        <p className="mt-1 text-xs text-suave">{p.senioridadeRotulo} · mapeado, sem ninguém da GHT4 que alcance.</p>
+      </li>)}
+    </ul>
+    <details className="mt-3 text-xs text-suave"><summary className="cursor-pointer">O que esta leitura não alcança</summary>
+      <p className="mt-2 leading-relaxed">Consultado: {mapa.cobertura.fontesConectadas.join(', ')}. Sem conexão com: {mapa.cobertura.fontesNaoConectadas.join(', ')}.</p>
+      <ul className="mt-2 list-disc space-y-1 pl-5">{mapa.limitacoes.map((s, i) => <li key={i} className="leading-relaxed">{s}</li>)}</ul></details>
+  </section>
 }
 
 function TextoComFontes({ texto, citacoes }: { texto: string; citacoes: NonNullable<Resultado['citacoesIA']> }) {

@@ -1,15 +1,17 @@
 import { interpretarLocal } from './interpretacao.mjs';
+import { CAMINHOS_EXIBIDOS } from '../rede/contratos.mjs';
 export const TAREFAS = Object.freeze([
   { id: 'interpretar_busca', titulo: 'Preparar filtros pelo pedido', descricao: 'Descreva a busca e confira os critérios antes de aplicá-los.' },
   { id: 'conversar', titulo: 'Conversar com o agente', descricao: 'Peça uma análise ou próximo passo com os dados deste trabalho.' },
   { id: 'pesquisar_web', titulo: 'Pesquisar fontes públicas', descricao: 'Investigue uma empresa, notícia ou mercado na internet, com referências.' },
   { id: 'buscar_empresas', titulo: 'Encontrar empresas', descricao: 'Consulte a base química por nome, cidade e estado.' },
   { id: 'preparar_reuniao', titulo: 'Preparar reunião', descricao: 'Reúna os dados da empresa e um roteiro para a conversa.' },
+  { id: 'mapear_acesso', titulo: 'Abrir caminho até a liderança', descricao: 'Veja quem da GHT4 alcança o CEO, o CFO ou o conselho desta empresa, e com que assunto.' },
   { id: 'registrar_passo', titulo: 'Registrar próximo passo', descricao: 'Guarde uma ação para continuar depois.' },
   { id: 'ver_pendencias', titulo: 'Rever pendências', descricao: 'Veja o que falta fazer neste trabalho.' },
 ]);
 
-export async function executarTarefa({ tarefa, texto, contexto, catalogo, acoes }) {
+export async function executarTarefa({ tarefa, texto, contexto, catalogo, acoes, rede = null }) {
   const resposta = { modo: 'assistido', titulo: '', resumo: '', blocos: [], empresas: [], fontes: [], proximas: [] };
   if(tarefa==='interpretar_busca')return {...resposta,titulo:'Prévia dos critérios de pesquisa',resumo:'Confira os critérios e as pendências. Nenhum filtro foi alterado e nenhuma busca foi executada.',propostaBusca:interpretarLocal(texto,contexto)};
   const fonte = (referencia) => ({ titulo: 'Receita Federal — cadastro CNPJ', referencia,
@@ -64,6 +66,106 @@ export async function executarTarefa({ tarefa, texto, contexto, catalogo, acoes 
         { titulo: 'Encerramento da conversa', itens: ['Registrar necessidade de assessoria, responsável pela decisão e próximo passo com prazo combinado.'] },
       ], proximas: ['registrar_passo', 'buscar_empresas'] };
   }
+  if (tarefa === 'mapear_acesso') {
+    const empresa = contexto.empresaId ? await catalogo.obter(contexto.empresaId) : null;
+    if (!empresa) return { ...resposta, titulo: 'Escolha a empresa antes de mapear o acesso',
+      resumo: 'Encontre a empresa e use "Abrir caminho até a liderança" no resultado para continuar com os dados corretos.',
+      proximas: ['buscar_empresas'] };
+    if (!rede) return { ...resposta, titulo: `Caminho até a liderança — ${empresa.nome}`,
+      resumo: 'A rede de relacionamento não está disponível neste servidor. Nada foi consultado.',
+      empresas: [empresa], proximas: ['preparar_reuniao'] };
+
+    const r = await rede.caminhos({ empresaId: empresa.id, nomeEmpresa: empresa.nome });
+    const fonteRede = { titulo: 'Rede de relacionamento da GHT4',
+      referencia: `${r.pessoasConhecidas} pessoas mapeadas nesta empresa · ${r.caminhos.length} caminhos · fontes conectadas: ${r.cobertura.fontesConectadas.join(', ')}`,
+      descricao: `Conhecimento da casa, digitado por quem o tem. Nada aqui vem do cadastro público, que não informa dirigentes nem contatos. Sem conexão com: ${r.cobertura.fontesNaoConectadas.join(', ')}.` };
+
+    /* Empresa marcada como não contatar encerra o assunto antes de qualquer
+       sugestão. Listar caminhos e só depois avisar seria oferecer a porta e
+       contar a regra em letra miúda. */
+    if (r.restricao?.ativa) return { ...resposta, titulo: `Não contatar — ${empresa.nome}`,
+      resumo: 'Esta empresa está marcada como não contatar neste espaço. Nenhum caminho de acesso é sugerido enquanto a restrição estiver ativa.',
+      empresas: [empresa], fontes: [fonteRede, fonte(empresa.referencia)],
+      blocos: [{ titulo: 'Restrição registrada', itens: [r.restricao.motivo,
+        'Retirar a restrição é decisão de quem pode mover a oportunidade, e fica registrada.'] }],
+      caminhos: { ...r, caminhos: [], semCaminho: [] }, proximas: ['ver_pendencias'] };
+
+    const blocos = [];
+    const uteis = r.caminhos.filter((c) => c.recomendavel);
+    const barrados = r.caminhos.filter((c) => !c.recomendavel);
+    const melhor = uteis[0];
+
+    if (melhor) {
+      const contato = [melhor.alvo.email, melhor.alvo.telefone, melhor.alvo.linkedin].filter(Boolean);
+      const ponte = melhor.intermediario;
+      blocos.push({ titulo: `Caminho recomendado — ${melhor.categoriaRotulo}`, itens: [
+        `Rota: ${melhor.rota}`,
+        `Quem começa: ${melhor.ght4.nome}${melhor.ght4.cargo ? `, ${melhor.ght4.cargo}` : ''}.`,
+        ponte ? `Por meio de: ${ponte.nome}${ponte.cargo ? `, ${ponte.cargo}` : ''}${ponte.organizacao ? ` (${ponte.organizacao})` : ''} — não é da GHT4.` : 'Sem intermediário: a ligação é direta.',
+        `Para quem: ${melhor.alvo.nome}${melhor.alvo.cargo ? `, ${melhor.alvo.cargo}` : ''} — ${melhor.alvo.senioridadeRotulo}.`,
+        `Base da conversa: ${melhor.porque}`,
+        melhor.categoriaDescricao,
+        melhor.alvo.camposOmitidos?.length
+          ? 'Dados de contato existem no cadastro, mas seu acesso não os exibe. Peça a quem tem permissão de ver contatos.'
+          : contato.length ? `Contato registrado: ${contato.join(' · ')}` : 'Nenhum dado de contato registrado. Uma apresentação pelo próprio membro dispensa o endereço; não montar e-mail por padrão de domínio.',
+      ] });
+
+      /* Um rascunho poupa a parte mais travada do trabalho, que é a primeira
+         frase. Vai marcado como rascunho porque quem liga conhece a relação e o
+         programa não: sugerir é útil, ditar seria presunçoso. Com intermediário
+         são dois textos, e o primeiro pede a apresentação em vez de fingir que
+         ela já aconteceu. */
+      const primeiroNome = (n) => String(n).split(' ')[0];
+      const rascunhos = ponte ? [
+        `Para ${ponte.nome}, pedindo a apresentação: "${primeiroNome(ponte.nome)}, tudo bem? Estou acompanhando o setor químico e vi que você tem relação com ${melhor.alvo.nome}${melhor.alvo.cargo ? `, ${melhor.alvo.cargo} da ${empresa.nome}` : ` da ${empresa.nome}`}. Faria sentido você nos apresentar? Entendo perfeitamente se preferir não."`,
+        `Depois do aceite, para ${melhor.alvo.nome}: "${primeiroNome(melhor.alvo.nome)}, tudo bem? Aqui é ${melhor.ght4.nome}, da GHT4, apresentado por ${primeiroNome(ponte.nome)}. Queria ouvir sua leitura sobre o momento do setor. Você teria 20 minutos nas próximas semanas?"`,
+      ] : [
+        `"${primeiroNome(melhor.alvo.nome)}, tudo bem? Aqui é ${melhor.ght4.nome}, da GHT4. ` +
+        `${melhor.ligacoes[0].tipo === 'trabalharam_juntos' ? 'Trabalhamos juntos' : 'Nos conhecemos'}` +
+        `${melhor.ligacoes[0].periodo ? ` ${melhor.ligacoes[0].periodo}` : ''}. ` +
+        `Estou acompanhando o setor e queria ouvir sua leitura sobre ${empresa.nome}. Você teria 20 minutos nas próximas semanas?"`,
+      ];
+      blocos.push({ titulo: 'Rascunho da abordagem — revise antes de enviar', itens: [
+        ...rascunhos,
+        'Ajuste o tom à relação real. Não antecipe mandato, cliente, tese ou valores nesta primeira conversa, e não declare interesse de venda sem evidência.',
+        'Escrever a mensagem não move a oportunidade para "contatada": registre a etapa só depois do contato feito.',
+      ] });
+
+      if (melhor.ressalvas.length) blocos.push({ titulo: 'Antes de usar este caminho', itens: melhor.ressalvas });
+    }
+
+    const outros = uteis.slice(1, CAMINHOS_EXIBIDOS);
+    if (outros.length) blocos.push({ titulo: `Outros ${outros.length === 1 ? 'caminho' : 'caminhos'}`,
+      itens: [...outros.map((c) => `${c.rota} · ${c.categoriaRotulo} · ${c.saltos === 1 ? 'ligação direta' : 'uma ponte no meio'}, vínculo ${c.ligacoes.map((l) => l.forcaRotulo.toLowerCase()).join(' e ')}.`),
+        ...(uteis.length > CAMINHOS_EXIBIDOS ? [`Mais ${uteis.length - CAMINHOS_EXIBIDOS} em Rede, fora desta lista de ${CAMINHOS_EXIBIDOS}.`] : [])] });
+
+    if (barrados.length) blocos.push({ titulo: 'Existem, mas não são oferecidos',
+      itens: barrados.map((c) => `${c.rota} — ${c.ressalvas[0] ?? c.categoriaDescricao}`) });
+
+    if (r.semCaminho.length) blocos.push({ titulo: 'Mapeados, mas sem ninguém que alcance',
+      itens: [...r.semCaminho.map((p) => `${p.nome}${p.cargo ? `, ${p.cargo}` : ''} — ${p.senioridadeRotulo}.`),
+        'Perguntar na casa quem conhece estas pessoas costuma render mais que uma abordagem fria.'] });
+
+    if (!r.pessoasConhecidas) blocos.push({ titulo: 'A casa ainda não mapeou esta empresa', itens: [
+      'Nenhuma pessoa desta empresa está cadastrada na rede. Isso diz o que a casa registrou até agora, não que não haja a quem recorrer.',
+      'Cadastre em Rede quem você já conhece lá dentro, e o vínculo de quem da GHT4 alcança essa pessoa.',
+    ] });
+
+    const abertura = r.restricao && !r.restricao.ativa ? 'Restrição de contato já registrada e retirada para este espaço. ' : '';
+    const resumo = melhor
+      ? `${uteis.length} ${uteis.length === 1 ? 'caminho utilizável' : 'caminhos utilizáveis'}${barrados.length ? ` e ${barrados.length} descartado${barrados.length === 1 ? '' : 's'} por resposta do titular` : ''}. O mais apresentável é ${melhor.categoriaRotulo.toLowerCase()}. ${r.lideresConhecidos} ${r.lideresConhecidos === 1 ? 'pessoa mapeada está' : 'pessoas mapeadas estão'} na alta liderança. Um caminho vale o seu elo menos comprovado; confira as ressalvas antes da ligação.`
+      : r.caminhos.length
+        ? `Há ${r.caminhos.length} ${r.caminhos.length === 1 ? 'caminho registrado' : 'caminhos registrados'}, nenhum utilizável hoje: o titular respondeu que não quer intermediar ou que a informação está desatualizada.`
+        : r.pessoasConhecidas
+          ? `${r.pessoasConhecidas} ${r.pessoasConhecidas === 1 ? 'pessoa mapeada' : 'pessoas mapeadas'} nesta empresa, nenhuma com vínculo ativo até a GHT4. O passo útil aqui é descobrir quem da casa alcança alguém desta lista.`
+          : 'Nenhuma pessoa desta empresa está mapeada na rede da casa. A rede foi consultada e não retornou resultado — o que é diferente de não haver relacionamento.';
+
+    return { ...resposta, titulo: `Caminho até a liderança — ${empresa.nome}`,
+      resumo: abertura + resumo,
+      empresas: [empresa], fontes: [fonteRede, fonte(empresa.referencia)],
+      blocos, caminhos: r, proximas: ['registrar_passo', 'preparar_reuniao'] };
+  }
+
   if (tarefa === 'registrar_passo') {
     return { ...resposta, titulo: 'Próximo passo registrado', resumo: texto,
       blocos: [{ titulo: 'Acompanhamento', itens: ['A ação fica salva neste trabalho. Marque como concluída na lista de pendências.'] }],

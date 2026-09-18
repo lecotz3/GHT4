@@ -27,6 +27,7 @@ import { registrarRotasDoAgente } from './api/agente.mjs';
 import { registrarInstalacao } from './api/instalacao.mjs';
 import { registrarEquipe } from './api/equipe.mjs';
 import { registrarProspeccao } from './api/prospeccao.mjs';
+import { registrarRede } from './api/rede.mjs';
 import { registrarAcervo } from './api/acervo.mjs';
 import { registrarDocumentos } from './api/documentos.mjs';
 import { registrarExportacoes } from './api/exportacoes.mjs';
@@ -159,6 +160,7 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
   await app.register(registrarRotasDoAgente, { catalogo, redigirIA, servicoIA });
   await app.register(registrarEquipe);
   await app.register(registrarProspeccao);
+  await app.register(registrarRede);
   await app.register(registrarAcervo);
   await app.register(registrarDocumentos);
   await app.register(registrarExportacoes);

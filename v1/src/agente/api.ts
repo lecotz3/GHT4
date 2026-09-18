@@ -20,7 +20,7 @@ export async function api<T>(url: string, method = 'GET', corpo?: unknown, chave
   } finally { clearTimeout(timeout) }
 }
 
-export type Tarefa = 'interpretar_busca' | 'conversar' | 'pesquisar_web' | 'buscar_empresas' | 'preparar_reuniao' | 'registrar_passo' | 'ver_pendencias'
+export type Tarefa = 'interpretar_busca' | 'conversar' | 'pesquisar_web' | 'buscar_empresas' | 'preparar_reuniao' | 'mapear_acesso' | 'registrar_passo' | 'ver_pendencias'
 export interface Usuario { id: string; nome: string; papel: string }
 export interface Contexto {
   modeloBusca?: { id: string; versao: number; hash: string } | null
@@ -31,12 +31,49 @@ export interface Contexto {
 }
 export interface Conversa { id: string; titulo: string; mandato_id: string | null; contexto: Contexto; versao: number; atualizado_em: string }
 export interface Empresa { id: string; nome: string; razaoSocial: string; cidade: string; uf: string; cnpjRaiz: string; cnaePrincipal: string; estado: string; motivo: string; referencia: string }
+/* Rede de relacionamento. Os campos de contato são opcionais porque o servidor
+   os remove de quem não tem `rede.ver_contato` — e diz quais removeu em
+   `camposOmitidos`, para a tela poder mostrar "existe, você não vê" em vez de
+   dar a entender que não há contato nenhum. */
+export interface PessoaRede {
+  id: string; lado: 'ght4' | 'mercado' | 'externo'; nome: string; cargo: string
+  senioridade: string; senioridadeRotulo: string
+  organizacao: string; empresaId: string | null; ativo: boolean; versao?: number
+  email?: string | null; telefone?: string | null; linkedin?: string | null
+  observacoes?: string; camposOmitidos: string[]
+}
+export interface Ligacao {
+  id: string; de: string; para: string
+  tipo: string; tipoRotulo: string; frase: string
+  forca: string; forcaRotulo: string; forcaExplicacao: string
+  periodo: string; evidencia: string
+  disposicao: string; disposicaoRotulo: string
+  confirmadoEm: string | null; confirmadoPor: string | null; recente: boolean
+}
+export interface Caminho {
+  alvo: PessoaRede; ght4: PessoaRede; intermediario: PessoaRede | null
+  rota: string; ligacoes: Ligacao[]; saltos: number
+  categoria: string; categoriaRotulo: string; categoriaDescricao: string; recomendavel: boolean
+  pontuacao: number
+  parcelas: { senioridade: number; vinculo: number; confirmacao: number; ligacoes: number }
+  porque: string; ressalvas: string[]
+}
+export interface MapaDeAcesso {
+  empresaId: string | null; nomeEmpresa: string
+  caminhos: Caminho[]; semCaminho: PessoaRede[]
+  pessoasConhecidas: number; lideresConhecidos: number
+  restricao: { ativa: boolean; categoria: string; motivo: string } | null
+  cobertura: { fontesConectadas: string[]; fontesNaoConectadas: string[]; consultada: boolean }
+  limitacoes: string[]
+}
+
 export interface Resultado {
   propostaBusca?: { modo: 'ia' | 'regras_locais'; filtrosAtuais: Contexto; filtrosPropostos: Contexto; alteracoes: {campo: keyof Contexto; valor: string | boolean; trecho: string}[]; pendencias: string[]; aplicavel: boolean; hash: string }
   titulo: string; resumo: string; modo: string; complementoIA?: string; avisoIA?: string
   citacoesIA?: { inicio: number; fim: number; url: string; titulo: string }[]; modeloIA?: string
   catalogoHash?: string; paginacao?: { total: number; offset: number; proximoOffset: number | null }
   empresas: Empresa[]; blocos: { titulo: string; itens: string[] }[]
+  caminhos?: MapaDeAcesso
   fontes: { titulo: string; referencia: string; descricao: string; url?: string }[]; proximas: Tarefa[]
 }
 export interface Turno { id: string; numero: number; pedido: { tarefa: Tarefa; texto: string; contexto: Contexto }; resultado: Resultado }
