@@ -51,6 +51,10 @@ try {
     await migrar(db);
     // Contas existentes dispensam a senha inicial, que pode ser retirada da hospedagem.
     const administrador = await prepararAdministrador(db, process.env);
+    if (administrador.redefinido) {
+      console.warn('AVISO: GHT4_ADMIN_SENHA_REDEFINIR redefiniu a senha do administrador e as sessões dele caíram.');
+      console.warn('  Retire a variável da hospedagem agora: enquanto ela existir, todo deploy repete a redefinição.');
+    }
     const texto = await readFile(new URL('../data-quimicos.js', import.meta.url), 'utf8');
     const resultado = await importarCatalogo(db, { texto });
     console.log(JSON.stringify({ catalogo: resultado, administrador }));

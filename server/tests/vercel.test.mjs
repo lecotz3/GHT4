@@ -19,6 +19,13 @@ test('Vercel preserva login, cookie, JSON, permissões e corpo não pré-process
   assert.equal((await prepararAdministrador(db,{GHT4_ADMIN_EMAIL:env.GHT4_ADMIN_EMAIL,ght4:env.GHT4_ADMIN_SENHA_INICIAL})).criado,true);
   assert.equal((await prepararAdministrador(db,{...env,GHT4_ADMIN_SENHA_INICIAL:'nao-deve-redefinir'})).criado,false);
   assert.equal((await prepararAdministrador(db,{GHT4_ADMIN_EMAIL:env.GHT4_ADMIN_EMAIL})).criado,false);
+  // Recuperação: o segredo de bootstrap esquecido no ambiente não redefine nada;
+  // só a variável dedicada redefine, e ela exige o e-mail junto.
+  await assert.rejects(prepararAdministrador(db,{GHT4_ADMIN_SENHA_REDEFINIR:'senha-de-recuperacao-2026'}),/GHT4_ADMIN_EMAIL/);
+  await assert.rejects(prepararAdministrador(db,{GHT4_ADMIN_EMAIL:'ninguem@example.test',GHT4_ADMIN_SENHA_REDEFINIR:'senha-de-recuperacao-2026'}),/não encontrada/);
+  const recuperado=await prepararAdministrador(db,{GHT4_ADMIN_EMAIL:env.GHT4_ADMIN_EMAIL,GHT4_ADMIN_SENHA_REDEFINIR:'senha-de-recuperacao-2026'});
+  assert.deepEqual([recuperado.criado,recuperado.redefinido],[false,true]);
+  assert.equal((await prepararAdministrador(db,{...env,GHT4_ADMIN_SENHA_REDEFINIR:env.GHT4_ADMIN_SENHA_INICIAL})).redefinido,true,'volta para a senha que o resto do teste usa');
   const app=await criarApp(db,{origemPublica:'https://ght4.example.test'}); t.after(()=>app.close());
   const handler=criarHandlerVercel(async()=>app);
   assert.equal((await executar(handler)).statusCode,200);

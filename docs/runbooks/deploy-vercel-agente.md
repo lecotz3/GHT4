@@ -22,6 +22,7 @@ Variáveis configuradas somente em **Production**, com valores secretos fora do 
 | `GHT4_ADMIN_EMAIL` | E-mail escolhido pelo administrador, apenas para a primeira instalação. |
 | `GHT4_ADMIN_NOME` | Nome do administrador. |
 | `GHT4_ADMIN_SENHA_INICIAL` | Definida pelo usuário na hospedagem, pelo menos 12 caracteres. Remover após confirmar a primeira entrada. |
+| `GHT4_ADMIN_SENHA_REDEFINIR` | Só para recuperar o acesso perdido do administrador. Ver "Perda da senha do administrador". |
 
 Na instalação atual, o usuário cadastrou a senha com a chave secreta `ght4`. O bootstrap aceita essa chave como alias quando `GHT4_ADMIN_SENHA_INICIAL` não está definida. Ela segue as mesmas validações e só serve para criar o primeiro administrador; contas existentes nunca têm a senha redefinida pelo build.
 
@@ -60,6 +61,19 @@ Papéis convidáveis: `socio`, `analista`, `leitura`. **`admin` não se cria pel
 Cada pessoa troca a própria senha em **Minha senha**, na mesma tela. A troca exige a senha atual, revoga as demais sessões da conta e mantém a de quem trocou.
 
 O segredo de bootstrap (`GHT4_ADMIN_SENHA_INICIAL`, ou `ght4` nesta instalação) só vale enquanto o banco não tem nenhum usuário. Depois disso ele não redefine nada: mudá-lo na hospedagem não muda a senha de ninguém.
+
+### Perda da senha do administrador
+
+A conta `admin` é a única que o produto não redefine por dentro: `POST /api/equipe/usuarios/:id/senha` recusa alvos administradores de propósito, e `POST /api/eu/senha` exige a senha atual. Quem esquece a senha do administrador perde o console inteiro — e o banco costuma estar fora de alcance, porque a connection string fica na hospedagem como segredo ilegível.
+
+O segredo de bootstrap não serve aqui: ele só vale enquanto o banco não tem nenhum usuário. A saída é `GHT4_ADMIN_SENHA_REDEFINIR`, lida na preparação do banco durante o build:
+
+1. Na Vercel, em Production, criar `GHT4_ADMIN_SENHA_REDEFINIR` com a senha nova (mínimo 12 caracteres). `GHT4_ADMIN_EMAIL` precisa estar definida e apontar para a conta a recuperar; sem ela a preparação falha em vez de adivinhar.
+2. Redeploy da Production **sem** marcar "Use existing Build Cache" — a preparação do banco roda no build.
+3. O log traz `"redefinido":true` e dois avisos. As sessões abertas daquela conta caem; a redefinição fica registrada na auditoria como `redefinir_senha_console`.
+4. Entrar com a senha nova e **apagar a variável**. Enquanto ela existir, todo deploy repete a redefinição — inclusive por cima de uma senha trocada depois pela interface.
+
+Vale para qualquer conta, não só a administradora, mas é a administradora que justifica o mecanismo. Fora da Vercel, `ferramentas/administrar-acesso.mjs` faz o mesmo com acesso direto ao banco.
 
 ## Verificação antes de declarar a entrega
 
