@@ -45,6 +45,19 @@ Só a conta de administrador e suas linhas associadas (`usuarios`, `mandatos`, `
 
 `ferramentas/migrar-banco.mjs` existe para o caso em que houver dado de verdade a preservar. Ele copia um Postgres inteiro para outro via Docker, com as credenciais entrando por ambiente e nunca por argumento. O cliente precisa ser de versão maior ou igual à do servidor de **origem**.
 
+## Contas de acesso
+
+Tela **Equipe**, visível no cabeçalho do agente para quem tem papel `admin`. Duas formas de adicionar alguém:
+
+- **Cadastrar agora** — a conta nasce pronta, com a senha que o administrador define. Rápido, e o preço é que a senha nasce conhecida por duas pessoas. Serve para contas de teste e para atender quem está ao lado; peça a troca no primeiro acesso.
+- **Enviar convite** — gera um link de uso único, válido por 48 horas, que você entrega por fora (o agente não envia e-mail). Só a própria pessoa conhece a própria senha. É o caminho preferido para gente de fora.
+
+Papéis convidáveis: `socio`, `analista`, `leitura`. **`admin` não se cria pela interface**, e nem a senha de um admin se redefine por lá: um administrador não pode tomar a conta de outro. Criar ou recuperar administrador é `node ferramentas/administrar-acesso.mjs iniciar|redefinir`, com `DATABASE_URL` apontando para o mesmo banco — quem tem acesso ao banco já tem tudo, então a barreira está no lugar certo.
+
+Cada pessoa troca a própria senha em **Minha senha**, na mesma tela. A troca exige a senha atual, revoga as demais sessões da conta e mantém a de quem trocou.
+
+O segredo de bootstrap (`GHT4_ADMIN_SENHA_INICIAL`, ou `ght4` nesta instalação) só vale enquanto o banco não tem nenhum usuário. Depois disso ele não redefine nada: mudá-lo na hospedagem não muda a senha de ninguém.
+
 ## Verificação antes de declarar a entrega
 
 1. Confirmar commit e status Ready no deployment Production.
