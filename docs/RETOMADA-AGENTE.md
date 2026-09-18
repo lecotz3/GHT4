@@ -28,7 +28,19 @@ Verificação em produção já feita: `/api/rede`, `/api/rede/pessoas`, `/api/r
 
 > Passe esses valores por gerenciador de senhas, ou copie do painel da Vercel na máquina nova. **Não por chat, ticket, e-mail ou commit** — é a regra do cabeçalho do `.env.example`, e um segredo que aparece em transcrição já vazou.
 >
-> Atenção: a senha do banco foi **resetada** no meio desta sessão. `MIGRAR_DESTINO` no `.env` da máquina antiga provavelmente está com a senha velha. A válida está na Vercel, em `POSTGRES_URL`, que a integração Supabase re-sincroniza sozinha.
+> Atenção: a senha do banco foi **resetada** no meio desta sessão. `MIGRAR_DESTINO` no `.env` da máquina antiga está com a senha velha — **conferido, não suposto**: a conexão com ela devolve `28P01` (senha inválida) contra `aws-1-sa-east-1.pooler.supabase.com:5432/postgres`. Host e porta estão certos; é só a credencial. A válida está na Vercel, em `POSTGRES_URL`, que a integração Supabase re-sincroniza sozinha.
+
+O jeito recomendado de trazê-la é pelo CLI, e não copiando à mão — foi a cópia manual dessa string que custou cinco deploys falhos antes, por `@` sem percent-encoding e depois percent-encoding duplicado. O CLI **não está instalado** e o projeto **não está linkado**; os três comandos são interativos:
+
+```
+npx vercel login
+npx vercel link                       # conta leoleal11, projeto ght-4
+npx vercel env pull server/.env.local
+```
+
+À mão também serve: painel → `ght-4` → Settings → Environment Variables → `POSTGRES_URL` → `...` → Edit → copiar o Value, e acrescentar `DATABASE_URL=<valor>` ao `server/.env`, sem aspas. Confirme que o editor salvou: já houve caso de um buffer antigo sobrescrever esse arquivo e desfazer a edição.
+
+O `.gitignore` da raiz passou a cobrir `.env` e `.env.*` em qualquer lugar da árvore, com `!.env.example` preservando o modelo (commit `492e3c0`). Antes só `server/.env` estava protegido, e `vercel env pull` grava na raiz por padrão — um segredo passaria para o git por acidente.
 
 **b) `.cache/quadro-societario-2026-08.js`** — 10,4 MB, quadro societário de 35.690 empresas do catálogo. **Contém nome de pessoa física**, e está fora do git por isso, não por tamanho. Para refazer (~25 min, ~650 MB de download):
 
@@ -70,6 +82,8 @@ node --env-file=server/.env ferramentas/importar-quadro-societario.mjs \
 ```
 
 `urlDireta()` lê `DATABASE_URL_DIRETA`, senão `DATABASE_URL`, senão `POSTGRES_URL`. Hoje o `server/.env` **não tem** `DATABASE_URL`: sem ela o script cairia no PGlite local, que não é produção. Acrescente a linha antes de rodar.
+
+**O único bloqueio é a credencial — o código está pronto e testado.** E vale escolher de onde rodar: a importação grava no Supabase, que é remoto, então basta que *uma* máquina tenha ao mesmo tempo a credencial válida e o arquivo de `.cache/`. Feita a gravação, o arquivo de 10 MB deixa de ser necessário em qualquer lugar, e as máquinas seguintes precisam só de `git clone` e `npm install`. Rodar antes de trocar de computador poupa os 650 MB e os 25 minutos do redimensionamento.
 
 A gravação é reexecutável (`ON CONFLICT (empresa_id, nome_normalizado) DO UPDATE`, então repetir atualiza em vez de duplicar) e reversível enquanto ninguém tiver respondido à passada: `DELETE FROM rede_pessoas WHERE origem = 'cadastro_publico'`.
 
