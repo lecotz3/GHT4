@@ -14,7 +14,8 @@ Variáveis configuradas somente em **Production**, com valores secretos fora do 
 
 | Nome | Valor / função |
 | --- | --- |
-| `DATABASE_URL` | Pooler de **transação** do Supabase, porta 6543: `postgresql://postgres.<ref>:<senha>@aws-1-sa-east-1.pooler.supabase.com:6543/postgres`. A conexão direta do Supabase é IPv6 e a Vercel não a alcança; o pooler compartilhado é IPv4. Se a senha contiver caractere reservado de URL (`@`, `/`, `:`, `#`), codificar em percent — sem isso o libpq corta a string no primeiro `@` e trata o resto como nome de socket local. |
+| `POSTGRES_URL` | Escrita pela integração Supabase↔Vercel e **preferida na instalação atual**: é gerada pelo próprio Supabase, com a senha já codificada, e re-sincroniza sozinha depois de um "Reset database password". Montar a string à mão custou cinco deploys falhos a caracteres reservados mal codificados. |
+| `DATABASE_URL` | Opcional, tem precedência sobre a anterior. Pooler de **transação** do Supabase, porta 6543: `postgresql://postgres.<ref>:<senha>@aws-1-sa-east-1.pooler.supabase.com:6543/postgres`. A conexão direta do Supabase é IPv6 e a Vercel não a alcança; o pooler compartilhado é IPv4. Se a senha contiver caractere reservado de URL (`@`, `/`, `:`, `#`), codificar em percent — sem isso o libpq corta a string no primeiro `@` e trata o resto como nome de socket local. |
 | `DATABASE_URL_DIRETA` | Opcional. Sem ela, `urlDireta()` deriva a porta 5432 a partir da 6543. |
 | `PG_POOL_MAX` | `5`, inicialmente; acompanhar o total de conexões com a escala. |
 | `GHT4_ORIGEM_PUBLICA` | `https://ght-4.vercel.app` |
@@ -29,6 +30,8 @@ Na instalação atual, o usuário cadastrou a senha com a chave secreta `ght4`. 
 Migrations, advisory lock e importação do catálogo precisam de uma sessão que sobreviva ao fim da transação. O pooler de transação (6543) devolve a conexão ao pool a cada commit, e ali o `pg_advisory_lock` evapora — dois deploys simultâneos deixariam de ser serializados. Daí a conexão de sessão separada (5432).
 
 Não configurar `PG_TLS_MODE=disable`, `PGSSL_INSEGURO=1`, `GHT4_APENAS_LOCAL=1` ou bootstrap público. A conexão externa valida TLS. A cadeia do Supabase ancora em `Supabase Root 2021 CA`, que não está no bundle de raízes do Node: a raiz é embarcada em `server/src/db/ca-supabase.mjs` e passada como `ca` ao driver. Sem ela a conexão morre com `SELF_SIGNED_CERT_IN_CHAIN` antes mesmo de enviar a senha. Essa raiz expira em 2031; `server/tests/conexao-hospedagem.test.mjs` falha quando isso se aproximar. Não colocar segredos em variáveis `VITE_*`.
+
+A `POSTGRES_URL` da integração vem com `?sslmode=require`. O `pg` monta a própria configuração de TLS a partir desse parâmetro e **sobrepõe** a que passamos em `ssl`, levando junto a raiz embarcada: o deploy morre em `SELF_SIGNED_CERT_IN_CHAIN` com a CA correta ali no código. Por isso `semParametrosTls()` tira os parâmetros de TLS da string antes de ela chegar ao pool. Uma `DATABASE_URL` escrita à mão não costuma ter query nenhuma, e esse caminho fica invisível até a integração entrar em uso.
 
 O build de Production exige banco configurado, aplica migrations e importa o catálogo antes da publicação. Chamadas comuns da API não executam migrations. Importação em transação: se falhar, o snapshot anterior continua ativo. O administrador inicial só é criado se não houver usuários; o mesmo ambiente não redefine a senha de contas existentes.
 

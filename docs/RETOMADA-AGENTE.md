@@ -19,7 +19,13 @@ Atualizado em 18 de setembro de 2026. Branch atual: `main`, com a versão comple
 
 Não houve `pg_dump`. O Render roda PostgreSQL 18.6 e o Supabase Free 17.6, e restaurar para trás não é suportado; como o schema vem das migrations versionadas e o catálogo vem de `data-quimicos.js`, reconstruir é determinístico e dispensa a cópia. Só a conta de administrador não se reproduz, e o build de Production a recria.
 
-**Pendente:** trocar `DATABASE_URL` em Production pela string do pooler de transação do Supabase (porta 6543) e redeployar. Até lá, produção continua no Render — `urlBanco()` dá precedência a `DATABASE_URL`. Rollback é recolar a string do Render. O Free do Supabase pausa o projeto após uma semana sem atividade; este já foi encontrado pausado uma vez.
+**Corte concluído.** Deployment Ready no commit `7304283`, 1m16s. `/api/saude` responde `ok:true`, `/api/eu` nega com 401 e `/api/instalacao` devolve `disponivel:false` — este último confirma que o build criou o administrador no Supabase, porque o bootstrap só fecha havendo usuário.
+
+O corte foi feito **apagando** `DATABASE_URL` da Vercel, não reescrevendo-a: `urlBanco()` cai em `POSTGRES_URL`, que a integração gera e re-sincroniza sozinha. Montar a string à mão custou cinco deploys falhos, todos por caractere reservado na senha — `@` sem percent-encoding, e depois percent-encoding duplicado quando o editor sobrescrevia o `.env` com um buffer antigo. A string gerada por máquina não tem essa classe de erro.
+
+Dois defeitos saíram disso, ambos com teste: `preparar-banco.mjs` passou a imprimir a estrutura da conexão quando o banco recusa a credencial (um `28P01` sozinho não distingue senha errada de string malformada, e a string não pode ser impressa); e `semParametrosTls()` passou a remover `?sslmode=require` antes de a string chegar ao pool, porque o `pg` monta o próprio TLS a partir dela e descartava a raiz do Supabase que embarcamos.
+
+Rollback: recadastrar `DATABASE_URL` com a string do Render, guardada em `MIGRAR_ORIGEM` no `server/.env`. O Free do Supabase pausa o projeto após uma semana sem atividade; este já foi encontrado pausado uma vez.
 
 ## Checkpoint de produção — 16/09/2026
 
