@@ -1,6 +1,111 @@
 # Retomada da implementação do agente GHT4
 
-Atualizado em 18 de setembro de 2026. Branch atual: `main`, com a versão completa integrada. O usuário redirecionou a implantação final para a Vercel; o PostgreSQL está migrando do Render para o Supabase.
+Atualizado em 18 de setembro de 2026. Branch atual: `main`, com a versão completa integrada. A implantação é na Vercel e o PostgreSQL já está no Supabase — a migração do Render foi concluída e conferida.
+
+**Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
+
+## COMECE AQUI — retomada em outra máquina (18/09/2026, fim do dia)
+
+Todo o código está commitado e enviado. `main` em `0130c55`, working tree limpo, `origin/main` na mesma altura. `npm run ci` verde: 65 testes de domínio e 166 de servidor, build e lint inclusos.
+
+Num computador novo, `git clone` reconstrói o código inteiro. O que **não** vem no clone está na seção 2, e uma parte precisa ser refeita antes de a importação do quadro societário poder rodar.
+
+### 1. O que entrou nesta sessão
+
+| Commit | O que traz |
+| --- | --- |
+| `2cbc2e4` | Recuperação da senha do administrador por `GHT4_ADMIN_SENHA_REDEFINIR` no ambiente da hospedagem |
+| `b65f8c6` | Módulo de rede: migração 0015 (`rede_pessoas`, `rede_vinculos`), contratos, busca de caminhos em dois saltos, `/api/rede/*`, habilidade `mapear_acesso` do agente, tela **Rede GHT4** |
+| `d8bdd89` | Passada de reconhecimento: migração 0016, `rede_reconhecimentos`, `/api/rede/reconhecimento`, tela **Reconhecimento**, mapa de qualificações da RFB, importador do quadro societário |
+| `0cae598` | `dimensionar-quadro-societario.mjs`, que baixa só `Socios*.zip` com repetição por parte; `importar-cnpj.mjs` passa a exportar seus utilitários com a execução atrás de guarda de entrypoint |
+| `0130c55` | Recorte da casa no roster: só cargo estatutário — presidente, diretor, conselheiro |
+
+Verificação em produção já feita: `/api/rede`, `/api/rede/pessoas`, `/api/rede/caminhos` e `/api/rede/reconhecimento` respondem 401 com corpo JSON, e `/api/saude` 200. As rotas estão no ar; falta o dado.
+
+### 2. O que o git NÃO traz, e como refazer
+
+**a) `server/.env`** — ignorado pelo git, e é onde moram as credenciais. O modelo está em `server/.env.example`. As chaves em uso hoje: `GHT4_IA_PROVEDOR`, `OPENAI_API_KEY`, `GHT4_IA_MODELO`, `GHT4_IA_TOKENS_SAIDA`, `GHT4_IA_PEDIDOS_USUARIO_DIA`, `GHT4_IA_PEDIDOS_DIA`, `GHT4_IA_TIMEOUT_MS`, `GHT4_IA_WEB`, `MIGRAR_ORIGEM` (string do Render) e `MIGRAR_DESTINO` (string do Supabase).
+
+> Passe esses valores por gerenciador de senhas, ou copie do painel da Vercel na máquina nova. **Não por chat, ticket, e-mail ou commit** — é a regra do cabeçalho do `.env.example`, e um segredo que aparece em transcrição já vazou.
+>
+> Atenção: a senha do banco foi **resetada** no meio desta sessão. `MIGRAR_DESTINO` no `.env` da máquina antiga provavelmente está com a senha velha. A válida está na Vercel, em `POSTGRES_URL`, que a integração Supabase re-sincroniza sozinha.
+
+**b) `.cache/quadro-societario-2026-08.js`** — 10,4 MB, quadro societário de 35.690 empresas do catálogo. **Contém nome de pessoa física**, e está fora do git por isso, não por tamanho. Para refazer (~25 min, ~650 MB de download):
+
+```
+node ferramentas/dimensionar-quadro-societario.mjs --mes=2026-08 --cache
+```
+
+Copiar o arquivo direto entre as duas máquinas também serve, desde que por meio que você controle. Se a decisão da casa mudar para não, o arquivo se apaga com um `rm` e nada mais precisa ser desfeito.
+
+**c) `ferramentas/.cache-cnpj/`** — 655 MB de ZIPs brutos da Receita, com os mesmos nomes dentro. Descartável: só existe para uma repetição não baixar tudo de novo. Não vale a pena copiar.
+
+**d) `node_modules`** — `npm install` na raiz, em `server/` e em `v1/`. O projeto não usa workspaces; são três instalações.
+
+**Conferir que a máquina nova está boa:** `npm run ci` deve terminar com 65 e 166 testes, zero falhas.
+
+### 3. Onde a coisa parou: a importação do roster
+
+**A decisão da casa foi tomada em 18/09/2026:** importar só presidente, diretor e conselheiro. Está implementada como **padrão** do script — `--todas-as-qualificacoes` alarga e precisa ser escrito, e a auditoria registra qual recorte foi usado.
+
+Os dois cenários, medidos sobre a referência 2026-08 (`--ensaio`, nada gravado):
+
+| | Todas as qualificações | Só cargo estatutário |
+| --- | ---: | ---: |
+| Pessoas importadas | 66.174 | **8.736** |
+| Empresas alcançadas | 35.683 | **2.477** (6,9% de 35.690) |
+| `ceo` | 48.847 | 1.925 |
+| `diretoria` | 6.090 | 6.090 |
+| `conselho` | 11.237 | 721 |
+| Homônimos entre empresas | 5.645 | **383** |
+
+Dos 48.847 `ceo` do recorte largo, 38.867 eram "sócio-administrador" — código 49, o mesmo para o presidente de uma companhia grande e para o dono de uma distribuidora de dois sócios. O custo do recorte estreito: 93% das empresas com quadro não ganham ninguém, e dependem do caminho de recall.
+
+**O que falta é gravar.** O comando, depois de reconstruir o `.env` e o arquivo de cache:
+
+```
+npm run conferir --prefix server        # confirma o alvo ANTES de escrever
+node --env-file=server/.env ferramentas/importar-quadro-societario.mjs \
+  --arquivo=.cache/quadro-societario-2026-08.js --confirmo-a-decisao-lgpd
+```
+
+`urlDireta()` lê `DATABASE_URL_DIRETA`, senão `DATABASE_URL`, senão `POSTGRES_URL`. Hoje o `server/.env` **não tem** `DATABASE_URL`: sem ela o script cairia no PGlite local, que não é produção. Acrescente a linha antes de rodar.
+
+A gravação é reexecutável (`ON CONFLICT (empresa_id, nome_normalizado) DO UPDATE`, então repetir atualiza em vez de duplicar) e reversível enquanto ninguém tiver respondido à passada: `DELETE FROM rede_pessoas WHERE origem = 'cadastro_publico'`.
+
+Conferência depois de gravar: `criadas` + `atualizadas` deve somar **8.736**, e deve haver uma linha em `auditoria` com `entidade = 'rede_quadro_societario'` e `recorte: 'cargos_estatutarios'`.
+
+### 4. Pendências, em ordem de urgência
+
+1. **Apagar `GHT4_ADMIN_SENHA_REDEFINIR` e `ght4` das variáveis da Vercel.** Enquanto a primeira existir, **todo deploy** reescreve a senha do administrador de volta para aquele valor, desfazendo qualquer troca feita pela tela. E o valor está em texto claro no painel. Antes de apagar, entre em `https://ght-4.vercel.app` e confirme que a senha funciona — apagando primeiro com a senha errada, perde-se o caminho de volta.
+2. **Gravar o roster** (seção 3).
+3. **Cadastrar a equipe da GHT4** na tela Rede. Sem gente da casa cadastrada, a busca de caminhos não tem de onde partir e a passada de reconhecimento não tem quem pergunte. Nome e cargo, uma vez.
+4. **Rodar a passada de reconhecimento** sobre o roster importado: é ela que transforma nomes em caminhos.
+
+Sinalizado e não feito, nenhum urgente: `"regions": ["gru1"]` no `vercel.json` (a latência até o Supabase em `sa-east-1` cai bastante); `PG_POOL_MAX=3`; e o Supabase Free pausa o projeto após uma semana sem atividade — já foi encontrado pausado uma vez, e o primeiro acesso depois disso demora alguns segundos.
+
+### 5. Regras que continuam valendo
+
+- **Senha e connection string não entram em chat, ticket ou commit**, nem em campo de formulário. Os scripts imprimem `host:porta/banco` e nunca usuário ou senha; `descreverAlvo()` existe para isso.
+- `PGSSL_INSEGURO=1` nunca em produção.
+- `.cache/` e `ferramentas/.cache-cnpj/` guardam nome de pessoa física e estão no `.gitignore`. Antes de qualquer `git add -A`, vale conferir com `git check-ignore -v`.
+- Homônimo entre empresas diferentes **não é fundido** automaticamente: vira revisão humana. Fusão automática fabrica relacionamento, que é o pior defeito possível neste módulo.
+- Menor de idade, incapaz, procurador, cotas em tesouraria e sociedade consorciada nunca entram, qualquer que seja o recorte.
+- Faixa etária do sócio existe na fonte e é descartada na leitura: o produto se proíbe de inferir sucessão pela idade.
+
+### 6. Onde as coisas vivem
+
+| Assunto | Arquivo |
+| --- | --- |
+| Runbook completo do módulo | `docs/runbooks/rede-e-acesso.md` |
+| Plano original | `docs/planejamento-prospeccao/PLANO-RELACOES-E-ACESSO.md` |
+| Esquema | `server/src/db/migracoes/0015_*.sql`, `0016_*.sql` |
+| Regras de negócio | `server/src/rede/contratos.mjs`, `caminhos.mjs`, `qualificacoes.mjs` |
+| API | `server/src/api/rede.mjs`, `server/src/api/reconhecimento.mjs` |
+| Habilidade do agente | `server/src/agente/tarefas.mjs` (tarefa `mapear_acesso`) |
+| Telas | `v1/src/componentes/Rede.tsx`, `Reconhecimento.tsx`, `Agente.tsx` |
+| Ferramentas | `ferramentas/dimensionar-quadro-societario.mjs`, `importar-quadro-societario.mjs` |
+| Testes | `server/tests/rede.test.mjs`, `server/tests/reconhecimento.test.mjs` |
 
 ## Checkpoint — 18/09/2026
 
