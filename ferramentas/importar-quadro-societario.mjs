@@ -20,10 +20,20 @@
  *  obrigatório: não é burocracia, é o lugar onde a decisão aparece no histórico
  *  do terminal e de quem rodou.
  *
+ *  O RECORTE DA CASA
+ *  Por padrão só entram as qualificações cujo rótulo nomeia um CARGO —
+ *  presidente, diretor, conselheiro. Sócio, administrador e titular descrevem
+ *  posição no contrato social, não senioridade, e representam a maior parte do
+ *  quadro: tratá-los como alta liderança encheria a fila de reconhecimento de
+ *  gente cuja função o produto não apurou. `qualificacoes.mjs` traz a decisão e
+ *  o que ela custa em cobertura. `--todas-as-qualificacoes` alarga o recorte, e
+ *  exige ser escrito para que a escolha apareça no histórico.
+ *
  *  USO
  *    node ferramentas/importar-quadro-societario.mjs --ensaio
  *    node ferramentas/importar-quadro-societario.mjs --confirmo-a-decisao-lgpd
  *    node ferramentas/importar-quadro-societario.mjs --arquivo=... --ensaio
+ *    node ferramentas/importar-quadro-societario.mjs --ensaio --todas-as-qualificacoes
  *
  *  `--ensaio` lê, classifica e conta, sem escrever nada. É o modo que permite à
  *  casa ver o volume e a cara do dado ANTES de decidir.
@@ -36,7 +46,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { abrir, fechar, urlDireta } from '../server/src/db/cliente.mjs';
 import { lerFonteCatalogo } from '../server/src/agente/catalogo.mjs';
 import { normalizar } from '../server/src/rede/contratos.mjs';
-import { qualificacao, importavel, QUALIFICACOES_EXCLUIDAS } from '../server/src/rede/qualificacoes.mjs';
+import { qualificacao, importavel, estatutaria, QUALIFICACOES_EXCLUIDAS } from '../server/src/rede/qualificacoes.mjs';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argumento = (nome) => process.argv.find((a) => a.startsWith(`--${nome}=`))?.split('=').slice(1).join('=');
@@ -45,6 +55,11 @@ const tem = (nome) => process.argv.includes(`--${nome}`);
 const ENSAIO = tem('ensaio');
 const CONFIRMADO = tem('confirmo-a-decisao-lgpd');
 const ARQUIVO = argumento('arquivo') ?? path.join(RAIZ, 'data-quimicos.js');
+
+/* O recorte estreito é o padrão porque é o que tem decisão registrada atrás
+   dele. Alargar é possível, mas tem de ser escrito na linha de comando: assim a
+   escolha aparece no histórico de quem rodou, em vez de morar num default. */
+const SOMENTE_ESTATUTARIOS = !tem('todas-as-qualificacoes');
 
 /* `data-quimicos.js` é um script que povoa globais, mas nunca é executado para
    ser lido: `lerFonteCatalogo` extrai os literais JSON do texto. Manter essa
@@ -56,14 +71,24 @@ async function lerCatalogo(caminho) {
   return { empresas, referencia };
 }
 
-/** Converte o quadro societário de uma empresa em pessoas da rede. */
-export function pessoasDoQuadro(empresa, referencia) {
+/**
+ * Converte o quadro societário de uma empresa em pessoas da rede.
+ *
+ * @param opcoes.somenteEstatutarios  Só entram presidente, diretor e conselheiro
+ *   — os códigos cujo rótulo nomeia um cargo. É o padrão, e a razão está em
+ *   `qualificacoes.mjs`, junto com o custo de cobertura que ele impõe.
+ */
+export function pessoasDoQuadro(empresa, referencia, { somenteEstatutarios = true } = {}) {
   const saida = [], descartes = [];
   for (const s of empresa.socios ?? []) {
     if (s.tipo !== 'fisica') { descartes.push({ motivo: 'pessoa jurídica no quadro' }); continue; }
     if (!s.nome || String(s.nome).trim().length < 3) { descartes.push({ motivo: 'nome ausente' }); continue; }
     if (!importavel(s.qualificacao)) {
       descartes.push({ motivo: QUALIFICACOES_EXCLUIDAS.get(String(s.qualificacao ?? '').padStart(2, '0')) ?? 'qualificação excluída' });
+      continue;
+    }
+    if (somenteEstatutarios && !estatutaria(s.qualificacao)) {
+      descartes.push({ motivo: `posição societária, não cargo: ${qualificacao(s.qualificacao).cargo}` });
       continue;
     }
     const q = qualificacao(s.qualificacao);
@@ -104,7 +129,7 @@ async function principal() {
 
   let pessoas = [], descartes = [], semQualificacao = 0;
   for (const e of comQuadro) {
-    const r = pessoasDoQuadro(e, referencia);
+    const r = pessoasDoQuadro(e, referencia, { somenteEstatutarios: SOMENTE_ESTATUTARIOS });
     pessoas.push(...r.pessoas);
     descartes.push(...r.descartes);
     semQualificacao += r.pessoas.filter((p) => !p.qualificacaoConhecida).length;
@@ -131,12 +156,28 @@ async function principal() {
   const contagem = {};
   for (const p of unicas) contagem[p.senioridade] = (contagem[p.senioridade] ?? 0) + 1;
 
+  /* Quantas empresas de fato ganham alguém. É o número que mede o custo do
+     recorte, e por isso aparece ao lado do total — um roster de 8 mil nomes
+     concentrado em 7% do catálogo não é o mesmo produto que 8 mil espalhados. */
+  const empresasAlcancadas = new Set(unicas.map((p) => p.empresaId)).size;
+
   console.log(`  referência cadastral .......... ${referencia}`);
+  console.log(`  recorte ....................... ${SOMENTE_ESTATUTARIOS
+    ? 'só cargo estatutário (presidente, diretor, conselheiro)'
+    : 'TODAS as qualificações, inclusive sócio e administrador'}`);
   console.log(`  empresas com quadro ........... ${comQuadro.length.toLocaleString('pt-BR')}`);
   console.log(`  pessoas físicas a importar .... ${unicas.length.toLocaleString('pt-BR')}`);
+  console.log(`  empresas alcançadas ........... ${empresasAlcancadas.toLocaleString('pt-BR')} de ${comQuadro.length.toLocaleString('pt-BR')}`
+    + ` (${((empresasAlcancadas / comQuadro.length) * 100).toFixed(1)}%)`);
   console.log(`  descartadas ................... ${descartes.length.toLocaleString('pt-BR')}`);
-  for (const [motivo, n] of Object.entries(descartes.reduce((a, d) => ({ ...a, [d.motivo]: (a[d.motivo] ?? 0) + 1 }), {}))) {
+  const porMotivo = Object.entries(descartes.reduce((a, d) => ({ ...a, [d.motivo]: (a[d.motivo] ?? 0) + 1 }), {}))
+    .sort((a, b) => b[1] - a[1]);
+  for (const [motivo, n] of porMotivo.slice(0, 8)) {
     console.log(`      · ${motivo}: ${n.toLocaleString('pt-BR')}`);
+  }
+  if (porMotivo.length > 8) {
+    const resto = porMotivo.slice(8).reduce((a, [, n]) => a + n, 0);
+    console.log(`      · outros ${porMotivo.length - 8} motivos: ${resto.toLocaleString('pt-BR')}`);
   }
   console.log(`  repetidas na mesma empresa .... ${duplicadasNaEmpresa.toLocaleString('pt-BR')} (mantida a maior senioridade)`);
   console.log(`  nomes iguais em empresas dif .. ${homonimos.toLocaleString('pt-BR')} (revisão humana, sem fusão)`);
@@ -185,8 +226,13 @@ async function principal() {
     await db.query(
       `INSERT INTO auditoria (usuario_id, acao, entidade, entidade_id, depois, justificativa)
        VALUES ($1,'importar','rede_quadro_societario',$2,$3,$4)`,
-      [operador.id, referencia, JSON.stringify({ criadas, atualizadas, descartadas: descartes.length }),
-        'Importação do quadro societário público, confirmada na linha de comando.']);
+      [operador.id, referencia,
+        JSON.stringify({ criadas, atualizadas, descartadas: descartes.length, empresasAlcancadas,
+          recorte: SOMENTE_ESTATUTARIOS ? 'cargos_estatutarios' : 'todas_as_qualificacoes' }),
+        'Importação do quadro societário público, confirmada na linha de comando. '
+        + (SOMENTE_ESTATUTARIOS
+          ? 'Recorte da casa: só presidente, diretor e conselheiro.'
+          : 'Recorte alargado a todas as qualificações por --todas-as-qualificacoes.')]);
     console.log(`\n  criadas ${criadas.toLocaleString('pt-BR')} · atualizadas ${atualizadas.toLocaleString('pt-BR')}\n`);
   } finally {
     await fechar();

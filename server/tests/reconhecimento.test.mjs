@@ -77,7 +77,7 @@ test('o quadro societário vira roster, descartando PJ, incapaz e nome ausente',
     socio('BETA HOLDING LTDA', '48', 'juridica'),
     socio('MENOR PROTEGIDO', '30'),
     socio('', '49'),
-  ] }, '2026-08');
+  ] }, '2026-08', { somenteEstatutarios: false });
 
   assert.equal(r.pessoas.length, 2);
   assert.deepEqual(r.pessoas.map((p) => p.nome), ['CARLOS NUNES', 'ELZA PRADO']);
@@ -93,6 +93,29 @@ test('o quadro societário vira roster, descartando PJ, incapaz e nome ausente',
   // Faixa etária existe na fonte e não pode vazar para o registro.
   const bruto = JSON.stringify(r.pessoas);
   assert.ok(!/faixa/i.test(bruto), 'idade de sócio não entra na rede');
+});
+
+test('por padrão entra só quem tem cargo estatutário, e sócio-administrador fica de fora', () => {
+  const socio = (nome, q) => ({ tipo: 'fisica', nome, qualificacao: q, entrada: '2009-03-11' });
+  const quadro = { id: 'cnpj12345678', nome: 'Química Alfa', socios: [
+    socio('CARLOS NUNES', '49'),   // Sócio-administrador — posição, não cargo
+    socio('ELZA PRADO', '08'),     // Conselheira de administração
+    socio('RUI TAVARES', '10'),    // Diretor
+    socio('IVO MENDES', '16'),     // Presidente
+    socio('LIA ROCHA', '22'),      // Sócia — posição, não cargo
+  ] };
+
+  const estrito = pessoasDoQuadro(quadro, '2026-08');
+  assert.deepEqual(estrito.pessoas.map((p) => p.nome), ['ELZA PRADO', 'RUI TAVARES', 'IVO MENDES']);
+
+  /* O motivo precisa dizer QUAL era a qualificação. "Descartado" sem o rótulo
+     deixaria a casa sem como reavaliar o recorte depois. */
+  assert.equal(estrito.descartes.length, 2);
+  assert.match(estrito.descartes[0].motivo, /posição societária, não cargo: Sócio-administrador/);
+
+  // Alargar é possível, e aí os cinco entram.
+  const largo = pessoasDoQuadro(quadro, '2026-08', { somenteEstatutarios: false });
+  assert.equal(largo.pessoas.length, 5);
 });
 
 test('a passada mostra quem decide primeiro e some da fila depois de respondida', async (t) => {

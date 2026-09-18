@@ -84,6 +84,8 @@ node ferramentas/importar-quadro-societario.mjs --ensaio                    # co
 node ferramentas/importar-quadro-societario.mjs --confirmo-a-decisao-lgpd   # grava
 ```
 
+> **Grava no banco apontado por `DATABASE_URL`.** Rodando contra produção, é uma escrita de dado pessoal de terceiro: confira o alvo com `npm run conferir --prefix server` antes.
+
 `--ensaio` existe para a casa ver o volume e a cara do dado **antes** de decidir. Sem o segundo argumento o script recusa e explica: gravar põe nome de pessoa física de terceiro no banco, sem que o titular tenha sido consultado, o que pede base legal registrada. A decisão é da casa, não de quem roda o comando — e o argumento obrigatório é o lugar onde ela aparece no histórico.
 
 ### Dimensionar antes de decidir
@@ -108,6 +110,25 @@ A saída vai para `.cache/`, que está no `.gitignore`. Se a resposta da casa fo
 **Homônimos.** Nome repetido dentro da mesma empresa é a mesma pessoa listada com duas qualificações — fica a de maior senioridade. Nome repetido entre empresas diferentes é contado e reportado, e **não é fundido**: vira revisão humana. Fusão automática fabrica relacionamento, que é o pior defeito possível aqui.
 
 O código de qualificação da Receita vira cargo e senioridade em `server/src/rede/qualificacoes.mjs`. Código que não estiver na tabela entra como `outro`, com o número à vista — conservador e visível, em vez de um cargo adivinhado.
+
+### O recorte da casa: só cargo estatutário
+
+**Decisão de 2026-09-18.** Entram apenas as qualificações cujo rótulo nomeia um **cargo** — presidente, diretor, conselheiro. Sócio, administrador e titular descrevem posição no contrato social, não senioridade, e ficam de fora. É o padrão do script; `--todas-as-qualificacoes` alarga, e precisa ser escrito para que a escolha apareça no histórico de quem rodou.
+
+O motivo está no dado. No dimensionamento de 2026-08, sobre 35.690 empresas do catálogo com quadro:
+
+| | Todas as qualificações | Só cargo estatutário |
+|---|---:|---:|
+| Pessoas importadas | 66.174 | **8.736** |
+| Empresas alcançadas | 35.683 | **2.477** (6,9%) |
+| Classificadas como `ceo` | 48.847 | 1.925 |
+| Homônimos entre empresas | 5.645 | **383** |
+
+Dos 48.847 `ceo` do recorte largo, **38.867 eram "sócio-administrador"** — o mesmo código para o presidente de uma companhia de capital aberto e para o dono de uma distribuidora de dois sócios. A fila de reconhecimento existe para mostrar primeiro quem decide; enchê-la de gente cuja função o produto não apurou desmancharia a ordenação.
+
+**O custo é real e está registrado:** 93% das empresas com quadro não ganham ninguém. Elas têm dono, e o dono decide — ele só não é nomeável a partir do dado público. Essas empresas dependem do caminho de recall, em que alguém da casa cadastra a pessoa e informa o cargo verdadeiro.
+
+Reabrir a decisão é `--ensaio --todas-as-qualificacoes`, que mostra os dois cenários lado a lado sem gravar nada.
 
 ## Usar (no agente)
 

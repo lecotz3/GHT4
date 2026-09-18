@@ -64,11 +64,47 @@ const TABELA = Object.freeze(new Map([
   ['73', ['Presidente residente no exterior', 'ceo']],
 ]));
 
+/* -----------------------------------------------------------------------------
+ *  CARGO ESTATUTÁRIO × POSIÇÃO SOCIETÁRIA
+ *
+ *  Estes são os códigos cujo rótulo nomeia um CARGO da companhia — presidente,
+ *  diretor, conselheiro. Todos os outros descrevem uma POSIÇÃO no contrato
+ *  social: sócio, administrador, titular. A diferença importa porque o cadastro
+ *  da Receita não distingue o presidente de uma companhia de R$ 500 milhões do
+ *  dono de uma distribuidora de dois sócios: os dois são "sócio-administrador",
+ *  código 49, e ele sozinho responde por 74% das pessoas físicas do quadro.
+ *
+ *  Tratar essa maioria como "ceo" encheria o topo da fila de reconhecimento com
+ *  gente cuja senioridade o produto não apurou — e a fila existe justamente para
+ *  mostrar primeiro quem decide. A casa decidiu em 2026-09-18 importar só os
+ *  cargos estatutários: menos nome de terceiro no banco, e o que entra é o que a
+ *  fonte de fato afirma.
+ *
+ *  O custo está registrado e é grande: no quadro de 2026-08, a restrição alcança
+ *  2.477 das 35.690 empresas com quadro. As demais têm dono, e o dono decide —
+ *  ele só não é nomeável a partir do dado público. Essas empresas ficam para o
+ *  caminho de recall, em que alguém da casa informa o cargo real.
+ * -------------------------------------------------------------------------- */
+export const QUALIFICACOES_ESTATUTARIAS = Object.freeze(new Set([
+  '08', // Conselheiro de administração
+  '10', // Diretor
+  '16', // Presidente
+  '39', // Diretor não empregado e administrador
+  '71', // Conselheiro de administração residente no exterior
+  '72', // Diretor residente no exterior
+  '73', // Presidente residente no exterior
+]));
+
 const codigo = (v) => String(v ?? '').trim().padStart(2, '0');
 
 /** O titular desta qualificação pode ser importado? */
 export function importavel(qualificacao) {
   return !QUALIFICACOES_EXCLUIDAS.has(codigo(qualificacao));
+}
+
+/** O rótulo desta qualificação nomeia um cargo da companhia, e não uma cota? */
+export function estatutaria(qualificacao) {
+  return QUALIFICACOES_ESTATUTARIAS.has(codigo(qualificacao));
 }
 
 /**
