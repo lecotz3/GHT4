@@ -25,7 +25,7 @@ Variáveis configuradas somente em **Production**, com valores secretos fora do 
 
 Na instalação atual, o usuário cadastrou a senha com a chave secreta `ght4`. O bootstrap aceita essa chave como alias quando `GHT4_ADMIN_SENHA_INICIAL` não está definida. Ela segue as mesmas validações e só serve para criar o primeiro administrador; contas existentes nunca têm a senha redefinida pelo build.
 
-`POSTGRES_URL` é aceita como alias de `DATABASE_URL`, porque é o nome que a integração Supabase↔Vercel cadastra. `DATABASE_URL` tem precedência. A integração **não** re-sincroniza as variáveis depois de um "Reset database password" no Supabase: as cópias dela ficam com a senha antiga. Por isso a instalação define `DATABASE_URL` explicitamente em vez de depender do que a integração escreveu.
+`POSTGRES_URL` é aceita como alias de `DATABASE_URL`, porque é o nome que a integração Supabase↔Vercel cadastra, e `DATABASE_URL` tem precedência sobre ela. A instalação atual deixa `DATABASE_URL` **ausente** de propósito, para que valha a string da integração: ela re-sincroniza sozinha após um "Reset database password" no Supabase (observado em 18/09/2026, poucos minutos depois do reset) e não passa por cópia humana. Definir `DATABASE_URL` à mão só se justifica para apontar o agente a outro banco — e aí vale reler a linha dela na tabela acima.
 
 Migrations, advisory lock e importação do catálogo precisam de uma sessão que sobreviva ao fim da transação. O pooler de transação (6543) devolve a conexão ao pool a cada commit, e ali o `pg_advisory_lock` evapora — dois deploys simultâneos deixariam de ser serializados. Daí a conexão de sessão separada (5432).
 
