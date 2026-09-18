@@ -9,5 +9,11 @@
       "maxDuration": 60,
       "includeFiles": "server/src/db/migracoes/**"
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/[...path]"
+    }
+  ]
 }
