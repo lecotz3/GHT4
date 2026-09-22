@@ -208,11 +208,11 @@ test('responder de novo corrige a resposta sem duplicar pergunta nem vínculo', 
   const caminhos = await caminhosDeAcesso(db, { empresaId: empresa.id });
   assert.equal(caminhos.caminhos[0].categoria, 'relacao_confirmada');
 
-  // Voltar para negativa desativa? Não: mantém o vínculo e muda a resposta — o
-  // caminho continua auditável, e quem o retira é a disposição, não o apagamento.
+  // Uma correção negativa preserva a evidência histórica e retira o caminho.
   const terceira = await responder({ pessoaAlvoId: ceo.id, resposta: 'nao_conheco' });
   assert.equal(terceira.statusCode, 201, terceira.body);
   assert.equal((await db.query('SELECT count(*)::int n FROM rede_vinculos')).rows[0].n, 1);
+  assert.equal((await caminhosDeAcesso(db,{empresaId:empresa.id})).caminhos.length,0);
 });
 
 test('resposta positiva sem evidência é recusada, e quem não está na rede é avisado', async (t) => {

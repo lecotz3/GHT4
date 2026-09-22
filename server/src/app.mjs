@@ -29,6 +29,7 @@ import { registrarEquipe } from './api/equipe.mjs';
 import { registrarProspeccao } from './api/prospeccao.mjs';
 import { registrarRede } from './api/rede.mjs';
 import { registrarReconhecimento } from './api/reconhecimento.mjs';
+import { registrarImportacaoRede } from './api/rede-importacao.mjs';
 import { registrarAcervo } from './api/acervo.mjs';
 import { registrarDocumentos } from './api/documentos.mjs';
 import { registrarExportacoes } from './api/exportacoes.mjs';
@@ -163,6 +164,7 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
   await app.register(registrarProspeccao);
   await app.register(registrarRede);
   await app.register(registrarReconhecimento);
+  await app.register(registrarImportacaoRede);
   await app.register(registrarAcervo);
   await app.register(registrarDocumentos);
   await app.register(registrarExportacoes);

@@ -43,7 +43,8 @@ import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { abrir, fechar, urlDireta } from '../server/src/db/cliente.mjs';
+import { abrir, fechar, urlDireta, descreverAlvo } from '../server/src/db/cliente.mjs';
+import { alterarRede } from '../server/src/rede/estado.mjs';
 import { lerFonteCatalogo } from '../server/src/agente/catalogo.mjs';
 import { normalizar } from '../server/src/rede/contratos.mjs';
 import { qualificacao, importavel, estatutaria, QUALIFICACOES_EXCLUIDAS } from '../server/src/rede/qualificacoes.mjs';
@@ -186,8 +187,8 @@ async function principal() {
   for (const s of ordem) if (contagem[s]) console.log(`      · ${s}: ${contagem[s].toLocaleString('pt-BR')}`);
 
   if (ENSAIO) {
-    console.log('\n  ENSAIO — nada foi gravado. Amostra:');
-    for (const p of unicas.slice(0, 5)) console.log(`      ${p.nome} · ${p.cargo} · ${p.organizacao}`);
+    console.log('\n  ENSAIO — nada foi gravado.');
+    if (tem('amostra')) for (const p of unicas.slice(0, 5)) console.log(`      ${p.nome} · ${p.cargo} · ${p.organizacao}`);
     console.log('');
     return;
   }
@@ -202,46 +203,67 @@ async function principal() {
     process.exit(3);
   }
 
-  const db = await abrir({ url: urlDireta() });
+  const destino = validarDestinoImportacao(urlDireta(),argumento('destino'),process.env.GHT4_APENAS_LOCAL);
+  const db = await abrir({ url: destino });
   try {
     const operador = (await db.query("SELECT id FROM usuarios WHERE papel = 'admin' AND ativo ORDER BY criado_em LIMIT 1")).rows[0];
     if (!operador) throw new Error('Nenhum administrador ativo para responder pela importação.');
 
-    let criadas = 0, atualizadas = 0;
-    for (const p of unicas) {
-      const r = await db.query(
-        `INSERT INTO rede_pessoas (id,lado,nome,nome_normalizado,cargo,senioridade,organizacao,
-           organizacao_normalizada,empresa_id,origem,origem_referencia,criado_por)
-         VALUES ($1,'mercado',$2,$3,$4,$5,$6,$7,$8,'cadastro_publico',$9,$10)
-         ON CONFLICT (empresa_id, nome_normalizado) WHERE origem = 'cadastro_publico'
-         DO UPDATE SET cargo = EXCLUDED.cargo, senioridade = EXCLUDED.senioridade,
-           organizacao = EXCLUDED.organizacao, organizacao_normalizada = EXCLUDED.organizacao_normalizada,
-           origem_referencia = EXCLUDED.origem_referencia, versao = rede_pessoas.versao + 1,
-           atualizado_em = now()
-         RETURNING (xmax = 0) AS nova`,
-        [randomUUID(), p.nome, p.nomeNormalizado, p.cargo, p.senioridade, p.organizacao,
-          normalizar(p.organizacao), p.empresaId, p.referencia, operador.id]);
-      if (r.rows[0]?.nova) criadas++; else atualizadas++;
-    }
-    await db.query(
-      `INSERT INTO auditoria (usuario_id, acao, entidade, entidade_id, depois, justificativa)
-       VALUES ($1,'importar','rede_quadro_societario',$2,$3,$4)`,
-      [operador.id, referencia,
-        JSON.stringify({ criadas, atualizadas, descartadas: descartes.length, empresasAlcancadas,
-          recorte: SOMENTE_ESTATUTARIOS ? 'cargos_estatutarios' : 'todas_as_qualificacoes' }),
-        'Importação do quadro societário público, confirmada na linha de comando. '
-        + (SOMENTE_ESTATUTARIOS
-          ? 'Recorte da casa: só presidente, diretor e conselheiro.'
-          : 'Recorte alargado a todas as qualificações por --todas-as-qualificacoes.')]);
+    const {criadas,atualizadas} = await gravarQuadro(db,unicas,{
+      operadorId:operador.id,referencia,descartadas:descartes.length,empresasAlcancadas,somenteEstatutarios:SOMENTE_ESTATUTARIOS,
+    });
     console.log(`\n  criadas ${criadas.toLocaleString('pt-BR')} · atualizadas ${atualizadas.toLocaleString('pt-BR')}\n`);
   } finally {
     await fechar();
   }
 }
 
+export function validarDestinoImportacao(url,confirmacao,apenasLocal) {
+  if (!url || apenasLocal==='1') throw new Error('Importação remota exige DATABASE_URL ou POSTGRES_URL e GHT4_APENAS_LOCAL desligado. Nenhum banco local foi aberto.');
+  const u = new URL(url);
+  if (!['postgres:','postgresql:'].includes(u.protocol)) throw new Error('Configure uma conexão PostgreSQL válida.');
+  if (confirmacao !== descreverAlvo(url)) throw new Error(`Confira o destino e acrescente --destino=${descreverAlvo(url)}. Não inclua usuário ou senha no comando.`);
+  return url;
+}
+
+/** A carga e a auditoria confirmam juntas, ou a transação inteira é desfeita. */
+export async function gravarQuadro(db,unicas,{operadorId,referencia,descartadas=0,empresasAlcancadas=0,somenteEstatutarios=true}) {
+  return db.transaction(async tx=>{
+    await alterarRede(tx);
+    let criadas = 0, atualizadas = 0;
+    for (let inicio=0;inicio<unicas.length;inicio+=250) {
+      const lote=unicas.slice(inicio,inicio+250).map(p=>({...p,id:randomUUID(),organizacaoNormalizada:normalizar(p.organizacao)}));
+      const r = await tx.query(
+        `INSERT INTO rede_pessoas (id,lado,nome,nome_normalizado,cargo,senioridade,organizacao,
+           organizacao_normalizada,empresa_id,origem,origem_referencia,criado_por)
+         SELECT p.id,'mercado',p.nome,p."nomeNormalizado",p.cargo,p.senioridade,p.organizacao,p."organizacaoNormalizada",p."empresaId",'cadastro_publico',p.referencia,$2
+         FROM jsonb_to_recordset($1::jsonb) AS p(id uuid,nome text,"nomeNormalizado" text,cargo text,senioridade text,organizacao text,"organizacaoNormalizada" text,"empresaId" text,referencia text)
+         ON CONFLICT (empresa_id, nome_normalizado) WHERE origem = 'cadastro_publico'
+         DO UPDATE SET cargo = EXCLUDED.cargo, senioridade = EXCLUDED.senioridade,
+           organizacao = EXCLUDED.organizacao, organizacao_normalizada = EXCLUDED.organizacao_normalizada,
+           origem_referencia = EXCLUDED.origem_referencia, versao = rede_pessoas.versao + 1,
+           atualizado_em = now()
+         RETURNING (xmax = 0) AS nova`,
+        [JSON.stringify(lote), operadorId]);
+      for(const linha of r.rows)if(linha.nova)criadas++;else atualizadas++;
+    }
+    await tx.query(
+      `INSERT INTO auditoria (usuario_id, acao, entidade, entidade_id, depois, justificativa)
+       VALUES ($1,'importar','rede_quadro_societario',$2,$3,$4)`,
+      [operadorId, referencia,
+        JSON.stringify({ criadas, atualizadas, descartadas, empresasAlcancadas,
+          recorte: somenteEstatutarios ? 'cargos_estatutarios' : 'todas_as_qualificacoes' }),
+        'Importação do quadro societário público, confirmada na linha de comando. '
+        + (somenteEstatutarios
+          ? 'Recorte da casa: só presidente, diretor e conselheiro.'
+          : 'Recorte alargado a todas as qualificações por --todas-as-qualificacoes.')]);
+    return {criadas,atualizadas};
+  });
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   principal().catch((erro) => {
-    console.error('\nFalha ao importar o quadro societário.', erro.message, '\n');
+    console.error('\nFalha ao importar o quadro societário.', erro.code ? `Código ${erro.code}. Nenhuma carga parcial foi confirmada.` : erro.message.replace(/postgres(?:ql)?:\/\/\S+/gi,'[credencial omitida]'), '\n');
     process.exit(1);
   });
 }

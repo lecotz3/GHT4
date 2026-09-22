@@ -189,7 +189,7 @@ test('a habilidade entrega rota, rascunho de apresentação e o que falta mapear
 
   assert.match(bloco(r, 'Mapeados, mas sem ninguém que alcance').itens.join(' '), /Elza Prado/);
   assert.ok(r.fontes.some((f) => f.titulo === 'Rede de relacionamento da GHT4'
-    && /não informa dirigentes/.test(f.descricao) && /Sem conexão com/.test(f.descricao)));
+    && /Cadastro de pessoa não confirma relacionamento/.test(f.descricao) && /Sem conexão com/.test(f.descricao)));
 });
 
 test('a habilidade exibe no máximo três caminhos e diz quantos ficaram de fora', async (t) => {

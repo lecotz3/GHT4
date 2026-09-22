@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { ErroHttp } from '../app.mjs';
 import { registrar } from '../auditoria/registrar.mjs';
 import { Id, EmpresaId, normalizar } from '../rede/contratos.mjs';
+import { pode } from '../seguranca/rbac.mjs';
+import { alterarRede } from '../rede/estado.mjs';
 
 /* =============================================================================
  *  GHT4 · passada de reconhecimento
@@ -28,6 +30,8 @@ const RESPOSTAS = Object.freeze([
   { id: 'conheco', rotulo: 'Conheço', gera: 'conheco' },
   { id: 'talvez', rotulo: 'Talvez, preciso confirmar', gera: 'nao_confirmado' },
   { id: 'nao_conheco', rotulo: 'Não conheço', gera: null },
+  { id: 'nao_intermediar', rotulo: 'Não quero intermediar', gera: 'nao_intermediar' },
+  { id: 'desatualizado', rotulo: 'Informação desatualizada', gera: 'desatualizado' },
 ]);
 const Resposta = z.enum(RESPOSTAS.map((r) => r.id));
 const respostaDe = (id) => RESPOSTAS.find((r) => r.id === id);
@@ -48,6 +52,8 @@ export async function registrarReconhecimento(app) {
       empresaId: EmpresaId.optional(),
       empresa: z.string().trim().max(160).default(''),
       limite: z.coerce.number().int().min(1).max(100).default(25),
+      revisao: z.enum(['true','false']).default('false'),
+      offset: z.coerce.number().int().min(0).max(1000000).default(0),
     }).parse(req.query);
 
     /* Quem responde precisa existir na rede: o vínculo que a resposta gera sai
@@ -59,6 +65,8 @@ export async function registrarReconhecimento(app) {
       return { pendentes: [], respondidas: 0, total: 0, respostas: RESPOSTAS, quem: null,
         aviso: 'Você ainda não está cadastrado na rede como pessoa da GHT4. Cadastre-se em Rede, ou escolha por quem está respondendo.' };
     }
+    const proprio = await euNaRede(u.id);
+    const podeResponder = pode(u.papel,'rede.editar') || proprio?.id === quem.id;
 
     const organizacao = normalizar(q.empresa);
     const filtro = `p.lado = 'mercado' AND p.ativo
@@ -77,22 +85,23 @@ export async function registrarReconhecimento(app) {
        banco faria a passada começar por gente sem poder de decisão, que é onde a
        atenção de quem responde se perde. */
     const pendentes = (await db.query(
-      `SELECT p.id, p.nome, p.cargo, p.senioridade, p.organizacao, p.empresa_id, p.origem, p.origem_referencia
+      `SELECT p.id, p.nome, p.cargo, p.senioridade, p.organizacao, p.empresa_id, p.origem, p.origem_referencia,
+              COALESCE(r.versao,0) AS resposta_versao, r.resposta AS resposta_anterior
          FROM rede_pessoas p
          LEFT JOIN rede_reconhecimentos r ON r.pessoa_alvo_id = p.id AND r.pessoa_ght4_id = $1
-        WHERE ${filtro} AND r.id IS NULL
+        WHERE ${filtro} AND ${q.revisao === 'true' ? 'r.id IS NOT NULL' : 'r.id IS NULL'}
         ORDER BY CASE p.senioridade WHEN 'ceo' THEN 0 WHEN 'conselho' THEN 1 WHEN 'cfo' THEN 2
           WHEN 'diretoria' THEN 3 WHEN 'gerencia' THEN 4 ELSE 5 END, p.organizacao, p.nome, p.id
-        LIMIT $4`, [...valores, q.limite])).rows;
+        LIMIT $4 OFFSET $5`, [...valores, q.limite, q.revisao==='true'?q.offset:0])).rows;
 
     res.header('Cache-Control', 'no-store');
-    return { quem, pendentes, respostas: RESPOSTAS,
+    return { quem, pendentes, respostas: RESPOSTAS, podeResponder,
       total: totais.total, respondidas: totais.respondidas,
       cobertura: totais.total ? Math.round(totais.respondidas / totais.total * 100) : 0 };
   });
 
   app.post('/api/rede/reconhecimento', async (req, res) => {
-    const u = req.exigir('rede.editar');
+    const u = req.exigir('rede.ler');
     const p = z.object({
       id: Id,
       pessoaGht4Id: Id.optional(),
@@ -102,7 +111,13 @@ export async function registrarReconhecimento(app) {
       evidencia: z.string().trim().max(2000).default(''),
       forca: z.enum(['direta', 'indireta', 'fraca']).default('indireta'),
       vinculoId: Id.optional(),
+      versao: z.number().int().min(0).optional(),
     }).strict().parse(req.body);
+
+    if (!pode(u.papel,'rede.editar')) {
+      const proprio = await euNaRede(u.id);
+      if (!proprio || (p.pessoaGht4Id && p.pessoaGht4Id !== proprio.id)) throw new ErroHttp(403,'sem_permissao','Você só pode responder por sua própria rede.');
+    }
 
     const r = respostaDe(p.resposta);
     // Uma resposta positiva vira vínculo, e vínculo sem evidência não entra.
@@ -111,19 +126,24 @@ export async function registrarReconhecimento(app) {
     }
 
     const salvo = await db.transaction(async (tx) => {
+      await alterarRede(tx);
       const quem = p.pessoaGht4Id
         ? (await tx.query("SELECT id, nome FROM rede_pessoas WHERE id = $1 AND lado = 'ght4' AND ativo", [p.pessoaGht4Id])).rows[0]
         : await euNaRede(u.id, tx);
       if (!quem) throw new ErroHttp(422, 'sem_pessoa_na_rede', 'Informe por quem você está respondendo: a resposta parte de uma pessoa da GHT4.');
+      const proprio = await euNaRede(u.id,tx);
+      if (!pode(u.papel,'rede.editar') && proprio?.id !== quem.id) throw new ErroHttp(403,'sem_permissao','Você só pode responder por sua própria rede.');
       const alvo = (await tx.query("SELECT id, nome FROM rede_pessoas WHERE id = $1 AND lado = 'mercado' AND ativo", [p.pessoaAlvoId])).rows[0];
       if (!alvo) throw new ErroHttp(404, 'pessoa_inexistente', 'Pessoa não encontrada na rede.');
       if (quem.id === alvo.id) throw new ErroHttp(422, 'mesma_pessoa', 'Uma resposta liga duas pessoas diferentes.');
+      const anterior = (await tx.query('SELECT versao,vinculo_id FROM rede_reconhecimentos WHERE pessoa_ght4_id=$1 AND pessoa_alvo_id=$2 FOR UPDATE',[quem.id,alvo.id])).rows[0];
+      if (p.versao !== undefined && p.versao !== (anterior?.versao ?? 0)) throw new ErroHttp(409,'resposta_atualizada','A resposta mudou. Reabra a fila antes de responder.');
 
       let vinculoId = null;
       if (r.gera) {
         const [a, b] = quem.id < alvo.id ? [quem.id, alvo.id] : [alvo.id, quem.id];
         const disposicao = r.gera;
-        const confirmada = disposicao !== 'nao_confirmado';
+        const confirmada = !['nao_confirmado','desatualizado'].includes(disposicao);
         const criado = (await tx.query(
           `INSERT INTO rede_vinculos (id,pessoa_a_id,pessoa_b_id,tipo,forca,evidencia,disposicao,
              confirmado_por,confirmado_em,criado_por)
@@ -131,11 +151,22 @@ export async function registrarReconhecimento(app) {
            ON CONFLICT (pessoa_a_id, pessoa_b_id, tipo) DO UPDATE
              SET forca = EXCLUDED.forca, evidencia = EXCLUDED.evidencia, disposicao = EXCLUDED.disposicao,
                  confirmado_por = EXCLUDED.confirmado_por, confirmado_em = EXCLUDED.confirmado_em,
-                 ativo = true, versao = rede_vinculos.versao + 1, atualizado_em = now()
+                 ativo = true, lote_id = NULL, versao = rede_vinculos.versao + 1, atualizado_em = now()
            RETURNING id`,
           [p.vinculoId ?? p.id, a, b, p.forca, p.evidencia, disposicao,
             confirmada ? u.id : null, confirmada ? new Date() : null, u.id])).rows[0];
         vinculoId = criado.id;
+      }
+      const [a,b] = [quem.id,alvo.id].sort();
+      // Uma negativa ou recusa não pode ser contornada por outro tipo de vínculo
+      // entre as mesmas pessoas. Mantemos as evidências e removemos a recomendação.
+      if (p.resposta === 'nao_conheco') {
+        await tx.query('UPDATE rede_vinculos SET ativo=false,versao=versao+1,atualizado_em=now() WHERE pessoa_a_id=$1 AND pessoa_b_id=$2 AND ativo',[a,b]);
+      } else if (r.gera) {
+        const confirmada=!['nao_confirmado','desatualizado'].includes(r.gera);
+        await tx.query(`UPDATE rede_vinculos SET disposicao=$3,confirmado_por=$4,confirmado_em=$5,
+          versao=versao+1,atualizado_em=now() WHERE pessoa_a_id=$1 AND pessoa_b_id=$2 AND ativo`,
+        [a,b,r.gera,confirmada?u.id:null,confirmada?new Date():null]);
       }
 
       const linha = (await tx.query(

@@ -12,9 +12,9 @@ import {
  *  assunto?
  *
  *  O QUE ELE NÃO FAZ
- *  Não descobre pessoas. O catálogo cadastral não traz sócio, diretor nem
- *  contato — nada. Tudo aqui foi digitado por alguém da casa que conhece a
- *  relação. Uma empresa sem ninguém cadastrado devolve lista vazia, e isso
+ *  A lista de pessoas pode vir de cadastro manual, importações compartilhadas
+ *  ou quadro societário público. A relação exige evidência independente da
+ *  presença do nome numa lista. Uma empresa sem ninguém cadastrado devolve lista vazia, e isso
  *  significa "a casa ainda não mapeou", nunca "não há a quem recorrer".
  *  Confundir as duas coisas faria o agente desaconselhar uma abordagem por
  *  ignorância própria, que é o pior conselho possível.
@@ -88,13 +88,14 @@ export async function caminhosDeAcesso(db, { empresaId = null, nomeEmpresa = '',
       `SELECT count(DISTINCT r.pessoa_alvo_id)::int AS alvos_perguntados,
               count(*)::int AS respostas,
               count(*) FILTER (WHERE r.resposta = 'nao_conheco')::int AS negativas
-         FROM rede_reconhecimentos r WHERE r.pessoa_alvo_id = ANY($1::uuid[])`,
+         FROM rede_reconhecimentos r JOIN rede_pessoas g ON g.id=r.pessoa_ght4_id AND g.ativo
+         WHERE r.pessoa_alvo_id = ANY($1::uuid[])`,
       [alvos.map((a) => a.id)])).rows[0]
     : { alvos_perguntados: 0, respostas: 0, negativas: 0 };
 
   const cobertura = {
-    fontesConectadas: ['Rede interna cadastrada pela própria casa'],
-    fontesNaoConectadas: ['LinkedIn e Sales Navigator', 'E-mail e agenda corporativos', 'CRM externo'],
+    fontesConectadas: ['Rede interna, cadastros e lotes compartilhados pela equipe'],
+    fontesNaoConectadas: ['Conexão automática com LinkedIn e Sales Navigator', 'E-mail e agenda corporativos', 'CRM externo automático'],
     consultada: true,
     pessoasPerguntadas: perguntas.alvos_perguntados,
     respostas: perguntas.respostas,
@@ -104,8 +105,13 @@ export async function caminhosDeAcesso(db, { empresaId = null, nomeEmpresa = '',
     situacao: !alvos.length ? 'nao_mapeada'
       : perguntas.alvos_perguntados === 0 ? 'nao_perguntada' : 'perguntada',
   };
+  const membros = (await db.query("SELECT count(*)::int AS n FROM rede_pessoas WHERE lado='ght4' AND ativo")).rows[0].n;
+  cobertura.membros = membros;
+  cobertura.perguntasPossiveis = membros * alvos.length;
+  cobertura.perguntasPendentes = Math.max(0, cobertura.perguntasPossiveis - perguntas.respostas);
+  cobertura.apuracaoCompleta = cobertura.perguntasPossiveis > 0 && cobertura.perguntasPendentes === 0;
   const limitacoes = [
-    'A rede é conhecimento da casa, digitado por quem o tem. O cadastro público não informa dirigentes nem contatos, e nada aqui foi descoberto automaticamente.',
+    'Dirigentes podem vir do quadro societário público ou de contatos compartilhados. Esses cadastros não comprovam relacionamento: cada ligação exige evidência e confirmação.',
     'Uma empresa sem pessoas cadastradas significa que a casa ainda não mapeou essa empresa — não que não haja a quem recorrer.',
     'A empresa é reconhecida pelo vínculo explícito com o catálogo ou pelo nome da organização escrito igual. Grafias diferentes da mesma empresa não se encontram sozinhas.',
     `A busca vai até ${MAXIMO_LIGACOES} ligações entre pessoas, e cada ligação exige evidência própria. Trabalhar na mesma organização não prova uma relação entre duas pessoas.`,
@@ -119,6 +125,7 @@ export async function caminhosDeAcesso(db, { empresaId = null, nomeEmpresa = '',
     restricao, cobertura, limitacoes,
   };
   if (!alvos.length) return vazio;
+  if (restricao?.ativa) return vazio;
 
   /* O piloto trabalha com dezenas de pessoas; carregar as arestas ativas de uma
      vez custa menos que duas rodadas de ida e volta ao banco, e deixa a busca
@@ -149,7 +156,16 @@ export async function caminhosDeAcesso(db, { empresaId = null, nomeEmpresa = '',
     if (!vizinhos.has(de)) vizinhos.set(de, []);
     vizinhos.get(de).push({ outro: para, aresta });
   };
-  for (const a of arestas) { ligar(a.pessoa_a_id, a.pessoa_b_id, a); ligar(a.pessoa_b_id, a.pessoa_a_id, a); }
+  const pares = new Map();
+  for (const a of arestas) {
+    const chave = `${a.pessoa_a_id}:${a.pessoa_b_id}`;
+    const anterior = pares.get(chave);
+    const bloqueada = !disposicaoDe(a.disposicao).utilizavel;
+    const anteriorBloqueada = anterior && !disposicaoDe(anterior.disposicao).utilizavel;
+    if (!anterior || (bloqueada && !anteriorBloqueada)
+      || (!bloqueada && !anteriorBloqueada && disposicaoDe(a.disposicao).ordem < disposicaoDe(anterior.disposicao).ordem)) pares.set(chave,a);
+  }
+  for (const a of pares.values()) { ligar(a.pessoa_a_id, a.pessoa_b_id, a); ligar(a.pessoa_b_id, a.pessoa_a_id, a); }
 
   const daCasa = [...pessoas.values()].filter((p) => p.lado === 'ght4');
   const idsAlvo = new Set(alvos.map((a) => a.id));

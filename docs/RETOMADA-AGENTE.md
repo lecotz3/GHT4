@@ -1,10 +1,22 @@
 # Retomada da implementação do agente GHT4
 
-Atualizado em 18 de setembro de 2026. Branch atual: `main`, com a versão completa integrada. A implantação é na Vercel e o PostgreSQL já está no Supabase — a migração do Render foi concluída e conferida.
+Atualizado em 21 de setembro de 2026. Branch local: `main`. A instalação existente usa Vercel e Supabase; as alterações de ativação abaixo estão na cópia local e ainda precisam de publicação com acesso ao ambiente. Não considerar o checkpoint anterior uma comprovação de deploy desta entrega.
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — retomada em outra máquina (18/09/2026, fim do dia)
+## COMECE AQUI — ativação do agente de relações (21/09/2026)
+
+Última continuação: nova visão geral, sugestões por pendências reais, navegação adaptável, cadastro recolhível, reconhecimento com respostas explicadas, importação por etapas e modelo de colunas. Referências públicas do 21st.dev e Motion já instalado; nenhuma integração 21st.dev disponível na busca de plugins, nenhuma nova dependência. [Entrega visual e roteiro de aceite](EVOLUCAO-VISUAL-REDE.md). A revisão automática bloqueou abrir o navegador de teste por limite de uso; falta conferir esta apresentação em desktop/celular. O servidor descartável foi encerrado; usar `node ferramentas/ensaio-rede.mjs --interface` após o build para retomar.
+
+Solicitação: concluir o que pode ser feito sem credenciais ou informações dos membros. Roteiro e mensagem de coleta em [ATIVACAO-REDE-GHT4.md](ATIVACAO-REDE-GHT4.md).
+
+Implementado: migração 0017, importação de CSV com mapeamento/prévia/identidades/lotes/retirada; associação entre membro e conta; confirmação e revisão pelo próprio titular; edição de cadastros e vínculos; paginação e busca; proteção de versões concorrentes. Correções: uma negativa desativa caminhos anteriores; recusas não são contornadas por outro tipo de vínculo; a cobertura não declara a rede esgotada por uma única resposta; restrição ativa bloqueia também a consulta direta; mudanças na rede invalidam resultados de acesso salvos. Importador público agora exige destino remoto conferido e faz carga e auditoria atomicamente, em blocos.
+
+Verificação atual: `npm run ci` passou com 66 testes de domínio/CSV e 177 de servidor, build, lint sem avisos, taxonomia e paleta. Log `.cache/verificacao-rede-visual-ci.log`. O ensaio HTTP de duas contas passou, incluindo indicadores antes/depois da confirmação e correção. No navegador, **antes desta mudança visual**, foram conferidos login, importação de CSV, confirmação pelo membro e correção negativa, sem erro de console. O arquivo `.cache/quadro-societario-2026-08.js` está presente: ensaio anterior reconfirmou 8.736 dirigentes, 2.477 empresas e 383 nomes repetidos entre empresas, sem escrita remota.
+
+Nesta máquina não há `DATABASE_URL`, `POSTGRES_URL` ou `DATABASE_URL_DIRETA` configurada para o operador. Há configuração local de IA, cuja validade remota não foi presumida. Nenhuma conta real de membro foi criada, nenhum lote real foi importado e estas alterações não foram publicadas. Depois de receber o acesso, carregar o ambiente explicitamente e usar o verificador antes da carga. O histórico abaixo preserva o contexto anterior.
+
+## Histórico — retomada em outra máquina (18/09/2026, fim do dia)
 
 Todo o código está commitado e enviado. `main` em `0130c55`, working tree limpo, `origin/main` na mesma altura. `npm run ci` verde: 65 testes de domínio e 166 de servidor, build e lint inclusos.
 

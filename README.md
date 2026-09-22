@@ -1,5 +1,9 @@
 # GHT4 · Agente de M&A
 
+**Agente de relações — 21/09/2026:** fluxo local de importação de contatos, confirmação pelo titular e revisão/retirada preparado para ativação. Consulte [o que pedir à equipe e como ativar](docs/ATIVACAO-REDE-GHT4.md). Esta entrega precisa de publicação na instalação existente; testes locais não comprovam implantação remota.
+
+Nova [visão geral da rede e organização visual](docs/EVOLUCAO-VISUAL-REDE.md), com sugestões pelas pendências reais e navegação por tarefa. Testes automatizados aprovados; conferência visual desta revisão ainda pendente.
+
 ## Agente local com histórico salvo
 
 Para iniciar a versão operacional local, use `npm run iniciar` ou abra **Iniciar Agente GHT4.cmd** no Windows. Acesse **http://127.0.0.1:5173** e configure seu primeiro acesso pela tela. Dependências e instruções: [guia do agente local](docs/runbooks/agente-local.md).

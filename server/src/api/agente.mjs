@@ -6,6 +6,7 @@ import { criarCatalogo } from '../agente/catalogo.mjs';
 import { TAREFAS, executarTarefa, complementarComIA } from '../agente/tarefas.mjs';
 import { autorizarOportunidade } from '../crm/acesso.mjs';
 import { caminhosDeAcesso } from '../rede/caminhos.mjs';
+import { versaoDaRede } from '../rede/estado.mjs';
 import { ReferenciaModelo,filtrosDoContexto } from '../agente/filtros.mjs';
 import { registrarPropostas,mesmosFiltros } from './propostas.mjs';
 
@@ -152,8 +153,10 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
        trabalho a pergunta veio. `rede.ler` é cobrada mesmo sendo permissão de
        todos os papéis — é a rota que declara o que toca, não a tabela. */
     let rede = null;
+    let redeVersao = null;
     if (p.tarefa === 'mapear_acesso') {
       req.exigir('rede.ler');
+      redeVersao = await versaoDaRede(db);
       const escopo = conversa.mandato_id ? `mandato:${conversa.mandato_id}` : `usuario:${conversa.usuario_id}`;
       rede = { caminhos: (args) => caminhosDeAcesso(db, { ...args, escopo, usuario: req.usuario }) };
     }
@@ -184,6 +187,10 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
     await autorizar(req, conversa.id, 'agente.usar');
     if (contexto.oportunidadeId) await autorizarOportunidade(req,db,contexto.oportunidadeId);
     const salvo = await db.transaction(async (tx) => {
+      if (redeVersao !== null) {
+        const atualRede = (await tx.query('SELECT versao FROM rede_estado WHERE id=1 FOR UPDATE')).rows[0].versao;
+        if (atualRede !== redeVersao) throw new ErroHttp(409,'rede_atualizada','A rede mudou durante a consulta. Execute novamente para usar os vínculos atuais.');
+      }
       const atual = (await tx.query('SELECT * FROM agente_conversas WHERE id = $1 FOR UPDATE', [conversa.id])).rows[0];
       const repetido = (await tx.query('SELECT * FROM agente_turnos WHERE conversa_id = $1 AND chave = $2', [conversa.id, p.chave])).rows[0];
       if (repetido) {

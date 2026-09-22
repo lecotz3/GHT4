@@ -69,7 +69,7 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
     <header className="flex flex-wrap items-center gap-4 border-b border-fio bg-papel px-5 py-5 md:px-8">
       <MarcaGHT4 />
       <div><p className="text-xs font-semibold text-suave">GHT4 Advisory</p><h1 className="text-xl font-semibold">Agente de M&amp;A</h1></div>
-      <div className="ml-auto flex items-center gap-3 text-sm">
+      <div className="ml-auto flex flex-wrap items-center gap-3 text-sm">
         {usuario && !convite && <><span>{usuario.nome}</span>{!equipe && !crm && !rede && <button className={secundario} onClick={() => setCrm({ id: null })}>Oportunidades</button>}{!equipe && !crm && !rede && <button className={secundario} onClick={() => setRede(true)}>Rede</button>}{usuario.papel === 'admin' && !equipe && !crm && !rede && <button className={secundario} onClick={() => setEquipe(true)}>Equipe</button>}<button className={secundario} onClick={() => void sair()} disabled={ocupado}>Sair</button></>}
         {!convite && <button className="text-xs text-suave underline underline-offset-4" onClick={aoExplorar}>Explorar demonstração</button>}
       </div>
@@ -251,7 +251,7 @@ function EspacoDoAgente({ usuario, aoExpirar, versaoEquipe, aoAbrirCrm, trabalho
           </>}
           {tarefa === 'preparar_reuniao' && <p className="text-sm">{contexto.empresaId ? `Empresa: ${empresaEscolhida?.nome || contexto.empresaId}` : 'Primeiro encontre uma empresa e selecione “Preparar reunião” no resultado.'}</p>}
           {tarefa === 'mapear_acesso' && <p className="rounded-ficha bg-papel-2 p-3 text-sm">{contexto.empresaId
-            ? `Empresa: ${empresaEscolhida?.nome || contexto.empresaId}. O agente consulta a rede de relacionamento da casa — nada é enviado para fora, e o cadastro público não informa dirigentes nem contatos.`
+            ? `Empresa: ${empresaEscolhida?.nome || contexto.empresaId}. O agente consulta a rede da casa e as evidências registradas. Nomes do quadro societário não comprovam relacionamento; cada apresentação depende de confirmação.`
             : 'Primeiro encontre uma empresa e selecione “Abrir caminho” no resultado.'}</p>}
           {tarefa === 'preparar_reuniao' && contexto.objetivo && <p className="text-xs leading-relaxed text-suave">Objetivo salvo: {contexto.objetivo}</p>}
           {tarefa === 'interpretar_busca' && <p className="rounded-ficha bg-papel-2 p-3 text-sm">{estado.iaConfigurada ? 'O pedido e os cinco filtros atuais serão enviados ao provedor configurado. Documentos, objetivo e histórico ficam fora desta interpretação.' : 'Regras locais disponíveis, sem IA. Exemplo: Distribuidoras em SP para compra; busca: Adequim; incluir possíveis. Pedidos não reconhecidos ficam como pendências.'} A prévia será salva para você conferir antes de aplicar.</p>}

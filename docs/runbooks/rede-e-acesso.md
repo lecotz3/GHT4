@@ -1,6 +1,6 @@
 # Rede de relacionamento e caminhos de acesso
 
-Habilidade **Abrir caminho até a liderança** (`mapear_acesso`) e a tela **Rede** que a alimenta. Implementa P1 e a primeira metade de P2 do [plano de relações](../planejamento-prospeccao/PLANO-RELACOES-E-ACESSO.md).
+Habilidade **Abrir caminho até a liderança** (`mapear_acesso`) e a tela **Rede** que a alimenta. Atualização de 21/09: importação de contatos com prévia e retirada de lote, associação de contas e confirmação pelo titular estão implementadas localmente. Estado de publicação, roteiro de ativação e lista para a equipe em [Ativação da rede](../ATIVACAO-REDE-GHT4.md).
 
 ## O que ela responde
 
@@ -8,7 +8,7 @@ Escolhida uma empresa, quem da GHT4 alcança quem decide lá dentro, por meio de
 
 ## O que ela não faz
 
-Não descobre pessoas. O catálogo cadastral do agente vem da Receita Federal e **não traz uma pessoa sequer** — nem sócio, nem diretor, nem contato. Tudo o que a habilidade sabe foi digitado por alguém da casa na tela Rede.
+O catálogo de empresas não traz nomes de dirigentes. Eles entram por uma importação separada do quadro societário, pelo cadastro manual ou pelos lotes de contatos compartilhados. Nenhuma dessas fontes confirma sozinha que alguém da GHT4 tenha relacionamento com a pessoa.
 
 Disso decorre a distinção que mais importa na leitura do resultado: uma empresa sem caminhos pode significar **a casa ainda não mapeou** ou **mapeou e não há vínculo**. O resultado sempre diz qual dos dois, porque tratá-los como a mesma coisa faria o agente desaconselhar uma abordagem por ignorância própria.
 
@@ -60,7 +60,7 @@ A pergunta 3 só existe depois de haver a lista de nomes. É o que o importador 
 
 Escolha por quem está respondendo, opcionalmente filtre por empresa, e responda uma pessoa por vez. A fila vem **por poder de decisão**: quem aprova a transação aparece antes de quem não aprova, porque é ali que a atenção de quem responde vale mais.
 
-Quatro respostas. As três positivas viram vínculo e pedem a evidência; a negativa não pede nada.
+Seis respostas: posso apresentar, conheço, talvez, não conheço, não quero intermediar e informação desatualizada. A negativa não exige evidência; as demais registram a origem ou a correção. O membro vinculado a uma conta responde pela própria rede; administradores e sócios também podem registrar a resposta de outro titular. A opção **Revisar respostas já registradas** permite corrigir a rodada.
 
 **O "não conheço" é o registro mais importante da tela.** Sem ele o produto não distingue *"a rede não foi consultada"* de *"foi consultada e não há caminho"* — e essas duas respostas levam a decisões opostas: uma manda procurar outra via, a outra manda parar. Ele também impede que o mesmo par seja perguntado de novo daqui a um mês por outro analista.
 
@@ -70,7 +70,7 @@ O resultado do agente passa a distinguir quatro situações, não duas:
 | --- | --- |
 | `nao_mapeada` | Ninguém desta empresa está cadastrado |
 | `nao_perguntada` | Há gente mapeada e ninguém da casa foi perguntado. **Isto é "não apurado", não "não há caminho"** |
-| `perguntada`, sem caminho | A busca por dentro da rede se esgotou; procure uma ponte de fora |
+| `perguntada`, sem caminho | Nenhum caminho nas respostas recebidas. Conferir os pares membro–pessoa ainda pendentes antes de encerrar a rodada; fontes externas não foram esgotadas |
 | `perguntada`, com caminho | Os caminhos, ordenados |
 
 ## Importar o quadro societário público
@@ -81,7 +81,7 @@ Os alvos da casa são distribuidoras químicas **fechadas**. Nelas o sócio-admi
 
 ```
 node ferramentas/importar-quadro-societario.mjs --ensaio                    # conta, não grava
-node ferramentas/importar-quadro-societario.mjs --confirmo-a-decisao-lgpd   # grava
+node ferramentas/importar-quadro-societario.mjs --confirmo-a-decisao-lgpd --destino=HOST:PORTA/BANCO   # após conferir o destino
 ```
 
 > **Grava no banco apontado por `DATABASE_URL`.** Rodando contra produção, é uma escrita de dado pessoal de terceiro: confira o alvo com `npm run conferir --prefix server` antes.
@@ -172,10 +172,10 @@ Dentro da categoria, uma pontuação com as parcelas à vista: cargo do alvo (co
 
 `packages/domain/conexoes.mjs` e a tela `Conexoes.tsx` continuam sendo a **demonstração offline**, com armazenamento local e pesos ilustrativos. Não compartilham código com esta implementação, e seus pesos não foram promovidos ao ranking operacional — o plano pede exatamente isso.
 
-## O que falta do plano
+## Extensões além do fluxo atual
 
-- Importação por lote de fontes externas (LinkedIn, CRM) com prévia, duplicidades e retirada do lote. O quadro societário público já entra; o resto não.
-- Fila de revisão de homônimos na interface, com fusão reversível. Hoje o importador conta e reporta, sem fundir.
+- CSV de contatos selecionados já entra com prévia, revisão de identidade e retirada. Sincronização automática com serviços externos ainda depende de integração específica.
+- A prévia permite escolher uma pessoa existente ou conservar homônimos distintos; não há fusão automática de cadastros antigos.
 - Histórico profissional das pessoas da casa, que é a fonte mais barata de intermediários: quem passou pela mesma empresa na mesma janela vira candidato a ponte. Candidato gera pergunta, nunca aresta.
 - Conexão com e-mail e agenda para atualizar recência.
-- Confirmação pelo próprio titular dentro do produto. Hoje quem registra a resposta pode ser outra pessoa; o carimbo guarda quem anotou, e a auditoria guarda o resto.
+- Confirmação pelo titular já está disponível quando sua conta está vinculada em Pessoas da GHT4. O carimbo continua distinguindo titular de quem registrou a resposta.

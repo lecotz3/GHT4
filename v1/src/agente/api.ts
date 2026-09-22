@@ -41,6 +41,7 @@ export interface PessoaRede {
   organizacao: string; empresaId: string | null; ativo: boolean; versao?: number
   email?: string | null; telefone?: string | null; linkedin?: string | null
   observacoes?: string; camposOmitidos: string[]
+  usuarioId?: string | null; origem?: string; origemReferencia?: string
 }
 export interface Ligacao {
   id: string; de: string; para: string
@@ -61,13 +62,15 @@ export interface Caminho {
 export interface PendenteReconhecimento {
   id: string; nome: string; cargo: string; senioridade: string
   organizacao: string; empresa_id: string | null
-  origem: 'manual' | 'cadastro_publico'; origem_referencia: string
+  origem: 'manual' | 'cadastro_publico' | 'importacao'; origem_referencia: string
+  resposta_versao: number; resposta_anterior?: string | null
 }
 export interface FilaReconhecimento {
   quem: { id: string; nome: string } | null
   pendentes: PendenteReconhecimento[]
   respostas: { id: string; rotulo: string; gera: string | null }[]
   total: number; respondidas: number; cobertura: number; aviso?: string
+  podeResponder?: boolean
 }
 
 export interface MapaDeAcesso {

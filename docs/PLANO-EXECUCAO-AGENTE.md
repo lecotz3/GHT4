@@ -1,5 +1,7 @@
 # Execução do agente de M&A da GHT4
 
+> Para o estado atual de B13 (relações) em 21/09/2026, consulte [Ativação da rede](ATIVACAO-REDE-GHT4.md). A matriz abaixo preserva o planejamento de 14/09 e não representa o estado de publicação das alterações mais recentes.
+
 Atualização: 14/09/2026. Piloto confirmado: **Distribuição e Trading Químico**, equilibrando mandatos de compra e venda. Esta matriz distingue implementação, configuração e aceitação pela GHT4. O plano completo ainda não está homologado.
 
 ## Fluxo operacional disponível

@@ -1,5 +1,7 @@
 # Plano de ação — acesso às empresas e relações da GHT4
 
+> Atualização de 21/09/2026: importação de CSV com prévia/identidade/retirada, conta vinculada ao membro, confirmação própria e revisão de respostas foram implementadas localmente. A sequência de publicação, carga e coleta de informações está em [Ativação da rede](../ATIVACAO-REDE-GHT4.md). As seções de estado datadas abaixo são histórico do planejamento.
+
 Preparado em 14/09/2026 a partir do caso de uso informado pelo usuário. Este documento planeja a implementação; não declara conectores ativados, relações descobertas ou apresentações realizadas. Piloto proposto: Distribuição e Trading Químico, 50 empresas e 3–5 participantes voluntários. Participantes e ambiente de e-mail/agenda aguardam resposta; o piloto também pode começar com uma única pessoa.
 
 ## 0. Estado da implementação em 18/09/2026

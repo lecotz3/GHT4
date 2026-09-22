@@ -78,7 +78,7 @@ export async function executarTarefa({ tarefa, texto, contexto, catalogo, acoes,
     const r = await rede.caminhos({ empresaId: empresa.id, nomeEmpresa: empresa.nome });
     const fonteRede = { titulo: 'Rede de relacionamento da GHT4',
       referencia: `${r.pessoasConhecidas} pessoas mapeadas nesta empresa · ${r.caminhos.length} caminhos · fontes conectadas: ${r.cobertura.fontesConectadas.join(', ')}`,
-      descricao: `Conhecimento da casa, digitado por quem o tem. Nada aqui vem do cadastro público, que não informa dirigentes nem contatos. Sem conexão com: ${r.cobertura.fontesNaoConectadas.join(', ')}.` };
+      descricao: `Pessoas cadastradas pela equipe, importadas de fontes compartilhadas ou do quadro societário público. Cadastro de pessoa não confirma relacionamento. Sem conexão com: ${r.cobertura.fontesNaoConectadas.join(', ')}.` };
 
     /* Empresa marcada como não contatar encerra o assunto antes de qualquer
        sugestão. Listar caminhos e só depois avisar seria oferecer a porta e
@@ -156,7 +156,9 @@ export async function executarTarefa({ tarefa, texto, contexto, catalogo, acoes,
     ] });
     else if (!uteis.length) blocos.push({ titulo: 'Perguntado, e sem caminho até aqui', itens: [
       `${r.cobertura.pessoasPerguntadas} de ${r.pessoasConhecidas} pessoas já foram mostradas a alguém da casa, com ${r.cobertura.negativas} "não conheço".`,
-      'Aqui a busca por dentro da rede se esgotou. O passo seguinte é procurar uma ponte de fora, não insistir na mesma lista.',
+      r.cobertura.apuracaoCompleta
+        ? 'Todos os pares entre membros e pessoas cadastradas deste recorte foram respondidos. Nenhum caminho foi localizado nessas respostas; outras fontes e intermediários ainda podem abrir acesso.'
+        : `A apuração está incompleta: faltam ${r.cobertura.perguntasPendentes} respostas entre membros e pessoas cadastradas. Consulte os demais membros antes de concluir.`,
     ] });
 
     const abertura = r.restricao && !r.restricao.ativa ? 'Restrição de contato já registrada e retirada para este espaço. ' : '';
@@ -167,7 +169,7 @@ export async function executarTarefa({ tarefa, texto, contexto, catalogo, acoes,
         : r.pessoasConhecidas
           ? r.cobertura.situacao === 'nao_perguntada'
             ? `${r.pessoasConhecidas} ${r.pessoasConhecidas === 1 ? 'pessoa mapeada' : 'pessoas mapeadas'} nesta empresa, e nenhuma ainda foi mostrada a alguém da casa. Isto é "não apurado", não "não há caminho".`
-            : `${r.cobertura.pessoasPerguntadas} de ${r.pessoasConhecidas} pessoas já foram perguntadas e nenhum vínculo apareceu. A busca por dentro da rede se esgotou para esta empresa.`
+            : `${r.cobertura.pessoasPerguntadas} de ${r.pessoasConhecidas} pessoas já foram perguntadas e nenhum vínculo apareceu. ${r.cobertura.apuracaoCompleta ? 'O recorte cadastrado foi consultado; fontes externas e pessoas ainda não cadastradas não foram esgotadas.' : `A apuração ainda está incompleta: ${r.cobertura.perguntasPendentes} respostas pendentes.`}`
           : 'Nenhuma pessoa desta empresa está mapeada na rede da casa. A rede foi consultada e não retornou resultado — o que é diferente de não haver relacionamento.';
 
     return { ...resposta, titulo: `Caminho até a liderança — ${empresa.nome}`,

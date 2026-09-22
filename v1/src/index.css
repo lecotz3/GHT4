@@ -150,6 +150,18 @@
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
+/* Superfícies da rede: mantêm os tokens e o contraste da identidade GHT4. */
+.rede-ui .rounded-ficha { border-radius: 8px; }
+.rede-ui button:not(:disabled), .rede-ui summary { cursor: pointer; }
+.rede-ui button:disabled { cursor: not-allowed; }
+.rede-ui input, .rede-ui select, .rede-ui textarea { min-width: 0; }
+.rede-ui input[type="checkbox"] { accent-color: var(--color-comprador); }
+.rede-ui article, .rede-ui label { overflow-wrap: anywhere; }
+.rede-progresso { height: 6px; display: block; appearance: none; border: 0; border-radius: 999px; overflow: hidden; background: var(--color-papel-2); }
+.rede-progresso::-webkit-progress-bar { background: var(--color-papel-2); }
+.rede-progresso::-webkit-progress-value { background: var(--color-comprador); border-radius: 999px; }
+.rede-progresso::-moz-progress-bar { background: var(--color-comprador); border-radius: 999px; }
+
 /* =============================================================================
  *  IMPRESSÃO — o PDF do Módulo 9
  * -----------------------------------------------------------------------------
