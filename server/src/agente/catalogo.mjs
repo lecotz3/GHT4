@@ -73,6 +73,7 @@ export function criarCatalogo({ arquivo = ARQUIVO } = {}) {
         proximoOffset: offset + limite < filtradas.length ? offset + limite : null,
         cobertura: { receitaApurada: 0, intencaoApurada: 0, classificacao: filtradas.length, universo: filtradas.length },
         referencia: base.referencia, hash: base.hash, totalOrigem: base.totalOrigem,
+        fonte: 'Receita Federal · CNPJ', subsetor: SUBSETOR,
       };
     },
     async obter(id) { return (await carregar()).empresas.find((e) => e.id === id) ?? null; },

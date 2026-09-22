@@ -103,5 +103,5 @@ export interface Trabalho { conversa: Conversa; turnos: Turno[]; acoes: Acao[] }
 export interface EstadoAgente {
   tarefas: { id: Tarefa; titulo: string; descricao: string }[]; iaConfigurada: boolean
   ia?: { provedor: string; modelo: string; web: boolean; pedidosUsuarioDia: number; pedidosDia: number; tokensSaida: number } | null
-  base: { disponivel: boolean; total?: number; referencia?: string; mensagem?: string }
+  base: { disponivel: boolean; total?: number; referencia?: string; mensagem?: string; totalOrigem?: number; fonte?: string; subsetor?: string }
 }

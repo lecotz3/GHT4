@@ -136,12 +136,12 @@ export function Rede({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpirar:
     { id: 'externo', titulo: 'Intermediários', icone: 'rede' },
     { id: 'ght4', titulo: 'Pessoas da GHT4', icone: 'pessoas' },
   ] as const
-  return <main className="rede-ui mx-auto max-w-[1440px] space-y-6 px-4 py-6 md:px-8 md:py-8">
+  return <main className="rede-ui agente-pagina space-y-6">
     <div className="flex flex-wrap items-center gap-3">
       <div className="mr-auto">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-suave">Inteligência de relacionamento</p>
+        <p className="agente-sobretitulo">Inteligência de relacionamento</p>
         <h2 className="mt-2 text-2xl font-semibold tracking-tight md:text-3xl">Rede de relacionamento</h2>
-        <p className="mt-2 text-sm text-suave">Pessoas, evidências e caminhos de acesso da GHT4.</p>
+        <p className="mt-2 text-sm text-suave">Descubra quem conhece quem e confirme o caminho até a próxima conversa.</p>
       </div>
       <button className={`${secundario} inline-flex items-center gap-2`} onClick={aoVoltar} disabled={ocupado}><IconeRede nome="voltar" className="size-4" />Voltar ao agente</button>
     </div>
@@ -154,6 +154,7 @@ export function Rede({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpirar:
       <div className="mt-5 hidden px-3 lg:block"><p className="text-xs font-medium">Uma rede com evidência</p><p className="mt-2 text-xs leading-relaxed text-suave">Um nome cadastrado é um ponto de partida. A confirmação de quem conhece transforma o contato em relação.</p>{!estado.veContatos && <p className="mt-3 text-xs leading-relaxed text-suave">Seu acesso mantém os dados de contato direto ocultos.</p>}</div>
     </aside>
     <div className="min-w-0 space-y-5">
+    {!estado.veContatos && <p className="text-xs text-suave">Seu acesso mantém os dados de contato direto ocultos.</p>}
     {erro && <p role="alert" className="rounded-lg border border-alerta-fio bg-alerta-fundo p-4 text-sm text-alerta">{erro}</p>}
     {aviso && <p role="status" className="rounded-lg border border-comprador-fio bg-comprador-fundo p-4 text-sm text-comprador">{aviso}</p>}
     {aba !== 'visao' && <div className="flex flex-wrap items-start justify-between gap-4"><div><h3 className="text-xl font-semibold tracking-tight">{navegacao.find(n => n.id === aba)?.titulo}</h3><p className="mt-1 text-xs leading-relaxed text-suave">{cadastro ? descricaoDoLado : aba === 'reconhecimento' ? 'Uma pessoa por vez. Cada resposta deixa a rede mais precisa.' : 'Selecione, confira e compartilhe com autorização.'}</p></div>{cadastro && estado.podeEditar && <button className={`${botao} inline-flex items-center gap-2`} aria-expanded={mostrarCadastro} aria-controls="cadastro-rede" disabled={ocupado} onClick={() => { setMostrarCadastro(v => !v); setEditar(null); setForm(vazio) }}><IconeRede nome="mais" className="size-4" />{mostrarCadastro ? 'Fechar cadastro' : 'Adicionar pessoa'}</button>}</div>}

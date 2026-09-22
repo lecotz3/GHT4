@@ -54,7 +54,8 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
     let base;
     try {
       const r = await catalogo.buscar({ limite: 0 });
-      base = { disponivel: true, total: r.total, referencia: r.referencia };
+      base = { disponivel: true, total: r.total, referencia: r.referencia,
+        totalOrigem: r.totalOrigem, fonte: r.fonte, subsetor: r.subsetor };
     } catch { base = { disponivel: false, mensagem: 'A base de empresas não está disponível. As ações e o histórico continuam acessíveis.' }; }
     return { tarefas: TAREFAS, iaConfigurada: Boolean(servicoIA || redigirIA), ia: servicoIA?.status ?? null, base };
   });

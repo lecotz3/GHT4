@@ -3,6 +3,7 @@ import { api, ErroApi } from '../agente/api'
 import { RotinaOportunidade, PainelComercial } from './RotinaOportunidade'
 import { AcervoOportunidade } from './AcervoOportunidade'
 import { ExportarEntrega } from './ExportarEntrega'
+import { IconeRede } from './IconeRede'
 import { botao, campo, secundario, hojeLocal, dataCurta, type Oportunidade, type Etapa, type FichaOportunidade } from '../agente/prospeccao'
 
 type Lista = { oportunidades: Oportunidade[]; total: number; offset: number; limite: number; hoje: string; etapas: Etapa[] }
@@ -16,12 +17,14 @@ function comChave<T extends object>(ref: RefObject<Envio>, corpo: T) {
 
 export function Oportunidades({ inicialId, aoVoltar, aoExpirar, aoAbrirTrabalho }: { inicialId: string | null; aoVoltar: () => void; aoExpirar: () => void; aoAbrirTrabalho: (id:string) => void }) {
   const [id, setId] = useState(inicialId)
+  const [abaFicha, setAbaFicha] = useState('acompanhamento')
   const [lista, setLista] = useState<Lista | null>(null)
   const [ficha, setFicha] = useState<FichaOportunidade | null>(null)
   const [filtros, setFiltros] = useState<Filtros>({ busca: '', frente: '', etapa: '', pendentes: 'todas' })
   const [consulta, setConsulta] = useState(filtros)
   const [offset, setOffset] = useState(0)
   const [erro, setErro] = useState('')
+  const [aviso, setAviso] = useState('')
   const [carregando, setCarregando] = useState(false)
   const sequencia = useRef(0)
   const falhou = useCallback((e: unknown) => {
@@ -41,34 +44,40 @@ export function Oportunidades({ inicialId, aoVoltar, aoExpirar, aoAbrirTrabalho 
         const r = await api<Lista>(`/api/crm/oportunidades?${q}`)
         if (n === sequencia.current) setLista(r)
       }
+      return n === sequencia.current
     } catch (e) { if (n === sequencia.current) { setFicha(null); setLista(null); falhou(e) } }
     finally { if (n === sequencia.current) setCarregando(false) }
   }, [id, offset, consulta, falhou])
   const invalidarConsulta = useCallback(() => { sequencia.current++ }, [])
   useEffect(() => { void carregar(); return invalidarConsulta }, [carregar, invalidarConsulta])
-  function abrir(proxima: string | null) { setFicha(null); setId(proxima); window.scrollTo({ top: 0, behavior: 'smooth' }) }
+  async function salvo() { if (await carregar()) setAviso('Alteração salva. O registro está disponível no Histórico.') }
+  function abrir(proxima: string | null) { setFicha(null); setId(proxima); setAviso(''); setAbaFicha('acompanhamento'); window.scrollTo({ top: 0, behavior: 'instant' }) }
   function filtrar(e: FormEvent) { e.preventDefault(); setOffset(0); setConsulta({ ...filtros }) }
   const etapaNome = (valor: string) => (ficha?.etapas || lista?.etapas || []).find((e) => e.id === valor)?.nome || valor
 
-  return <main className="mx-auto max-w-6xl space-y-6 px-5 py-7 md:px-8">
+  return <main className="agente-pagina space-y-6">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><h2 className="text-2xl font-semibold">Oportunidades</h2><p className="mt-1 text-sm text-suave">Da empresa investigada à contratação da GHT4, com próximos passos e histórico.</p></div>
+      <div><span className="agente-sobretitulo">Conversas que avançam</span><h2 className="mt-3 text-3xl font-semibold tracking-tight">Oportunidades</h2><p className="mt-3 text-sm text-suave">Saiba quem acompanhar, o que fazer e quando dar o próximo passo.</p></div>
       <div className="flex gap-2">{id && <button className={secundario} onClick={() => abrir(null)}>Todas as oportunidades</button>}<button className={secundario} onClick={aoVoltar}>Voltar ao agente</button></div>
     </div>
     {erro && <p role="alert" className="rounded-ficha border border-alerta-fio bg-alerta-fundo p-4 text-sm">{erro} <button className="underline" onClick={() => void carregar()}>Reabrir registro</button></p>}
     {carregando && <p role="status" className="text-sm text-suave">Carregando oportunidades…</p>}
+    {aviso && <div className="agente-feedback"><IconeRede nome="certo" /><p role="status">{aviso}</p><button aria-label="Fechar aviso" onClick={() => setAviso('')}><IconeRede nome="fechar" /></button></div>}
     {!id && <>
       <PainelComercial aoAbrir={abrir} aoFalhar={falhou} />
-      <form onSubmit={filtrar} className="grid items-end gap-3 rounded-ficha border border-fio bg-papel p-4 sm:grid-cols-2 lg:grid-cols-5">
+      <form onSubmit={filtrar} className="agente-superficie space-y-4 p-5">
+        <div className="flex flex-wrap items-end gap-3"><div className="min-w-0 flex-1">
         <label className="text-sm">Empresa ou oportunidade<input className={`${campo} mt-1`} value={filtros.busca} onChange={(e) => setFiltros({ ...filtros, busca: e.target.value })} maxLength={120} /></label>
+        </div><button className={botao} disabled={carregando}>Aplicar filtros</button></div>
+        <details className="agente-opcoes"><summary>Filtrar por frente, etapa e prazo{[consulta.frente, consulta.etapa, consulta.pendentes !== 'todas' ? consulta.pendentes : ''].some(Boolean) ? ' · filtros ativos' : ''}</summary><div className="grid gap-3 sm:grid-cols-3">
         <label className="text-sm">Frente<select className={`${campo} mt-1`} value={filtros.frente} onChange={(e) => setFiltros({ ...filtros, frente: e.target.value })}><option value="">Compra e venda</option><option value="compra">Compra</option><option value="venda">Venda</option></select></label>
         <label className="text-sm">Etapa<select className={`${campo} mt-1`} value={filtros.etapa} onChange={(e) => setFiltros({ ...filtros, etapa: e.target.value })}><option value="">Todas as etapas</option>{lista?.etapas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}</select></label>
         <label className="text-sm">Próximos passos<select className={`${campo} mt-1`} value={filtros.pendentes} onChange={(e) => setFiltros({ ...filtros, pendentes: e.target.value })}><option value="todas">Todos os registros</option><option value="minhas">Minhas pendências</option><option value="atrasadas">Atrasados</option></select></label>
-        <button className={botao} disabled={carregando}>Aplicar filtros</button>
+        </div></details>
       </form>
       {lista && <>
         <p role="status" className="text-sm text-suave">{lista.total} {lista.total === 1 ? 'oportunidade' : 'oportunidades'} neste recorte{lista.total > 0 ? ` · exibindo ${lista.offset + 1} a ${Math.min(lista.offset + lista.limite,lista.total)}` : ''}. Ordem por prazo.</p>
-        {lista.total === 0 && <p className="rounded-ficha border border-fio bg-papel p-6 text-sm">Nenhuma oportunidade neste recorte. Ajuste os filtros para ver outros registros. Para começar uma oportunidade, revise uma empresa no agente, escolha “Priorizar” e depois “Criar oportunidade”.</p>}
+        {lista.total === 0 && <section className="agente-vazio-generoso agente-superficie"><span className="agente-icone-bloco"><IconeRede nome="empresa" /></span><h3>Nenhuma oportunidade neste recorte</h3><p>Ajuste os filtros ou comece por uma empresa. No resultado da pesquisa, use <strong>Revisar empresa → Priorizar → Criar oportunidade</strong>.</p><button className="agente-btn-primario" onClick={aoVoltar}>Ir ao agente<IconeRede nome="seta" /></button></section>}
         <div className="grid gap-4 md:grid-cols-2">{lista.oportunidades.map((o) => {
           const encerrada = ['mandato_assinado','perdida'].includes(o.etapa)
           const atrasada = !encerrada && !o.acao_concluida && o.prazo < lista.hoje
@@ -79,25 +88,29 @@ export function Oportunidades({ inicialId, aoVoltar, aoExpirar, aoAbrirTrabalho 
             <button className={secundario} onClick={() => abrir(o.id)}>Abrir oportunidade</button>
           </article>
         })}</div>
-        <div className="flex gap-3"><button className={secundario} disabled={offset === 0 || carregando} onClick={() => setOffset(Math.max(0,offset - 30))}>Página anterior</button><button className={secundario} disabled={offset + lista.limite >= lista.total || carregando} onClick={() => setOffset(offset + 30)}>Próxima página</button></div>
+        {lista.total > lista.limite && <div className="flex gap-3"><button className={secundario} disabled={offset === 0 || carregando} onClick={() => setOffset(Math.max(0,offset - 30))}>Página anterior</button><button className={secundario} disabled={offset + lista.limite >= lista.total || carregando} onClick={() => setOffset(offset + 30)}>Próxima página</button></div>}
       </>}
     </>}
     {id && ficha && <>
-      {ficha.permissoes.editar && <ExportarEntrega origem={{ oportunidadeId:id,versao:ficha.oportunidade.versao }} aoFalhar={falhou} />}
       <section className="space-y-3 rounded-ficha border border-fio bg-papel p-5">
         <p className="text-xs font-semibold text-comprador">{ficha.oportunidade.frente === 'compra' ? 'Compra' : 'Venda'} · {etapaNome(ficha.oportunidade.etapa)}</p>
         <h3 className="text-xl font-semibold">{ficha.oportunidade.titulo}</h3>
         <p className="text-sm">{ficha.oportunidade.empresa.nome} · {ficha.oportunidade.empresa.cidade}/{ficha.oportunidade.empresa.uf} · CNPJ raiz {ficha.oportunidade.empresa.cnpjRaiz}</p>
         <p className="text-xs text-suave">{ficha.oportunidade.espaco ? `Compartilhada no espaço: ${ficha.oportunidade.espaco}` : 'Oportunidade privada'} · Responsável: {ficha.oportunidade.responsavel_nome}</p>
+        <div className="agente-proximo-passo"><IconeRede nome="agenda" /><div><span>{ficha.oportunidade.acao_concluida ? 'Próximo passo concluído' : 'Próximo passo'} · {dataCurta(ficha.oportunidade.prazo)}</span><p>{ficha.oportunidade.proxima_acao}</p></div></div>
+        <details className="text-sm"><summary>Objetivo desta oportunidade</summary><p className="mt-2 whitespace-pre-wrap leading-relaxed text-suave">{ficha.oportunidade.objetivo}</p></details>
         <details className="text-xs text-suave"><summary className="cursor-pointer">Origem e limites dos dados</summary>{ficha.oportunidade.fontes.map((f,i) => <p key={i} className="mt-2">{f.titulo} · {f.referencia}. {f.descricao}</p>)}<p className="mt-2">A seleção vem de um resultado salvo do agente. O cadastro não demonstra intenção de compra ou venda. As atividades abaixo são registros declarados pela equipe.</p></details>
       </section>
-      <RotinaOportunidade key={id} ficha={ficha} aoSalvar={carregar} aoFalhar={falhou} />
-      <AcervoOportunidade key={`acervo-${id}`} ficha={ficha} aoFalhar={falhou} aoAbrirTrabalho={aoAbrirTrabalho} aoAbrirOportunidade={abrir} aoAtualizar={carregar} />
-      <div className="grid items-start gap-6 lg:grid-cols-2">
-        <EditarOportunidade key={`editar-${id}-${ficha.oportunidade.versao}`} ficha={ficha} aoSalvar={carregar} aoFalhar={falhou} />
-        <RegistrarAtividade key={`atividade-${id}-${ficha.oportunidade.versao}`} ficha={ficha} aoSalvar={carregar} aoFalhar={falhou} />
+      <nav className="agente-secoes" aria-label="Conteúdo da oportunidade">{[{id:'acompanhamento',nome:'Acompanhamento'},{id:'atividade',nome:'Registrar atividade'},{id:'documentos',nome:'Documentos e entregas'},{id:'historico',nome:'Histórico'}].map(a => <button key={a.id} aria-pressed={abaFicha === a.id} onClick={() => setAbaFicha(a.id)}>{a.nome}</button>)}</nav>
+      <div hidden={abaFicha !== 'acompanhamento'} className="space-y-5">
+        <RotinaOportunidade key={id} ficha={ficha} aoSalvar={salvo} aoFalhar={falhou} />
+        <details className="agente-superficie p-5"><summary className="text-sm font-semibold">Editar objetivo e próximo passo</summary><div className="mt-4"><EditarOportunidade key={`editar-${id}-${ficha.oportunidade.versao}`} ficha={ficha} aoSalvar={salvo} aoFalhar={falhou} /></div></details>
       </div>
-      <section className="space-y-3" aria-label="Histórico da oportunidade"><h3 className="text-lg font-semibold">Histórico da oportunidade</h3>
+      <div hidden={abaFicha !== 'atividade'} className="max-w-3xl">
+        <RegistrarAtividade key={`atividade-${id}-${ficha.oportunidade.versao}`} ficha={ficha} aoSalvar={salvo} aoFalhar={falhou} />
+      </div>
+      {abaFicha === 'documentos' && <div className="space-y-5">{ficha.permissoes.editar && <ExportarEntrega origem={{ oportunidadeId:id,versao:ficha.oportunidade.versao }} aoFalhar={falhou} />}<AcervoOportunidade key={`acervo-${id}`} ficha={ficha} aoFalhar={falhou} aoAbrirTrabalho={aoAbrirTrabalho} aoAbrirOportunidade={abrir} aoAtualizar={salvo} /></div>}
+      <section hidden={abaFicha !== 'historico'} className="space-y-3" aria-label="Histórico da oportunidade"><h3 className="text-lg font-semibold">Histórico da oportunidade</h3>
         <p className="text-xs text-suave">Registros informados pela equipe. Referências de proposta e contrato não são verificadas automaticamente. Exibindo até 100 registros recentes.</p>
         {ficha.historico.map((h) => <article key={h.id} className="space-y-2 rounded-ficha border border-fio bg-papel p-4">
           <p className="text-xs text-suave">{dataCurta(h.ocorrido_em)} · {h.autor} · registrado em {new Date(h.criado_em).toLocaleString('pt-BR')}</p>

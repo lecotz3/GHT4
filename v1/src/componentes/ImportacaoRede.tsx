@@ -62,9 +62,15 @@ export function ImportacaoRede({ podeEditar, aoFalhar, aoMudar }: { podeEditar:b
     await api(`/api/rede/importacoes/${retirar}/retirar`,'POST',{motivo});setRetirar('');setMotivo('');setAviso('Lote retirado dos caminhos. Confirmações independentes da equipe permanecem.');await carregar();aoMudar()
   }catch(e){aoFalhar(e)}finally{setOcupado(false)}}
   function mudarLinha(i:number,valor:string){setLinhas(ls=>ls.map((l,n)=>n===i?{...l,acao:valor==='nova'?'nova':valor==='ignorar'?'ignorar':'existente',pessoaId:valor.length>10?valor:undefined,identidadeRevisada:valor==='nova'}:l));setPrevia(p=>p?{...p,hash:''}:null)}
-  const etapa = !titular || fonte.trim().length < 3 || autorizacao.trim().length < 10 || !compartilhado ? 0 : texto ? 2 : 1
+  const etapa = !titular || fonte.trim().length < 3 || autorizacao.trim().length < 10 || !compartilhado ? 0 : previa ? 2 : 1
+  const pendenciaPrevia = !titular ? 'Selecione a pessoa da GHT4 que é titular dos contatos.'
+    : fonte.trim().length < 3 ? 'Descreva a fonte dos contatos com pelo menos 3 caracteres.'
+      : autorizacao.trim().length < 10 ? 'Registre quem autorizou e a finalidade, com pelo menos 10 caracteres.'
+        : !compartilhado ? 'Confirme a autorização do titular antes de continuar.'
+          : !texto ? 'Selecione um arquivo CSV para conferir as colunas.'
+            : mapa.nome < 0 ? 'No mapeamento, selecione a coluna que contém o nome das pessoas.' : null
   return <section className="space-y-4" aria-label="Importar contatos">
-    {podeEditar && <ol aria-label="Etapas da importação" className="grid gap-2 sm:grid-cols-3">{['Fonte e autorização', 'Arquivo e colunas', 'Prévia e revisão'].map((titulo, i) => <li key={titulo} aria-current={i === etapa ? 'step' : undefined} className={`flex items-center gap-3 rounded-lg border p-4 text-xs ${i === etapa ? 'border-comprador-fio bg-comprador-fundo text-comprador' : 'border-fio bg-papel text-suave'}`}><span className="font-mono font-semibold">0{i+1}</span><span className="font-medium">{titulo}</span></li>)}</ol>}
+    {podeEditar && <ol aria-label="Etapas da importação" className="grid grid-cols-3 gap-2">{['Fonte e autorização', 'Arquivo e colunas', 'Prévia e revisão'].map((titulo, i) => <li key={titulo} aria-current={i === etapa ? 'step' : undefined} className={`flex flex-col items-start gap-2 rounded-lg border p-3 text-xs sm:flex-row sm:items-center ${i === etapa ? 'border-comprador-fio bg-comprador-fundo text-comprador' : 'border-fio bg-papel text-suave'}`}><span className="font-mono font-semibold">0{i+1}</span><span className="font-medium">{titulo}</span></li>)}</ol>}
     <p className="text-xs leading-relaxed text-suave">Compartilhe a seleção autorizada pelo titular. Cada relação começa como “a confirmar”; a importação não confirma proximidade nem disponibilidade para apresentar.</p>
     {aviso&&<p role="status" className="rounded-lg border border-comprador-fio bg-comprador-fundo p-4 text-sm text-comprador">{aviso}</p>}
     {podeEditar&&<fieldset disabled={ocupado} className="space-y-5 rounded-xl border border-fio bg-papel p-5 text-sm sm:p-6">
@@ -86,7 +92,8 @@ export function ImportacaoRede({ podeEditar, aoFalhar, aoMudar }: { podeEditar:b
         <label>Linha do cabeçalho<select className={campo} value={cabecalho} onChange={e=>{const h=Number(e.target.value);setCabecalho(h);preparar(texto,separador,h)}}>{tabela.slice(0,15).map((r,i)=><option key={i} value={i}>{i+1}: {r.join(' · ').slice(0,100)}</option>)}</select></label>
       </div><div className="grid gap-3 sm:grid-cols-3">{camposRede.map(c=><label key={c} className="text-sm">{rotulosRede[c]}<select className={campo} value={mapa[c]} onChange={e=>{setMapa({...mapa,[c]:Number(e.target.value)});setLinhas([]);setPrevia(null)}}><option value={-1}>Não importar</option>{tabela[cabecalho]?.map((h,i)=><option key={i} value={i}>{h||`Coluna ${i+1}`}</option>)}</select></label>)}</div>
       <p className="text-xs text-suave">Primeiros registros: {tabela.slice(cabecalho+1,cabecalho+4).map(l=>l[mapa.nome]).join(' · ')}. Cargos importados precisam de revisão do nível de decisão; o programa não deduz senioridade.</p></>}
-      <button className="rounded-lg bg-tinta px-4 py-3 text-sm font-semibold text-papel disabled:opacity-50" disabled={!texto||!titular||fonte.trim().length<3||autorizacao.trim().length<10||!compartilhado} onClick={()=>void conferir()}>{ocupado?'Conferindo…':'Conferir prévia'}</button>
+      {pendenciaPrevia && <p id="pendencia-previa" className="agente-motivo-bloqueio" role="status">{pendenciaPrevia}</p>}
+      <button className="rounded-lg bg-tinta px-4 py-3 text-sm font-semibold text-papel disabled:opacity-50" disabled={!!pendenciaPrevia} aria-describedby={pendenciaPrevia ? 'pendencia-previa' : undefined} onClick={()=>void conferir()}>{ocupado?'Conferindo…':'Conferir prévia'}</button>
       {previa&&<div className="space-y-3">
         <p>{previa.selecionadas} contatos selecionados. Confira nomes, empresas e possíveis duplicidades antes de gravar.</p>
         <div className="max-h-96 space-y-2 overflow-auto">{previa.linhas.map(l=><article key={l.indice} className="rounded border border-fio p-3 text-sm"><b>{l.nome}</b> · {l.organizacao||'Sem empresa'}
@@ -99,6 +106,7 @@ export function ImportacaoRede({ podeEditar, aoFalhar, aoMudar }: { podeEditar:b
         </article>)}</div>
         <button className={botao} onClick={()=>void conferir()}>Atualizar prévia</button>{' '}
         <button className={botao} disabled={!previa.hash||previa.linhas.some(l=>l.erro)||!previa.selecionadas} onClick={()=>void importar()}>Importar seleção revisada</button>
+        {(!previa.hash || previa.linhas.some(l => l.erro) || !previa.selecionadas) && <p className="text-xs text-suave">Resolva as pendências e use “Atualizar prévia”. Mantenha pelo menos um contato selecionado para importar.</p>}
       </div>}
     </fieldset>}
     <h3 className="font-semibold">Lotes compartilhados</h3>

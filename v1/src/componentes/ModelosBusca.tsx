@@ -44,7 +44,7 @@ export function ModelosBusca({ contexto, mandatoId, bloqueado, podeEditar, aoApl
     try {
       await api(`/api/templates/${ficha.template.id}/versoes/${selecionada.versao}/usar`, 'POST')
       aoAplicar({ ...contexto, ...criterios, empresaId: null, offset: 0, catalogoHash: undefined, modeloBusca: { id: ficha.template.id, versao: selecionada.versao, hash: selecionada.conteudo_hash } })
-      setAviso('Filtros aplicados. Confira acima e clique em Encontrar empresas para executar a pesquisa.')
+      setAviso('Filtros aplicados. Confira acima e clique em Buscar empresas para executar a pesquisa.')
     } catch (e) { aoFalhar(e) } finally { setOcupado(false) }
   }
   return <details className="rounded-ficha border border-fio bg-papel p-5"><summary className="cursor-pointer text-sm font-semibold">Modelos de pesquisa da equipe</summary>

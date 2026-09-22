@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api, ErroApi } from '../agente/api'
 import { Operacao } from './Operacao'
+import { IconeRede } from './IconeRede'
 
 const campo = 'w-full rounded-ficha border border-fio-forte bg-papel px-3 py-2.5 text-sm focus:outline-comprador'
 const botao = 'rounded-ficha bg-tinta px-4 py-2.5 text-sm font-semibold text-papel disabled:opacity-50'
@@ -24,6 +25,7 @@ function gerarSenha() {
 }
 
 export function Equipe({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpirar: () => void }) {
+  const [abaEquipe, setAbaEquipe] = useState('membros')
   const [dados, setDados] = useState<Dados | null>(null)
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
@@ -63,7 +65,7 @@ export function Equipe({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpira
     await executar(async () => {
       if (modo === 'direto') {
         await api<Membro>('/api/equipe/usuarios', 'POST', { nome, email, papel, senha, espacos })
-        setCriada({ email, senha }); setLink(null)
+        setCriada({ email, senha }); setLink(null); setCopiado(false)
         setAviso('Conta criada. Entregue a senha à pessoa — ela some desta tela quando você sair.')
       } else {
         const r = await api<{ convite: Convite; token: string }>('/api/equipe/convites', 'POST', { nome, email, papel, espacos })
@@ -76,7 +78,7 @@ export function Equipe({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpira
   }
   async function criarEspaco(e: FormEvent) {
     e.preventDefault()
-    await executar(async () => { await api('/api/equipe/espacos', 'POST', { rotulo }); setRotulo(''); setAviso('Espaço criado. Escolha abaixo os membros que terão acesso.') })
+    await executar(async () => { await api('/api/equipe/espacos', 'POST', { rotulo }); setRotulo(''); setAviso('Espaço criado. Na aba Membros, escolha quem terá acesso.') })
   }
   async function trocarMinhaSenha(e: FormEvent) {
     e.preventDefault()
@@ -91,73 +93,13 @@ export function Equipe({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpira
     catch { setAviso('Selecione o texto no campo e copie manualmente.') }
   }
 
-  return <main className="mx-auto max-w-6xl space-y-6 px-5 py-7 md:px-8">
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div><h2 className="text-2xl font-semibold">Equipe e espaços</h2><p className="mt-1 text-sm text-suave">Cadastre membros, defina perfis e organize o acesso às pesquisas e aos mandatos.</p></div>
-      <button className={secundario} onClick={aoVoltar} disabled={ocupado}>Voltar ao agente</button>
-    </div>
-    {local && <p className="rounded-ficha border border-fio bg-papel p-4 text-sm">Este ambiente funciona nesta máquina. Os links de convite só abrem aqui; o acesso de outras máquinas depende da instalação compartilhada.</p>}
+  return <main className="agente-pagina space-y-6">
+    <div className="flex flex-wrap items-start justify-between gap-4"><div><span className="agente-sobretitulo">A casa conectada</span><h2 className="mt-3 text-3xl font-semibold tracking-tight">Equipe e acessos</h2><p className="mt-3 text-sm text-suave">Organize as pessoas e os espaços de trabalho da GHT4.</p></div><button className="agente-btn-primario" onClick={() => setAbaEquipe('adicionar')} disabled={ocupado}><IconeRede nome="mais" />Adicionar membro</button></div>
     {erro && <p role="alert" className="text-sm text-alerta">{erro} <button className="underline" onClick={() => void carregar().catch(falhou)}>Atualizar a lista</button></p>}
-    {aviso && <p role="status" className="text-sm">{aviso}</p>}
+    {aviso && <p role="status" className="agente-motivo-bloqueio">{aviso}</p>}
     {!dados ? <p role="status">Carregando equipe…</p> : <>
-      <div className="grid items-start gap-6 lg:grid-cols-2">
-        <form onSubmit={adicionar} className="space-y-4 rounded-ficha border border-fio bg-papel p-5">
-          <h3 className="text-lg font-semibold">Adicionar membro</h3>
-          <div className="flex gap-2" role="group" aria-label="Como adicionar">
-            <button type="button" className={aba(modo === 'direto')} onClick={() => setModo('direto')}>Cadastrar agora</button>
-            <button type="button" className={aba(modo === 'convite')} onClick={() => setModo('convite')}>Enviar convite</button>
-          </div>
-          <p className="text-sm text-suave">{modo === 'direto'
-            ? 'A conta já nasce pronta para entrar, com a senha que você definir. Como você fica sabendo dessa senha, peça que a pessoa a troque no primeiro acesso.'
-            : 'A pessoa define a própria senha ao abrir o link, e só ela a conhece. Nenhum e-mail é enviado pelo agente: você entrega o link.'}</p>
-          <label className="block text-sm font-medium">Nome<input className={`${campo} mt-1`} value={nome} onChange={(e) => setNome(e.target.value)} required minLength={2} maxLength={120} autoComplete="off" /></label>
-          <label className="block text-sm font-medium">E-mail do membro<input className={`${campo} mt-1`} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required maxLength={200} autoComplete="off" /></label>
-          {modo === 'direto' && <label className="block text-sm font-medium">Senha inicial
-            <div className="mt-1 flex gap-2">
-              <input className={`${campo} font-mono`} value={senha} onChange={(e) => setSenha(e.target.value)} required minLength={12} maxLength={256} autoComplete="new-password" spellCheck={false} />
-              <button type="button" className={secundario} onClick={() => setSenha(gerarSenha())}>Gerar</button>
-            </div>
-            <span className="mt-1 block text-xs text-suave">Mínimo de 12 caracteres. O botão gera uma sem acento nem símbolo, que não quebra ao ser copiada.</span>
-          </label>}
-          <label className="block text-sm font-medium">Perfil<select className={`${campo} mt-1`} value={papel} onChange={(e) => setPapel(e.target.value)}><option value="analista">Analista</option><option value="socio">Sócio</option><option value="leitura">Somente leitura</option></select></label>
-          <p className="text-xs text-suave">Sócios e analistas executam tarefas. Somente leitura permite consultar os módulos disponíveis, sem criar trabalhos no agente. Administrador não se cria por aqui.</p>
-          <fieldset className="space-y-2"><legend className="mb-2 text-sm font-medium">Espaços autorizados</legend>
-            {dados.espacos.filter((s) => s.situacao === 'ativo').map((s) => <label key={s.id} className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1 accent-tinta" checked={espacos.includes(s.id)} onChange={(e) => setEspacos((xs) => e.target.checked ? [...xs, s.id] : xs.filter((x) => x !== s.id))} />{s.rotulo}</label>)}
-            {espacos.length === 0 && <p className="text-xs text-suave">Sem espaço selecionado, o membro poderá começar trabalhos pessoais, se seu perfil permitir.</p>}
-          </fieldset>
-          <button className={botao} disabled={ocupado}>{ocupado ? 'Aguarde…' : modo === 'direto' ? 'Criar conta' : 'Criar convite'}</button>
-        </form>
-        <div className="space-y-6">
-          {criada && <section className="space-y-3 rounded-ficha border border-comprador bg-papel p-5" aria-label="Conta criada">
-            <h3 className="font-semibold">Conta criada</h3>
-            <p className="break-words text-sm">{criada.email} já pode entrar.</p>
-            <label className="block text-sm font-medium">Senha inicial<input className={`${campo} mt-1 font-mono`} readOnly value={criada.senha} onFocus={(e) => e.target.select()} /></label>
-            <button type="button" className={secundario} onClick={() => void copiar(criada.senha)}>{copiado ? 'Senha copiada' : 'Copiar senha'}</button>
-            <p className="text-xs text-suave">Esta é a única vez que a senha aparece: o banco guarda só a derivação dela. Se perder, use “Redefinir senha” na lista abaixo.</p>
-          </section>}
-          {link && <section className="space-y-3 rounded-ficha border border-comprador bg-papel p-5" aria-label="Link do convite">
-            <h3 className="font-semibold">Convite para {link.convite.nome}</h3>
-            <p className="break-words text-sm">{link.convite.email} · válido até {data(link.convite.expira_em)}.</p>
-            <label className="block text-sm font-medium">Link de uso único<textarea className={`${campo} mt-1 break-all font-mono text-xs`} readOnly value={link.url} rows={3} onFocus={(e) => e.target.select()} /></label>
-            <button type="button" className={secundario} onClick={() => void copiar(link.url)}>{copiado ? 'Link copiado' : 'Copiar link'}</button>
-            <p className="text-xs text-suave">Guarde o link antes de sair desta tela. Para recuperá-lo depois, crie um novo convite; o anterior será cancelado.</p>
-          </section>}
-          <form onSubmit={criarEspaco} className="space-y-4 rounded-ficha border border-fio bg-papel p-5">
-            <h3 className="text-lg font-semibold">Novo espaço de trabalho</h3>
-            <p className="text-sm text-suave">Use um espaço por tese, oportunidade ou mandato. O acesso é restrito aos membros escolhidos e aos administradores.</p>
-            <label className="block text-sm font-medium">Nome do espaço<input className={`${campo} mt-1`} placeholder="Ex.: Compra · Distribuição química SP" value={rotulo} onChange={(e) => setRotulo(e.target.value)} required minLength={2} maxLength={120} /></label>
-            <button className={botao} disabled={ocupado}>Criar espaço</button>
-          </form>
-          <form onSubmit={trocarMinhaSenha} className="space-y-4 rounded-ficha border border-fio bg-papel p-5">
-            <h3 className="text-lg font-semibold">Minha senha</h3>
-            <p className="text-sm text-suave">Trocar aqui encerra as outras sessões desta conta e mantém esta aberta.</p>
-            <label className="block text-sm font-medium">Senha atual<input className={`${campo} mt-1`} type="password" value={atual} onChange={(e) => setAtual(e.target.value)} required maxLength={256} autoComplete="current-password" /></label>
-            <label className="block text-sm font-medium">Nova senha<input className={`${campo} mt-1`} type="password" value={minhaNova} onChange={(e) => setMinhaNova(e.target.value)} required minLength={12} maxLength={256} autoComplete="new-password" /></label>
-            <button className={botao} disabled={ocupado}>Trocar minha senha</button>
-          </form>
-        </div>
-      </div>
-      <section className="space-y-3" aria-label="Membros da equipe">
+      <nav className="agente-secoes" aria-label="Gestão da equipe">{[{id:'membros',nome:'Membros',total:dados.usuarios.length},{id:'adicionar',nome:'Adicionar e convidar'},{id:'espacos',nome:'Espaços',total:dados.espacos.length},{id:'conta',nome:'Minha conta'},{id:'operacao',nome:'Operação'}].map(a => <button key={a.id} aria-pressed={abaEquipe === a.id} onClick={() => setAbaEquipe(a.id)}>{a.nome}{a.total !== undefined ? ' · ' + a.total : ''}</button>)}</nav>
+      <div hidden={abaEquipe !== 'membros'} className="space-y-6"><section className="space-y-3" aria-label="Membros da equipe">
         <h3 className="text-lg font-semibold">Membros da equipe</h3>
         <p className="text-sm text-suave">O espaço controla o acesso ao mandato. Os históricos do agente continuam pessoais nesta versão.</p>
         {dados.usuarios.map((u) => <article key={u.id} className="rounded-ficha border border-fio bg-papel p-5">
@@ -187,7 +129,7 @@ export function Equipe({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpira
             <button className={botao} disabled={ocupado}>Redefinir</button>
             <button type="button" className={secundario} disabled={ocupado} onClick={() => setRedefinindo(null)}>Cancelar</button>
           </form>}
-          {u.papel === 'admin' ? <p className="mt-3 text-xs text-suave">Acesso de administração a todos os espaços. Para trocar a senha desta conta, use “Minha senha” acima, logado nela.</p> : <details className="mt-4"><summary className="cursor-pointer text-sm font-medium">Gerenciar espaços de {u.nome}</summary>
+          {u.papel === 'admin' ? <p className="mt-3 text-xs text-suave">Acesso de administração a todos os espaços. Para trocar a senha desta conta, use a aba “Minha conta”, logado nela.</p> : <details className="mt-4"><summary className="cursor-pointer text-sm font-medium">Gerenciar espaços de {u.nome}</summary>
             <fieldset className="mt-3 space-y-2" disabled={ocupado}><legend className="sr-only">Espaços de {u.nome}</legend>
               {dados.espacos.filter((s) => s.situacao === 'ativo').map((s) => <label key={s.id} className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1 accent-tinta" checked={dados.membros.some((m) => m.usuario_id === u.id && m.mandato_id === s.id)} onChange={(e) => {
                 const participa = e.target.checked
@@ -197,7 +139,7 @@ export function Equipe({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpira
           </details>}
         </article>)}
       </section>
-      <section className="space-y-3" aria-label="Convites pendentes"><h3 className="text-lg font-semibold">Convites pendentes</h3>
+<section className="space-y-3" aria-label="Convites pendentes"><h3 className="text-lg font-semibold">Convites pendentes</h3>
         {dados.convites.length === 0 && <p className="text-sm text-suave">Nenhum convite pendente.</p>}
         {dados.convites.map((c) => <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-ficha border border-fio bg-papel p-4">
           <div className="min-w-0"><p className="break-words text-sm font-medium">{c.nome} · {c.email}</p><p className="text-xs text-suave">{papeis[c.papel]} · válido até {data(c.expira_em)}</p></div>
@@ -206,7 +148,62 @@ export function Equipe({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpira
           })}>Cancelar convite</button>
         </div>)}
       </section>
+</div>
+      <div hidden={abaEquipe !== 'adicionar'} className="grid items-start gap-6 lg:grid-cols-[1.3fr_1fr]"><form onSubmit={adicionar} className="space-y-4 rounded-ficha border border-fio bg-papel p-5">
+          <h3 className="text-lg font-semibold">Adicionar membro</h3>
+          <div className="flex gap-2" role="group" aria-label="Como adicionar">
+            <button type="button" className={aba(modo === 'direto')} onClick={() => setModo('direto')}>Cadastrar agora</button>
+            <button type="button" className={aba(modo === 'convite')} onClick={() => setModo('convite')}>Enviar convite</button>
+          </div>
+          <p className="text-sm text-suave">{modo === 'direto'
+            ? 'A conta já nasce pronta para entrar, com a senha que você definir. Como você fica sabendo dessa senha, peça que a pessoa a troque no primeiro acesso.'
+            : 'A pessoa define a própria senha ao abrir o link, e só ela a conhece. Nenhum e-mail é enviado pelo agente: você entrega o link.'}</p>
+          <label className="block text-sm font-medium">Nome<input className={`${campo} mt-1`} value={nome} onChange={(e) => setNome(e.target.value)} required minLength={2} maxLength={120} autoComplete="off" /></label>
+          <label className="block text-sm font-medium">E-mail do membro<input className={`${campo} mt-1`} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required maxLength={200} autoComplete="off" /></label>
+          {modo === 'direto' && <label className="block text-sm font-medium">Senha inicial
+            <div className="mt-1 flex gap-2">
+              <input className={`${campo} font-mono`} value={senha} onChange={(e) => setSenha(e.target.value)} required minLength={12} maxLength={256} autoComplete="new-password" spellCheck={false} />
+              <button type="button" className={secundario} onClick={() => setSenha(gerarSenha())}>Gerar</button>
+            </div>
+            <span className="mt-1 block text-xs text-suave">Mínimo de 12 caracteres. O botão gera uma sem acento nem símbolo, que não quebra ao ser copiada.</span>
+          </label>}
+          <label className="block text-sm font-medium">Perfil<select className={`${campo} mt-1`} value={papel} onChange={(e) => setPapel(e.target.value)}><option value="analista">Analista</option><option value="socio">Sócio</option><option value="leitura">Somente leitura</option></select></label>
+          <p className="text-xs text-suave">Sócios e analistas executam tarefas. Somente leitura permite consultar os módulos disponíveis, sem criar trabalhos no agente. Administrador não se cria por aqui.</p>
+          <fieldset className="space-y-2"><legend className="mb-2 text-sm font-medium">Espaços autorizados</legend>
+            {dados.espacos.filter((s) => s.situacao === 'ativo').map((s) => <label key={s.id} className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1 accent-tinta" checked={espacos.includes(s.id)} onChange={(e) => setEspacos((xs) => e.target.checked ? [...xs, s.id] : xs.filter((x) => x !== s.id))} />{s.rotulo}</label>)}
+            {espacos.length === 0 && <p className="text-xs text-suave">Sem espaço selecionado, o membro poderá começar trabalhos pessoais, se seu perfil permitir.</p>}
+          </fieldset>
+          <button className={botao} disabled={ocupado}>{ocupado ? 'Aguarde…' : modo === 'direto' ? 'Criar conta' : 'Criar convite'}</button>
+        </form><aside className="agente-convite-rede"><IconeRede nome="pessoas" /><h3>Cada pessoa, com o acesso certo.</h3><p>1. Informe nome e e-mail.<br />2. Escolha o perfil e os espaços.<br />3. Crie a conta ou entregue um link de convite.</p><p>Analistas e sócios executam tarefas. O perfil de leitura acompanha os registros sem alterá-los.</p>{local && <details className="mt-4 text-xs"><summary>Convites neste ambiente local</summary><p>Os links só abrem nesta máquina. Para a equipe entrar de outros dispositivos, use o ambiente publicado.</p></details>}</aside></div>
+      {criada && <section className="space-y-3 rounded-ficha border border-comprador bg-papel p-5" aria-label="Conta criada">
+            <h3 className="font-semibold">Conta criada</h3>
+            <p className="break-words text-sm">{criada.email} já pode entrar.</p>
+            <label className="block text-sm font-medium">Senha inicial<input className={`${campo} mt-1 font-mono`} readOnly value={criada.senha} onFocus={(e) => e.target.select()} /></label>
+            <button type="button" className={secundario} onClick={() => void copiar(criada.senha)}>{copiado ? 'Senha copiada' : 'Copiar senha'}</button>
+            <p className="text-xs text-suave">Esta é a única vez que a senha aparece: o banco guarda só a derivação dela. Se perder, use “Redefinir senha” na aba Membros.</p>
+          </section>}
+          {link && <section className="space-y-3 rounded-ficha border border-comprador bg-papel p-5" aria-label="Link do convite">
+            <h3 className="font-semibold">Convite para {link.convite.nome}</h3>
+            <p className="break-words text-sm">{link.convite.email} · válido até {data(link.convite.expira_em)}.</p>
+            <label className="block text-sm font-medium">Link de uso único<textarea className={`${campo} mt-1 break-all font-mono text-xs`} readOnly value={link.url} rows={3} onFocus={(e) => e.target.select()} /></label>
+            <button type="button" className={secundario} onClick={() => void copiar(link.url)}>{copiado ? 'Link copiado' : 'Copiar link'}</button>
+            <p className="text-xs text-suave">Guarde o link antes de sair desta tela. Para recuperá-lo depois, crie um novo convite; o anterior será cancelado.</p>
+          </section>}
+      <div hidden={abaEquipe !== 'espacos'} className="grid items-start gap-6 lg:grid-cols-2"><form onSubmit={criarEspaco} className="space-y-4 rounded-ficha border border-fio bg-papel p-5">
+            <h3 className="text-lg font-semibold">Novo espaço de trabalho</h3>
+            <p className="text-sm text-suave">Use um espaço por tese, oportunidade ou mandato. O acesso é restrito aos membros escolhidos e aos administradores.</p>
+            <label className="block text-sm font-medium">Nome do espaço<input className={`${campo} mt-1`} placeholder="Ex.: Compra · Distribuição química SP" value={rotulo} onChange={(e) => setRotulo(e.target.value)} required minLength={2} maxLength={120} /></label>
+            <button className={botao} disabled={ocupado}>Criar espaço</button>
+          </form><section className="agente-superficie p-5"><h3 className="font-semibold">Espaços da casa</h3>{dados.espacos.length ? <ul className="mt-3 divide-y divide-fio">{dados.espacos.map(s => <li key={s.id} className="py-3 text-sm"><strong className="font-medium">{s.rotulo}</strong><span className="mt-1 block text-xs text-suave">{s.situacao === 'ativo' ? 'Ativo' : 'Encerrado'} · {dados.membros.filter(m => m.mandato_id === s.id).length} membros vinculados</span></li>)}</ul> : <p className="mt-3 text-sm text-suave">Crie o primeiro espaço para reunir os acessos de uma tese ou mandato.</p>}<button className="agente-link mt-4 text-sm" onClick={() => setAbaEquipe('membros')}>Gerenciar acesso dos membros<IconeRede nome="seta" /></button></section></div>
+      <div hidden={abaEquipe !== 'conta'} className="max-w-xl"><form onSubmit={trocarMinhaSenha} className="space-y-4 rounded-ficha border border-fio bg-papel p-5">
+            <h3 className="text-lg font-semibold">Minha senha</h3>
+            <p className="text-sm text-suave">Trocar aqui encerra as outras sessões desta conta e mantém esta aberta.</p>
+            <label className="block text-sm font-medium">Senha atual<input className={`${campo} mt-1`} type="password" value={atual} onChange={(e) => setAtual(e.target.value)} required maxLength={256} autoComplete="current-password" /></label>
+            <label className="block text-sm font-medium">Nova senha<input className={`${campo} mt-1`} type="password" value={minhaNova} onChange={(e) => setMinhaNova(e.target.value)} required minLength={12} maxLength={256} autoComplete="new-password" /></label>
+            <button className={botao} disabled={ocupado}>Trocar minha senha</button>
+          </form></div>
+      {abaEquipe === 'operacao' && <><p className="text-sm text-suave">Disponibilidade das integrações e entregas. Consulte aqui quando uma tarefa depender de configuração.</p><Operacao aoExpirar={aoExpirar} /></>}
     </>}
-    <Operacao aoExpirar={aoExpirar} />
+    <button className="agente-link text-xs" onClick={aoVoltar} disabled={ocupado}>Ir aos meus trabalhos<IconeRede nome="seta" /></button>
   </main>
 }

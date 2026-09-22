@@ -34,7 +34,8 @@ export function criarCatalogoBanco(db) {
       return { empresas: r.empresas, total: r.total, offset, limite,
         proximoOffset: offset + limite < r.total ? offset + limite : null,
         cobertura: { receitaApurada: 0, intencaoApurada: 0, classificacao: r.total, universo: r.total },
-        referencia: r.referencia, hash: r.hash, totalOrigem: r.total_origem };
+        referencia: r.referencia, hash: r.hash, totalOrigem: r.total_origem,
+        fonte: 'Receita Federal · CNPJ', subsetor: SUBSETOR };
     },
     async obter(id) {
       if (!/^cnpj\d{8}$/.test(id)) return null;

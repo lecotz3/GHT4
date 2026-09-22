@@ -1,10 +1,20 @@
 # Retomada da implementação do agente GHT4
 
-Atualizado em 21 de setembro de 2026. Branch local: `main`. A instalação existente usa Vercel e Supabase; as alterações de ativação abaixo estão na cópia local e ainda precisam de publicação com acesso ao ambiente. Não considerar o checkpoint anterior uma comprovação de deploy desta entrega.
+Atualizado em 22 de setembro de 2026. Branch: `main`. A instalação existente usa Vercel e Supabase. A produção anterior foi conferida no painel da Vercel em `3247883`, Ready. Este checkpoint reúne o novo visual e a apresentação do catálogo real para publicação na mesma instalação.
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — ativação do agente de relações (21/09/2026)
+## COMECE AQUI — reformulação completa da interface (22/09/2026)
+
+Pedido: mudar todo o visual operacional, corrigir a sensação de botões sem efeito e explicar melhor como usar. Entregue: entrada e início novos, menu permanente/móvel, tarefas com seleção direta de empresa, formulários e históricos recolhíveis, guia de uso, oportunidades divididas por atividade com próximo passo em destaque, confirmação de salvamento e equipe organizada por áreas. [Detalhes e evidências](EVOLUCAO-VISUAL-AGENTE.md).
+
+Validação: 248 testes aprovados (71 + 177), build, lint, taxonomia, paleta e ensaio HTTP. Conferência real no navegador em 390 e 1440 pixels, incluindo pesquisa até oportunidade, reunião, mapa de acesso, reconhecimento, orientação de botões e uso por teclado. A restrição de uso que impediu a verificação anterior deixou de bloquear; essa pendência visual foi resolvida. Capturas em `.cache/visual-agente/`.
+
+Catálogo real conferido: 38.583 registros de origem da Receita Federal/CNPJ, referência 2026-08; 1.613 empresas no recorte de distribuição e trading, ou 6.165 incluindo possíveis. O painel mostra esses metadados vindos da API e explica o recorte. `npm run test:catalogo-real` passou com importação integral no adaptador SQL, sem duplicação na recarga, filtros, paginação e retomada. No navegador, a pesquisa real por Adequim/SP retornou a empresa esperada; apresentação conferida também no celular.
+
+Para conferir localmente, compilar e iniciar `node ferramentas/ensaio-catalogo-real.mjs --interface`; reiniciar após cada build. Esse ensaio usa empresas reais e conta/trabalhos descartáveis, sem conexão de produção. O ensaio de relacionamentos com pessoas fictícias continua em `ferramentas/ensaio-rede.mjs`. A Vercel usa o banco persistente já configurado e publica a branch `main`; conferir Ready e o commit correspondente após o push. As necessidades de informações dos membros continuam no roteiro [ATIVACAO-REDE-GHT4.md](ATIVACAO-REDE-GHT4.md).
+
+## Histórico — ativação do agente de relações (21/09/2026)
 
 Última continuação: nova visão geral, sugestões por pendências reais, navegação adaptável, cadastro recolhível, reconhecimento com respostas explicadas, importação por etapas e modelo de colunas. Referências públicas do 21st.dev e Motion já instalado; nenhuma integração 21st.dev disponível na busca de plugins, nenhuma nova dependência. [Entrega visual e roteiro de aceite](EVOLUCAO-VISUAL-REDE.md). A revisão automática bloqueou abrir o navegador de teste por limite de uso; falta conferir esta apresentação em desktop/celular. O servidor descartável foi encerrado; usar `node ferramentas/ensaio-rede.mjs --interface` após o build para retomar.
 

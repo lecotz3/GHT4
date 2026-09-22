@@ -40,12 +40,13 @@ export function RotinaOportunidade({ ficha, aoSalvar, aoFalhar }: { ficha: Ficha
     {dados?.restricao?.ativa && <div role="status" className="rounded-ficha border border-alerta-fio bg-alerta-fundo p-4 text-sm"><b>Não contatar esta empresa neste espaço.</b><p className="mt-1">{categorias[dados.restricao.categoria]}: {dados.restricao.motivo}</p><p className="mt-1 text-xs">Aplica-se às oportunidades de compra e venda da mesma empresa neste espaço. Uma restrição privada vale para os seus registros privados.</p></div>}
     {!dados ? <p role="status" className="text-sm text-suave">Carregando agenda…</p> : <>
       <ul className="divide-y divide-fio">{dados.tarefas.map((t) => <li className="flex gap-3 py-3" key={t.id}><input aria-label={`Concluir ${t.descricao}`} type="checkbox" checked={t.concluida} disabled={ocupado || !ficha.permissoes.editar || (dados.restricao?.ativa && t.tipo === 'contato')} onChange={() => void salvar('tarefa',t)} /><div><p className={`text-sm ${t.concluida ? 'line-through text-suave' : ''}`}>{t.descricao}</p><p className={`mt-1 text-xs ${!t.concluida && t.prazo < hojeLocal() ? 'text-alerta' : 'text-suave'}`}>{dataCurta(t.prazo)} · {t.responsavel_nome} · {tipos[t.tipo]}{dados.restricao?.ativa && t.tipo === 'contato' ? ' · Bloqueada pela restrição' : ''}</p></div></li>)}</ul>
-      {ficha.permissoes.editar && dados.tarefas.length > 0 && <label className="block text-sm">Reprogramar uma tarefa existente<select className={`${campo} mt-1`} value={editando || ''} disabled={ocupado} onChange={(e) => {
+      {!dados.tarefas.length && <p className="text-sm text-suave">Nenhum compromisso adicional. Use a opção abaixo quando precisar dividir o trabalho em mais etapas.</p>}
+      {ficha.permissoes.editar && <details className="agente-opcoes"><summary>Adicionar ou reprogramar tarefa</summary><div className="space-y-4">
+      {dados.tarefas.length > 0 && <label className="block text-sm">Reprogramar uma tarefa existente<select className={`${campo} mt-1`} value={editando || ''} disabled={ocupado} onChange={(e) => {
         const t = dados.tarefas.find((t) => t.id === e.target.value); setEditando(t?.id || null)
         if (t) setForm({ descricao: t.descricao, tipo: t.tipo, prazo: t.prazo, responsavelId: t.responsavel_id })
         else setForm({ descricao: '', tipo: 'pesquisa', prazo: hojeLocal(), responsavelId: ficha.oportunidade.responsavel_id })
       }}><option value="">Adicionar uma nova tarefa</option>{dados.tarefas.map((t) => <option value={t.id} key={t.id}>{t.descricao}</option>)}</select></label>}
-      {!dados.tarefas.length && <p className="text-sm text-suave">Adicione os compromissos além do próximo passo principal.</p>}
       {ficha.permissoes.editar && <form className="space-y-3" onSubmit={(e: FormEvent) => { e.preventDefault(); void salvar('tarefa') }}>
         <label className="block text-sm">Nova tarefa<input className={`${campo} mt-1`} value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} minLength={3} maxLength={2000} required /></label>
         <div className="grid gap-3 sm:grid-cols-3"><label className="text-sm">Tipo<select className={`${campo} mt-1`} value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>{Object.entries(tipos).map(([k,v]) => <option key={k} value={k} disabled={k === 'contato' && dados.restricao?.ativa}>{v}</option>)}</select></label>
@@ -53,6 +54,7 @@ export function RotinaOportunidade({ ficha, aoSalvar, aoFalhar }: { ficha: Ficha
           <label className="text-sm">Responsável<select className={`${campo} mt-1`} value={form.responsavelId} onChange={(e) => setForm({ ...form, responsavelId: e.target.value })} required>{ficha.responsaveis.map((r) => <option value={r.id} key={r.id}>{r.nome}</option>)}</select></label></div>
         <button className={botao} disabled={ocupado}>{editando ? 'Salvar tarefa como pendente' : 'Adicionar tarefa'}</button>
       </form>}
+      </div></details>}
       {ficha.permissoes.editar && <details className="border-t border-fio pt-4"><summary className="cursor-pointer text-sm font-medium">Definir ou revisar restrição de contato</summary>
         <form className="mt-4 space-y-3" onSubmit={(e: FormEvent) => { e.preventDefault(); void salvar('restricao') }}>
           <label className="flex gap-2 text-sm"><input type="checkbox" checked={restricao.ativa} disabled={ocupado || !ficha.permissoes.mover} onChange={(e) => setRestricao({ ...restricao, ativa: e.target.checked })} />Não contatar</label>

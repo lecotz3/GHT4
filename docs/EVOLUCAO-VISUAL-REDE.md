@@ -1,5 +1,7 @@
 # Evolução visual do agente de relações
 
+> Atualização de 22/09/2026: a navegação e a apresentação foram integradas à nova estrutura do agente e conferidas no navegador em computador e celular. O bloqueio de uso registrado no aceite abaixo é histórico. Consulte [a reformulação completa e suas validações](EVOLUCAO-VISUAL-AGENTE.md).
+
 Entrega local de 21/09/2026, após a preparação do piloto. Mantém a identidade GHT4: branco, preto, laranja e azul funcional, com os tokens de contraste existentes.
 
 ## O que mudou

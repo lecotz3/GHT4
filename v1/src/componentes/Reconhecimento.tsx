@@ -161,9 +161,10 @@ export function Reconhecimento({ aoFalhar, aoMudar }: { aoFalhar: (e: unknown) =
         <label className="block text-sm">Observação <span className="text-suave">(opcional)</span>
           <input className={`${campo} mt-1`} value={observacao} onChange={(e) => setObservacao(e.target.value)} maxLength={1000} disabled={ocupado} /></label>
         <div className="flex flex-wrap gap-2">
-          <button className={botao} disabled={ocupado || carregando || evidencia.trim().length < 10}>{ocupado ? 'Salvando…' : 'Salvar resposta'}</button>
+          <button className={botao} aria-describedby={evidencia.trim().length < 10 ? 'evidencia-minima-rede' : undefined} disabled={ocupado || carregando || evidencia.trim().length < 10}>{ocupado ? 'Salvando…' : 'Salvar resposta'}</button>
           <button type="button" className={secundario} onClick={() => setAbrindo(null)} disabled={ocupado}>Cancelar</button>
         </div>
+        {evidencia.trim().length < 10 && <p id="evidencia-minima-rede" className="text-xs text-suave">Conte de onde se conhecem em pelo menos 10 caracteres para salvar a resposta.</p>}
       </form>}
     </article>}
 
