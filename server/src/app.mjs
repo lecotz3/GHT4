@@ -142,16 +142,21 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
         detalhe: erro.issues.map((i) => ({ campo: i.path.join('.'), problema: i.message })),
       });
     }
-    /* Erro não previsto: registra inteiro no log, devolve genérico. Mensagem de
-       exceção costuma carregar caminho de arquivo e trecho de SQL. */
-    req.log?.error({ erro }, 'erro não tratado');
+    /* Código e request id permitem localizar o incidente sem registrar senha,
+       cookie, SQL ou a connection string que pode vir na mensagem do driver. */
+    req.log.error({ codigo: erro.code ?? erro.name }, 'erro não tratado');
     return resposta.status(500).send({
       erro: 'erro_interno', mensagem: 'Algo falhou aqui dentro. O incidente foi registrado.',
     });
   });
 
-  app.get('/api/saude', async () => {
-    await db.query('SELECT 1');
+  app.get('/api/saude', async (req) => {
+    try {
+      await db.query('SELECT 1');
+    } catch (erro) {
+      req.log.error({ codigo: erro.code ?? erro.name }, 'banco indisponível');
+      throw new ErroHttp(503, 'servico_indisponivel', 'O agente está temporariamente indisponível. Tente novamente.');
+    }
     return { ok: true, agora: new Date().toISOString() };
   });
 

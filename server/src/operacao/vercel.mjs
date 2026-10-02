@@ -18,7 +18,7 @@ export function obterAppVercel() {
       throw new Error('A Vercel exige PostgreSQL externo com TLS validado.');
     }
     const db = await abrir();
-    const app = await criarApp(db, { catalogo: criarCatalogoBanco(db),
+    const app = await criarApp(db, { logger: { level: 'error' }, catalogo: criarCatalogoBanco(db),
       origemPublica: origemVercel(process.env),
       servicoIA: criarServicoIA(db, configurarIA(process.env)) });
     await app.ready();
