@@ -32,7 +32,7 @@ export interface FichaEmpresa {
 }
 /** Cadastro salvo nas oportunidades comparado ao atual. `mudancas` é null quando não deu para comparar. */
 export interface ComparacaoCadastro {
-  estado: 'comparado' | 'empresa_nao_encontrada' | 'catalogo_indisponivel' | 'referencia_atual_mais_antiga' | 'historico_invalido'
+  estado: 'comparado' | 'empresa_nao_encontrada' | 'catalogo_indisponivel' | 'referencia_atual_mais_antiga' | 'historico_invalido' | 'catalogo_resposta_invalida'
   referencias: { anterior: string | null; atual: string | null }
   mudancas: { campo: string; grupo: 'cadastro' | 'enquadramento'; anterior: string | null; atual: string | null; tipo: 'alterado' | 'preenchido' | 'nao_informado' }[] | null
   oportunidades: { id: string; titulo: string }[]

@@ -60,7 +60,8 @@ async function acervoDaEmpresa(db, u, empresaId) {
  * `comEvento` nem na prioridade e não afirma encerramento, aquisição ou intenção.
  */
 async function cadastroDesdeOportunidades(db, u, empresaId, atual) {
-  try { compararCadastro(atual, atual); } catch { return null; } // cadastro atual fora do formato: não compara
+  // Cadastro atual fora do formato: não compara (vale para o módulo que lança ou que devolve estado).
+  try { if (compararCadastro(atual, atual).estado !== 'comparado') return null; } catch { return null; }
   const linhas = (await db.query(`SELECT o.id,o.titulo,o.empresa FROM crm_oportunidades o LEFT JOIN mandatos m ON m.id=o.mandato_id
     WHERE o.empresa->>'id'=$4 AND ${ESCOPO_OPORTUNIDADE} ORDER BY o.criado_em,o.id LIMIT 20`, [...valoresDeEscopo(u), empresaId])).rows;
   const grupos = new Map();
