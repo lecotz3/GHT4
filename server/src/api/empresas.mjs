@@ -1,5 +1,5 @@
 import { EmpresaId } from '../crm/contratos.mjs';
-import { ErroHttp } from '../app.mjs';
+import { ErroHttp, bancoIndisponivel } from '../app.mjs';
 import { pode } from '../seguranca/rbac.mjs';
 import { criarCatalogo } from '../agente/catalogo.mjs';
 import { caminhosDeAcesso, pessoasDaEmpresa } from '../rede/caminhos.mjs';
@@ -9,6 +9,7 @@ import { registrar } from '../auditoria/registrar.mjs';
 import { briefingPdf } from '../acervo/briefing.mjs';
 import { roteiroDeReuniao } from '../agente/tarefas.mjs';
 import { SQL_EVENTO_PUBLICO } from '../agente/eventos.mjs';
+import { compararCadastro } from '../empresas/comparar-cadastro.mjs';
 
 /**
  * Visões centradas numa empresa, montadas só com o que o usuário já alcança.
@@ -52,6 +53,33 @@ async function acervoDaEmpresa(db, u, empresaId) {
   return { registros, documentos };
 }
 
+/**
+ * Cadastro guardado em cada oportunidade acessível, comparado ao cadastro atual.
+ * Oportunidades com o mesmo cadastro salvo e o mesmo resultado viram um só grupo.
+ * Mostra diferença de campo com as duas referências; não vira evento, não entra em
+ * `comEvento` nem na prioridade e não afirma encerramento, aquisição ou intenção.
+ */
+async function cadastroDesdeOportunidades(db, u, empresaId, atual) {
+  try { compararCadastro(atual, atual); } catch { return null; } // cadastro atual fora do formato: não compara
+  const linhas = (await db.query(`SELECT o.id,o.titulo,o.empresa FROM crm_oportunidades o LEFT JOIN mandatos m ON m.id=o.mandato_id
+    WHERE o.empresa->>'id'=$4 AND ${ESCOPO_OPORTUNIDADE} ORDER BY o.criado_em,o.id LIMIT 20`, [...valoresDeEscopo(u), empresaId])).rows;
+  const grupos = new Map();
+  for (const o of linhas) {
+    let r;
+    try { r = compararCadastro(o.empresa, atual); }
+    catch (erro) {
+      if (!(erro instanceof z.ZodError)) throw erro;
+      // Registro antigo fora do formato: diz que não dá para comparar, nunca "sem mudanças".
+      r = { estado: 'historico_invalido', referencias: { anterior: null, atual: atual.referencia || null }, mudancas: null };
+    }
+    const grupo = { estado: r.estado, referencias: r.referencias, mudancas: r.mudancas };
+    const chave = JSON.stringify(grupo);
+    if (!grupos.has(chave)) grupos.set(chave, { ...grupo, oportunidades: [] });
+    grupos.get(chave).oportunidades.push({ id: o.id, titulo: o.titulo });
+  }
+  return [...grupos.values()];
+}
+
 export async function registrarEmpresas(app, { catalogo = criarCatalogo() } = {}) {
   const { db } = app;
   /* Ficha única: o cadastro vem do catálogo; o resto, do que o usuário já alcança
@@ -60,15 +88,20 @@ export async function registrarEmpresas(app, { catalogo = criarCatalogo() } = {}
   async function montarFicha(u, empresaId) {
     let empresa;
     try { empresa = await catalogo.obter(empresaId); }
-    catch { throw new ErroHttp(503, 'catalogo_indisponivel', 'A base de empresas está temporariamente indisponível.'); }
+    catch (erro) {
+      // Só queda vira 503; defeito segue para o tratador global (500 com registro).
+      if (bancoIndisponivel(erro)) throw new ErroHttp(503, 'catalogo_indisponivel', 'A base de empresas está temporariamente indisponível.');
+      throw erro;
+    }
     if (!empresa) throw new ErroHttp(404, 'empresa_inexistente', 'Empresa não encontrada no catálogo atual.');
     // Eventos vêm de dado público (CNPJ), sem restrição de espaço.
     const eventos = (await db.query(`SELECT ${SQL_EVENTO_PUBLICO} AS e FROM eventos_corporativos ev
       JOIN entidades_juridicas j ON j.id=ev.entidade_id WHERE j.cnpj_raiz=$1 ORDER BY ev.detectado_em DESC, ev.id LIMIT 20`, [empresaId.slice(4)])).rows.map((r) => r.e);
-    const ficha = { empresa, eventos, situacao: null, pessoas: null, acesso: null, acervo: null };
+    const ficha = { empresa, eventos, situacao: null, cadastro: null, pessoas: null, acesso: null, acervo: null };
     if (pode(u.papel, 'crm.ler')) {
       ficha.situacao = await situacaoDaEmpresa(db, u, empresaId);
       ficha.acervo = await acervoDaEmpresa(db, u, empresaId);
+      ficha.cadastro = await cadastroDesdeOportunidades(db, u, empresaId, empresa);
     }
     if (pode(u.papel, 'rede.ler')) {
       ficha.pessoas = (await pessoasDaEmpresa(db, { empresaId, nomeEmpresa: empresa.nome }))

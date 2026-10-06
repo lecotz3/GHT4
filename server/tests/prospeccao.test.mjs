@@ -390,6 +390,40 @@ test('ficha da empresa reúne cadastro, situação, pessoas e acervo acessíveis
   assert.equal((await a.chamar('GET','/api/empresas/cnpj99999999/ficha')).statusCode,404);
 });
 
+test('ficha compara o cadastro salvo em cada oportunidade acessível com o atual, sem virar evento', async (t) => {
+  const { db, usuario, selecionar, criar } = await montar(t);
+  const a = await usuario('a@teste.local'); const b = await usuario('b@teste.local');
+  const { o: igual } = await criar(a,(await selecionar(a)).s);
+  const { o: antiga } = await criar(a,(await selecionar(a,null,'venda')).s);
+  const { o: legado } = await criar(a,(await selecionar(a,null,'compra')).s);
+  await db.query(`UPDATE crm_oportunidades SET empresa=empresa || '{"cidade":"Jundiaí","referencia":"2026-07"}'::jsonb WHERE id=$1`,[antiga.id]);
+  await db.query(`UPDATE crm_oportunidades SET empresa=empresa || '{"uf":"sp"}'::jsonb WHERE id=$1`,[legado.id]);
+  const f = (await a.chamar('GET',`/api/empresas/${empresa.id}/ficha`)).json();
+  const porEstado = Object.fromEntries(f.cadastro.map((g) => [g.mudancas?.length ? 'mudou' : g.estado, g]));
+  assert.deepEqual(porEstado.comparado.oportunidades.map((x) => x.id),[igual.id]);
+  assert.deepEqual(porEstado.comparado.mudancas,[]);
+  assert.deepEqual(porEstado.mudou.mudancas,[{ campo: 'cidade', grupo: 'cadastro', anterior: 'Jundiaí', atual: 'Campinas', tipo: 'alterado' }]);
+  assert.deepEqual(porEstado.mudou.referencias,{ anterior: '2026-07', atual: '2026-08' });
+  assert.equal(porEstado.historico_invalido.mudancas,null);
+  assert.deepEqual(porEstado.historico_invalido.oportunidades.map((x) => x.id),[legado.id]);
+  assert.equal((await db.query('SELECT count(*)::int n FROM eventos_corporativos')).rows[0].n,0);
+  assert.deepEqual((await b.chamar('GET',`/api/empresas/${empresa.id}/ficha`)).json().cadastro,[]);
+});
+
+test('ficha: só queda do catálogo vira 503; defeito vira 500', async (t) => {
+  const db = await bancoDeTeste();
+  let falha;
+  const app = await criarApp(db, { catalogo: { buscar: async () => ({ empresas: [], total: 0 }), obter: async () => { throw falha; } } });
+  t.after(async () => { await app.close(); await db.close(); });
+  await criarUsuario(db, { email: 'c@teste.local', papel: 'analista', senha: 'Senha para testes somente!' });
+  const r = await app.inject({ method: 'POST', url: '/api/sessao', payload: { email: 'c@teste.local', senha: 'Senha para testes somente!' } });
+  const cookie = r.headers['set-cookie'].split(';')[0];
+  falha = Object.assign(new Error('conexão recusada'), { code: 'ECONNREFUSED' });
+  assert.equal((await app.inject({ method: 'GET', url: `/api/empresas/${empresa.id}/ficha`, headers: { cookie } })).statusCode,503);
+  falha = new TypeError('defeito de programação');
+  assert.equal((await app.inject({ method: 'GET', url: `/api/empresas/${empresa.id}/ficha`, headers: { cookie } })).statusCode,500);
+});
+
 test('briefing em PDF traz ficha, restrição em destaque e roteiro da frente; registra auditoria; leitura não exporta', async (t) => {
   const { db, usuario, selecionar, criar } = await montar(t);
   const a = await usuario('a@teste.local'); const leitura = await usuario('l@teste.local','leitura');

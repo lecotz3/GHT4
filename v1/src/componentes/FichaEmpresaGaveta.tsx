@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { api, ErroApi } from '../agente/api'
 import { dataCurta } from '../agente/prospeccao'
 import { NOMES_ETAPA, TIPOS_ACERVO, mesCurto, type FichaEmpresa } from '../agente/empresa'
+import { CadastroDesdeOportunidades } from './CadastroDesdeOportunidades'
 import { IconeRede } from './IconeRede'
 
-const ENQUADRAMENTO: Record<string, string> = { confirmado: 'Enquadramento confirmado', provavel: 'Enquadramento provável', possivel: 'Enquadramento possível' }
+const ENQUADRAMENTO: Record<string, string> = { confirmada: 'Enquadramento confirmado', provavel: 'Enquadramento provável', possivel: 'Enquadramento possível' }
+const CLASSE_ENQUADRAMENTO: Record<string, string> = { confirmada: 'is-confirmado', provavel: 'is-provavel', possivel: 'is-possivel' }
 
 /** Ficha única da empresa: cadastro, situação na casa, pessoas, acesso e acervo, só com o que o usuário alcança. */
 export function FichaEmpresaGaveta({ empresaId, aoFechar, aoAbrirCrm, podeExportar }: { empresaId: string | null; aoFechar: () => void; aoAbrirCrm: (id: string) => void; podeExportar: boolean }) {
@@ -40,7 +42,7 @@ export function FichaEmpresaGaveta({ empresaId, aoFechar, aoAbrirCrm, podeExport
       {ficha && e && <div className="agente-gaveta-secoes">
         <section><h3>Cadastro</h3>
           <dl className="agente-dados">
-            <div><dt>Enquadramento</dt><dd><span className={`agente-enquadramento is-${e.estado}`}>{ENQUADRAMENTO[e.estado] || e.estado}</span></dd></div>
+            <div><dt>Enquadramento</dt><dd><span className={`agente-enquadramento ${CLASSE_ENQUADRAMENTO[e.estado] || ''}`}>{ENQUADRAMENTO[e.estado] || e.estado}</span></dd></div>
             <div><dt>CNAE principal</dt><dd className="tabular-nums">{e.cnaePrincipal || 'Não informado'}</dd></div>
             <div><dt>Referência</dt><dd>{e.referencia} · Receita Federal</dd></div>
           </dl>
@@ -60,6 +62,7 @@ export function FichaEmpresaGaveta({ empresaId, aoFechar, aoAbrirCrm, podeExport
             <span className={`agente-etiqueta ${o.frente}`}>{o.frente === 'compra' ? 'Compra' : 'Venda'}</span>
             <span className="min-w-0 flex-1"><strong>{NOMES_ETAPA[o.etapa] || o.etapa}</strong><small>{o.responsavel_nome} · {o.espaco || 'privada'} · próximo passo {dataCurta(o.prazo)}</small></span><IconeRede nome="seta" /></button></li>)}</ul>
         </section>}
+        {!!ficha.cadastro?.length && <CadastroDesdeOportunidades grupos={ficha.cadastro} aoAbrir={abrirOportunidade} />}
         {ficha.acesso && <section><h3>Acesso pela rede</h3>
           {ficha.acesso.melhor ? <div className="agente-cartao-acao"><span>{ficha.acesso.melhor.categoria} · {ficha.acesso.melhor.saltos === 1 ? 'direto' : `${ficha.acesso.melhor.saltos} saltos`}</span><p>{ficha.acesso.melhor.de} → {ficha.acesso.melhor.ate}{ficha.acesso.melhor.cargo ? `, ${ficha.acesso.melhor.cargo}` : ''}</p></div>
             : <p className="agente-gaveta-vazio">{ficha.acesso.descartados ? 'Há caminhos registrados, mas o titular não quer intermediar ou a informação está desatualizada.' : 'Nenhum caminho utilizável hoje.'}</p>}

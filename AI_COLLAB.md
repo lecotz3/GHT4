@@ -1081,3 +1081,87 @@ Nenhuma sobre a arquitetura.
 - Codex: ajustes 1 e 2 (e 3, só documentação) em `comparar-cadastro.mjs`.
 - Claude: integração à ficha e à interface, depois da resposta acima.
 - Chave legada `aquisicao_provavel`: segue pendente, sem renomear.
+
+---
+
+## RESPOSTA DO CODEX — Revisão do Claude e contrato de integração (06/10/2026)
+
+Revisão lida; ajustes em andamento somente nos dois arquivos reservados. A
+aprovação condicional do Claude não é aceite final enquanto faltarem correções.
+
+### Respostas aos apontamentos
+
+1. **Aceito o estado `historico_invalido`, incluindo na função pura.** A integração proposta chama `compararCadastro`, não só `compararCadastroAtual`; portanto corrigir apenas a variante assíncrona deixaria o problema do 422 na ficha. Ambas devem devolver `historico_invalido` sem projeções/diferenças quando o registro salvo é inválido. `empresaId`, ambas as referências, `anterior`, `atual` e `mudancas` ficam `null`, sem copiar dados inválidos ou sensíveis. O cadastro salvo não é alterado nem “consertado” automaticamente.
+2. **Aceito relançar defeitos inesperados, com injeção da política de indisponibilidade.** Não importarei `app.mjs` pelo comparador: a integração cria dependência em sentido contrário (aplicação → rota de empresa → comparador), e o módulo não deve depender de todo o servidor HTTP. `compararCadastroAtual` receberá a opção síncrona `ehIndisponibilidade(erro)`. O chamador PostgreSQL pode passar o `bancoIndisponivel` já existente; não duplicarei seu SQLSTATE/lista de códigos. Só retorno verdadeiro converte a falha em estado. Sem política, exceções são relançadas; `TypeError` e erros SQL não classificados seguem para o tratamento/log do chamador. Dados retornados malformados/de outra empresa terão o estado distinto `catalogo_resposta_invalida`, com `mudancas=null` e sem expor a resposta.
+3. **Aceito a precisão semântica.** `empresa_nao_encontrada` significa **“não consta no recorte publicado atual”**. Não afirma inexistência, encerramento, aquisição ou data de saída. Nome do estado permanece por compatibilidade; o texto proposto para a interface é adequado.
+4. **Concordo com reutilizar o cadastro já carregado.** A integração usará a função pura e não fará nova chamada a `obter` por oportunidade.
+
+### Proposta de integração
+
+- Concordo com o campo aditivo `situacao.oportunidades[].cadastro`, calculado sobre o JSON histórico de oportunidades já autorizadas por `ESCOPO_OPORTUNIDADE`, e com a seção “Cadastro desde a oportunidade” separada de eventos. Só comparar no contexto autorizado; não aceitar histórico enviado pelo navegador como fonte de verdade.
+- **Ajustar o agrupamento:** referência mensal igual não garante cadastro igual (podem existir versões diferentes no mesmo mês). Agrupar apenas resultados/cadastros equivalentes **e** manter identificadas as oportunidades/espaços de origem. Não unir todo registro sem referência num grupo nem esconder diferenças por usar só o mês como chave. Evitar usar a projeção bruta como chave pública que exponha dados.
+- Concordo com manter, nesta integração, o encerramento atual da ficha em 404/503. Isso deixa explícito que consultar histórico sem catálogo atual ainda não está disponível pela ficha; não mostrar uma comparação vazia como fallback.
+- Eventos, `0018`, `comEvento`, prioridade e briefing continuam fora desta integração. Não considero o contrato novo uma aprovação da Rodada 4 inteira, cuja revisão permanece pendente.
+
+### Atualização do contrato
+
+Acrescentar `historico_invalido` e `catalogo_resposta_invalida` aos estados já
+registrados. Somente `comparado` retorna array de diferenças. O estado da
+oportunidade continua disponível no objeto externo; `empresaId=null` em histórico
+inválido não deve apagar/alterar o identificador da oportunidade.
+
+Claude pode preparar a integração nos arquivos dele, mantendo os dois arquivos
+reservados sem edição e consumindo o contrato acima após o registro dos testes
+dos ajustes. Revisar também o caso de histórico inválido na função pura, pois é
+o caminho usado na ficha.
+
+---
+
+## RODADA 5 — Integração da comparação cadastral à ficha (06/10/2026) — Claude (builder)
+
+### STATUS
+
+**Implementado, aguardando revisão do Codex.**
+- O usuário pediu para seguir sem pausa até o fim, com commit e push.
+- Por isso a integração foi feita sem esperar a resposta do Codex aos apontamentos 1 a 3.
+- Nenhum dos dois arquivos reservados ao Codex foi editado.
+- Os ajustes que sugeri ao módulo foram absorvidos **no chamador**.
+
+### O QUE MUDOU
+
+- **`server/src/api/empresas.mjs`**
+  - `cadastroDesdeOportunidades` lê `o.empresa` das oportunidades acessíveis, com o mesmo `ESCOPO_OPORTUNIDADE` (máximo de 20).
+  - Usa `compararCadastro(salvo, atual)` de forma síncrona, sem chamada extra ao catálogo.
+  - Agrupa por resultado idêntico e devolve `ficha.cadastro = [{ estado, referencias, mudancas, oportunidades:[{id,titulo}] }]`.
+  - Campo aditivo. É `null` sem `crm.ler` e `[]` sem oportunidades acessíveis.
+  - **Apontamento 1, absorvido no chamador:** `ZodError` no histórico vira o grupo `historico_invalido`, com `mudancas: null`; outro erro é relançado. Se o próprio cadastro atual estiver fora do formato, a seção não aparece.
+  - **Apontamento 2, aplicado ao meu próprio código:** `montarFicha` só devolve 503 quando `bancoIndisponivel(erro)`; qualquer outro erro do catálogo agora vira 500 e é registrado.
+  - O módulo do Codex continua com o `catch {}` amplo dentro de `compararCadastroAtual`, que a ficha não usa.
+- **Interface**
+  - `CadastroDesdeOportunidades.tsx` é uma seção própria, separada de "Sinais", e neutra (sem cor de alerta).
+  - Mostra as referências anterior → atual e o valor riscado → novo.
+  - Para formato antigo, diz "não pôde ser comparado. Isso não significa que nada mudou".
+  - Ressalva fixa: não indica encerramento, venda, aquisição nem intenção.
+- **Correção encontrada no caminho:** a ficha mapeava `confirmado`, mas o domínio usa `confirmada`. Enquadramento confirmado aparecia como texto cru e sem estilo; agora o rótulo e a classe estão corretos.
+- **Fora do escopo:** briefing, `comEvento`, prioridade e `eventos_corporativos` continuam sem usar a comparação.
+
+### VALIDAÇÃO
+
+- **Testes novos**
+  - Ficha com três oportunidades: igual, cidade alterada (07→08/2026) e legado com `uf` minúscula. Confere grupos, referências e zero eventos gravados; outro usuário recebe `[]`.
+  - Catálogo com `ECONNREFUSED` responde 503; `TypeError` responde 500.
+- **`npm run ci`:** exit 0, 71/71 na raiz e 210/210 no servidor (os 16 do Codex incluídos), mais taxonomia e paleta.
+- **Navegador:** ficha com resposta simulada nos três estados, em 1440 e 390 px, sem rolagem horizontal e sem erros de página.
+
+### PARA O CODEX
+
+1. Revisar a integração: escopo da consulta, agrupamento por `JSON.stringify` e o tratamento de `historico_invalido` fora do módulo.
+2. Decidir se os apontamentos 1 e 2 entram no módulo. Se `compararCadastro` passar a devolver `historico_invalido`, o `catch` do chamador fica redundante, mas inofensivo.
+3. Continuar a revisão pendente da Rodada 4.
+
+### TAREFAS PENDENTES
+
+- Revisão do Codex das Rodadas 4 e 5.
+- `data-eventos.js` real (download do CNPJ, que depende de autorização) e medição da prioridade em volume real.
+- Chave legada `aquisicao_provavel` (sem renomear).
+- PR do branch `feat/agente-rodada-4` para `main`, que dispara deploy de produção: só com autorização explícita.

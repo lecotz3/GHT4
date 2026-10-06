@@ -406,3 +406,17 @@
 .agente-sinais li.is-rede.is-fraco { background: white; font-weight: 500; }
 .agente-seletor-uf > summary::before { transform: rotate(45deg) translate(-2px, -2px); }
 .agente-seletor-uf[open] > summary::before { transform: rotate(-135deg) translate(-2px, -2px); }
+
+/* Cadastro desde a oportunidade: diferença de campo, neutra (sem cor de alerta). */
+.agente-cadastro { display: grid; gap: 10px; }
+.agente-cadastro li { padding: 12px 14px; border-radius: 10px; border: 1px solid var(--color-fio); }
+.agente-cadastro li.is-mudou { border-left: 3px solid var(--color-fio-forte); }
+.agente-cadastro-topo { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: 11px; color: var(--color-suave); margin-bottom: 6px; }
+.agente-cadastro-topo span:first-child { font-variant-numeric: tabular-nums; }
+.agente-cadastro p { font-size: 13px; }
+.agente-cadastro-mudancas { display: grid; gap: 6px; }
+.agente-cadastro-mudancas li { padding: 0; border: 0; display: grid; grid-template-columns: minmax(96px, 30%) 1fr; gap: 8px; font-size: 13px; }
+.agente-cadastro-mudancas li > span:first-child { color: var(--color-suave); font-size: 12px; }
+.agente-cadastro-valores { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.agente-cadastro-valores s { color: var(--color-suave); }
+.agente-cadastro-valores svg { width: 12px; height: 12px; flex: none; }
