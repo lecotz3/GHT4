@@ -1250,3 +1250,102 @@ reverti as mudancas do builder. Os resultados de ficha acima antecedem essa
 ultima edicao; ela precisa ser coberta e revalidada na proxima rodada.
 
 STATUS: REQUER ALTERAÇÕES
+
+---
+
+# REVIEW DO CODEX
+
+## Revisão Consolidada das Rodadas 4 e 5 - 06/10/2026
+
+Pedido do usuário: revisar ambas as rodadas neste diário. Diário lido
+integralmente; entregas confrontadas com API, SQL, filtros/interpretação, catálogo,
+rede, importação, briefing, componentes e testes. Referências de Git:
+`eb8c020` (Rodada 4), `113a92d` (Rodada 5) e `c3db301` (compatibilidade da ficha),
+mais os ajustes do comparador presentes no worktree. Este parecer complementa
+a revisão anterior, sem apagar seus apontamentos ou resultados.
+
+**Rodada 4: STATUS: REQUER ALTERAÇÕES**
+
+**Rodada 5: STATUS: REQUER ALTERAÇÕES**
+
+Não demonstrei falha P0/P1 ou novo vazamento de mandato confidencial nesta
+verificação. Os bloqueadores abaixo são bugs P2 reproduzidos ou diretamente
+confirmados no código; “CRÍTICOS” aqui significa correção obrigatória para o
+aceite das entregas, não classificação de todos eles como incidente crítico.
+
+## CRÍTICOS
+
+1. **[P2, R5] Comparação omite uma oportunidade exibida e pode concluir que não há diferenças.** `server/src/api/empresas.mjs:30` lista as 20 oportunidades mais recentes por atualização, mas `:66` compara as 20 mais antigas por criação. Reproduzi pela API em PGlite com 21 oportunidades autorizadas: a última, com cidade histórica divergente, apareceu na situação e não na comparação; os 20 cadastros comparados produziram zero diferenças. `v1/src/componentes/CadastroDesdeOportunidades.tsx:23` afirma “Nenhuma diferença” sem indicar esse corte. Usar um subconjunto coerente, identificar total/truncamento e limitar a conclusão aos registros efetivamente comparados. Não retirar o limite sem avaliar custo. Persistir o caso de 21 oportunidades, além de zero/exatamente 20.
+
+2. **[P2, R4] Ranking considera vínculo com pessoa inativa como relação confirmada.** `server/src/agente/catalogo-banco.mjs:33` verifica `rp.ativo` somente na pessoa da empresa, não na outra ponta do vínculo. Reproduzi pessoa da GHT4 inativa ligada a diretor ativo: a busca retornou `relacaoConfirmada=true`, enquanto `caminhosDeAcesso` retornou zero caminhos porque exclui arestas com qualquer ponta inativa. Isso altera a ordem e o selo por informação que a rede não oferece mais. Validar ambas as pontas e manter explícita a semântica de “relação confirmada”, sem promovê-la a caminho utilizável por mera existência de aresta. Cobrir desativação de cada ponta e situações bloqueadas/desatualizadas.
+
+3. **[P2, R4] O sinal que qualifica o resultado pode desaparecer antes da renderização.** `server/src/agente/catalogo-banco.mjs:31` e `:44` usam evento recente de categoria diferente de `outro`, mas `:47` retorna os três últimos eventos de qualquer categoria. `SinaisEmpresa.tsx:10` remove `outro` só depois do limite. Reproduzi um aumento de capital recente seguido por três registros `outro`: `comEvento=true` incluiu a empresa e `eventoRecente=true`, porém os três eventos retornados eram `outro` e nenhum selo societário restou. Garantir que o evento qualificante esteja na projeção visível, com período/ressalva, preservando a lista histórica da ficha. Testar esse caso sem selo de rede que disfarce a omissão.
+
+4. **[P2, R4] Rótulo do evento afirma alteração inexistente na quantidade total de sócios.** `ferramentas/eventos-cnpj.mjs:110` dispara também quando apenas `qtdSociosPj` muda; `server/src/agente/eventos.mjs:17` sempre chama `mudanca_quadro_societario` de “Número de sócios mudou”. Caso válido: total 2 -> 2 e PJ 1 -> 0. A saída afirma mudança no total que não ocorreu. Reproduzi o rótulo pelo parser. Escolher texto que cubra alteração das quantidades/composição agregada sem afirmar troca de identidade ou controle. Não inferir isso por parsing do campo livre `detalhe`; usar rótulo conservador ou metadados estruturados compatíveis. Cobrir total igual/PJ diferente e total diferente/PJ igual, na origem e no importador.
+
+5. **[P2, R4] Falha de atualização do Meu dia fica invisível quando há resposta anterior.** `v1/src/componentes/MeuDia.tsx:25` só mostra erro se `falhou && !dados`; após uma primeira carga, a nova falha apenas mantém `dados` antigos. Reproduzi renderização isolada com resposta anterior vazia e `falhou=true`: continua “Nada pendente com você agora”, sem aviso de falha. Pode esconder uma tarefa recém-atribuída, mudança de dia ou retirada de acesso. Distinguir carregamento, dados anteriores e falha; não apresentar cache como consulta atual. Exibir aviso e recuperação, e tratar 401 conforme o fluxo existente. Testar sucesso -> retorno ao Início -> erro -> recuperação, incluindo mudança de dia/acesso.
+
+6. **[P2, R4] Conta sem pessoa da rede perde o aviso justamente no estado vazio.** `MeuDia.tsx:29` define `nada` sem considerar `r.naRede=false`; o aviso em `:52` só está no ramo oposto de `:37`. Reproduzi agenda vazia e rede não cadastrada: “Nada pendente”, sem “Você ainda não está na rede”. Contraria o critério aceito de distinguir cadastro necessário de ausência de pendências. Renderizar o aviso independentemente da agenda e testar conta sem pessoa vinculada, pessoa inativa e pessoa vinculada sem pendências.
+
+7. **[P2, R4] Paginação da prioridade não detecta alteração dos critérios que mudam a ordem.** `catalogo-banco.mjs:12` ordena por eventos/rede vivos; `:54` valida apenas o hash da publicação cadastral. Reproduzi: página 1 com limite 1 retorna Alpha; importo evento recente para Beta sem trocar o catálogo; página 2 com o mesmo `catalogoHash` retorna Alpha outra vez, e Beta é omitida no percurso. Ordem estável sem mutação, coberta pelo teste atual, não é estabilidade sob concorrência. Definir corte/versionamento dos sinais para a pesquisa e rejeitar continuação obsoleta com reinício, ou conservar a seleção ordenada do corte. Não basta um desempate por ID ou um cursor que continue aceitando a ordem alterada. Testar importação de evento e confirmação/desativação de vínculo entre páginas. Combinar qualquer evolução do contrato da busca no diário antes de implementá-la.
+
+## IMPORTANTES
+
+1. **[P2, R4] Parser aceita raiz numérica e o resumo do importador fica impossível.** `server/src/agente/eventos.mjs:44` valida `String(e.base)`, mas `:48` preserva o número. PostgreSQL converte a raiz para texto e insere; o `Set` em `:77` compara strings com números e não a reconhece. Reproduzi `{base:12345678}` de entidade conhecida: `total=1`, `importados=1`, `jaExistentes=-1`, `foraDoCadastro=1`. Exigir string de oito dígitos no contrato, preservando zeros iniciais, ou normalizar explicitamente antes de todos os usos; preferir rejeitar entrada numérica. Persistir regressão de tipo, zeros iniciais e coerência das contagens na primeira/reimportação.
+
+2. **[R4/R5] Contexto de origem existe em parte do payload, mas some na leitura.** Comparação (`empresas.mjs:79`) guarda ID/título sem espaço; acervo da gaveta (`FichaEmpresaGaveta.tsx:74`) não mostra a oportunidade já presente no payload; briefing (`briefing.mjs:75`) imprime registros revisados sem sua oportunidade, referência ou versão. O usuário pode juntar teses de contextos distintos como uma conclusão única da empresa. Exibir a origem autorizada nos grupos/acervo e preservar oportunidade e lastro no PDF. Não ampliar escopo nem revelar espaços ocultos. Cobrir duas oportunidades de títulos iguais em espaços distintos.
+
+3. **[R5] Compatibilidade já corrigida; limpeza do tratamento de erro permanece.** `c3db301` corrige a guarda para examinar o estado e acrescenta `catalogo_resposta_invalida` ao tipo. Retiro esses dois pontos como defeitos atuais. Ainda há `catch { return null; }` na guarda (`empresas.mjs:64`), que esconde defeitos, e um segundo tratamento de `ZodError` (`:71`) que duplica o contrato do módulo. Consumir os estados do comparador atual e deixar defeitos inesperados seguirem ao log/500. Adicionar teste de cadastro atual inválido separado do histórico legado.
+
+4. **[Banco/performance] Limite do acervo só existe depois de carregar todos os registros.** `empresas.mjs:43` busca o JSON completo da última versão de cada série acessível; só em `:47` ordena/corta para 30 na aplicação. A resposta pequena não limita memória, tráfego nem o trabalho da consulta. Projetar somente os campos usados e ordenar/limitar no SQL **depois** de selecionar a última versão por série. Não limitar versões antes de escolher a atual, nem trocar uma versão atual não revisada por uma antiga revisada. Testar volume acima do limite e o último registro de cada série. Não atribuo a isso uma latência de produção que não medi.
+
+5. **[Testes ausentes] Escopo das novas agregações e recuperação precisam de regressões próprias.** A suite atual cobre confidencialidade da rota de situação e privadas alheias na comparação, mas não completa a matriz da nova seção/Meu dia/briefing: mandato confidencial inacessível, participante, admin sem acesso à privada alheia, acesso retirado, tarefas de execução após assinatura e contagens acima do corte. Para comparação, incluir históricos diferentes no mesmo mês e sem referência. Verificar ausência de título/valor/contagem de registros inacessíveis no corpo inteiro, não apenas listas vazias. Os bugs acima também precisam virar testes versionados, não apenas minhas reproduções avulsas.
+
+## OPCIONAIS
+
+- Medir `EXPLAIN (ANALYZE, BUFFERS)` e latência no PostgreSQL com volume representativo. As subconsultas de eventos/rede entram também na busca padrão e em `obter`; a CTE de filtradas alimenta contagem e página. Não recomendar índices por suposição nem confundir resultado funcional em PGlite com desempenho de produção. Avaliar leitura direta por raiz em `obter` em uma rodada separada.
+- O briefing pode legitimamente ser documento de trabalho da empresa, sem hash de corte, desde que sua natureza não seja confundida com exportação congelada. Esclarecer “uma página”: com 12 restrições longas, minha fixture produziu três páginas e preservou os textos. Conferência de paginação e layout visual segue pendente. Corrigir também o mapa `confirmado` para `confirmada` em `briefing.mjs:37`; a gaveta já foi corrigida, o PDF ainda mostra “Enquadramento confirmada”.
+- Extrair a política compartilhada de escopo para um módulo de acesso sem dependência de rotas HTTP quando houver motivo concreto. Hoje `inicio.mjs` depende de `empresas.mjs`, que importa `app.mjs`; os ciclos funcionam nos testes, mas dificultam manutenção. Não transformar isso em refatoração ampla durante as correções.
+- Manter como pendências explícitas o estudo de cobertura/falsos positivos dos eventos, dados reais e ensaios de teclado/leitor de tela. A correção de rótulos e a idempotência não provam utilidade comercial do detector. Não renomear a chave legada nem alterar migração aplicada sem plano de compatibilidade.
+
+## DISCORDÂNCIAS
+
+- Discordo do aceite da prioridade com base apenas em explicabilidade e paginação sem mutação: os critérios precisam existir na apresentação e respeitar desativação e continuidade da pesquisa. As reproduções dos itens 2, 3 e 7 mostram falhas independentes.
+- Discordo de afirmar que o rótulo societário ficou inteiramente factual: “Número de sócios mudou” ainda excede o que foi medido em parte dos casos. A categoria `mudanca_controle` e a chave `aquisicao_provavel` continuam legadas; a UI não deve afirmar controle por causa delas.
+- Aceito a justificativa de um briefing próprio da empresa usando o mesmo pdfkit, sem impor um corte de oportunidade como arquitetura obrigatória. Discordo de omitir a origem dos registros revisados: acesso autorizado não torna contextos intercambiáveis.
+- Não considero o CI verde aprovação automática. Ele confirma as regressões versionadas, mas os cenários adicionais reproduziram problemas fora da cobertura atual. A publicação/commit pelo builder não altera o parecer técnico nem representa autorização do Codex para produção.
+
+## APROVADO
+
+- Filtros e ordenações SQL permanecem parametrizados/listados internamente; texto de busca não vira curinga ou trecho executável. Compatibilidade de contextos/modelos antigos usa os padrões dos novos campos. UFs são normalizadas na fronteira da API; município é separado da busca ampla.
+- Escopo aplicado no servidor antes de listar oportunidades/restrições/registros; privadas e mandatos confidenciais seguem a política existente. Não encontrei novo vazamento demonstrado nas consultas analisadas. Isso não dispensa completar a cobertura específica apontada acima.
+- Meu dia conta antes do corte, usa data do fuso definido no domínio, separa responsável e escopo, e mantém tarefas abertas após assinatura. O defeito demonstrado é na apresentação de estados e atualização, não prova de contagem errada da consulta atual.
+- Eventos são lidos como JSON, não executados; importação é transacional e a migração 0018 dá idempotência por entidade/tipo/período. `ocorrido_em` nulo evita inventar dia exato. A comparação cadastral não escreve eventos nem interfere no ranking.
+- Comparador puro reutiliza o cadastro carregado na ficha. Históricos inválidos e respostas atuais inválidas não viram array vazio; dados sensíveis extras não são projetados. A guarda e o tipo corrigidos em `c3db301` são compatíveis com esse contrato.
+- 503 global distingue códigos de conexão/credencial de SQL inválido, preserva mensagens sem segredos e não acrescenta `Retry-After` à classe 28. Consumidores mantêm erros como erros, não resultados vazios; recuperação do Meu dia é a exceção apontada. Erros do provedor de IA têm tratamento próprio. Não identifiquei regressão de autenticação nos testes executados.
+- Quadro explicita que é página parcial e continua sem permitir mudança de etapa por arrastar; a regra de atividade/evidência é preservada.
+- **Verificação independente: `npm run ci` exit 0, 71/71 testes na raiz, 213/213 no servidor, lint/build e taxonomia/paleta offline aprovados.** `git diff --check` exit 0, somente avisos LF/CRLF. O CI inclui os ajustes do comparador em andamento; não é o mesmo resultado antigo de 192/210 informado pelo builder.
+- Reproduções adicionais em bancos PGlite descartáveis: relação com ponta inativa, evento qualificante escondido, 21 oportunidades, mudança de ordem entre páginas e raiz numérica. Parser confirmado isoladamente; estados do Meu dia conferidos por renderização React isolada com hooks/estados controlados, não por navegador. Nenhum desses scripts foi adicionado como teste permanente nesta revisão.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Claude deve responder ponto a ponto, corrigir os bloqueadores e acrescentar
+regressões em entregas delimitadas: (1) corte/contexto da ficha e comparação;
+(2) ranking/sinais e continuidade da paginação; (3) parser/rótulos de eventos;
+(4) estados/recuperação do Meu dia. Combinar antes qualquer mudança de contrato
+de busca ou de arquivo de eventos. Resolver também as contagens inválidas do
+importador e preservar as versões corretas ao limitar o acervo no SQL.
+
+Não editar os arquivos reservados do comparador em paralelo. Registrar arquivos,
+decisões e testes, executar CI novamente, verificar os estados corrigidos em
+desktop/mobile e solicitar nova revisão. Sem aprovação de merge/deploy enquanto
+os bloqueadores permanecerem; dados reais/produção/IA dependem de verificação e
+autorização próprias.
+
+**Nesta revisão Codex alterou somente este diário.** As alterações funcionais já
+presentes no worktree são de rodadas anteriores ou do builder. Não fiz commit,
+push, deploy, acesso ao banco remoto, chamada à IA, download de CNPJ ou ensaio
+independente de navegador. A revisão é de código, CI local e reproduções isoladas;
+não declara aceite visual, benchmark ou operação em produção.
+
+STATUS: REQUER ALTERAÇÕES
