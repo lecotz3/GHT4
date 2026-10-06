@@ -24,13 +24,14 @@ export type Tarefa = 'interpretar_busca' | 'conversar' | 'pesquisar_web' | 'busc
 export interface Usuario { id: string; nome: string; papel: string }
 export interface Contexto {
   modeloBusca?: { id: string; versao: number; hash: string } | null
-  frente?: 'compra' | 'venda'; objetivo?: string; busca?: string; uf?: string
+  frente?: 'compra' | 'venda'; objetivo?: string; busca?: string; uf?: string; municipio?: string; comEvento?: boolean; ordem?: 'enquadramento' | 'prioridade'
   incluirPossiveis?: boolean; empresaId?: string | null
   offset?: number; catalogoHash?: string; cnae?: string
   oportunidadeId?: string; documentoIds?: string[]
 }
 export interface Conversa { id: string; titulo: string; mandato_id: string | null; contexto: Contexto; versao: number; atualizado_em: string }
-export interface Empresa { id: string; nome: string; razaoSocial: string; cidade: string; uf: string; cnpjRaiz: string; cnaePrincipal: string; estado: string; motivo: string; referencia: string }
+export interface EventoSocietario { tipo: string; categoria: string; rotulo: string; detalhe: string; ambiguidade: string; de: string; ate: string; detectadoEm: string; fonte: string }
+export interface Empresa { id: string; nome: string; razaoSocial: string; cidade: string; uf: string; cnpjRaiz: string; cnaePrincipal: string; estado: string; motivo: string; referencia: string; eventos?: EventoSocietario[]; eventoRecente?: boolean; relacaoConfirmada?: boolean; pessoasMapeadas?: number }
 /* Rede de relacionamento. Os campos de contato são opcionais porque o servidor
    os remove de quem não tem `rede.ver_contato` — e diz quais removeu em
    `camposOmitidos`, para a tela poder mostrar "existe, você não vê" em vez de

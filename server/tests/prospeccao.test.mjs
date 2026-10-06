@@ -14,7 +14,7 @@ const empresa = { id: 'cnpj12345678', nome: 'Química de teste', razaoSocial: 'Q
 const fontes = [{ titulo: 'Receita Federal — cadastro CNPJ', referencia: '2026-08' }];
 async function montar(t) {
   const db = await bancoDeTeste();
-  const app = await criarApp(db, { catalogo: { buscar: async () => ({ empresas: [empresa], total: 1, referencia: '2026-08' }) } });
+  const app = await criarApp(db, { catalogo: { buscar: async () => ({ empresas: [empresa], total: 1, referencia: '2026-08' }), obter: async (id) => id === empresa.id ? empresa : null } });
   t.after(async () => { await app.close(); await db.close(); });
   async function usuario(email, papel = 'analista') {
     const u = await criarUsuario(db, { email, papel, senha: 'Senha para testes somente!' });
@@ -155,6 +155,28 @@ test('agenda persiste várias tarefas, exige responsável do espaço e protege a
   assert.equal((await b.chamar('GET','/api/crm/painel')).json().pendencias.length,0);
 });
 
+test('painel informa totais exatos de compromissos e atrasos além do corte de 100', async (t) => {
+  const { db, usuario, selecionar, criar } = await montar(t); const a = await usuario('a@teste.local'); const b = await usuario('b@teste.local');
+  const { s } = await selecionar(a); const { o } = await criar(a,s);
+  const ontem = new Date(`${hoje()}T12:00:00Z`); ontem.setUTCDate(ontem.getUTCDate() - 1);
+  const futuro = new Date(`${hoje()}T12:00:00Z`); futuro.setUTCDate(futuro.getUTCDate() + 30);
+  const inserir = (prazo, concluida = false) => db.query(`INSERT INTO crm_tarefas (id,oportunidade_id,responsavel_id,descricao,tipo,prazo,concluida)
+    VALUES ($1,$2,$3,'Tarefa de volume','pesquisa',$4,$5)`, [randomUUID(), o.id, a.id, prazo.toISOString().slice(0,10), concluida]);
+  await inserir(ontem); await inserir(ontem, true);
+  for (let i = 0; i < 98; i++) await inserir(futuro);
+  // exatamente no corte: lista e total coincidem em 100
+  const noCorte = (await a.chamar('GET','/api/crm/painel')).json();
+  assert.equal(noCorte.pendencias.length, 100);
+  assert.deepEqual(noCorte.totais, { compromissos: 100, atrasados: 1 });
+  for (let i = 0; i < 22; i++) await inserir(futuro);
+  const painel = (await a.chamar('GET','/api/crm/painel')).json();
+  assert.equal(painel.pendencias.length, 100);
+  // próximo passo da oportunidade (prazo hoje) + 1 atrasada + 120 futuras; a concluída não conta
+  assert.deepEqual(painel.totais, { compromissos: 122, atrasados: 1 });
+  assert.equal(painel.pendencias[0].prazo < painel.hoje, true);
+  assert.deepEqual((await b.chamar('GET','/api/crm/painel')).json().totais, { compromissos: 0, atrasados: 0 });
+});
+
 test('não contatar vale para compra e venda da empresa no espaço e sócio controla retirada', async (t) => {
   const { usuario, selecionar, criar, db } = await montar(t);
   const a = await usuario('a@teste.local'); const socio = await usuario('s@teste.local','socio');
@@ -293,4 +315,96 @@ test('valida datas, filtros, IDs e campos sem permitir alterar fonte ou escopo p
   assert.equal((await a.chamar('GET','/api/crm/oportunidades/invalido')).statusCode,422);
   assert.equal((await a.chamar('GET','/api/crm/oportunidades?offset=-1')).statusCode,422);
   assert.equal((await a.chamar('GET','/api/crm/oportunidades?busca=%25')).json().total,0);
+});
+
+test('situação da empresa mostra só oportunidades e restrições alcançáveis, sem revelar mandato confidencial', async (t) => {
+  const { db, usuario, selecionar, criar } = await montar(t);
+  const a = await usuario('a@teste.local'); const b = await usuario('b@teste.local'); const admin = await usuario('adm@teste.local','admin');
+  const url = `/api/empresas/${empresa.id}/situacao`;
+  assert.equal((await a.chamar('GET',url)).json().oportunidades.length,0);
+  const privada = await criar(a,(await selecionar(a)).s);
+  const sigilo = await criarMandato(db,{ codigo: 'SIGILO-EMP', confidencial: true }); await darAcesso(db,sigilo.id,a.id,'socio');
+  const confidencial = await criar(a,(await selecionar(a,sigilo.id,'venda')).s);
+  const restricao = { chave: randomUUID(), versao: 1, versaoRestricao: 0, ativa: true, categoria: 'conflito_de_interesse', motivo: 'Conflito registrado com outro mandato da casa.' };
+  assert.equal((await a.chamar('PUT',`/api/crm/oportunidades/${confidencial.o.id}/restricao`,restricao)).statusCode,200);
+  const deA = (await a.chamar('GET',url)).json();
+  assert.deepEqual(deA.oportunidades.map((o) => o.id).sort(),[privada.o.id,confidencial.o.id].sort());
+  assert.equal(deA.restricoes.length,1); assert.equal(deA.restricoes[0].espaco,'Mandato de teste');
+  // b não participa do mandato confidencial nem é autor da privada: nada, nem contagem.
+  const deB = (await b.chamar('GET',url));
+  assert.equal(deB.statusCode,200); assert.deepEqual(deB.json(),{ empresaId: empresa.id, oportunidades: [], restricoes: [] });
+  assert.doesNotMatch(deB.body,/SIGILO|Conflito|Mandato/);
+  // admin alcança o mandato confidencial, mas não a privada de outro usuário.
+  assert.deepEqual((await admin.chamar('GET',url)).json().oportunidades.map((o) => o.id),[confidencial.o.id]);
+  assert.equal((await a.chamar('GET','/api/empresas/xx/situacao')).statusCode,422);
+});
+
+test('meu dia mostra só compromissos do próprio usuário, por prazo, e pendências da sua pessoa na rede', async (t) => {
+  const { db, usuario, selecionar, criar } = await montar(t);
+  const a = await usuario('a@teste.local'); const b = await usuario('b@teste.local'); const leitura = await usuario('l@teste.local','leitura');
+  const vazio = (await a.chamar('GET','/api/inicio')).json();
+  assert.deepEqual(vazio.compromissos,{ atrasados: 0, hoje: 0, semana: 0, itens: [] });
+  assert.deepEqual(vazio.rede,{ naRede: false, perguntasPendentes: 0, vinculosParaConfirmar: 0 });
+  const { o } = await criar(a,(await selecionar(a)).s); // próximo passo com prazo hoje
+  const dia = (d) => { const x = new Date(`${hoje()}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + d); return x.toISOString().slice(0,10); };
+  const tarefa = (prazo, resp = a.id, concluida = false) => db.query(`INSERT INTO crm_tarefas (id,oportunidade_id,responsavel_id,descricao,tipo,prazo,concluida)
+    VALUES ($1,$2,$3,'Tarefa','contato',$4,$5)`, [randomUUID(), o.id, resp, prazo, concluida]);
+  await tarefa(dia(-2)); await tarefa(dia(3)); await tarefa(dia(30)); await tarefa(dia(-1), a.id, true); await tarefa(dia(-1), b.id);
+  const meu = (await a.chamar('GET','/api/inicio')).json();
+  assert.equal(meu.compromissos.atrasados,1); assert.equal(meu.compromissos.hoje,1); assert.equal(meu.compromissos.semana,1);
+  assert.deepEqual(meu.compromissos.itens.map((i) => i.prazo),[dia(-2),hoje(),dia(3)]);
+  assert.equal(meu.semProximoPasso.total,0);
+  await db.query('UPDATE crm_oportunidades SET acao_concluida=true WHERE id=$1',[o.id]);
+  assert.equal((await a.chamar('GET','/api/inicio')).json().semProximoPasso.itens[0].id,o.id);
+  // b só enxerga a própria tarefa se tiver acesso à oportunidade (privada de a): nada.
+  assert.deepEqual((await b.chamar('GET','/api/inicio')).json().compromissos.itens,[]);
+  // Leitura consulta o CRM, mas não é responsável por nada: bloco presente e vazio.
+  const l = (await leitura.chamar('GET','/api/inicio')).json(); assert.deepEqual(l.compromissos.itens,[]);
+  // Rede: a pessoa de a, duas pessoas do mercado (uma respondida) e um vínculo a confirmar.
+  const [eu, x, y] = [randomUUID(), randomUUID(), randomUUID()];
+  await db.query(`INSERT INTO rede_pessoas (id,lado,nome,usuario_id,criado_por) VALUES ($1,'ght4','A',$2,$2),($3,'mercado','X',NULL,$2),($4,'mercado','Y',NULL,$2)`,[eu,a.id,x,y]);
+  await db.query(`INSERT INTO rede_reconhecimentos (id,pessoa_ght4_id,pessoa_alvo_id,resposta,registrado_por) VALUES ($1,$2,$3,'nao_conheco',$4)`,[randomUUID(),eu,x,a.id]);
+  const [pa, pb] = [eu, y].sort();
+  await db.query(`INSERT INTO rede_vinculos (id,pessoa_a_id,pessoa_b_id,tipo,forca,evidencia,criado_por) VALUES ($1,$2,$3,'evento','fraca','Evento setorial registrado',$4)`,[randomUUID(),pa,pb,a.id]);
+  assert.deepEqual((await a.chamar('GET','/api/inicio')).json().rede,{ naRede: true, perguntasPendentes: 1, vinculosParaConfirmar: 1 });
+  assert.equal((await b.chamar('GET','/api/inicio')).json().rede.naRede,false);
+});
+
+test('ficha da empresa reúne cadastro, situação, pessoas e acervo acessíveis, sem contatos', async (t) => {
+  const { db, usuario, selecionar, criar } = await montar(t);
+  const a = await usuario('a@teste.local'); const b = await usuario('b@teste.local');
+  const { o } = await criar(a,(await selecionar(a)).s);
+  await db.query(`INSERT INTO crm_registros (id,serie_id,oportunidade_id,tipo,versao,dados,revisado,usuario_id) VALUES
+    ($1,$1,$3,'tese',1,'{"titulo":"Tese v1"}',false,$4),($2,$1,$3,'tese',2,'{"titulo":"Tese v2","fonte":"Reunião"}',true,$4)`,[randomUUID(),randomUUID(),o.id,a.id]);
+  await db.query(`INSERT INTO crm_registros (id,serie_id,oportunidade_id,tipo,versao,dados,usuario_id) VALUES ($1,$1,$2,'relacao',1,'{"titulo":"Contato privado"}',$3)`,[randomUUID(),o.id,a.id]);
+  await db.query(`INSERT INTO rede_pessoas (id,lado,nome,cargo,senioridade,empresa_id,email,criado_por) VALUES ($1,'mercado','Diretora X','Diretora','diretoria',$2,'segredo@example.test',$3)`,[randomUUID(),empresa.id,a.id]);
+  const f = (await a.chamar('GET',`/api/empresas/${empresa.id}/ficha`)).json();
+  assert.equal(f.empresa.nome,empresa.nome);
+  assert.deepEqual(f.situacao.oportunidades.map((x) => x.id),[o.id]);
+  assert.deepEqual(f.acervo.registros.map((r) => [r.titulo,r.versao,r.revisado]),[['Tese v2',2,true]]);
+  assert.equal(f.pessoas.length,1); assert.equal(f.pessoas[0].senioridade,'Diretoria');
+  assert.equal(f.acesso.pessoasConhecidas,1); assert.equal(f.acesso.utilizaveis,0);
+  const bruto = JSON.stringify(f); assert.doesNotMatch(bruto,/segredo@|Contato privado/);
+  const deB = (await b.chamar('GET',`/api/empresas/${empresa.id}/ficha`)).json();
+  assert.deepEqual(deB.situacao.oportunidades,[]); assert.deepEqual(deB.acervo,{ registros: [], documentos: [] });
+  assert.equal((await a.chamar('GET','/api/empresas/cnpj99999999/ficha')).statusCode,404);
+});
+
+test('briefing em PDF traz ficha, restrição em destaque e roteiro da frente; registra auditoria; leitura não exporta', async (t) => {
+  const { db, usuario, selecionar, criar } = await montar(t);
+  const a = await usuario('a@teste.local'); const leitura = await usuario('l@teste.local','leitura');
+  const { o } = await criar(a,(await selecionar(a)).s);
+  const restricao = { chave: randomUUID(), versao: 1, versaoRestricao: 0, ativa: true, categoria: 'solicitacao_da_empresa', motivo: 'Pediu para não ser procurada até 2027.' };
+  assert.equal((await a.chamar('PUT',`/api/crm/oportunidades/${o.id}/restricao`,restricao)).statusCode,200);
+  await db.query(`INSERT INTO rede_pessoas (id,lado,nome,cargo,senioridade,empresa_id,email,criado_por) VALUES ($1,'mercado','Diretora X','Diretora','diretoria',$2,'segredo@example.test',$3)`,[randomUUID(),empresa.id,a.id]);
+  const r = await a.chamar('GET',`/api/empresas/${empresa.id}/briefing?frente=compra`);
+  assert.equal(r.statusCode,200,r.body.slice(0,200)); assert.equal(r.headers['content-type'],'application/pdf');
+  assert.match(r.headers['content-disposition'],/briefing-12345678-compra\.pdf/);
+  const texto = (await extrairDocumento(r.rawPayload,'pdf')).trechos.map((x) => x.texto).join(' ');
+  for (const esperado of ['Química de teste','NÃO CONTATAR','2027','Diretora X','lacuna de produto','não informa faturamento']) assert.ok(texto.includes(esperado), esperado);
+  assert.ok(!texto.includes('segredo@'));
+  const auditoria = (await db.query("SELECT * FROM auditoria WHERE entidade='briefing_empresa'")).rows;
+  assert.equal(auditoria.length,1); assert.equal(auditoria[0].entidade_id,empresa.id);
+  assert.equal((await leitura.chamar('GET',`/api/empresas/${empresa.id}/briefing`)).statusCode,403);
+  assert.equal((await a.chamar('GET',`/api/empresas/${empresa.id}/briefing?frente=xx`)).statusCode,422);
 });

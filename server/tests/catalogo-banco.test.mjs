@@ -39,6 +39,12 @@ test('importação persiste todo o universo e busca o piloto sem expor hipótese
   assert.equal((await catalogo.buscar({ busca:'%' })).total,0);
   assert.equal((await catalogo.buscar({ busca:"' OR 1=1 --" })).total,0);
   assert.equal((await catalogo.buscar({ uf:'PR' })).total,0);
+  assert.equal((await catalogo.buscar({ uf:'PR,SP', incluirPossiveis:true })).total,2);
+  assert.equal((await catalogo.buscar({ municipio:'SÃO  paulo' })).total,1);
+  assert.equal((await catalogo.buscar({ municipio:'Paulo' })).total,0, 'município é exato, não trecho');
+  assert.equal((await catalogo.buscar({ municipio:'campinas', incluirPossiveis:true, uf:'PR,SP' })).empresas[0].id,'cnpj87654321');
+  assert.equal((await catalogo.buscar({ municipio:'campinas', uf:'PR' , incluirPossiveis:true})).total,0);
+  assert.equal((await catalogo.buscar({ municipio:"' OR 1=1 --" })).total,0);
   assert.equal((await catalogo.buscar({ offset:100 })).empresas.length,0);
   assert.equal((await catalogo.buscar({ limite:0 })).total,1);
   assert.equal((await catalogo.obter('cnpj12345678')).nome,'Química São Paulo');
@@ -75,4 +81,78 @@ test('Render usa PORT e origem do serviço; produção exige catálogo do banco'
   assert.equal(ambienteDoServidor({}).catalogo,'arquivo');
   assert.throws(()=>ambienteDoServidor({...env,GHT4_CATALOGO_ORIGEM:'arquivo'}),/produção/);
   assert.throws(()=>ambienteDoServidor({...env,PORT:'abc'}),/Porta/);
+});
+
+test('eventos societários: importação idempotente, ligação ao cadastro, filtro recente e ambiguidade preservada', async t => {
+  const { importarEventos, lerFonteEventos } = await import('../src/agente/eventos.mjs');
+  const db = await bancoDeTeste(); t.after(() => db.close());
+  await importarCatalogo(db, { texto: fonte() });
+  const catalogo = criarCatalogoBanco(db);
+  const mes = (d) => { const x = new Date(); x.setUTCDate(1); x.setUTCMonth(x.getUTCMonth() + d); return x.toISOString().slice(0, 7); };
+  const arquivo = (de, ate, eventos) => `/* gerado */\nconst EVENTOS_CNPJ = ${JSON.stringify({ de, ate, total: eventos.length, eventos })};\n\nwindow.EVENTOS_CNPJ = EVENTOS_CNPJ;\n`;
+  const recentes = [
+    { base: '12345678', tipo: 'entrada_capital_estrangeiro', rotulo: 'Sócio no exterior entrou no quadro', detalhe: 'País diferente do Brasil.', ambiguidade: 'Confirmar antes de tratar como transação.' },
+    { base: '12345678', tipo: 'saiu_de_ativa', rotulo: 'Deixou a situação ATIVA', detalhe: '02 → 08', ambiguidade: 'Baixa pode ser incorporação.' },
+    { base: '99999999', tipo: 'aumento_de_capital', rotulo: 'Capital subiu', detalhe: 'x', ambiguidade: 'y' },
+  ];
+  const r = await importarEventos(db, { texto: arquivo(mes(-2), mes(-1), recentes) });
+  assert.deepEqual({ ...r, periodo: undefined }, { periodo: undefined, total: 3, importados: 2, jaExistentes: 0, foraDoCadastro: 1 });
+  assert.equal((await importarEventos(db, { texto: arquivo(mes(-2), mes(-1), recentes) })).importados, 0, 'reimportar não duplica');
+  const comEvento = await catalogo.buscar({ comEvento: true });
+  assert.equal(comEvento.total, 1); assert.equal(comEvento.empresas[0].id, 'cnpj12345678');
+  const ev = comEvento.empresas[0].eventos;
+  assert.equal(ev.length, 2); assert.ok(ev.every((e) => e.ambiguidade && e.de === mes(-2) && e.ate === mes(-1)));
+  assert.ok(!('entidade_id' in comEvento.empresas[0]));
+  // Evento só do tipo "outro" (sair de ATIVA) não conta como sinal recente; evento antigo também não.
+  await db.query("DELETE FROM eventos_corporativos WHERE detalhes->>'tipoOrigem'='entrada_capital_estrangeiro'");
+  assert.equal((await catalogo.buscar({ comEvento: true })).total, 0);
+  await importarEventos(db, { texto: arquivo(mes(-30), mes(-24), [recentes[0]]) });
+  assert.equal((await catalogo.buscar({ comEvento: true })).total, 0);
+  assert.equal((await catalogo.buscar({})).empresas[0].eventos.length, 2);
+  for (const ruim of [arquivo(mes(-1), mes(-2), []), arquivo(mes(-2), mes(-1), [{ ...recentes[0], base: '123' }]),
+    arquivo(mes(-2), mes(-1), [{ ...recentes[0], tipo: 'vende_amanha' }]), 'window.X = 1;'])
+    assert.throws(() => lerFonteEventos(ruim));
+});
+
+test('ordem "por onde começar": evento recente, depois relação confirmada, depois pessoas, depois enquadramento — tudo exposto', async t => {
+  const { randomUUID } = await import('node:crypto');
+  const { importarEventos } = await import('../src/agente/eventos.mjs');
+  const db = await bancoDeTeste(); t.after(() => db.close());
+  await importarCatalogo(db, { texto: fonte() });
+  const catalogo = criarCatalogoBanco(db);
+  const u = await criarUsuario(db, { email: 'ordem@example.test' });
+  const ids = (r) => r.empresas.map((e) => e.id);
+  const base = await catalogo.buscar({ incluirPossiveis: true });
+  assert.deepEqual(ids(base), ['cnpj12345678', 'cnpj87654321']);
+  assert.deepEqual(ids(await catalogo.buscar({ incluirPossiveis: true, ordem: 'prioridade' })), ids(base), 'sem sinais, prioridade = enquadramento');
+  // A possível ganha uma relação confirmada: passa à frente só na ordem de prioridade.
+  const [ght4, alvo] = [randomUUID(), randomUUID()];
+  await db.query(`INSERT INTO rede_pessoas (id,lado,nome,empresa_id,criado_por) VALUES ($1,'ght4','Sócia',NULL,$3),($2,'mercado','Diretor','cnpj87654321',$3)`, [ght4, alvo, u.id]);
+  const [a, b] = [ght4, alvo].sort();
+  await db.query(`INSERT INTO rede_vinculos (id,pessoa_a_id,pessoa_b_id,tipo,forca,evidencia,disposicao,criado_por) VALUES ($1,$2,$3,'trabalharam_juntos','direta','Trabalharam juntos','posso_apresentar',$4)`, [randomUUID(), a, b, u.id]);
+  const comRelacao = await catalogo.buscar({ incluirPossiveis: true, ordem: 'prioridade' });
+  assert.deepEqual(ids(comRelacao), ['cnpj87654321', 'cnpj12345678']);
+  assert.deepEqual(ids(await catalogo.buscar({ incluirPossiveis: true })), ids(base));
+  const possivel = comRelacao.empresas[0];
+  assert.equal(possivel.relacaoConfirmada, true); assert.equal(possivel.pessoasMapeadas, 1); assert.equal(possivel.eventoRecente, false);
+  // Evento recente na provável vence a relação confirmada da outra.
+  const mes = (d) => { const x = new Date(); x.setUTCDate(1); x.setUTCMonth(x.getUTCMonth() + d); return x.toISOString().slice(0, 7); };
+  await importarEventos(db, { texto: `const EVENTOS_CNPJ = ${JSON.stringify({ de: mes(-2), ate: mes(-1), eventos: [{ base: '12345678', tipo: 'aumento_de_capital', rotulo: 'Capital subiu', detalhe: '1 → 3', ambiguidade: 'Pode ser capitalização de lucros.' }] })};\n` });
+  const comEvento = await catalogo.buscar({ incluirPossiveis: true, ordem: 'prioridade' });
+  assert.deepEqual(ids(comEvento), ['cnpj12345678', 'cnpj87654321']);
+  assert.equal(comEvento.empresas[0].eventoRecente, true);
+  // Paginação estável na ordem de prioridade.
+  const p1 = await catalogo.buscar({ incluirPossiveis: true, ordem: 'prioridade', limite: 1 });
+  const p2 = await catalogo.buscar({ incluirPossiveis: true, ordem: 'prioridade', limite: 1, offset: 1 });
+  assert.deepEqual([...ids(p1), ...ids(p2)], ids(comEvento));
+  // Valor de ordem desconhecido não entra no SQL.
+  assert.deepEqual(ids(await catalogo.buscar({ incluirPossiveis: true, ordem: 'nome; DROP TABLE x' })), ids(base));
+});
+
+test('rótulo do evento vem do que o detector mede, não do texto do arquivo', async () => {
+  const { lerFonteEventos } = await import('../src/agente/eventos.mjs');
+  const { eventos } = lerFonteEventos(`const EVENTOS_CNPJ = ${JSON.stringify({ de: '2026-06', ate: '2026-08', eventos: [
+    { base: '12345678', tipo: 'aquisicao_provavel', rotulo: 'Pessoa jurídica assumiu o quadro societário', detalhe: 'Sócios: 2 → 2 · sócios PJ: 0 → 1', ambiguidade: 'Pode ser reorganização.' }] })};\n`);
+  assert.equal(eventos[0].rotulo, 'Entrou sócio pessoa jurídica no quadro');
+  assert.match(eventos[0].ambiguidade, /Pode ser reorganização\. A comparação usa a quantidade de sócios/);
 });

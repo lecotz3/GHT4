@@ -13,9 +13,14 @@ test('regras locais preservam critérios não citados e sinalizam sobras, exclus
   const atual={frente:'venda',uf:'RJ',cnae:'4684299'};
   const p=interpretarLocal('Distribuidoras em SP para compra; busca: Campinas; incluir possíveis',atual);
   assert.equal(p.aplicavel,true);assert.equal(p.filtrosPropostos.uf,'SP');assert.equal(p.filtrosPropostos.busca,'campinas');assert.equal(p.filtrosPropostos.frente,'compra');assert.equal(p.filtrosPropostos.cnae,'4684299');assert.equal(p.filtrosAtuais.uf,'RJ');
-  for(const pedido of ['Buscar em SP e em RJ','Não buscar em SP','Buscar em São Paulo','Buscar em SP com faturamento acima de 50 milhões','Buscar distribuidores excluindo trading','Pesquisar e envie e-mail aos sócios','Em SP; cidade: Campinas','Em SP; nome: Adequim']) {
+  for(const pedido of ['Não buscar em SP','Buscar em São Paulo','Buscar em SP com faturamento acima de 50 milhões','Buscar distribuidores excluindo trading','Pesquisar e envie e-mail aos sócios','Em SP; nome: Adequim','Em SP e em XX']) {
     const r=interpretarLocal(pedido,atual);assert.equal(r.aplicavel,false,pedido);assert.ok(r.pendencias.length,pedido);
   }
+  const varias=interpretarLocal('Buscar em SP e em RJ',atual);assert.equal(varias.aplicavel,true);assert.equal(varias.filtrosPropostos.uf,'RJ,SP');
+  const lista=interpretarLocal('estados: pr, sc, rs',{});assert.equal(lista.aplicavel,true);assert.equal(lista.filtrosPropostos.uf,'PR,RS,SC');
+  const cidade=interpretarLocal('Em SP; cidade: Campinas',atual);assert.equal(cidade.aplicavel,true);assert.equal(cidade.filtrosPropostos.municipio,'campinas');assert.equal(cidade.filtrosPropostos.busca,'');
+  const ordem=interpretarLocal('Em SP, por onde começar',{});assert.equal(ordem.aplicavel,true);assert.equal(ordem.filtrosPropostos.ordem,'prioridade');
+  const evento=interpretarLocal('Em SP com evento societário recente',{});assert.equal(evento.aplicavel,true);assert.equal(evento.filtrosPropostos.comEvento,true);
   const nao=interpretarLocal('Em SP; não incluir possíveis',{});assert.equal(nao.aplicavel,true);assert.equal(nao.filtrosPropostos.incluirPossiveis,false);
 });
 
@@ -26,6 +31,9 @@ test('interpretação recusa campos extras, valor inválido, termo inventado e o
   assert.throws(()=>validarInterpretacao({alteracoes:[{campo:'busca',valor:'Empresa inventada',trecho:'em SP'}],pendencias:[]},pedido,{}));
   assert.throws(()=>validarInterpretacao({alteracoes:[{...a,trecho:'em RJ'}],pendencias:[]},pedido,{}));
   assert.throws(()=>validarInterpretacao({alteracoes:[a,a],pendencias:[]},pedido,{}));
+  assert.throws(()=>validarInterpretacao({alteracoes:[{campo:'municipio',valor:'Sorocaba',trecho:'em SP'}],pendencias:[]},pedido,{}));
+  assert.throws(()=>validarInterpretacao({alteracoes:[{...a,valor:'SP,XX'}],pendencias:[]},pedido,{}));
+  assert.equal(filtrosDoContexto({uf:'sp,RJ,SP'}).uf,'RJ,SP');assert.equal(filtrosDoContexto({}).municipio,'');
   const financeiro=validarInterpretacao({alteracoes:[a],pendencias:[]},pedido+' com receita de 50 milhões',{});
   assert.equal(financeiro.aplicavel,false);
 });
@@ -117,4 +125,19 @@ test('recusa e saída inválida da IA consomem a reserva e preservam uma prévia
   assert.equal(chamadas,2);
   assert.equal((await db.query("SELECT count(*)::int n FROM ia_execucoes WHERE estado='falhou'")).rows[0].n,2);
   assert.equal((await db.query('SELECT contexto FROM agente_conversas WHERE id=$1',[c.id])).rows[0].contexto.uf,'RJ');
+});
+
+test('busca do agente entrega ao catálogo várias UFs normalizadas e o município', async t => {
+  const db=await bancoDeTeste();const pedidos=[];
+  const app=await criarApp(db,{catalogo:{buscar:async(f)=>{pedidos.push(f);return {empresas:[],total:0,referencia:'QA',hash:'a'.repeat(64)}}}});
+  t.after(async()=>{await app.close();await db.close()});
+  const u=await criarUsuario(db,{email:'ufs@example.test'}),s=await criar(db,{usuarioId:u.id});
+  const chamar=(method,url,payload)=>app.inject({method,url,payload,headers:{cookie:`ght4_sessao=${s.token}`}});
+  const c=(await chamar('POST','/api/agente/conversas',{id:randomUUID(),titulo:'UFs',contexto:{frente:'venda'}})).json().conversa;
+  const r=await chamar('POST',`/api/agente/conversas/${c.id}/mensagens`,{chave:randomUUID(),versao:c.versao,tarefa:'buscar_empresas',contexto:{uf:'sp,PR',municipio:'Campinas'}});
+  assert.equal(r.statusCode,200,r.body);
+  assert.equal(pedidos.at(-1).uf,'PR,SP');assert.equal(pedidos.at(-1).municipio,'Campinas');
+  assert.equal((await chamar('POST',`/api/agente/conversas/${c.id}/mensagens`,{chave:randomUUID(),versao:c.versao+1,tarefa:'buscar_empresas',contexto:{uf:'SP,XX'}})).statusCode,422);
+  assert.equal((await chamar('GET','/api/agente/empresas?uf=SP,RJ&municipio=Niter%C3%B3i')).statusCode,200);
+  assert.equal(pedidos.at(-1).uf,'RJ,SP');assert.equal(pedidos.at(-1).municipio,'Niterói');
 });

@@ -1,3 +1,4 @@
+import { normalizarMunicipio } from './filtros.mjs';
 import { readFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -60,16 +61,19 @@ export function criarCatalogo({ arquivo = ARQUIVO } = {}) {
     return cache;
   }
   return {
-    async buscar({ busca = '', uf = '', incluirPossiveis = false, limite = 12, offset = 0, catalogoHash, cnae = '' } = {}) {
+    async buscar({ busca = '', uf = '', municipio = '', comEvento = false, incluirPossiveis = false, limite = 12, offset = 0, catalogoHash, cnae = '' } = {}) {
       const base = await carregar();
       if (catalogoHash && catalogoHash !== base.hash) { const e = new Error('O catálogo foi atualizado. Inicie uma nova busca.'); e.codigo = 'base_atualizada'; throw e; }
       const termos = normalizar(busca).trim().split(/\s+/).filter(Boolean);
+      const ufs = uf ? uf.split(',') : [], cidade = normalizarMunicipio(municipio);
       const filtradas = base.empresas.filter((e) => (incluirPossiveis || e.estado !== 'possivel')
-        && (!uf || e.uf === uf)
+        && (!ufs.length || ufs.includes(e.uf))
+        && (!cidade || normalizarMunicipio(e.cidade) === cidade)
         && (!cnae || e.cnaePrincipal === cnae)
+        && !comEvento
         && termos.every((t) => normalizar(`${e.nome} ${e.razaoSocial} ${e.cnpjRaiz} ${e.cidade}`).includes(t)));
       return {
-        empresas: filtradas.slice(offset, offset + limite), total: filtradas.length, offset, limite,
+        empresas: filtradas.slice(offset, offset + limite).map((e) => ({ ...e, eventos: [] })), total: filtradas.length, offset, limite,
         proximoOffset: offset + limite < filtradas.length ? offset + limite : null,
         cobertura: { receitaApurada: 0, intencaoApurada: 0, classificacao: filtradas.length, universo: filtradas.length },
         referencia: base.referencia, hash: base.hash, totalOrigem: base.totalOrigem,

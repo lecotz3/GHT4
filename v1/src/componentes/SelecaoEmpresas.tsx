@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { api, ErroApi } from '../agente/api'
 import { ExportarEntrega } from './ExportarEntrega'
+import { AvisoConflitos } from './AvisoConflitos'
 import { botao, campo, secundario, hojeLocal, type EscolhaEmpresa, type Selecao, type Oportunidade } from '../agente/prospeccao'
 
 const estados = { investigar: 'Investigar', priorizar: 'Priorizar', descartar: 'Descartar' }
@@ -33,8 +34,10 @@ export function SelecaoEmpresas({ conversaId, versao, espaco, podeEditar, escolh
     {erro && <p role="alert" className="text-sm text-alerta">{erro} <button className="underline" onClick={() => void carregar()}>Atualizar seleção</button></p>}
     {aviso && <p role="status" className="text-sm">{aviso}</p>}
     {carregando ? <p role="status" className="text-sm text-suave">Carregando seleção…</p> : <>
+      {escolha && podeEditar && <AvisoConflitos empresaId={escolha.empresa.id} aoAbrirCrm={aoAbrirCrm} />}
       {escolha && podeEditar && <Revisar key={`${escolha.empresa.id}-${escolha.frente}-${anterior?.versao || 0}`} escolha={escolha} anterior={anterior} conversaId={conversaId}
         aoCancelar={() => aoEscolher(null)} aoSalvar={async () => { aoEscolher(null); setAviso('Decisão salva na lista.'); await carregar() }} aoFalhar={falhou} />}
+      {criando && <AvisoConflitos empresaId={criando.empresa_id} aoAbrirCrm={aoAbrirCrm} />}
       {criando && <CriarOportunidade key={criando.id} selecao={criando} espaco={espaco} aoCancelar={() => setCriando(null)} aoFalhar={falhou}
         aoCriar={async (id) => { setCriando(null); await carregar(); aoAbrirCrm(id) }} />}
       {selecao.length === 0 && !escolha && <p className="text-sm text-suave">Use “Revisar empresa” em um resultado para começar sua seleção.</p>}

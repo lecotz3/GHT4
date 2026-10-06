@@ -11,6 +11,10 @@ import { EstruturaAgente, GuiaDeUso, type SecaoAgente } from './EstruturaAgente'
 import { InicioAgente } from './InicioAgente'
 import { EscolherEmpresaAgente } from './EscolherEmpresaAgente'
 import { IconeRede } from './IconeRede'
+import { SeletorUfs } from './SeletorUfs'
+import { FichaEmpresaGaveta } from './FichaEmpresaGaveta'
+import { SinaisEmpresa } from './SinaisEmpresa'
+import { FichaContexto, useAbrirFicha } from '../agente/fichaContexto'
 import { impedimentoDaTarefa, orientacoes } from '../agente/orientacao'
 import '../agente/visual.css'
 import type { EscolhaEmpresa } from '../agente/prospeccao'
@@ -19,7 +23,6 @@ import { api, ErroApi, type Acao, type Contexto, type Conversa, type Empresa, ty
 const campo = 'w-full rounded-ficha border border-fio-forte bg-papel px-3 py-2.5 text-sm outline-offset-2 focus:outline-comprador'
 const botao = 'rounded-ficha border border-tinta bg-tinta px-4 py-2.5 text-sm font-semibold text-papel transition hover:bg-tinta-2 disabled:cursor-not-allowed disabled:opacity-50'
 const secundario = 'rounded-ficha border border-fio-forte bg-papel px-3 py-2 text-sm font-medium hover:bg-papel-2 disabled:opacity-50'
-const ESTADOS = ['', 'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO']
 const ROTULOS: Record<Tarefa, string> = { interpretar_busca: 'Preparar filtros pelo pedido', conversar: 'Conversar com o agente', pesquisar_web: 'Pesquisar fontes públicas', buscar_empresas: 'Encontrar empresas', preparar_reuniao: 'Preparar reunião', mapear_acesso: 'Abrir caminho até a liderança', registrar_passo: 'Registrar próximo passo', ver_pendencias: 'Rever pendências' }
 const mensagem = (e: unknown) => e instanceof Error ? e.message : 'Não foi possível concluir esta ação.'
 
@@ -70,6 +73,7 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
     finally { setOcupado(false) }
   }
 
+  const [ficha, setFicha] = useState<string | null>(null)
   function navegar(s: SecaoAgente) {
     if (secao === 'equipe' && s !== 'equipe') setVersaoEquipe(v => v + 1)
     if (s === 'crm') setCrm({ id: null })
@@ -78,14 +82,15 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
   }
   function abrirCrm(id: string) { setCrm({ id }); setSecao('crm'); window.scrollTo({ top: 0, behavior: 'instant' }) }
 
-  if (usuario && !convite) return <EstruturaAgente usuario={usuario} secao={secao} aoNavegar={navegar} aoSair={() => void sair()} saindo={ocupado}>
+  if (usuario && !convite) return <FichaContexto.Provider value={setFicha}><EstruturaAgente usuario={usuario} secao={secao} aoNavegar={navegar} aoSair={() => void sair()} saindo={ocupado}>
     {erro && <p role="alert" className="mx-5 mt-3 text-sm text-alerta">{erro}</p>}
     {secao === 'equipe' && <Equipe aoExpirar={aoExpirar} aoVoltar={() => navegar('agente')} />}
     {secao === 'rede' && <Rede aoExpirar={aoExpirar} aoVoltar={() => navegar('agente')} />}
     {secao === 'crm' && <Oportunidades key={crm?.id ?? 'lista'} inicialId={crm?.id ?? null} aoVoltar={() => navegar('agente')} aoExpirar={aoExpirar} aoAbrirTrabalho={(id) => { setTrabalhoExterno(id); navegar('agente') }} />}
     {secao === 'ajuda' && <GuiaDeUso aoNavegar={navegar} aoExplorar={aoExplorar} />}
-    <div hidden={secao !== 'inicio' && secao !== 'agente'}><EspacoDoAgente key={usuario.id} usuario={usuario} inicio={secao === 'inicio'} aoTrabalhar={() => navegar('agente')} aoRede={() => navegar('rede')} aoAjuda={() => navegar('ajuda')} aoExpirar={aoExpirar} versaoEquipe={versaoEquipe} trabalhoExterno={trabalhoExterno} aoAbrirCrm={abrirCrm} /></div>
-  </EstruturaAgente>
+    <div hidden={secao !== 'inicio' && secao !== 'agente'}><EspacoDoAgente key={usuario.id} usuario={usuario} inicio={secao === 'inicio'} aoOportunidades={() => navegar('crm')} aoTrabalhar={() => navegar('agente')} aoRede={() => navegar('rede')} aoAjuda={() => navegar('ajuda')} aoExpirar={aoExpirar} versaoEquipe={versaoEquipe} trabalhoExterno={trabalhoExterno} aoAbrirCrm={abrirCrm} /></div>
+    <FichaEmpresaGaveta empresaId={ficha} aoFechar={() => setFicha(null)} aoAbrirCrm={abrirCrm} podeExportar={usuario.papel !== 'leitura'} />
+  </EstruturaAgente></FichaContexto.Provider>
 
   return <div className="agente-app agente-acesso">
     <aside className="agente-acesso-marca"><MarcaGHT4 className="h-14" /><div><span className="agente-sobretitulo">GHT4 Advisory · M&amp;A</span><h1>Boas conexões.<br />Novas possibilidades.</h1><p>Um espaço para descobrir empresas, reunir contexto e transformar relações em oportunidades.</p></div><ol><li><span>01</span>Descubra o mercado</li><li><span>02</span>Encontre um caminho</li><li><span>03</span>Avance a conversa</li></ol><small>Inteligência a serviço das suas relações.</small></aside>
@@ -112,7 +117,7 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
   </div>
 }
 
-function EspacoDoAgente({ usuario, inicio, aoTrabalhar, aoRede, aoAjuda, aoExpirar, versaoEquipe, aoAbrirCrm, trabalhoExterno }: { usuario: Usuario; inicio: boolean; aoTrabalhar: () => void; aoRede: () => void; aoAjuda: () => void; aoExpirar: () => void; versaoEquipe: number; aoAbrirCrm: (id: string) => void; trabalhoExterno: string | null }) {
+function EspacoDoAgente({ usuario, inicio, aoOportunidades, aoTrabalhar, aoRede, aoAjuda, aoExpirar, versaoEquipe, aoAbrirCrm, trabalhoExterno }: { usuario: Usuario; inicio: boolean; aoOportunidades: () => void; aoTrabalhar: () => void; aoRede: () => void; aoAjuda: () => void; aoExpirar: () => void; versaoEquipe: number; aoAbrirCrm: (id: string) => void; trabalhoExterno: string | null }) {
   const [estado, setEstado] = useState<EstadoAgente | null>(null)
   const [conversas, setConversas] = useState<Conversa[]>([])
   const [mandatos, setMandatos] = useState<{ id: string; rotulo: string }[]>([])
@@ -239,7 +244,7 @@ function EspacoDoAgente({ usuario, inicio, aoTrabalhar, aoRede, aoAjuda, aoExpir
 
   if (inicio) return <main className="agente-pagina">
     {erro && <p role="alert" className="mb-5 text-sm text-alerta">{erro} <button className="underline" onClick={() => void carregar()}>Tentar novamente</button></p>}
-    {estado ? <InicioAgente usuario={usuario} estado={estado} conversas={conversas} aoComecar={comecar} aoRetomar={(id) => { aoTrabalhar(); void abrir(id) }} aoRede={aoRede} aoAjuda={aoAjuda} bloqueado={bloqueado} /> : <p role="status">Preparando seu espaço…</p>}
+    {estado ? <InicioAgente usuario={usuario} estado={estado} conversas={conversas} aoComecar={comecar} aoRetomar={(id) => { aoTrabalhar(); void abrir(id) }} aoRede={aoRede} aoAjuda={aoAjuda} bloqueado={bloqueado} visivel={inicio} aoAbrirCrm={aoAbrirCrm} aoOportunidades={aoOportunidades} /> : <p role="status">Preparando seu espaço…</p>}
   </main>
 
   return <main className="agente-pagina space-y-6">
@@ -253,10 +258,13 @@ function EspacoDoAgente({ usuario, inicio, aoTrabalhar, aoRede, aoAjuda, aoExpir
           <div className="agente-passo-atual"><span><IconeRede nome={tarefa === 'buscar_empresas' ? 'busca' : tarefa === 'mapear_acesso' ? 'rede' : tarefa === 'preparar_reuniao' ? 'agenda' : 'brilho'} /></span><div><h3>{orientacao.titulo}</h3><p>{orientacao.ajuda}</p></div></div>
           {contexto.oportunidadeId && <p className="text-xs text-suave">Este trabalho usa {contexto.documentoIds?.length || 0} documentos de uma oportunidade. <button type="button" className="agente-link" onClick={() => aoAbrirCrm(contexto.oportunidadeId!)} disabled={enviando}>Conferir contexto</button></p>}
           {tarefa === 'buscar_empresas' && <>
-            <div className="grid gap-4 sm:grid-cols-[1fr_130px]"><label className="text-sm font-medium">Nome, cidade ou raiz do CNPJ<input className={`${campo} mt-2 font-normal`} value={contexto.busca || ''} onChange={(e) => setContexto({ ...contexto, modeloBusca: null, busca: e.target.value, offset: 0, catalogoHash: undefined })} maxLength={120} disabled={bloqueado} placeholder="Ex.: Campinas" /></label>
-              <label className="text-sm font-medium">Estado<select className={`${campo} mt-2 font-normal`} value={contexto.uf || ''} onChange={(e) => setContexto({ ...contexto, modeloBusca: null, uf: e.target.value, offset: 0, catalogoHash: undefined })} disabled={bloqueado}>{ESTADOS.map((uf) => <option key={uf} value={uf}>{uf || 'Todos'}</option>)}</select></label></div>
+            <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium sm:col-span-2">Nome, cidade ou raiz do CNPJ<input className={`${campo} mt-2 font-normal`} value={contexto.busca || ''} onChange={(e) => setContexto({ ...contexto, modeloBusca: null, busca: e.target.value, offset: 0, catalogoHash: undefined })} maxLength={120} disabled={bloqueado} placeholder="Ex.: Adequim ou 12345678" /></label>
+              <div className="text-sm font-medium"><span id="rotulo-estados">Estados</span><div className="mt-2" role="group" aria-labelledby="rotulo-estados"><SeletorUfs valor={contexto.uf || ''} desabilitado={bloqueado} aoMudar={(uf) => setContexto({ ...contexto, modeloBusca: null, uf, offset: 0, catalogoHash: undefined })} /></div></div>
+              <label className="text-sm font-medium">Município (exato)<input className={`${campo} mt-2 font-normal`} value={contexto.municipio || ''} onChange={(e) => setContexto({ ...contexto, modeloBusca: null, municipio: e.target.value, offset: 0, catalogoHash: undefined })} maxLength={80} disabled={bloqueado} placeholder="Ex.: Campinas" /></label>
+              <label className="text-sm font-medium sm:col-span-2">Ordem dos resultados<select className={`${campo} mt-2 font-normal`} value={contexto.ordem || 'enquadramento'} onChange={(e) => setContexto({ ...contexto, modeloBusca: null, ordem: e.target.value as 'enquadramento' | 'prioridade', offset: 0, catalogoHash: undefined })} disabled={bloqueado}><option value="enquadramento">Enquadramento e nome</option><option value="prioridade">Por onde começar: evento recente, relação confirmada, pessoas mapeadas</option></select></label></div>
             <details className="agente-opcoes"><summary>Mais filtros e observações</summary><div className="space-y-4">
               <label className="flex items-start gap-2 text-sm"><input className="mt-1" type="checkbox" checked={contexto.incluirPossiveis || false} onChange={(e) => setContexto({ ...contexto, modeloBusca: null, incluirPossiveis: e.target.checked, offset: 0, catalogoHash: undefined })} disabled={bloqueado} /><span>Incluir enquadramentos possíveis<span className="mt-1 block text-xs text-suave">Evidência cadastral mais fraca, que exige revisão adicional.</span></span></label>
+              <label className="flex items-start gap-2 text-sm"><input className="mt-1" type="checkbox" checked={contexto.comEvento || false} onChange={(e) => setContexto({ ...contexto, modeloBusca: null, comEvento: e.target.checked, offset: 0, catalogoHash: undefined })} disabled={bloqueado} /><span>Só com evento societário nos últimos 12 meses<span className="mt-1 block text-xs text-suave">Troca de sócios, entrada de sócio estrangeiro, aumento de capital ou filial em nova UF, detectados no CNPJ. É fato do registro, não intenção de vender.</span></span></label>
               <label className="block text-sm">CNAE principal (opcional, sete dígitos)<input className={`${campo} mt-1`} value={contexto.cnae || ''} onChange={(e) => setContexto({ ...contexto, modeloBusca: null, cnae: e.target.value, offset: 0, catalogoHash: undefined })} pattern="[0-9]{7}|" maxLength={7} disabled={bloqueado} /></label>{campoTexto}
             </div></details>
             {contexto.modeloBusca && <p className="text-xs text-suave">Modelo aplicado · versão {contexto.modeloBusca.versao}. <button type="button" className="agente-link" disabled={bloqueado} onClick={() => setContexto(c => ({ ...c, modeloBusca: null }))}>Usar como pesquisa personalizada</button></p>}
@@ -312,18 +320,23 @@ function LoteDoResultado({ turno, conversaId, desabilitado, aoSalvar, aoFalhar }
 }
 
 function Resposta({ resultado: r, aoPreparar, aoMapear, aoRevisar, desabilitado }: { resultado: Resultado; aoPreparar: (e: Empresa) => void; aoMapear: (e: Empresa) => void; aoRevisar: (e: Empresa) => void; desabilitado: boolean }) {
+  const abrirFicha = useAbrirFicha()
   return <div className="mt-4 space-y-4">
     <div><h3 className="text-lg font-semibold">{r.titulo}</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{r.resumo}</p></div>
     {!!r.empresas.length && <ul>{r.empresas.map((e) => <li key={e.id} className="agente-empresa-resultado">
-      <div className="min-w-0 flex-1"><p className="text-sm font-semibold">{e.nome}</p><p className="mt-1 text-xs text-suave">{e.cidade} · {e.uf} · Raiz CNPJ {e.cnpjRaiz}</p>
-        <p className="mt-1 text-xs text-suave">{e.estado === 'provavel' ? 'Enquadramento provável' : e.estado === 'possivel' ? 'Enquadramento possível' : 'Enquadramento confirmado'}</p>
+      <div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><p className="text-[15px] font-semibold leading-snug">{e.nome}</p>
+          <span className={`agente-enquadramento ${e.estado === 'possivel' ? 'is-possivel' : e.estado === 'provavel' ? 'is-provavel' : 'is-confirmado'}`}>{e.estado === 'provavel' ? 'Enquadramento provável' : e.estado === 'possivel' ? 'Enquadramento possível' : 'Enquadramento confirmado'}</span></div>
+        <p className="agente-empresa-meta"><span><IconeRede nome="local" />{e.cidade} · {e.uf}</span><span>Raiz CNPJ <span className="tabular-nums">{e.cnpjRaiz}</span></span></p>
+        <SinaisEmpresa empresa={e} />
         <details className="mt-2 text-xs text-suave"><summary className="cursor-pointer">Ver cadastro e evidência</summary><p className="mt-2">{e.razaoSocial} · CNAE {e.cnaePrincipal}</p><p className="mt-1">{e.motivo}</p></details></div>
-      <div className="agente-empresa-acoes"><button className={secundario} onClick={() => aoPreparar(e)} disabled={desabilitado}>Preparar reunião</button>
+      <div className="agente-empresa-acoes"><button className={secundario} onClick={() => abrirFicha(e.id)}>Ver ficha</button><button className={secundario} onClick={() => aoPreparar(e)} disabled={desabilitado}>Preparar reunião</button>
       <button className={secundario} onClick={() => aoMapear(e)} disabled={desabilitado}>Abrir caminho</button>
       <button className={secundario} onClick={() => aoRevisar(e)} disabled={desabilitado}>Revisar empresa</button></div>
     </li>)}</ul>}
     {r.caminhos && <MapaDeAcessoPainel mapa={r.caminhos} />}
-    {r.blocos.map((b, i) => <details key={b.titulo} className="agente-opcoes" open={i === 0 || /restri|limita|alerta|bloque/i.test(b.titulo)}><summary className="text-sm font-semibold">{b.titulo}</summary><ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm leading-relaxed">{b.itens.map((s, i) => <li key={i} className="whitespace-pre-wrap">{s}</li>)}</ul></details>)}
+    {r.blocos.map((b) => /antes|restri|limita|alerta|bloque/i.test(b.titulo)
+      ? <section key={b.titulo} className="agente-bloco-aviso" aria-label={b.titulo}><IconeRede nome="atencao" /><div><h4>{b.titulo}</h4><ul className="agente-itens">{b.itens.map((s, i) => <li key={i} className="whitespace-pre-wrap">{s}</li>)}</ul></div></section>
+      : <details key={b.titulo} className="agente-bloco" open><summary>{b.titulo}<span>{b.itens.length} {b.itens.length === 1 ? 'item' : 'itens'}</span></summary><ul className="agente-itens">{b.itens.map((s, i) => <li key={i} className="whitespace-pre-wrap">{s}</li>)}</ul></details>)}
     {r.complementoIA && <section><h4 className="text-sm font-semibold">Análise de IA para revisão</h4><TextoComFontes texto={r.complementoIA} citacoes={r.citacoesIA || []} />{r.modeloIA && <p className="mt-2 text-xs text-suave">Modelo: {r.modeloIA} · As conclusões exigem revisão humana.</p>}</section>}
     {r.avisoIA && <p className="text-sm text-suave">{r.avisoIA}</p>}
     {!!r.fontes.length && <details className="border-t border-fio pt-3 text-xs text-suave"><summary className="cursor-pointer font-semibold">Fontes e limites desta entrega</summary>{r.fontes.map((f) => <p key={`${f.titulo}-${f.referencia}-${f.url}`} className="mt-2 leading-relaxed">{f.url ? <a href={f.url} target="_blank" rel="noreferrer" className="underline">{f.titulo}</a> : <b>{f.titulo}</b>} · {f.referencia}. {f.descricao}</p>)}</details>}

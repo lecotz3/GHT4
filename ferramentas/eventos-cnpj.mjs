@@ -114,9 +114,10 @@ function comparar(DE, ATE) {
       eventos.push({
         base, nome: b.nome, subsetor: b.subsetor, uf: b.uf,
         tipo: trocaTotal ? 'aquisicao_provavel' : 'mudanca_quadro_societario',
+        // Mede quantidades, não identidades: entrada de PJ não prova que ela assumiu o controle.
         rotulo: trocaTotal
-          ? 'Pessoa jurídica assumiu o quadro societário'
-          : 'Quadro societário mudou',
+          ? 'Entrou sócio pessoa jurídica no quadro'
+          : 'Número de sócios mudou',
         detalhe: `Sócios: ${a.qtdSocios} → ${b.qtdSocios}`
                + (a.qtdSociosPj !== b.qtdSociosPj ? ` · sócios PJ: ${a.qtdSociosPj} → ${b.qtdSociosPj}` : ''),
         sinal: 'mudancaControle',

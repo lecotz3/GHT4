@@ -4,6 +4,8 @@ import { RotinaOportunidade, PainelComercial } from './RotinaOportunidade'
 import { AcervoOportunidade } from './AcervoOportunidade'
 import { ExportarEntrega } from './ExportarEntrega'
 import { IconeRede } from './IconeRede'
+import { useAbrirFicha } from '../agente/fichaContexto'
+import { SeletorVisao, VisoesOportunidades, type Visao } from './VisoesOportunidades'
 import { botao, campo, secundario, hojeLocal, dataCurta, type Oportunidade, type Etapa, type FichaOportunidade } from '../agente/prospeccao'
 
 type Lista = { oportunidades: Oportunidade[]; total: number; offset: number; limite: number; hoje: string; etapas: Etapa[] }
@@ -17,6 +19,10 @@ function comChave<T extends object>(ref: RefObject<Envio>, corpo: T) {
 
 export function Oportunidades({ inicialId, aoVoltar, aoExpirar, aoAbrirTrabalho }: { inicialId: string | null; aoVoltar: () => void; aoExpirar: () => void; aoAbrirTrabalho: (id:string) => void }) {
   const [id, setId] = useState(inicialId)
+  const abrirFicha = useAbrirFicha()
+  // Preferência do próprio navegador; sem armazenamento disponível, volta aos cartões.
+  const [visao, setVisao] = useState<Visao>(() => { try { const v = localStorage.getItem('ght4.visaoOportunidades'); return v === 'lista' || v === 'quadro' ? v : 'cartoes' } catch { return 'cartoes' } })
+  const mudarVisao = (v: Visao) => { setVisao(v); try { localStorage.setItem('ght4.visaoOportunidades', v) } catch { /* sem armazenamento local */ } }
   const [abaFicha, setAbaFicha] = useState('acompanhamento')
   const [lista, setLista] = useState<Lista | null>(null)
   const [ficha, setFicha] = useState<FichaOportunidade | null>(null)
@@ -64,7 +70,8 @@ export function Oportunidades({ inicialId, aoVoltar, aoExpirar, aoAbrirTrabalho 
     {carregando && <p role="status" className="text-sm text-suave">Carregando oportunidades…</p>}
     {aviso && <div className="agente-feedback"><IconeRede nome="certo" /><p role="status">{aviso}</p><button aria-label="Fechar aviso" onClick={() => setAviso('')}><IconeRede nome="fechar" /></button></div>}
     {!id && <>
-      <PainelComercial aoAbrir={abrir} aoFalhar={falhou} />
+      <PainelComercial etapas={lista?.etapas ?? []} etapaAtiva={consulta.etapa} aoAbrir={abrir} aoFalhar={falhou}
+        aoFiltrarEtapa={(etapa) => { setFiltros({ ...filtros, etapa }); setOffset(0); setConsulta({ ...consulta, etapa }) }} />
       <form onSubmit={filtrar} className="agente-superficie space-y-4 p-5">
         <div className="flex flex-wrap items-end gap-3"><div className="min-w-0 flex-1">
         <label className="text-sm">Empresa ou oportunidade<input className={`${campo} mt-1`} value={filtros.busca} onChange={(e) => setFiltros({ ...filtros, busca: e.target.value })} maxLength={120} /></label>
@@ -76,18 +83,9 @@ export function Oportunidades({ inicialId, aoVoltar, aoExpirar, aoAbrirTrabalho 
         </div></details>
       </form>
       {lista && <>
-        <p role="status" className="text-sm text-suave">{lista.total} {lista.total === 1 ? 'oportunidade' : 'oportunidades'} neste recorte{lista.total > 0 ? ` · exibindo ${lista.offset + 1} a ${Math.min(lista.offset + lista.limite,lista.total)}` : ''}. Ordem por prazo.</p>
+        <div className="flex flex-wrap items-center justify-between gap-3"><p role="status" className="text-sm text-suave">{lista.total} {lista.total === 1 ? 'oportunidade' : 'oportunidades'} neste recorte{lista.total > 0 ? ` · exibindo ${lista.offset + 1} a ${Math.min(lista.offset + lista.limite,lista.total)}` : ''}. Ordem por prazo.</p>{lista.total > 0 && <SeletorVisao visao={visao} aoMudar={mudarVisao} />}</div>
         {lista.total === 0 && <section className="agente-vazio-generoso agente-superficie"><span className="agente-icone-bloco"><IconeRede nome="empresa" /></span><h3>Nenhuma oportunidade neste recorte</h3><p>Ajuste os filtros ou comece por uma empresa. No resultado da pesquisa, use <strong>Revisar empresa → Priorizar → Criar oportunidade</strong>.</p><button className="agente-btn-primario" onClick={aoVoltar}>Ir ao agente<IconeRede nome="seta" /></button></section>}
-        <div className="grid gap-4 md:grid-cols-2">{lista.oportunidades.map((o) => {
-          const encerrada = ['mandato_assinado','perdida'].includes(o.etapa)
-          const atrasada = !encerrada && !o.acao_concluida && o.prazo < lista.hoje
-          return <article key={o.id} className="space-y-3 rounded-ficha border border-fio bg-papel p-5">
-            <div><p className="text-xs font-semibold text-comprador">{o.frente === 'compra' ? 'Compra' : 'Venda'} · {etapaNome(o.etapa)}</p><h3 className="mt-1 font-semibold">{o.titulo}</h3><p className="mt-1 text-xs text-suave">{o.empresa.nome} · {o.espaco || 'Privada'}</p></div>
-            <p className="whitespace-pre-wrap text-sm">{o.proxima_acao}</p>
-            <p className={`text-xs ${atrasada ? 'font-semibold text-alerta' : 'text-suave'}`}>{o.acao_concluida ? 'Ação concluída' : encerrada ? 'Registro encerrado' : atrasada ? 'Prazo vencido' : 'Prazo'} · {dataCurta(o.prazo)} · {o.responsavel_nome}{!o.responsavel_ativo ? ' (acesso suspenso)' : ''}</p>
-            <button className={secundario} onClick={() => abrir(o.id)}>Abrir oportunidade</button>
-          </article>
-        })}</div>
+        {lista.total > 0 && <VisoesOportunidades visao={visao} oportunidades={lista.oportunidades} etapas={lista.etapas} hoje={lista.hoje} total={lista.total} aoAbrir={abrir} />}
         {lista.total > lista.limite && <div className="flex gap-3"><button className={secundario} disabled={offset === 0 || carregando} onClick={() => setOffset(Math.max(0,offset - 30))}>Página anterior</button><button className={secundario} disabled={offset + lista.limite >= lista.total || carregando} onClick={() => setOffset(offset + 30)}>Próxima página</button></div>}
       </>}
     </>}
@@ -95,7 +93,7 @@ export function Oportunidades({ inicialId, aoVoltar, aoExpirar, aoAbrirTrabalho 
       <section className="space-y-3 rounded-ficha border border-fio bg-papel p-5">
         <p className="text-xs font-semibold text-comprador">{ficha.oportunidade.frente === 'compra' ? 'Compra' : 'Venda'} · {etapaNome(ficha.oportunidade.etapa)}</p>
         <h3 className="text-xl font-semibold">{ficha.oportunidade.titulo}</h3>
-        <p className="text-sm">{ficha.oportunidade.empresa.nome} · {ficha.oportunidade.empresa.cidade}/{ficha.oportunidade.empresa.uf} · CNPJ raiz {ficha.oportunidade.empresa.cnpjRaiz}</p>
+        <p className="text-sm">{ficha.oportunidade.empresa.nome} · {ficha.oportunidade.empresa.cidade}/{ficha.oportunidade.empresa.uf} · CNPJ raiz {ficha.oportunidade.empresa.cnpjRaiz} <button className="agente-link ml-1 text-xs" onClick={() => abrirFicha(ficha.oportunidade.empresa.id)}>Ver ficha da empresa<IconeRede nome="seta" /></button></p>
         <p className="text-xs text-suave">{ficha.oportunidade.espaco ? `Compartilhada no espaço: ${ficha.oportunidade.espaco}` : 'Oportunidade privada'} · Responsável: {ficha.oportunidade.responsavel_nome}</p>
         <div className="agente-proximo-passo"><IconeRede nome="agenda" /><div><span>{ficha.oportunidade.acao_concluida ? 'Próximo passo concluído' : 'Próximo passo'} · {dataCurta(ficha.oportunidade.prazo)}</span><p>{ficha.oportunidade.proxima_acao}</p></div></div>
         <details className="text-sm"><summary>Objetivo desta oportunidade</summary><p className="mt-2 whitespace-pre-wrap leading-relaxed text-suave">{ficha.oportunidade.objetivo}</p></details>

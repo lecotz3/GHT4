@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { api, type Contexto } from '../agente/api'
-type Filtros = Required<Pick<Contexto, 'frente' | 'busca' | 'uf' | 'cnae' | 'incluirPossiveis'>>
+type Filtros = Required<Pick<Contexto, 'frente' | 'busca' | 'uf' | 'municipio' | 'cnae' | 'incluirPossiveis' | 'comEvento' | 'ordem'>>
 type Modelo = { id: string; nome: string; mandato_id: string | null; versao_atual: number }
 type Versao = { versao: number; conteudo_hash: string; nota: string; configuracao: { buscaAgente?: Filtros } }
 type Ficha = { template: Modelo; versoes: Versao[]; versaoAtual: Versao; podeEditar: boolean }
-const filtros = (c: Contexto): Filtros => ({ frente: c.frente || 'venda', busca: c.busca || '', uf: c.uf || '', cnae: c.cnae || '', incluirPossiveis: c.incluirPossiveis || false })
-const rotulos: Record<keyof Filtros, string> = { frente: 'Frente', busca: 'Nome, cidade ou CNPJ', uf: 'Estado', cnae: 'CNAE principal', incluirPossiveis: 'Incluir possíveis' }
+const filtros = (c: Contexto): Filtros => ({ frente: c.frente || 'venda', busca: c.busca || '', uf: c.uf || '', municipio: c.municipio || '', cnae: c.cnae || '', incluirPossiveis: c.incluirPossiveis || false, comEvento: c.comEvento || false, ordem: c.ordem || 'enquadramento' })
+const rotulos: Record<keyof Filtros, string> = { frente: 'Frente', busca: 'Nome, cidade ou CNPJ', uf: 'Estados', municipio: 'Município', cnae: 'CNAE principal', incluirPossiveis: 'Incluir possíveis', comEvento: 'Com evento societário', ordem: 'Ordem' }
 const valor = (v: unknown) => typeof v === 'boolean' ? v ? 'Sim' : 'Não' : v ? String(v) : 'Todos / sem filtro'
 const campo = 'mt-1 w-full rounded-ficha border border-fio-forte bg-papel px-3 py-2 text-sm'
 const botao = 'rounded-ficha border border-fio-forte bg-papel px-3 py-2 text-sm disabled:opacity-50'
