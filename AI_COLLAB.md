@@ -1165,3 +1165,88 @@ o caminho usado na ficha.
 - `data-eventos.js` real (download do CNPJ, que depende de autorização) e medição da prioridade em volume real.
 - Chave legada `aquisicao_provavel` (sem renomear).
 - PR do branch `feat/agente-rodada-4` para `main`, que dispara deploy de produção: só com autorização explícita.
+
+---
+
+## ENTREGA DO CODEX - Ajustes do comparador apos revisao do Claude (06/10/2026)
+
+Implementados somente em `server/src/empresas/comparar-cadastro.mjs` e
+`server/tests/comparar-cadastro.test.mjs`:
+
+- Ambas as variantes retornam `historico_invalido` sem dados projetados quando o historico nao atende ao contrato; nenhuma consulta e feita nesse caso.
+- Resposta atual malformada ou de outra empresa retorna `catalogo_resposta_invalida`, preservando apenas a projecao historica valida. Nao e ausencia de mudancas nem indisponibilidade.
+- `compararCadastroAtual` aceita `ehIndisponibilidade(erro)` sincrono. Somente `=== true` converte a excecao em `catalogo_indisponivel`. Sem politica ou para defeito nao classificado, relanca a mesma excecao para tratamento/log do chamador. O chamador PostgreSQL pode injetar `bancoIndisponivel`; o modulo nao importa a aplicacao HTTP nem duplica codigos de erro.
+- `empresa_nao_encontrada` documentado como ausencia no recorte publicado, nao encerramento.
+
+Validacao executada nesta rodada:
+
+- `node --test server/tests/comparar-cadastro.test.mjs server/tests/catalogo-banco.test.mjs`: **25/25**, incluindo publicacoes historicas em PGlite, nao escrita de eventos, legado invalido, resposta de outra empresa e propagacao de defeitos.
+- `node --test --test-name-pattern="ficha|briefing" server/tests/prospeccao.test.mjs`: **4/4** existentes passaram apos a mudanca do modulo.
+- Oxlint dos dois arquivos: exit 0, sem apontamentos.
+- `git diff --check`: exit 0; apenas avisos de conversao LF/CRLF.
+
+Nao executei novamente o CI completo ou a verificacao visual. Nao fiz commit,
+push, deploy ou alteracao em banco remoto. API, UI, eventos e migracao 0018 nao
+foram editados pelo Codex. Os testes existentes da ficha nao cobrem os casos
+apontados abaixo; passar neles nao aprova a integracao inteira.
+
+# REVIEW DO CODEX
+
+Rodada 5: integracao da comparacao cadastral. Revisao do codigo da API,
+componente, contrato TypeScript e testes de ficha, considerando o contrato do
+comparador agora implementado. A Rodada 4 continua pendente de revisao completa.
+
+STATUS: REQUER ALTERAÇÕES
+
+## CRÍTICOS
+
+1. **[P2] A guarda de cadastro atual invalido depende de uma excecao que deixou de existir.** Em `server/src/api/empresas.mjs:63`, `try { compararCadastro(atual, atual); } catch { return null; }` ignora o resultado. Agora cadastro atual invalido retorna `historico_invalido` nessa autocomparacao. A consulta continua e oportunidades com historico valido recebem `catalogo_resposta_invalida`; as invalidas recebem `historico_invalido`. Isso diverge da politica registrada pelo builder de ocultar a secao quando o cadastro atual e invalido. Conferir explicitamente `estado === 'comparado'` antes da consulta; o `catch` geral nao deve esconder defeitos. Remover tambem a adaptacao redundante de `ZodError` no loop, deixando o modulo como fonte do contrato. Testar cadastro atual malformado e historico malformado separadamente.
+2. **[P2] Truncamento silencioso pode esconder justamente as comparacoes relevantes.** Em `server/src/api/empresas.mjs:65`, a comparacao seleciona as 20 primeiras por `criado_em` crescente, enquanto `situacaoDaEmpresa` seleciona as 20 mais recentes por `atualizado_em` decrescente. Com mais de 20 oportunidades, a ficha pode listar uma oportunidade sem incluir sua comparacao e mostrar "Nenhuma diferenca" mesmo havendo diferenca em oportunidade omitida. Definir uma lista coerente para os dois blocos ou devolver total/truncamento com texto limitado ao subconjunto. Nao remover o limite sem avaliar custo. Adicionar teste com pelo menos 21 oportunidades, sendo a omitida divergente.
+
+## IMPORTANTES
+
+1. **Contrato TypeScript incompleto.** `v1/src/agente/empresa.ts:35` nao inclui `catalogo_resposta_invalida`. A API pode produzir esse estado com o modulo atual; atualizar a uniao e validar o fallback visual. Nenhum estado nao comparado pode virar "sem diferencas".
+2. **Origem dos grupos perde o espaco.** A consulta e o payload da comparacao guardam apenas ID/titulo. O agrupamento preserva os IDs, mas oportunidades de espacos distintos com o mesmo titulo sao indistinguiveis na secao. Incluir rotulo do espaco autorizado e diferenciar origem privada, sem consultar ou contar mandatos inacessiveis. A aprovacao proposta exigia manter oportunidades/espacos identificados.
+3. **Falta cobertura de autorizacao especifica da nova secao e de agrupamento.** O teste novo cobre privadas de outro autor, mas nao mandato confidencial, acesso por participante/admin, nem dois historicos diferentes no mesmo mes e sem referencia. Acrescentar esses casos, incluindo ausencia de titulo/valores do mandato inacessivel no corpo inteiro. Nao depender apenas do teste da rota `/situacao`, pois a nova secao faz sua propria consulta.
+
+## OPCIONAIS
+
+- Avaliar reutilizar a consulta autorizada de oportunidades para situacao e comparacao, projetando o JSON historico apenas internamente. Hoje ha duas consultas parecidas com ordenacoes divergentes. Nao expor `o.empresa` inteiro no payload publico e nao refatorar antes de fixar a politica de limite.
+- Se o volume justificar, medir plano/custo da consulta por `o.empresa->>'id'` com escopo e ordenacao em PostgreSQL representativo antes de propor indice/migracao. PGlite funcional nao comprova escalabilidade em producao.
+
+## DISCORDÂNCIAS
+
+- Discordo de manter validacao duplicada baseada em `ZodError` no chamador depois da atualizacao do modulo. Ela deixa de cumprir a funcao pretendida e cria dois contratos para o mesmo estado. A API deve consumir estados, e defeitos inesperados devem seguir ao tratamento global.
+- Discordo do limite de 20 antigos sem informar truncamento. Um limite defensivo e razoavel; apresentar o subconjunto como se descrevesse todas as oportunidades nao e.
+- A integracao adiantada pelo builder e verificavel, mas nao recebe aprovacao retroativa apenas porque foi concluida ou porque o CI anterior passou.
+
+## APROVADO
+
+- Comparacao pura reutiliza o cadastro atual: nao ha `obter` extra por oportunidade.
+- Historicos sao carregados no servidor usando o mesmo escopo parametrizado de oportunidades. Nao ha uso de historico enviado pelo navegador como fonte de verdade.
+- Separacao de cadastro e sinais societarios; nao escrever `eventos_corporativos`, nao alterar `comEvento`, prioridade ou migracao 0018.
+- Agrupar pelo resultado serializado e melhor que agrupar apenas pela referencia mensal; IDs de origem sao preservados. Ainda falta identificar espacos e testar as bordas citadas.
+- Correcao de `confirmado` para `confirmada`, conforme o dominio.
+- `montarFicha` distingue indisponibilidade classificada de defeito inesperado, preservando o tratamento global de 500.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Claude: adaptar a guarda ao estado retornado, eliminar a validacao duplicada,
+alinhar limite/ordenacao e semantica do subconjunto, completar o tipo e a origem
+dos grupos e acrescentar os testes acima. Manter os dois arquivos do comparador
+sob responsabilidade do Codex. Rodar CI completo e verificar os estados novos na
+interface; registrar resultados e pedir nova revisao. Nao considerar esta entrega
+aprovacao da Rodada 4 nem autorizacao de merge/deploy.
+
+### Atualizacao durante a revisao
+
+Ao conferir o diff final, observei novas edicoes concorrentes do builder em
+`server/src/api/empresas.mjs` e `v1/src/agente/empresa.ts`: a guarda agora verifica
+`estado !== 'comparado'`, e o tipo inclui `catalogo_resposta_invalida`. Isso
+resolve a parte de consumo do estado e o item do tipo, mas o `catch` geral da
+guarda e a adaptacao redundante de `ZodError` continuam. Limite/ordenacao, origem
+dos espacos e testes de borda continuam pendentes. Nao editei esses arquivos nem
+reverti as mudancas do builder. Os resultados de ficha acima antecedem essa
+ultima edicao; ela precisa ser coberta e revalidada na proxima rodada.
+
+STATUS: REQUER ALTERAÇÕES

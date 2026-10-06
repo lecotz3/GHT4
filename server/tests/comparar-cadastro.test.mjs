@@ -4,6 +4,7 @@ import { compararCadastro, compararCadastroAtual } from '../src/empresas/compara
 import { bancoDeTeste } from './ajuda.mjs';
 import { importarCatalogo } from '../src/agente/importar-catalogo.mjs';
 import { criarCatalogoBanco } from '../src/agente/catalogo-banco.mjs';
+import { bancoIndisponivel } from '../src/app.mjs';
 
 const cadastro = (extra = {}) => ({
   id: 'cnpj00123456', cnpjRaiz: '00123456', nome: 'Quimica Teste',
@@ -72,10 +73,12 @@ test('nao copia contatos, notas, dados financeiros ou sinais de aquisicao', () =
 });
 
 test('rejeita identificadores distintos e raiz divergente, preservando zeros iniciais', () => {
-  assert.throws(() => compararCadastro(cadastro(), cadastro({ id: 'cnpj87654321', cnpjRaiz: '87654321' })), /mesma empresa/);
-  assert.throws(() => compararCadastro(cadastro({ cnpjRaiz: '87654321' }), cadastro()), /corresponder/);
-  assert.throws(() => compararCadastro(cadastro({ id: 'cnpj1234' }), cadastro()));
-  assert.throws(() => compararCadastro(cadastro({ cnpjRaiz: 123456 }), cadastro()));
+  const outra = compararCadastro(cadastro(), cadastro({ id: 'cnpj87654321', cnpjRaiz: '87654321' }));
+  assert.equal(outra.estado, 'catalogo_resposta_invalida');
+  assert.equal(outra.atual, null);
+  for (const extra of [{ cnpjRaiz: '87654321' }, { id: 'cnpj1234' }, { cnpjRaiz: 123456 }]) {
+    assert.equal(compararCadastro(cadastro(extra), cadastro()).estado, 'historico_invalido');
+  }
   assert.equal(compararCadastro(cadastro({ cnpjRaiz: undefined }), cadastro()).anterior.cnpjRaiz, '00123456');
 });
 
@@ -83,9 +86,12 @@ test('valida referencia mensal, CNAE, UF e tipos de campo', () => {
   for (const extra of [{ referencia: '2026-13' }, { referencia: '2026-00' }, { referencia: '2026-09-01' },
     { cnaePrincipal: '4684-2/99' }, { uf: 'Sao Paulo' }, { estado: 'encerrada' }, { cidade: 0 },
     { nome: 'a'.repeat(501) }, { nome: 'nome\0invalido' }]) {
-    assert.throws(() => compararCadastro(cadastro(), cadastro(extra)));
+    const r = compararCadastro(cadastro(), cadastro(extra));
+    assert.equal(r.estado, 'catalogo_resposta_invalida');
+    assert.equal(r.atual, null);
+    assert.equal(r.mudancas, null);
   }
-  assert.throws(() => compararCadastro(cadastro(), undefined));
+  assert.equal(compararCadastro(cadastro(), undefined).estado, 'catalogo_resposta_invalida');
 });
 
 test('referencia atual anterior ao historico nao apresenta mudancas como atualizacao', () => {
@@ -122,7 +128,7 @@ test('falha nao vaza detalhes, difere de nao encontrado e permite recuperacao', 
     if (indisponivel) throw Object.assign(new Error('postgres://usuario:segredo@host/banco'), { code: 'ECONNREFUSED' });
     return cadastro();
   } };
-  const falha = await compararCadastroAtual(cadastro(), { catalogo });
+  const falha = await compararCadastroAtual(cadastro(), { catalogo, ehIndisponibilidade: bancoIndisponivel });
   assert.equal(falha.estado, 'catalogo_indisponivel');
   assert.equal(falha.mudancas, null);
   assert.equal(falha.atual, null);
@@ -135,24 +141,66 @@ test('falha nao vaza detalhes, difere de nao encontrado e permite recuperacao', 
   assert.equal(ausente.estado, 'empresa_nao_encontrada');
 });
 
-test('resposta malformada ou de outra empresa nao se torna ausencia de mudancas', async () => {
+test('resposta malformada ou de outra empresa tem estado proprio nas duas variantes', async () => {
   for (const recebido of [undefined, {}, false, cadastro({ referencia: '2026-13' }),
     cadastro({ id: 'cnpj87654321', cnpjRaiz: '87654321', nome: 'Outra empresa confidencial' })]) {
     const r = await compararCadastroAtual(cadastro(), { catalogo: { obter: async () => recebido } });
-    assert.equal(r.estado, 'catalogo_indisponivel');
+    assert.deepEqual(r, compararCadastro(cadastro(), recebido));
+    assert.equal(r.estado, 'catalogo_resposta_invalida');
     assert.equal(r.mudancas, null);
     assert.equal(r.atual, null);
     assert.doesNotMatch(JSON.stringify(r), /confidencial|87654321/);
   }
 });
 
-test('entrada historica invalida falha antes de consultar e catalogo deve implementar obter', async () => {
+test('historico invalido tem estado seguro antes de consultar, incluindo dados legados', async () => {
   let consultas = 0;
   const catalogo = { async obter() { consultas++; return cadastro(); } };
-  await assert.rejects(compararCadastroAtual(cadastro({ id: 'invalido' }), { catalogo }));
+  for (const anterior of [null, undefined, {}, cadastro({ id: 'invalido' }), cadastro({ uf: 'sp' }),
+    cadastro({ razaoSocial: 'a'.repeat(501), notas: 'privada' }), cadastro({ cnpjRaiz: '87654321' })]) {
+    const r = await compararCadastroAtual(anterior, { catalogo });
+    assert.deepEqual(r, { estado: 'historico_invalido', empresaId: null,
+      referencias: { anterior: null, atual: null }, anterior: null, atual: null, mudancas: null });
+    assert.deepEqual(compararCadastro(anterior, cadastro()), r);
+  }
   assert.equal(consultas, 0);
+});
+
+test('catalogo e politica invalidos sao erros de programacao antes da consulta', async () => {
+  let consultas = 0;
+  const catalogo = { async obter() { consultas++; return cadastro(); } };
   await assert.rejects(compararCadastroAtual(cadastro()), /obter/);
   await assert.rejects(compararCadastroAtual(cadastro(), { catalogo: {} }), /obter/);
+  for (const ehIndisponibilidade of [null, true, 'sim', {}]) {
+    await assert.rejects(compararCadastroAtual(cadastro(), { catalogo, ehIndisponibilidade }), /funcao sincrona/);
+  }
+  assert.equal(consultas, 0);
+});
+
+test('relanca defeitos inesperados intactos para o tratamento e log do chamador', async () => {
+  for (const erro of [new TypeError('defeito do adaptador'),
+    Object.assign(new Error('tabela ausente'), { code: '42P01' })]) {
+    const catalogo = { obter: async () => { throw erro; } };
+    await assert.rejects(compararCadastroAtual(cadastro(), { catalogo, ehIndisponibilidade: bancoIndisponivel }),
+      (recebido) => recebido === erro);
+  }
+});
+
+test('somente politica com retorno booleano verdadeiro converte falhas em indisponibilidade', async () => {
+  const erro = Object.assign(new Error('falha de conexao'), { code: 'ECONNREFUSED' });
+  const catalogo = { obter: async () => { throw erro; } };
+  await assert.rejects(compararCadastroAtual(cadastro(), { catalogo }), (recebido) => recebido === erro);
+  for (const valor of [false, undefined, 'sim', 1]) {
+    await assert.rejects(compararCadastroAtual(cadastro(), { catalogo, ehIndisponibilidade: () => valor }),
+      (recebido) => recebido === erro);
+  }
+  let classificado;
+  const r = await compararCadastroAtual(cadastro(), { catalogo, ehIndisponibilidade: (recebido) => {
+    classificado = recebido;
+    return true;
+  } });
+  assert.strictEqual(classificado, erro);
+  assert.equal(r.estado, 'catalogo_indisponivel');
 });
 
 test('consulta em andamento nao altera nem acompanha mutacoes posteriores do historico', async () => {

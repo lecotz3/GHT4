@@ -35,11 +35,11 @@ function projetar(cadastro) {
   };
 }
 
-function resultado(estado, anterior, atual = null, mudancas = null) {
+function resultado(estado, anterior = null, atual = null, mudancas = null) {
   return {
     estado,
-    empresaId: anterior.id,
-    referencias: { anterior: anterior.referencia, atual: atual?.referencia ?? null },
+    empresaId: anterior?.id ?? null,
+    referencias: { anterior: anterior?.referencia ?? null, atual: atual?.referencia ?? null },
     anterior,
     atual,
     mudancas,
@@ -49,8 +49,13 @@ function resultado(estado, anterior, atual = null, mudancas = null) {
 const normalizar = (valor) => valor?.normalize('NFC').trim().replace(/\s+/gu, ' ') || null;
 
 function comparar(anterior, atual) {
+  // Ausencia no recorte publicado nao significa encerramento da empresa.
   if (atual === null) return resultado('empresa_nao_encontrada', anterior);
-  if (anterior.id !== atual.id) throw new TypeError('Compare cadastros da mesma empresa.');
+  const validado = Cadastro.safeParse(atual);
+  if (!validado.success || validado.data.id !== anterior.id) {
+    return resultado('catalogo_resposta_invalida', anterior);
+  }
+  atual = projetar(validado.data);
   if (anterior.referencia && atual.referencia && atual.referencia < anterior.referencia) {
     return resultado('referencia_atual_mais_antiga', anterior, atual);
   }
@@ -68,25 +73,26 @@ function comparar(anterior, atual) {
 
 /** Compara sem modificar/persistir o historico nem inferir eventos societarios. */
 export function compararCadastro(anterior, atual) {
-  const salvo = projetar(Cadastro.parse(anterior));
-  const vigente = atual === null ? null : projetar(Cadastro.parse(atual));
-  return comparar(salvo, vigente);
+  const validado = Cadastro.safeParse(anterior);
+  if (!validado.success) return resultado('historico_invalido');
+  return comparar(projetar(validado.data), atual);
 }
 
-/** O chamador deve obter o historico autorizado antes de consultar o catalogo. */
-export async function compararCadastroAtual(anterior, { catalogo } = {}) {
-  const salvo = projetar(Cadastro.parse(anterior));
+/** Historico autorizado pelo chamador; politica sincrona classifica falhas esperadas. */
+export async function compararCadastroAtual(anterior, { catalogo, ehIndisponibilidade } = {}) {
+  const validado = Cadastro.safeParse(anterior);
+  if (!validado.success) return resultado('historico_invalido');
+  const salvo = projetar(validado.data);
   if (typeof catalogo?.obter !== 'function') throw new TypeError('Informe um catalogo com obter(id).');
+  if (ehIndisponibilidade !== undefined && typeof ehIndisponibilidade !== 'function') {
+    throw new TypeError('ehIndisponibilidade deve ser uma funcao sincrona.');
+  }
   let recebido;
   try {
     recebido = await catalogo.obter(salvo.id);
-  } catch {
-    return resultado('catalogo_indisponivel', salvo);
+  } catch (erro) {
+    if (ehIndisponibilidade?.(erro) === true) return resultado('catalogo_indisponivel', salvo);
+    throw erro;
   }
-  if (recebido === null) return comparar(salvo, null);
-  const validado = Cadastro.safeParse(recebido);
-  if (!validado.success || validado.data.id !== salvo.id) {
-    return resultado('catalogo_indisponivel', salvo);
-  }
-  return comparar(salvo, projetar(validado.data));
+  return comparar(salvo, recebido);
 }
