@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
 import { api, type Conversa, type Turno, type Contexto } from '../agente/api'
-const nomes: Record<string, string> = { frente: 'Frente', busca: 'Nome, cidade ou CNPJ', uf: 'Estado', cnae: 'CNAE principal', incluirPossiveis: 'Incluir possíveis' }
+const nomes: Record<string, string> = { frente: 'Frente', busca: 'Nome, cidade ou CNPJ', uf: 'Estados', municipio: 'Município', cnae: 'CNAE principal', incluirPossiveis: 'Incluir possíveis', comEvento: 'Com evento societário', ordem: 'Ordem' }
 const valor = (v: unknown) => typeof v === 'boolean' ? v ? 'Sim' : 'Não' : v ? String(v) : 'Todos / sem filtro'
-const filtros = (c: Contexto) => JSON.stringify([c.frente || 'venda', c.busca || '', c.uf || '', c.cnae || '', c.incluirPossiveis || false])
+const filtros = (c: Contexto) => JSON.stringify([c.frente || 'venda', c.busca || '', c.uf || '', c.municipio || '', c.cnae || '', c.incluirPossiveis || false, c.comEvento || false, c.ordem || 'enquadramento'])
 export function PreviaBusca({ turno, conversa, contextoAtual, bloqueado, aoAplicar, aoOcupar, aoFalhar }: { turno: Turno; conversa: Conversa; contextoAtual: Contexto; bloqueado: boolean; aoAplicar: (c: Conversa) => void; aoOcupar: (v: boolean) => void; aoFalhar: (e: unknown) => void }) {
   const [revisado, setRevisado] = useState(false), [ocupado, setOcupado] = useState(false), [aplicada, setAplicada] = useState(false)
   const envio = useRef<{ chave: string; versao: number } | null>(null)

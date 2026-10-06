@@ -11,6 +11,28 @@ export const TAREFAS = Object.freeze([
   { id: 'ver_pendencias', titulo: 'Rever pendências', descricao: 'Veja o que falta fazer neste trabalho.' },
 ]);
 
+/** Roteiro de qualificação por frente. Compartilhado com o briefing em PDF para que os dois digam o mesmo. */
+export function roteiroDeReuniao(frente) {
+  const compra = frente === 'compra';
+  return [
+    { titulo: compra ? 'Qualificar uma possível busca de aquisições' : 'Entender alternativas dos acionistas', itens: compra ? [
+      'Qual lacuna de produto, aplicação, fornecedor ou região a aquisição deve preencher?',
+      'Qual a faixa de investimento, origem dos recursos e capacidade de integração?',
+      'Quem decide a contratação do assessor e aprova as aquisições?',
+    ] : [
+      'Quais objetivos os acionistas têm para o negócio e em qual horizonte?',
+      'Há interesse em venda, sócio, capital para crescer ou apenas informação?',
+      'Quem participa da decisão e quais informações podem ser compartilhadas?',
+    ] },
+    { titulo: 'Pontos próprios de distribuição química', itens: [
+      'Quais aplicações atendem e quais fabricantes representam?',
+      'Como funcionam exclusividade, território e concentração de fornecedores?',
+      'Há serviços técnicos, laboratório, estoque próprio e necessidade relevante de capital de giro?',
+    ] },
+    { titulo: 'Encerramento da conversa', itens: ['Registrar necessidade de assessoria, responsável pela decisão e próximo passo com prazo combinado.'] },
+  ];
+}
+
 export async function executarTarefa({ tarefa, texto, contexto, catalogo, acoes, rede = null }) {
   const resposta = { modo: 'assistido', titulo: '', resumo: '', blocos: [], empresas: [], fontes: [], proximas: [] };
   if(tarefa==='interpretar_busca')return {...resposta,titulo:'Prévia dos critérios de pesquisa',resumo:'Confira os critérios e as pendências. Nenhum filtro foi alterado e nenhuma busca foi executada.',propostaBusca:interpretarLocal(texto,contexto)};
@@ -27,7 +49,7 @@ export async function executarTarefa({ tarefa, texto, contexto, catalogo, acoes,
   if (tarefa === 'buscar_empresas') {
     const r = await catalogo.buscar(contexto);
     return { ...resposta, titulo: 'Empresas para investigar',
-      resumo: `${r.total} ${r.total === 1 ? 'empresa corresponde' : 'empresas correspondem'} aos filtros; exibindo ${r.empresas.length} a partir da posição ${(r.offset || 0) + 1}. Ordem por evidência de enquadramento e nome.`,
+      resumo: `${r.total} ${r.total === 1 ? 'empresa corresponde' : 'empresas correspondem'} aos filtros; exibindo ${r.empresas.length} a partir da posição ${(r.offset || 0) + 1}. ${contexto.ordem === 'prioridade' ? 'Ordem por onde começar: evento societário recente, depois relação confirmada na rede, depois pessoas mapeadas e, por fim, enquadramento e nome.' : 'Ordem por evidência de enquadramento e nome.'}`,
       empresas: r.empresas, fontes: [fonte(r.referencia)],
       catalogoHash: r.hash,
       paginacao: { total: r.total, offset: r.offset || 0, proximoOffset: r.proximoOffset ?? null }, cobertura: r.cobertura,
@@ -42,28 +64,12 @@ export async function executarTarefa({ tarefa, texto, contexto, catalogo, acoes,
     if (!empresa) return { ...resposta, titulo: 'Escolha a empresa da reunião',
       resumo: 'Encontre uma empresa e use “Preparar reunião” no resultado para continuar com os dados corretos.',
       proximas: ['buscar_empresas'] };
-    const compra = contexto.frente === 'compra';
-    const perguntas = compra ? [
-      'Qual lacuna de produto, aplicação, fornecedor ou região a aquisição deve preencher?',
-      'Qual a faixa de investimento, origem dos recursos e capacidade de integração?',
-      'Quem decide a contratação do assessor e aprova as aquisições?',
-    ] : [
-      'Quais objetivos os acionistas têm para o negócio e em qual horizonte?',
-      'Há interesse em venda, sócio, capital para crescer ou apenas informação?',
-      'Quem participa da decisão e quais informações podem ser compartilhadas?',
-    ];
     return { ...resposta, titulo: `Preparação de reunião — ${empresa.nome}`,
       resumo: 'Ficha cadastral e roteiro inicial. As perguntas abaixo são sugestões para qualificação, não fatos sobre a empresa.',
       empresas: [empresa], fontes: [fonte(empresa.referencia)],
       blocos: [
         { titulo: 'Objetivo informado por você', itens: [texto || contexto.objetivo || 'Entender objetivos e avaliar se a GHT4 pode ajudar.'] },
-        { titulo: compra ? 'Qualificar uma possível busca de aquisições' : 'Entender alternativas dos acionistas', itens: perguntas },
-        { titulo: 'Pontos próprios de distribuição química', itens: [
-          'Quais aplicações atendem e quais fabricantes representam?',
-          'Como funcionam exclusividade, território e concentração de fornecedores?',
-          'Há serviços técnicos, laboratório, estoque próprio e necessidade relevante de capital de giro?',
-        ] },
-        { titulo: 'Encerramento da conversa', itens: ['Registrar necessidade de assessoria, responsável pela decisão e próximo passo com prazo combinado.'] },
+        ...roteiroDeReuniao(contexto.frente),
       ], proximas: ['registrar_passo', 'buscar_empresas'] };
   }
   if (tarefa === 'mapear_acesso') {

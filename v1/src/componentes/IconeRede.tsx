@@ -21,6 +21,8 @@ const desenhos = {
   mais: <path d="M12 4v16M4 12h16"/>,
   tempo: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
   certo: <path d="m5 12 4 4L19 6"/>,
+  local: <><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></>,
+  atencao: <><path d="M12 4 2.5 20h19Z"/><path d="M12 10v4m0 3h.01"/></>,
 } satisfies Record<string, ReactNode>
 
 export function IconeRede({ nome, className = '' }: { nome: keyof typeof desenhos; className?: string }) {

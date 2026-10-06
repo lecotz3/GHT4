@@ -67,17 +67,54 @@ export function RotinaOportunidade({ ficha, aoSalvar, aoFalhar }: { ficha: Ficha
   </section>
 }
 
-interface Painel { hoje: string; metodologia: string; funil: { frente: string; etapa: string; quantidade: number }[]; pendencias: { oportunidade_id: string; titulo: string; descricao: string; prazo: string; responsavel_nome: string }[] }
-export function PainelComercial({ aoAbrir, aoFalhar }: { aoAbrir: (id: string) => void; aoFalhar: (e: unknown) => void }) {
+interface Painel { hoje: string; metodologia: string; funil: { frente: string; etapa: string; quantidade: number }[]; pendencias: { oportunidade_id: string; titulo: string; descricao: string; prazo: string; responsavel_nome: string }[]; totais?: { compromissos: number; atrasados: number } }
+/** Etapas fora do fluxo principal: aparecem à parte para não parecerem o fim do funil. */
+const FORA_DO_FLUXO = ['nutricao', 'perdida']
+
+export function PainelComercial({ etapas, etapaAtiva, aoAbrir, aoFiltrarEtapa, aoFalhar }: {
+  etapas: { id: string; nome: string }[]; etapaAtiva: string; aoAbrir: (id: string) => void; aoFiltrarEtapa: (etapa: string) => void; aoFalhar: (e: unknown) => void
+}) {
   const [dados, setDados] = useState<Painel | null>(null)
   const [soAtrasadas, setSoAtrasadas] = useState(false)
   const carregar = useCallback(() => { void api<Painel>('/api/crm/painel').then(setDados).catch(aoFalhar) }, [aoFalhar])
   useEffect(carregar, [carregar])
   if (!dados) return null
-  return <section className="space-y-3 rounded-ficha border border-fio bg-papel p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-semibold">Agenda da equipe e carteira atual</h3><button className={secundario} onClick={carregar}>Atualizar agenda</button></div>
-    <div className="flex gap-5 text-sm">{['compra','venda'].map((frente) => <p key={frente}><b>{frente === 'compra' ? 'Compra' : 'Venda'}</b>: {dados.funil.filter((f) => f.frente === frente).reduce((s,f) => s + f.quantidade,0)} oportunidades</p>)}</div>
-    <p className="text-xs text-suave">{dados.metodologia}</p>
-    <details><summary className="cursor-pointer text-sm">Ver compromissos ({dados.pendencias.length})</summary><label className="mt-3 flex gap-2 text-sm"><input type="checkbox" checked={soAtrasadas} onChange={(e) => setSoAtrasadas(e.target.checked)} />Somente atrasados</label>
+  const contar = (frente: string, etapa?: string) => dados.funil.filter((f) => f.frente === frente && (!etapa || f.etapa === etapa)).reduce((s, f) => s + f.quantidade, 0)
+  /* Totais exatos vêm do servidor. Sem eles (servidor anterior), só se conhece a
+     lista cortada em 100: os indicadores passam a falar dos itens exibidos, sem
+     apresentá-los como total da carteira. */
+  const exato = !!dados.totais
+  const compromissos = dados.totais?.compromissos ?? dados.pendencias.length
+  const atrasadas = dados.totais?.atrasados ?? dados.pendencias.filter((p) => p.prazo < dados.hoje).length
+  const exibidas = !exato ? `${dados.pendencias.length} exibidos` : compromissos > dados.pendencias.length ? `exibindo ${dados.pendencias.length} de ${compromissos}` : String(compromissos)
+  const linhas = etapas.map((e) => ({ ...e, compra: contar('compra', e.id), venda: contar('venda', e.id) }))
+  const maior = Math.max(1, ...linhas.map((l) => l.compra + l.venda))
+  const linha = (l: (typeof linhas)[number]) => {
+    const total = l.compra + l.venda
+    return <li key={l.id}><button className="agente-funil-linha" aria-pressed={etapaAtiva === l.id} onClick={() => aoFiltrarEtapa(etapaAtiva === l.id ? '' : l.id)}
+      aria-label={`${l.nome}: ${l.compra} de compra e ${l.venda} de venda. ${etapaAtiva === l.id ? 'Remover filtro' : 'Filtrar a lista por esta etapa'}`}>
+      <span className="agente-funil-nome">{l.nome}</span>
+      <span className="agente-funil-trilho" aria-hidden="true">{total > 0 && <>
+        {l.compra > 0 && <span className="agente-funil-compra" style={{ width: `${(l.compra / maior) * 100}%` }} />}
+        {l.venda > 0 && <span className="agente-funil-venda" style={{ width: `${(l.venda / maior) * 100}%` }} />}</>}</span>
+      <span className={`agente-funil-total ${total ? '' : 'text-suave'}`}>{total}</span>
+    </button></li>
+  }
+  return <section className="agente-carteira" aria-labelledby="titulo-carteira">
+    <div className="agente-linha-titulo"><div><h3 id="titulo-carteira">Carteira e agenda da equipe</h3><p className="mt-1 text-xs text-suave">Oportunidades que você pode acessar, no estado atual.</p></div><button className={secundario} onClick={carregar}>Atualizar</button></div>
+    <div className="agente-indicadores">
+      <div className="agente-indicador"><span className="agente-indicador-rotulo"><span className="agente-chave compra" />Frente de compra</span><strong>{contar('compra')}</strong><small>oportunidades</small></div>
+      <div className="agente-indicador"><span className="agente-indicador-rotulo"><span className="agente-chave venda" />Frente de venda</span><strong>{contar('venda')}</strong><small>oportunidades</small></div>
+      <div className="agente-indicador"><span className="agente-indicador-rotulo">{exato ? 'Compromissos abertos' : 'Compromissos na agenda'}</span><strong>{compromissos}</strong><small>{exato ? 'próximos passos e tarefas' : 'exibidos; total indisponível'}</small></div>
+      <div className={`agente-indicador ${atrasadas ? 'is-alerta' : ''}`}><span className="agente-indicador-rotulo">Prazos vencidos</span><strong>{atrasadas}</strong><small>{!exato ? 'entre os compromissos exibidos' : atrasadas ? 'precisam de atenção' : 'nenhum atraso'}</small></div>
+    </div>
+    {!!linhas.length && <div className="agente-funil">
+      <div className="agente-funil-cabecalho"><span>Por etapa</span><span className="agente-funil-legenda"><span><span className="agente-chave compra" />Compra</span><span><span className="agente-chave venda" />Venda</span></span></div>
+      <ul>{linhas.filter((l) => !FORA_DO_FLUXO.includes(l.id)).map(linha)}</ul>
+      {linhas.some((l) => FORA_DO_FLUXO.includes(l.id)) && <><p className="agente-funil-separador">Fora do fluxo</p><ul>{linhas.filter((l) => FORA_DO_FLUXO.includes(l.id)).map(linha)}</ul></>}
+      <p className="mt-3 text-xs text-suave">Clique em uma etapa para filtrar a lista. {dados.metodologia}</p>
+    </div>}
+    <details className="agente-opcoes"><summary>Ver compromissos ({exibidas})</summary><label className="mt-3 flex gap-2 text-sm"><input type="checkbox" checked={soAtrasadas} onChange={(e) => setSoAtrasadas(e.target.checked)} />Somente atrasados</label>
       <ul className="mt-3 divide-y divide-fio">{dados.pendencias.filter((p) => !soAtrasadas || p.prazo < dados.hoje).map((p,i) => <li key={`${p.oportunidade_id}-${i}`} className="flex flex-wrap items-center gap-3 py-3 text-sm"><div className="flex-1"><p>{p.descricao}</p><p className={`mt-1 text-xs ${p.prazo < dados.hoje ? 'text-alerta' : 'text-suave'}`}>{dataCurta(p.prazo)} · {p.responsavel_nome} · {p.titulo}</p></div><button className={secundario} onClick={() => aoAbrir(p.oportunidade_id)}>Abrir</button></li>)}</ul>
     </details>
   </section>

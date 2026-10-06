@@ -60,14 +60,18 @@ export async function registrarRotina(app, { oportunidade, participantes, adicio
     const escopo = `((o.mandato_id IS NULL AND o.criado_por=$1) OR (o.mandato_id IS NOT NULL AND ($2 OR m.confidencial=false OR o.mandato_id=ANY($3::uuid[]))))`;
     const v = [u.id,u.papel === 'admin',(u.mandatos || []).map((m) => m.id)];
     const funil = (await db.query(`SELECT o.frente,o.etapa,count(*)::int quantidade FROM crm_oportunidades o LEFT JOIN mandatos m ON m.id=o.mandato_id WHERE ${escopo} GROUP BY o.frente,o.etapa ORDER BY o.frente,o.etapa`,v)).rows;
-    const pendencias = (await db.query(`SELECT * FROM (
+    const abertas = `(
       SELECT o.id AS oportunidade_id,o.titulo,o.proxima_acao AS descricao,o.prazo::text,o.responsavel_id,u.nome AS responsavel_nome,'Próximo passo' AS tipo
       FROM crm_oportunidades o LEFT JOIN mandatos m ON m.id=o.mandato_id JOIN usuarios u ON u.id=o.responsavel_id
       WHERE ${escopo} AND NOT o.acao_concluida AND o.etapa NOT IN ('perdida','mandato_assinado')
       UNION ALL SELECT o.id,o.titulo,t.descricao,t.prazo::text,t.responsavel_id,u.nome,t.tipo FROM crm_tarefas t
       JOIN crm_oportunidades o ON o.id=t.oportunidade_id LEFT JOIN mandatos m ON m.id=o.mandato_id JOIN usuarios u ON u.id=t.responsavel_id
-      WHERE ${escopo} AND NOT t.concluida) p ORDER BY prazo,oportunidade_id,descricao LIMIT 100`,v)).rows;
-    return { funil, pendencias, hoje: hoje(), limitePendencias: 100,
+      WHERE ${escopo} AND NOT t.concluida) p`;
+    const pendencias = (await db.query(`SELECT * FROM ${abertas} ORDER BY prazo,oportunidade_id,descricao LIMIT 100`,v)).rows;
+    const dia = hoje();
+    // Totais exatos: a lista acima é cortada em 100 e não serve para contar.
+    const totais = (await db.query(`SELECT count(*)::int compromissos, count(*) FILTER (WHERE prazo::date < $4::date)::int atrasados FROM ${abertas}`,[...v,dia])).rows[0];
+    return { funil, pendencias, totais, hoje: dia, limitePendencias: 100,
       metodologia: 'Contagem de oportunidades acessíveis no estado atual, separada por frente. Não é taxa de conversão. Agenda mostra até 100 compromissos, incluindo tarefas de execução após assinatura.' };
   });
 }

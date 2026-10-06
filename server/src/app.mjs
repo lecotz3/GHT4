@@ -28,6 +28,8 @@ import { registrarInstalacao } from './api/instalacao.mjs';
 import { registrarEquipe } from './api/equipe.mjs';
 import { registrarProspeccao } from './api/prospeccao.mjs';
 import { registrarRede } from './api/rede.mjs';
+import { registrarEmpresas } from './api/empresas.mjs';
+import { registrarInicio } from './api/inicio.mjs';
 import { registrarReconhecimento } from './api/reconhecimento.mjs';
 import { registrarImportacaoRede } from './api/rede-importacao.mjs';
 import { registrarAcervo } from './api/acervo.mjs';
@@ -56,6 +58,21 @@ export const ROTAS_PUBLICAS = Object.freeze([
   'POST /api/convites/consultar',
   'POST /api/convites/aceitar',
 ]);
+
+/**
+ * Falha de conexão com o banco, e não erro de consulta: rede, classe SQLSTATE 08
+ * (conexão), 28 (credencial recusada), 53300 (conexões esgotadas) e 57P01–57P03
+ * (servidor desligando ou ainda subindo). Para quem usa, é indisponibilidade
+ * passageira (503), não defeito (500).
+ */
+const ERROS_DE_REDE = new Set(['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'EPIPE']);
+export function bancoIndisponivel(erro) {
+  const c = typeof erro?.code === 'string' ? erro.code : '';
+  return ERROS_DE_REDE.has(c) || /^(08|28)[0-9A-Z]{3}$/.test(c) || ['53300', '57P01', '57P02', '57P03'].includes(c);
+}
+
+/** Única rota que não resolve a sessão: responde pelo banco, não pelo usuário. */
+const ROTA_SAUDE = '/api/saude';
 
 export async function criarApp(db, { logger = false, instalacaoInicial = false, catalogo, redigirIA = null, servicoIA = null, origemPublica = null } = {}) {
   const app = Fastify({
@@ -86,6 +103,12 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
   });
 
   app.addHook('onRequest', async (req) => {
+    /* A saúde é pública e não usa o usuário. Resolver a sessão ali consultaria o
+       banco antes da rota, e um navegador autenticado receberia 500 em vez do 503
+       de indisponibilidade que o monitor recebe. A comparação é com o caminho
+       registrado (sem query string) e só para GET/HEAD: nenhuma outra rota,
+       pública ou não, pula a sessão. */
+    if (req.routeOptions?.url === ROTA_SAUDE && (req.method === 'GET' || req.method === 'HEAD')) return;
     const token = req.cookies?.[sessao.NOME_COOKIE];
     req.usuario = token ? await sessao.resolver(db, token) : null;
   });
@@ -144,13 +167,21 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
     }
     /* Código e request id permitem localizar o incidente sem registrar senha,
        cookie, SQL ou a connection string que pode vir na mensagem do driver. */
+    if (bancoIndisponivel(erro)) {
+      req.log.error({ codigo: erro.code }, 'banco indisponível');
+      // Credencial recusada (classe 28) não se resolve esperando: sem Retry-After.
+      if (!erro.code.startsWith('28')) resposta.header('Retry-After', '30');
+      return resposta.status(503).send({
+        erro: 'servico_indisponivel', mensagem: 'O agente está temporariamente indisponível. Tente novamente.',
+      });
+    }
     req.log.error({ codigo: erro.code ?? erro.name }, 'erro não tratado');
     return resposta.status(500).send({
       erro: 'erro_interno', mensagem: 'Algo falhou aqui dentro. O incidente foi registrado.',
     });
   });
 
-  app.get('/api/saude', async (req) => {
+  app.get(ROTA_SAUDE, async (req) => {
     try {
       await db.query('SELECT 1');
     } catch (erro) {
@@ -168,6 +199,8 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
   await app.register(registrarEquipe);
   await app.register(registrarProspeccao);
   await app.register(registrarRede);
+  await app.register(registrarEmpresas, { catalogo });
+  await app.register(registrarInicio);
   await app.register(registrarReconhecimento);
   await app.register(registrarImportacaoRede);
   await app.register(registrarAcervo);

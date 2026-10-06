@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { abrir, fechar, urlDireta, descreverAlvo, urlBanco } from '../server/src/db/cliente.mjs';
 import { migrar } from '../server/src/db/migrar.mjs';
 import { importarCatalogo } from '../server/src/agente/importar-catalogo.mjs';
+import { importarEventos } from '../server/src/agente/eventos.mjs';
 import { prepararAdministrador } from '../server/src/operacao/administrador-inicial.mjs';
 
 /* Diz qual foi a falha sem expor a conexão. Só `code`/`name` resumia tudo a
@@ -57,7 +58,13 @@ try {
     }
     const texto = await readFile(new URL('../data-quimicos.js', import.meta.url), 'utf8');
     const resultado = await importarCatalogo(db, { texto });
-    console.log(JSON.stringify({ catalogo: resultado, administrador }));
+    /* Eventos societários são opcionais: só existem depois de rodar
+       ferramentas/eventos-cnpj.mjs com dois meses arquivados. Sem o arquivo, o
+       agente continua funcionando e o filtro "com evento" não encontra nada. */
+    let eventos = null;
+    try { eventos = await importarEventos(db, { texto: await readFile(new URL('../data-eventos.js', import.meta.url), 'utf8') }); }
+    catch (erro) { if (erro.code !== 'ENOENT') throw erro; }
+    console.log(JSON.stringify({ catalogo: resultado, eventos, administrador }));
   } finally {
     /* A trava cai sozinha ao encerrar a sessão. Falhar em liberá-la não pode
        reprovar um deploy cuja preparação já terminou. */
