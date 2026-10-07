@@ -8,23 +8,22 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { abrirPostgres } from '../src/db/cliente.mjs';
 import { migrar } from '../src/db/migrar.mjs';
-import { criarUsuario } from './ajuda.mjs';
+import { bancoDeTeste, criarUsuario } from './ajuda.mjs';
 import { criarMotorPesquisa } from '../src/pesquisa/motor.mjs';
 
 const URL_PG = process.env.GHT4_TESTE_PG_URL;
 
-test('reserva em PostgreSQL: conexões concorrentes nunca pegam a mesma empresa nem passam do orçamento', { skip: !URL_PG && 'defina GHT4_TESTE_PG_URL para rodar' }, async (t) => {
-  const db = await abrirPostgres(URL_PG);
-  t.after(() => db.close());
-  await migrar(db, { silencioso: true });
+/* Fixture e asserções iguais nos dois bancos: em PGlite (sempre) valida o setup contra o
+   schema migrado e a lógica em série; em PostgreSQL real certifica a disputa entre conexões. */
+async function ensaio(db) {
   const u = await criarUsuario(db, { email: `pg-${randomUUID()}@teste.local` });
   const conversa = (await db.query(`INSERT INTO agente_conversas (usuario_id,titulo) VALUES ($1,'Ensaio PG') RETURNING id`, [u.id])).rows[0].id;
   const nova = async (itens, limiteWeb) => {
     const id = randomUUID();
-    await db.query(`INSERT INTO pesquisas_tese (id,conversa_id,usuario_id,tese,frente,filtros,criterios,meta,limite_web,catalogo_hash,referencia,funil,estado,execucao)
-      VALUES ($1,$2,$3,'Ensaio de concorrência','venda','{}','[]',100,$4,'h','2026-08','{}','em_andamento',1)`, [id, conversa, u.id, limiteWeb]);
+    await db.query(`INSERT INTO pesquisas_tese (id,conversa_id,usuario_id,tese,frente,filtros,criterios,meta,limite_web,catalogo_hash,referencia,funil,modo,estado,execucao)
+      VALUES ($1,$2,$3,'Ensaio de concorrência','venda','{}','[]',100,$4,$5,'2026-08','{}','regras','em_andamento',1)`, [id, conversa, u.id, limiteWeb, 'a'.repeat(64)]);
     await db.query(`INSERT INTO pesquisa_itens (pesquisa_id,empresa_id,ordem,empresa,etapa,vereditos,aderencia,categoria)
-      SELECT $1,'cnpj'||lpad(n::text,8,'0'),n,'{}','aguardando','[]',0,'a_confirmar' FROM generate_series(1,$2) n`, [id, itens]);
+      SELECT $1,'cnpj'||lpad(n::text,8,'0'),n,'{}','aguardando','[]',0,'a_confirmar' FROM generate_series(1,$2::int) n`, [id, itens]);
     return id;
   };
   const motor = criarMotorPesquisa({ db, catalogo: null });
@@ -41,4 +40,17 @@ test('reserva em PostgreSQL: conexões concorrentes nunca pegam a mesma empresa 
   assert.equal(r2.filter((x) => x.limite === 3).length, 7);
   // Geração antiga não reserva.
   assert.equal((await motor.reservar(fila, 0)).interrompida, true);
+}
+
+test('ensaio de reserva: fixture válida no schema migrado e lógica em série (PGlite)', async (t) => {
+  const db = await bancoDeTeste();
+  t.after(() => db.close());
+  await ensaio(db);
+});
+
+test('reserva em PostgreSQL: conexões concorrentes nunca pegam a mesma empresa nem passam do orçamento', { skip: !URL_PG && 'defina GHT4_TESTE_PG_URL para rodar' }, async (t) => {
+  const db = await abrirPostgres(URL_PG);
+  t.after(() => db.close());
+  await migrar(db, { silencioso: true });
+  await ensaio(db);
 });
