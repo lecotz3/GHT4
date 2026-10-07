@@ -503,6 +503,10 @@ test('acervo: corte de 30 depois da versão atual de cada série; títulos iguai
   const serie1 = randomUUID();
   await db.query(`INSERT INTO crm_registros (id,serie_id,oportunidade_id,tipo,versao,dados,revisado,usuario_id,criado_em) VALUES
     ($1,$1,$2,'tese',1,'{"titulo":"Série 1 v1"}',true,$3,now()-interval '3 days'),($4,$1,$2,'tese',2,'{"titulo":"Série 1 v2"}',false,$3,now()-interval '1 hour')`,[serie1,o.id,a.id,randomUUID()]);
+  // Série 0: v1 revisada antiga e v2 atual NÃO revisada recente, dentro do corte.
+  const serie0 = randomUUID();
+  await db.query(`INSERT INTO crm_registros (id,serie_id,oportunidade_id,tipo,versao,dados,revisado,usuario_id,criado_em) VALUES
+    ($1,$1,$2,'tese',1,'{"titulo":"Série 0 v1"}',true,$3,now()-interval '3 days'),($4,$1,$2,'tese',2,'{"titulo":"Série 0 v2"}',false,$3,now()-interval '30 seconds')`,[serie0,o.id,a.id,randomUUID()]);
   for (let n = 2; n <= 31; n++) {
     const id = randomUUID();
     await db.query(`INSERT INTO crm_registros (id,serie_id,oportunidade_id,tipo,versao,dados,revisado,usuario_id,criado_em) VALUES ($1,$1,$2,'evidencia',1,$3,true,$4,now()-make_interval(mins => $5))`,
@@ -513,6 +517,8 @@ test('acervo: corte de 30 depois da versão atual de cada série; títulos iguai
   const regs = f.acervo.registros;
   assert.equal(regs.length, 30, 'corte de 30 aplicado depois de escolher a versão atual');
   assert.ok(!regs.some((r) => r.titulo === 'Série 1 v1'), 'versão antiga revisada não ressuscita');
+  const v2 = regs.filter((r) => r.titulo.startsWith('Série 0'));
+  assert.deepEqual(v2.map((r) => [r.titulo, r.versao, r.revisado, r.oportunidadeId]), [['Série 0 v2', 2, false, o.id]], 'a versão atual não revisada entra; a v1 revisada não');
   assert.ok(!regs.some((r) => r.titulo === 'Série 31'), 'o mais antigo fica de fora do corte');
   const doB = regs.find((r) => r.titulo === 'Tese do espaço B');
   const doA = regs.find((r) => r.titulo === 'Série 2');
