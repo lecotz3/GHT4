@@ -9,7 +9,10 @@
  *      estranha, conferido também depois da resolução DNS e a cada redirecionamento;
  *      a conexão usa o endereço aprovado (resolução fixada no `lookup` do socket),
  *      então trocar o DNS entre a conferência e a conexão não leva à rede interna;
- *    - respeita o robots.txt do site;
+ *    - respeita o robots.txt de cada origem visitada, também nos redirecionamentos
+ *      e antes de devolver o cache;
+ *    - redirecionamento só entre o domínio cadastral e o seu www: outro domínio
+ *      não vira evidência da empresa; a evidência guarda URL final e cadeia;
  *    - lê no máximo a página inicial e três internas, com tempo e tamanho limitados;
  *    - guarda o texto em cache por 30 dias: a mesma página não é baixada de novo.
  *
@@ -27,6 +30,8 @@ import { normalizar } from '../agente/catalogo.mjs';
 
 export const AGENTE_USUARIO = 'GHT4-Pesquisa/1.0 (pesquisa de mercado; respeita robots.txt)';
 const VALIDADE_MS = 30 * 24 * 3600 * 1000;
+// Falha passageira não pode virar um mês de "site indisponível".
+const VALIDADE_FALHA_MS = 24 * 3600 * 1000;
 const MAX_BYTES = 1_500_000;
 const MAX_TEXTO = 60_000;
 const PALAVRAS_INTERNAS = /(sobre|quem-somos|quemsomos|empresa|institucional|historia|produtos|linhas|portfolio|representa|parceir|fornecedor|marcas|segmentos|mercados|servicos|solucoes|certifica|qualidade|unidades|distribui|about|products)/;
@@ -142,9 +147,16 @@ function charsetDe(tipo, bytes) {
   return ['iso-8859-1', 'latin1', 'windows-1252', 'cp1252'].includes(c) ? 'windows-1252' : 'utf-8';
 }
 
-async function baixar(url, { fetchImpl, resolver, redirecionamentos = 3 }) {
+/** `seguir(url)` devolve o motivo para não seguir um redirecionamento (robots, outra origem) ou null. */
+async function baixar(url, { fetchImpl, resolver, redirecionamentos = 3, seguir = null }) {
   let atual = urlLegivel(url);
+  const cadeia = [];
   for (let i = 0; i <= redirecionamentos && atual; i++) {
+    if (i > 0) {
+      const motivo = seguir ? await seguir(atual) : null;
+      if (motivo) return { estado: 'bloqueada', motivo, url: atual.href, cadeia };
+    }
+    cadeia.push(atual.href);
     if (!await hostPublico(atual.hostname, resolver)) return { estado: 'bloqueada', motivo: 'endereço não público' };
     let r;
     try {
@@ -156,9 +168,9 @@ async function baixar(url, { fetchImpl, resolver, redirecionamentos = 3 }) {
       atual = destino ? urlLegivel(new URL(destino, atual).href) : null;
       continue;
     }
-    if (!r.ok) return { estado: 'falhou', motivo: `HTTP ${r.status}`, url: atual.href };
+    if (!r.ok) return { estado: 'falhou', motivo: `HTTP ${r.status}`, url: atual.href, cadeia };
     const tipo = r.headers.get('content-type') || '';
-    if (!/text\/html|application\/xhtml|text\/plain/i.test(tipo)) return { estado: 'sem_html', motivo: tipo.slice(0, 60), url: atual.href };
+    if (!/text\/html|application\/xhtml|text\/plain/i.test(tipo)) return { estado: 'sem_html', motivo: tipo.slice(0, 60), url: atual.href, cadeia };
     const partes = []; let bytes = 0;
     try {
       for await (const parte of r.body) {
@@ -166,11 +178,11 @@ async function baixar(url, { fetchImpl, resolver, redirecionamentos = 3 }) {
         if (bytes > MAX_BYTES) break;
         partes.push(parte);
       }
-    } catch { return { estado: 'falhou', motivo: 'leitura interrompida', url: atual.href }; }
+    } catch { return { estado: 'falhou', motivo: 'leitura interrompida', url: atual.href, cadeia }; }
     const buf = Buffer.concat(partes);
-    return { estado: 'ok', url: atual.href, tipo, corpo: new TextDecoder(charsetDe(tipo, buf)).decode(buf) };
+    return { estado: 'ok', url: atual.href, cadeia, tipo, corpo: new TextDecoder(charsetDe(tipo, buf)).decode(buf) };
   }
-  return { estado: 'bloqueada', motivo: 'redirecionamento inválido' };
+  return { estado: 'bloqueada', motivo: 'redirecionamento inválido', cadeia };
 }
 
 /** Regras do robots.txt: grupo do nosso agente, senão o grupo "*". Prefixo mais longo vence. */
@@ -199,24 +211,37 @@ export function permitidoPeloRobots(robots, caminho) {
 
 /**
  * Página com cache. `db` guarda o texto extraído, nunca o HTML bruto.
- * Devolve { url, estado, titulo, texto, links, obtidaEm }.
+ * `robots` é o texto do robots.txt da origem pedida; `regras(url)` devolve o motivo
+ * para não ler uma URL (robots da sua origem, origem não aceita) e vale para a URL
+ * pedida, para cada redirecionamento e para a URL final de um cache.
+ * Devolve { url (final), pedida, cadeia, estado, titulo, texto, links, obtidaEm }.
  */
-export async function obterPagina(db, url, { fetchImpl = fetchFixado, resolver = (h) => lookup(h, { all: true }), agora = Date.now(), robots = null } = {}) {
+export async function obterPagina(db, url, { fetchImpl = fetchFixado, resolver = (h) => lookup(h, { all: true }), agora = Date.now(), robots = null, regras = null } = {}) {
   const u = urlLegivel(url);
   if (!u) return { url, estado: 'bloqueada', texto: '', links: [] };
+  const bloqueio = async (x) => (x.origin === u.origin && !permitidoPeloRobots(robots, x.pathname) ? 'robots.txt' : null) ?? (regras ? await regras(x) : null);
+  const bloqueada = (motivo, extra = {}) => ({ url: u.href, pedida: u.href, cadeia: [], estado: 'bloqueada', texto: '', links: [], motivo, ...extra });
+  // Robots antes do cache: uma regra nova vale também para o que já foi lido.
+  const motivo = await bloqueio(u);
+  if (motivo) return bloqueada(motivo);
   const cache = (await db.query('SELECT * FROM paginas_publicas WHERE url=$1', [u.href])).rows[0];
-  if (cache && agora - new Date(cache.obtida_em).getTime() < VALIDADE_MS) {
-    return { url: cache.url, estado: cache.estado, titulo: cache.titulo, texto: cache.texto || '', links: cache.links || [], obtidaEm: cache.obtida_em };
+  const validade = cache?.estado === 'falhou' ? VALIDADE_FALHA_MS : VALIDADE_MS;
+  if (cache && agora - new Date(cache.obtida_em).getTime() < validade) {
+    const final = cache.url_final ? urlLegivel(cache.url_final) : u;
+    const motivoFinal = final && final.href !== u.href ? await bloqueio(final) : null;
+    if (motivoFinal) return bloqueada(motivoFinal, { cadeia: cache.cadeia || [] });
+    return { url: final?.href ?? u.href, pedida: u.href, cadeia: cache.cadeia || [], estado: cache.estado, titulo: cache.titulo, texto: cache.texto || '', links: cache.links || [], obtidaEm: cache.obtida_em };
   }
-  if (!permitidoPeloRobots(robots, u.pathname)) return { url: u.href, estado: 'bloqueada', texto: '', links: [], motivo: 'robots.txt' };
-  const r = await baixar(u.href, { fetchImpl, resolver });
+  const r = await baixar(u.href, { fetchImpl, resolver, seguir: bloqueio });
   const pagina = r.estado === 'ok' ? { ...extrairPagina(r.corpo, r.url), estado: 'ok' } : { estado: r.estado, titulo: null, texto: '', links: [] };
   const hash = pagina.texto ? createHash('sha256').update(pagina.texto).digest('hex') : null;
   const obtidaEm = new Date(agora).toISOString();
-  await db.query(`INSERT INTO paginas_publicas (url,dominio,estado,titulo,texto,links,hash,obtida_em) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-    ON CONFLICT (url) DO UPDATE SET estado=EXCLUDED.estado,titulo=EXCLUDED.titulo,texto=EXCLUDED.texto,links=EXCLUDED.links,hash=EXCLUDED.hash,obtida_em=EXCLUDED.obtida_em`,
-  [u.href, u.hostname.replace(/^www\./, ''), pagina.estado, pagina.titulo, pagina.texto, JSON.stringify(pagina.links.slice(0, 200)), hash, obtidaEm]);
-  return { url: u.href, ...pagina, obtidaEm, motivo: r.motivo };
+  const urlFinal = r.url ?? u.href, cadeia = r.cadeia ?? [];
+  await db.query(`INSERT INTO paginas_publicas (url,dominio,estado,titulo,texto,links,hash,obtida_em,url_final,cadeia) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    ON CONFLICT (url) DO UPDATE SET estado=EXCLUDED.estado,titulo=EXCLUDED.titulo,texto=EXCLUDED.texto,links=EXCLUDED.links,hash=EXCLUDED.hash,obtida_em=EXCLUDED.obtida_em,
+      url_final=EXCLUDED.url_final,cadeia=EXCLUDED.cadeia`,
+  [u.href, u.hostname.replace(/^www\./, ''), pagina.estado, pagina.titulo, pagina.texto, JSON.stringify(pagina.links.slice(0, 200)), hash, obtidaEm, urlFinal, JSON.stringify(cadeia)]);
+  return { url: urlFinal, pedida: u.href, cadeia, ...pagina, obtidaEm, motivo: r.motivo };
 }
 
 const DESCARTAVEIS = new Set(['ltda', 'eireli', 'epp', 'me', 'sa', 'cia', 'comercio', 'comercial', 'industria', 'industrial', 'importacao', 'exportacao',
@@ -242,15 +267,27 @@ export async function lerSite(db, empresa, opcoes = {}) {
   if (!dominio) return { dominio: null, estado: 'sem_site', paginas: [], motivo: 'Sem domínio corporativo no cadastro.' };
   // Orçamento por site: a revisão roda dentro de funções com limite de 60 s.
   const prazo = Date.now() + (opcoes.prazoSiteMs ?? 20000);
-  const robotsPag = await obterPagina(db, `https://${dominio}/robots.txt`, { ...opcoes, robots: null });
-  const robots = robotsPag.estado === 'ok' && !/<html/i.test(robotsPag.texto) ? robotsPag.texto : null;
-  let inicial = null;
+  // Robots por origem (https://www.x e https://x podem ter regras diferentes), lido uma vez por leitura.
+  const robotsPorOrigem = new Map();
+  const robotsDe = (origem) => {
+    if (!robotsPorOrigem.has(origem)) robotsPorOrigem.set(origem, obterPagina(db, `${origem}/robots.txt`, { ...opcoes, robots: null, regras: null })
+      .then((p) => (p.estado === 'ok' && !/<html/i.test(p.texto) ? p.texto : null)));
+    return robotsPorOrigem.get(origem);
+  };
+  // Só o domínio cadastral e o seu www: outro domínio pode ser estacionado ou de terceiro.
+  const regras = async (x) => {
+    if (x.hostname.replace(/^www\./, '') !== dominio) return 'outra origem';
+    return permitidoPeloRobots(await robotsDe(x.origin), x.pathname) ? null : 'robots.txt';
+  };
+  let inicial = null, motivoBloqueio = null;
   for (const url of [`https://www.${dominio}/`, `https://${dominio}/`, `http://www.${dominio}/`]) {
     if (Date.now() > prazo) break;
-    const p = await obterPagina(db, url, { ...opcoes, robots });
+    const p = await obterPagina(db, url, { ...opcoes, robots: null, regras });
     if (p.estado === 'ok' && p.texto.length > 20) { inicial = p; break; }
-    if (p.motivo === 'robots.txt') return { dominio, estado: 'bloqueada', paginas: [], motivo: 'O robots.txt do site não permite a leitura.' };
+    if (p.motivo === 'robots.txt' || p.motivo === 'outra origem') motivoBloqueio ??= p.motivo;
   }
+  if (!inicial && motivoBloqueio) return { dominio, estado: 'bloqueada', paginas: [], motivo: motivoBloqueio === 'robots.txt'
+    ? 'O robots.txt do site não permite a leitura.' : 'O endereço do cadastro redireciona para outro domínio; o conteúdo não foi atribuído à empresa.' };
   if (!inicial) return { dominio, estado: 'indisponivel', paginas: [], motivo: 'O site não respondeu com uma página legível.' };
   const internas = [...new Map(inicial.links.map((l) => [l.url, l])).values()]
     .filter((l) => l.url !== inicial.url && PALAVRAS_INTERNAS.test(normalizar(`${new URL(l.url).pathname} ${l.texto}`)))
@@ -258,11 +295,11 @@ export async function lerSite(db, empresa, opcoes = {}) {
   const paginas = [inicial];
   for (const l of internas) {
     if (Date.now() > prazo) break;
-    const p = await obterPagina(db, l.url, { ...opcoes, robots });
+    const p = await obterPagina(db, l.url, { ...opcoes, robots: null, regras });
     if (p.estado === 'ok' && p.texto.length > 20) paginas.push(p);
   }
   const identidade = identidadeDoSite(paginas.map((p) => p.texto).join('\n'), empresa);
-  return { dominio, estado: 'lido', identidade, paginas: paginas.map(({ url, titulo, texto, obtidaEm }) => ({ url, titulo, texto, obtidaEm })) };
+  return { dominio, estado: 'lido', identidade, paginas: paginas.map(({ url, pedida, cadeia, titulo, texto, obtidaEm }) => ({ url, pedida, cadeia, titulo, texto, obtidaEm })) };
 }
 
 /* ---- relevância sem IA -------------------------------------------------- */

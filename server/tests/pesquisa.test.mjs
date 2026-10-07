@@ -421,3 +421,46 @@ test('atributo que a fonte não trouxe é desconhecido; vazio apurado continua r
   assert.equal(v(apurado, 'filial_recente_anos', 3), 'nao_atende');
   assert.equal(v(apurado, 'cnae_secundario', ['4689399']), 'nao_atende');
 });
+
+test('redirecionamento: outro domínio não vira evidência, robots vale por origem e antes do cache, URL final é guardada', async (t) => {
+  const db = await bancoDeTeste();
+  t.after(() => db.close());
+  const resolver = async () => [{ address: '200.1.2.3' }];
+  const html = (txt) => new Response(`<html><title>T</title><body><p>${txt}</p></body></html>`, { headers: { 'content-type': 'text/html' } });
+  let robotsApex = 'User-agent: *\nDisallow:';
+  const fetchImpl = async (url) => {
+    const vai = (destino) => new Response('', { status: 301, headers: { location: destino } });
+    if (url.endsWith('/robots.txt')) return new Response(url.startsWith('https://gama.com.br') ? robotsApex : 'User-agent: *\nDisallow:', { headers: { 'content-type': 'text/plain' } });
+    if (url === 'https://www.alfa.com.br/') return vai('https://terceiro.com.br/privado');
+    if (url === 'https://alfa.com.br/' || url === 'http://www.alfa.com.br/') return vai('https://terceiro.com.br/privado');
+    if (url === 'https://terceiro.com.br/privado') return html('Conteúdo de outra empresa: distribuidora de resinas.');
+    if (url === 'https://www.gama.com.br/') return vai('https://gama.com.br/inicio');
+    if (url === 'https://gama.com.br/inicio') return html('Gama Química, distribuidora oficial de solventes há trinta anos.');
+    return new Response('nao', { status: 404 });
+  };
+  const alfa = await lerSite(db, empresa({ ...ATR, dominio: 'alfa.com.br' }), { fetchImpl, resolver });
+  assert.equal(alfa.estado, 'bloqueada');
+  assert.deepEqual(alfa.paginas, []);
+  assert.match(alfa.motivo, /outro domínio/);
+
+  const gama = await lerSite(db, empresa({ ...ATR, dominio: 'gama.com.br' }), { fetchImpl, resolver });
+  assert.equal(gama.estado, 'lido');
+  assert.equal(gama.paginas[0].url, 'https://gama.com.br/inicio', 'evidência aponta para onde a leitura foi');
+  assert.deepEqual(gama.paginas[0].cadeia, ['https://www.gama.com.br/', 'https://gama.com.br/inicio']);
+
+  // O robots da origem final passa a proibir: o cache não é devolvido.
+  robotsApex = 'User-agent: *\nDisallow: /inicio';
+  await db.query("DELETE FROM paginas_publicas WHERE url='https://gama.com.br/robots.txt'");
+  const depois = await lerSite(db, empresa({ ...ATR, dominio: 'gama.com.br' }), { fetchImpl, resolver });
+  assert.equal(depois.estado, 'bloqueada');
+  assert.match(depois.motivo, /robots/);
+
+  // Falha passageira expira em um dia, não em trinta.
+  const agora = Date.now();
+  const falha = async () => new Response('erro', { status: 503 });
+  assert.equal((await obterPagina(db, 'https://www.delta.com.br/', { fetchImpl: falha, resolver, agora })).estado, 'falhou');
+  let chamadas = 0;
+  const volta = async (u) => { chamadas++; return u.endsWith('robots.txt') ? new Response('', { status: 404 }) : html('Delta Química de volta ao ar.'); };
+  assert.equal((await obterPagina(db, 'https://www.delta.com.br/', { fetchImpl: volta, resolver, agora: agora + 2 * 24 * 3600 * 1000 })).estado, 'ok');
+  assert.equal(chamadas, 1);
+});

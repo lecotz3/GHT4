@@ -296,7 +296,8 @@ export function criarMotorPesquisa({ db, catalogo, servicoIA = null, web = {} })
           pesquisaveis.forEach(({ i }, k) => { vereditos[i] = julgados[k]; });
           const { aderencia, categoria } = consolidar(pesquisa.criterios, vereditos);
           const resumoSite = { dominio: site.dominio, estado: site.estado, identidade: site.identidade ?? null, motivo: site.motivo ?? null,
-            paginas: (site.paginas || []).map((p) => ({ url: p.url, titulo: p.titulo })) };
+            paginas: (site.paginas || []).map((p) => ({ url: p.url, titulo: p.titulo, obtidaEm: p.obtidaEm ?? null,
+              ...(p.cadeia?.length > 1 ? { pedida: p.pedida, cadeia: p.cadeia } : {}) })) };
           // Ficha: reserva vencida e retomada por outro lote não aceita a gravação deste.
           const r = (await db.query(`UPDATE pesquisa_itens SET etapa='revisada', vereditos=$3, aderencia=$4, categoria=$5, site=$6, revisado_em=now(), reservado_em=NULL
             WHERE pesquisa_id=$1 AND empresa_id=$2 AND etapa='em_revisao' AND tentativas=$7 RETURNING *`,
