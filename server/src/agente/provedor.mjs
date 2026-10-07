@@ -18,7 +18,7 @@ export const PROVEDORES = Object.freeze({
   gemini: { api: 'chat', url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', chave: 'GEMINI_API_KEY', modelo: 'gemini-2.5-flash', web: false, gratuito: true, raciocinio: 'low' },
   groq: { api: 'chat', url: 'https://api.groq.com/openai/v1/chat/completions', chave: 'GROQ_API_KEY', modelo: 'openai/gpt-oss-120b', web: false, gratuito: true, raciocinio: 'low' },
   openrouter: { api: 'chat', url: 'https://openrouter.ai/api/v1/chat/completions', chave: 'OPENROUTER_API_KEY', modelo: null, web: false, gratuito: true },
-  ollama: { api: 'chat', url: 'http://127.0.0.1:11434/v1/chat/completions', chave: null, modelo: null, web: false, gratuito: true },
+  ollama: { api: 'chat', url: 'http://127.0.0.1:11434/v1/chat/completions', chave: null, modelo: null, web: false, gratuito: true, local: true },
 });
 
 export function configurarIA(env = {}) {
@@ -35,7 +35,11 @@ export function configurarIA(env = {}) {
     tokens: env.GHT4_IA_TOKENS_SAIDA, porUsuario: env.GHT4_IA_PEDIDOS_USUARIO_DIA,
     porDia: env.GHT4_IA_PEDIDOS_DIA, revisoesDia: env.GHT4_IA_REVISOES_DIA, timeout: env.GHT4_IA_TIMEOUT_MS,
     web: p.web && env.GHT4_IA_WEB === '1' });
-  return { ...config, api: p.api, gratuito: p.gratuito, raciocinio: p.raciocinio ?? null };
+  // "Gratuito" depende do modelo: no OpenRouter só os modelos ":free" são da camada gratuita.
+  const gratuito = p.gratuito && (nome !== 'openrouter' || /:free$/.test(config.modelo));
+  // Camada gratuita EXTERNA pode reter e usar o conteúdo para treino; o Ollama roda na máquina e não retém.
+  const retemDados = gratuito && !p.local;
+  return { ...config, api: p.api, gratuito, local: Boolean(p.local), retemDados, raciocinio: p.raciocinio ?? null };
 }
 
 const INSTRUCOES = `Você auxilia a boutique GHT4 em M&A, no piloto de distribuição e trading químico.
@@ -154,8 +158,17 @@ async function chamar(config, fetchImpl, { instrucoes, input, formato = null, we
 /** A reserva transacional limita também pedidos concorrentes e sobreviventes de reinício.
  * Falhas consomem a reserva: o provedor pode ter cobrado antes de a conexão cair.
  * Não há repetição automática de chamada externa. */
+/**
+ * Política de envio a provedor que retém dados (camada gratuita externa): nada de trabalho
+ * ligado a mandato confidencial sai daqui, seja conversa, tese ou critério. Conferido na
+ * reserva, que todo envio atravessa, a partir da conversa gravada (não do que o cliente diz).
+ */
 async function reservar(db, config, e, tarefa) {
   return db.transaction(async (tx) => {
+    if (config.retemDados) {
+      const c = (await tx.query(`SELECT m.confidencial FROM agente_conversas c LEFT JOIN mandatos m ON m.id=c.mandato_id WHERE c.id=$1`, [e.conversaId])).rows[0];
+      if (c?.confidencial) throw new Error('mandato_confidencial_em_provedor_gratuito');
+    }
     await tx.query('SELECT id FROM ia_controle WHERE id = true FOR UPDATE');
     const anterior = (await tx.query('SELECT * FROM ia_execucoes WHERE conversa_id=$1 AND chave=$2', [e.conversaId, e.chave])).rows[0];
     if (anterior) {
@@ -201,7 +214,7 @@ export function criarServicoIA(db, config, { fetchImpl = fetch } = {}) {
       const interpretar=entrada.tarefa==='interpretar_busca';
       if (web && !config.web) throw new Error('web_desabilitada');
       // Camada gratuita pode reter e usar o conteúdo para treino: documento de oportunidade não sai daqui.
-      if (config.gratuito && entrada.documentos?.length) throw new Error('documentos_em_provedor_gratuito');
+      if (config.retemDados && entrada.documentos?.length) throw new Error('documentos_em_provedor_gratuito');
       // Pesquisa recebe somente a consulta pública explícita; nenhuma nota ou histórico privado.
       const dados = interpretar ? {pedido:entrada.pedido,filtrosAtuais:filtrosDoContexto(entrada.contexto)} : web ? { consultaPublica: entrada.pedido } : {
         pedido: entrada.pedido, frente: entrada.contexto?.frente, objetivo: entrada.contexto?.objetivo,

@@ -603,3 +603,33 @@ test('entrega leva avaliação por critério com trecho, URL interna e data; bas
   assert.equal(falha.statusCode, 503);
   assert.equal((await app2.inject({ method: 'GET', url: '/api/agente/conversas', headers: { cookie } })).json().conversas.length, antes);
 });
+
+test('provedor que retém dados não recebe nada de mandato confidencial; gratuito depende do modelo; Ollama é local', async (t) => {
+  assert.equal(configurarIA({ GHT4_IA_PROVEDOR: 'openrouter', OPENROUTER_API_KEY: 'k', GHT4_IA_MODELO: 'meta/llama-3:free' }).gratuito, true);
+  assert.equal(configurarIA({ GHT4_IA_PROVEDOR: 'openrouter', OPENROUTER_API_KEY: 'k', GHT4_IA_MODELO: 'anthropic/claude-x' }).gratuito, false);
+  const ollama = configurarIA({ GHT4_IA_PROVEDOR: 'ollama', GHT4_IA_MODELO: 'llama3' });
+  assert.equal(ollama.gratuito, true); assert.equal(ollama.retemDados, false);
+  const gemini = configurarIA({ GHT4_IA_PROVEDOR: 'gemini', GEMINI_API_KEY: 'chave-gratuita-teste' });
+  assert.equal(gemini.retemDados, true);
+  let chamadas = 0;
+  const fetchIA = async () => { chamadas++; return Response.json({ choices: [{ message: { content: '{}' } }] }); };
+  const db = await bancoDeTeste();
+  const catalogo = await catalogoDeTeste(t);
+  const app = await criarApp(db, { catalogo, servicoIA: criarServicoIA(db, gemini, { fetchImpl: fetchIA }), web: { fetchImpl: fetchSites, resolver: async () => [{ address: '200.1.2.3' }] } });
+  t.after(async () => { await app.close(); await db.close(); });
+  const u = await criarUsuario(db, { email: 'conf@teste.local', senha: 'senha-de-teste' });
+  const mandato = await criarMandato(db, { codigo: 'M-CONF-IA', confidencial: true });
+  await darAcesso(db, mandato.id, u.id);
+  const login = await app.inject({ method: 'POST', url: '/api/sessao', payload: { email: 'conf@teste.local', senha: 'senha-de-teste' } });
+  const cookie = login.headers['set-cookie'].split(';')[0];
+  const chamar = (method, url, payload) => app.inject({ method, url, payload, headers: { cookie } });
+  const id = randomUUID();
+  const criada = await chamar('POST', '/api/pesquisas', { id, tese: 'Distribuidoras com mais de 20 anos que representem fabricantes multinacionais', mandatoId: mandato.id });
+  assert.equal(criada.statusCode, 201, criada.body);
+  assert.equal(criada.json().pesquisa.modo, 'regras');
+  const editada = (await chamar('PATCH', `/api/pesquisas/${id}`, { versao: criada.json().pesquisa.versao, meta: 5 })).json();
+  await chamar('POST', `/api/pesquisas/${id}/iniciar`, { versao: editada.pesquisa.versao });
+  const lote = (await chamar('POST', `/api/pesquisas/${id}/avancar`, { quantidade: 5 })).json();
+  assert.ok(lote.atualizados.length >= 1, 'a revisão segue sem IA');
+  assert.equal(chamadas, 0, 'nada saiu para o provedor');
+});

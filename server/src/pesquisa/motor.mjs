@@ -301,9 +301,15 @@ export function criarMotorPesquisa({ db, catalogo, servicoIA = null, web = {} })
           let julgados;
           if (site.estado !== 'lido') julgados = criterios.map(() => semSite(site));
           else if (servicoIA) {
-            julgados = await julgarComIA({ servicoIA, criterios, frases, site, empresa: item.empresa, sinal,
-              execucao: { usuarioId: usuario.id, conversaId: pesquisa.conversa_id,
-                chave: uuidDe(`${pesquisa.id}:${item.empresa_id}:${item.tentativas}:${hash(criterios)}`) } });
+            try {
+              julgados = await julgarComIA({ servicoIA, criterios, frases, site, empresa: item.empresa, sinal,
+                execucao: { usuarioId: usuario.id, conversaId: pesquisa.conversa_id,
+                  chave: uuidDe(`${pesquisa.id}:${item.empresa_id}:${item.tentativas}:${hash(criterios)}`) } });
+            } catch (erroIA) {
+              // Mandato confidencial não vai a provedor que retém dados: este item segue sem IA.
+              if (erroIA?.message !== 'mandato_confidencial_em_provedor_gratuito') throw erroIA;
+              julgados = criterios.map((c) => julgarPorTexto(c, frases, site));
+            }
           } else julgados = criterios.map((c) => julgarPorTexto(c, frases, site));
           const vereditos = [...item.vereditos];
           pesquisaveis.forEach(({ i }, k) => { vereditos[i] = julgados[k]; });

@@ -17,10 +17,12 @@ Limites e modelos gratuitos mudam sem aviso; confira na página do provedor. `GH
 
 A pesquisa por tese tem cota própria por dia, separada das conversas: `GHT4_IA_REVISOES_DIA` (padrão 200, máximo 2000). Cada empresa revisada com site legível consome uma chamada; montar os critérios de uma tese consome outra. Com Gemini gratuito, 200 por dia cabem com folga no limite do provedor. Quando o provedor responde "muitas requisições", a pesquisa pausa sozinha com o motivo na tela; basta continuar depois de um minuto.
 
-**Confidencialidade.** Camada gratuita pode reter os pedidos e usá-los para melhorar o produto do provedor. Por isso:
-- a pesquisa por tese envia somente o texto da tese, nome/cidade da empresa e trechos públicos do site, sem histórico nem notas;
-- o servidor **recusa** enviar documentos de oportunidade a provedor gratuito (aviso na tela, nada sai);
-- a conversa livre ainda envia objetivo e histórico do trabalho: não descreva mandato confidencial nela enquanto o provedor for gratuito.
+**Confidencialidade.** Camada gratuita externa (Gemini, Groq, OpenRouter `:free`) pode reter os pedidos e usá-los para melhorar o produto do provedor. O servidor trata como "retém dados" todo provedor gratuito que não roda na máquina. Para esses provedores:
+- **trabalho de mandato confidencial não sai**: conversa, tese, critérios e trechos ficam no servidor. A checagem é feita na reserva de cada chamada, a partir da conversa gravada. A pesquisa por tese segue no modo sem IA, e a conversa mostra o aviso;
+- o servidor **recusa** enviar documentos de oportunidade (aviso na tela, nada sai);
+- fora de mandato confidencial, a pesquisa por tese envia o texto da tese, os critérios, nome/cidade da empresa e trechos públicos do site, sem histórico nem notas. A conversa livre envia objetivo e histórico do trabalho: quem escreve a tese decide o que nela pode sair.
+
+"Gratuito" depende do modelo: no OpenRouter só modelos terminados em `:free` contam como camada gratuita; com outro modelo o uso é cobrado e o painel deixa de mostrar "gratuito". O **Ollama** roda na própria máquina: é gratuito e não retém dados, então as restrições acima não se aplicam a ele. Isso não confirma o preço nem a política de cada provedor: confira na página dele antes de ativar.
 
 Para contratar depois, basta trocar `GHT4_IA_PROVEDOR` e a chave: as regras de validação e as cotas são as mesmas. A pesquisa web embutida (`GHT4_IA_WEB=1`) só existe no adaptador OpenAI; nos demais, "Pesquisar fontes públicas" fica indisponível, e a pesquisa por tese continua lendo os sites por conta própria.
 

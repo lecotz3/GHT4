@@ -218,6 +218,7 @@ export async function complementarComIA(resultado, entrada, redigir) {
   } catch (erro) {
     if (erro.codigo === 'ia_em_andamento') throw erro;
     if(entrada.tarefa==='interpretar_busca')return {...resultado,avisoIA:'A IA não retornou uma interpretação válida. A prévia abaixo usa somente as regras locais; confira as pendências antes de aplicar.'};
+    if(erro.message==='mandato_confidencial_em_provedor_gratuito')return {...resultado,avisoIA:'Este trabalho é de mandato confidencial e o provedor de IA configurado é de camada gratuita, que pode reter o conteúdo. Nada foi enviado; o resultado acima não usa IA.'};
     if(erro.message==='documentos_em_provedor_gratuito')return {...resultado,avisoIA:'O provedor de IA configurado é de camada gratuita, que pode reter o conteúdo enviado. Documentos de oportunidade não são enviados a ele. Peça ao administrador um provedor contratado para analisar documentos; nada foi enviado.'};
     if(erro.message==='contexto_excessivo')return {...resultado,avisoIA:'O conjunto de documentos e histórico ultrapassa o limite de 48 mil caracteres desta análise. Selecione menos documentos ou um arquivo menor e comece um novo trabalho. Nenhum pedido foi enviado ao provedor; o material completo continua na oportunidade.'};
     return { ...resultado, avisoIA: 'A IA não retornou uma resposta utilizável. Pode haver indisponibilidade, limite diário ou ausência de fontes. Os dados e o pedido foram preservados; isso não indica ausência de fatos sobre a empresa.' };
