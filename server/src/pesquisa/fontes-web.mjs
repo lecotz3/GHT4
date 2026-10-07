@@ -75,16 +75,25 @@ export function lookupPublico(resolver) {
  * GET sem seguir redirecionamento, com a resolução DNS fixada em `lookupPublico`.
  * Host e SNI continuam sendo o nome do site. Devolve um `Response` como o fetch.
  */
-export function fetchFixado(url, { signal, headers = {}, resolver = (h) => lookup(h, { all: true }) } = {}) {
+// `lookupConexao` existe só para testar o transporte contra um servidor local descartável.
+export function fetchFixado(url, { signal, headers = {}, resolver = (h) => lookup(h, { all: true }), lookupConexao = lookupPublico(resolver) } = {}) {
   const u = new URL(url);
   const modulo = u.protocol === 'https:' ? https : http;
   return new Promise((resolve, reject) => {
-    const req = modulo.request(u, { method: 'GET', headers, signal, lookup: lookupPublico(resolver), agent: false }, (res) => {
-      const cabecalhos = new Headers();
-      for (const [k, v] of Object.entries(res.headers)) if (v !== undefined) cabecalhos.set(k, Array.isArray(v) ? v.join(', ') : String(v));
-      const semCorpo = res.statusCode === 204 || res.statusCode === 304;
-      if (semCorpo) res.resume();
-      resolve(new Response(semCorpo ? null : Readable.toWeb(res), { status: res.statusCode, headers: cabecalhos }));
+    const req = modulo.request(u, { method: 'GET', headers, signal, lookup: lookupConexao, agent: false }, (res) => {
+      // Este callback roda fora da Promise: qualquer exceção aqui viraria uncaughtException.
+      // Resposta que não cabe num Response (status fora de 200–599, cabeçalho inválido) é rejeitada.
+      try {
+        if (!Number.isInteger(res.statusCode) || res.statusCode < 200 || res.statusCode > 599) throw new Error(`Status HTTP inválido: ${res.statusCode}`);
+        const cabecalhos = new Headers();
+        for (const [k, v] of Object.entries(res.headers)) if (v !== undefined) cabecalhos.set(k, Array.isArray(v) ? v.join(', ') : String(v));
+        const semCorpo = res.statusCode === 204 || res.statusCode === 304;
+        if (semCorpo) res.resume();
+        resolve(new Response(semCorpo ? null : Readable.toWeb(res), { status: res.statusCode, headers: cabecalhos }));
+      } catch (erro) {
+        res.destroy();
+        reject(erro);
+      }
     });
     req.on('error', reject);
     req.end();

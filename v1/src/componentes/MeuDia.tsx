@@ -18,6 +18,8 @@ export function MeuDia({ visivel, aoAbrirCrm, aoRede, aoOportunidades, aoExpirar
   const [dados, setDados] = useState<Inicio | null>(null)
   const [consultadoEm, setConsultadoEm] = useState<Date | null>(null)
   const [falhou, setFalhou] = useState(false)
+  // Recarga em voo: os números na tela são da consulta anterior até a resposta chegar.
+  const [atualizando, setAtualizando] = useState(false)
   const [tentativa, setTentativa] = useState(0)
   const tentarDeNovo = useCallback(() => setTentativa((n) => n + 1), [])
   // Ref: uma função nova a cada render do pai não pode disparar outra consulta.
@@ -26,12 +28,14 @@ export function MeuDia({ visivel, aoAbrirCrm, aoRede, aoOportunidades, aoExpirar
   useEffect(() => {
     if (!visivel) return
     let ativo = true
+    setAtualizando(true)
     api<Inicio>('/api/inicio').then((d) => { if (ativo) { setDados(d); setConsultadoEm(new Date()); setFalhou(false) } })
       .catch((e) => {
         if (!ativo) return
         if (e instanceof ErroApi && e.status === 401) { expirar.current(); return }
         setFalhou(true)
       })
+      .finally(() => { if (ativo) setAtualizando(false) })
     return () => { ativo = false }
   }, [visivel, tentativa])
   if (falhou && !dados) return <p className="agente-nota-base" role="alert">Sua agenda não pôde ser carregada agora. <button className="agente-link" onClick={tentarDeNovo}>Tentar de novo</button> As tarefas abaixo continuam disponíveis.</p>
@@ -42,15 +46,15 @@ export function MeuDia({ visivel, aoAbrirCrm, aoRede, aoOportunidades, aoExpirar
   const nada = (!c || c.atrasados + c.hoje + c.semana === 0) && !s?.total && !redePendente
   // Fora da rede é um cadastro pendente, não ausência de pendências: aparece em qualquer caso.
   const foraDaRede = r && !r.naRede ? <div className="agente-meu-dia-cartao"><h4>Você ainda não está na rede</h4><p>Peça ao administrador para vincular sua conta a uma pessoa da GHT4. Assim seus contatos passam a abrir caminhos.</p></div> : null
-  return <section className="agente-meu-dia" aria-labelledby="titulo-meu-dia">
-    <div className="agente-linha-titulo"><h3 id="titulo-meu-dia">Meu dia</h3><span>{new Date(`${dados.hoje}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</span></div>
+  return <section className="agente-meu-dia" aria-labelledby="titulo-meu-dia" aria-busy={atualizando}>
+    <div className="agente-linha-titulo"><h3 id="titulo-meu-dia">Meu dia</h3><span>{new Date(`${dados.hoje}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}{atualizando && <span role="status"> · atualizando…</span>}</span></div>
     {aviso}
     {c && <div className="agente-meu-dia-contagens">
       <span className={c.atrasados ? 'is-alerta' : ''}><strong>{c.atrasados}</strong>vencidos</span>
       <span className={c.hoje ? 'is-hoje' : ''}><strong>{c.hoje}</strong>para hoje</span>
       <span><strong>{c.semana}</strong>nos próximos 7 dias</span>
     </div>}
-    {nada ? <><div className="agente-meu-dia-livre"><IconeRede nome="certo" /><p>{falhou ? 'Nada pendente na última consulta.' : 'Nada pendente com você agora.'}<span>Comece uma pesquisa acima ou confira a carteira da equipe.</span></p></div>{foraDaRede}</> : <div className="agente-meu-dia-grade">
+    {nada ? <><div className="agente-meu-dia-livre"><IconeRede nome="certo" /><p>{falhou || atualizando ? 'Nada pendente na última consulta.' : 'Nada pendente com você agora.'}<span>Comece uma pesquisa acima ou confira a carteira da equipe.</span></p></div>{foraDaRede}</> : <div className="agente-meu-dia-grade">
       {!!c?.itens.length && <ul className="agente-meu-dia-lista" aria-label="Seus próximos compromissos">{c.itens.map((i, n) => {
         const quando = i.prazo < dados.hoje ? 'Vencido' : i.prazo === dados.hoje ? 'Hoje' : dataCurta(i.prazo)
         return <li key={`${i.oportunidade_id}-${n}`}><button onClick={() => aoAbrirCrm(i.oportunidade_id)}>

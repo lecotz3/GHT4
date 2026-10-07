@@ -13,6 +13,15 @@ const ORDENS = {
   prioridade: '"eventoRecente" DESC, "relacaoConfirmada" DESC, ("pessoasMapeadas">0) DESC, ordem',
 };
 
+/* Versão dos sinais vivos (eventos e rede) que mudam sem nova publicação do cadastro.
+   Calculada DENTRO da mesma instrução da página: uma instrução vê um só snapshot, então
+   página, contagem e versão descrevem os mesmos dados. Supõe que toda escrita relevante
+   insere evento (id novo) ou altera versao/atualizado_em em rede_pessoas/rede_vinculos. */
+const SQL_SINAIS = `current_date::text
+  ||'|'||(SELECT count(*)||'.'||coalesce(max(id),0) FROM eventos_corporativos)
+  ||'|'||(SELECT count(*)||'.'||coalesce(sum(versao),0)||'.'||coalesce(max(atualizado_em)::text,'') FROM rede_vinculos)
+  ||'|'||(SELECT count(*)||'.'||coalesce(sum(versao),0)||'.'||coalesce(max(atualizado_em)::text,'') FROM rede_pessoas)`;
+
 // Uma consulta SQL fixa o snapshot para contagem e página, mesmo durante importações.
 // Os filtros são parâmetros; '%' e '_' em um nome não se tornam curingas SQL.
 export function criarCatalogoBanco(db) {
@@ -20,6 +29,8 @@ export function criarCatalogoBanco(db) {
     async buscar({ busca = '', uf = '', municipio = '', comEvento = false, ordem = 'enquadramento', incluirPossiveis = false, limite = 12, offset = 0, catalogoHash, cnae = '' } = {}) {
       if (!Number.isInteger(limite) || limite < 0 || limite > 1000 || !Number.isInteger(offset) || offset < 0) throw new Error('Paginação inválida.');
       const termos = normalizar(busca).trim().split(/\s+/).filter(Boolean);
+      // Seleção ou ordem que dependem de sinais vivos: a continuação também carrega a versão deles.
+      const dependeDeSinais = ordem === 'prioridade' || Boolean(comEvento);
       const { rows } = await db.query(`WITH atual AS (
         SELECT p.*, s.referencia FROM catalogo_controle cc
         JOIN catalogo_publicacoes p ON p.snapshot_id=cc.snapshot_id
@@ -51,26 +62,19 @@ export function criarCatalogoBanco(db) {
           FROM (SELECT * FROM eventos_corporativos ev WHERE ev.entidade_id=f.entidade_id AND ev.tipo<>'outro' ORDER BY ev.detectado_em DESC, ev.id LIMIT 3) ev),'[]'::jsonb) AS eventos
         FROM filtradas f ORDER BY ${ORDENS[ordem] ?? ORDENS.enquadramento} LIMIT $6 OFFSET $7)
       SELECT a.hash, a.referencia, a.total_origem, (SELECT count(*)::int FROM filtradas) AS total,
+        ${dependeDeSinais ? SQL_SINAIS : 'NULL::text'} AS sinais,
         COALESCE((SELECT jsonb_agg(to_jsonb(p)-'ordem'-'entidade_id' ORDER BY ${ORDENS[ordem] ?? ORDENS.enquadramento}) FROM pagina p),'[]'::jsonb) AS empresas
       FROM atual a`, [SUBSETOR, incluirPossiveis, uf, cnae, termos, limite, offset, normalizarMunicipio(municipio), Boolean(comEvento), MESES_EVENTO_RECENTE]);
       const r = rows[0];
       if (!r) throw new Error('O catálogo ainda não foi importado no banco.');
-      if (catalogoHash && catalogoHash !== r.hash && ordem !== 'prioridade') {
-        const e = new Error('O catálogo foi atualizado. Inicie uma nova busca.'); e.codigo = 'base_atualizada'; throw e;
-      }
-      /* A prioridade depende de eventos e rede, que mudam sem nova publicação. A continuação
-         carrega também a versão desses sinais; se mudaram, a página seguinte poderia pular ou
-         repetir empresas, então a busca recomeça em vez de continuar. */
-      let hashPaginacao = r.hash;
-      if (ordem === 'prioridade') {
-        const sinais = (await db.query(`SELECT current_date::text
-          ||'|'||(SELECT count(*)||'.'||coalesce(max(id),0) FROM eventos_corporativos)
-          ||'|'||(SELECT count(*)||'.'||coalesce(sum(versao),0)||'.'||coalesce(max(atualizado_em)::text,'') FROM rede_vinculos)
-          ||'|'||(SELECT count(*)||'.'||coalesce(sum(versao),0)||'.'||coalesce(max(atualizado_em)::text,'') FROM rede_pessoas) AS v`)).rows[0].v;
-        hashPaginacao = createHash('sha256').update(`${r.hash}|${sinais}`).digest('hex');
-        if (catalogoHash && catalogoHash !== hashPaginacao) {
-          const e = new Error('Eventos ou relações mudaram desde a primeira página e alteram a ordem. Inicie uma nova busca para não pular empresas.'); e.codigo = 'base_atualizada'; throw e;
-        }
+      /* Prioridade e "com evento" dependem de eventos e rede, que mudam sem nova publicação.
+         Se mudaram desde a primeira página, a seguinte poderia pular ou repetir empresas:
+         a busca recomeça em vez de continuar. Sem essa dependência, vale o hash cadastral. */
+      const hashPaginacao = dependeDeSinais ? createHash('sha256').update(`${r.hash}|${r.sinais}`).digest('hex') : r.hash;
+      if (catalogoHash && catalogoHash !== hashPaginacao) {
+        const e = new Error(dependeDeSinais ? 'Eventos ou relações mudaram desde a primeira página. Inicie uma nova busca para não pular empresas.'
+          : 'O catálogo foi atualizado. Inicie uma nova busca.');
+        e.codigo = 'base_atualizada'; throw e;
       }
       return { empresas: r.empresas, total: r.total, offset, limite,
         proximoOffset: offset + limite < r.total ? offset + limite : null,

@@ -488,3 +488,28 @@ test('corte de 300 não esconde a aderente; grupos e fila continuam por página 
   assert.equal(fila.itens.length, 10);
   assert.equal((await chamar('GET', `/api/pesquisas/${id}/itens?grupo=outro`)).statusCode, 422);
 });
+
+test('resposta HTTP hostil vira erro recuperável, sem derrubar o processo', async () => {
+  const { execFile } = await import('node:child_process');
+  const modulo = new URL('../src/pesquisa/fontes-web.mjs', import.meta.url).href;
+  // Processo isolado: se a exceção escapasse da Promise, o filho morreria sem imprimir o resultado.
+  const script = `
+    import net from 'node:net';
+    const { fetchFixado } = await import(${JSON.stringify(modulo)});
+    const Q = String.fromCharCode(13, 10); const respostas = ['HTTP/1.1 700 Estranho' + Q + 'Content-Length: 2' + Q + Q + 'ok', 'HTTP/1.1 200 OK' + Q + 'Content-Length: 2' + Q + Q + 'ok'];
+    let n = 0;
+    const servidor = net.createServer((s) => { const r = respostas[n++]; s.once('data', () => s.end(r)); }).listen(0, '127.0.0.1');
+    await new Promise((r) => servidor.once('listening', r));
+    const porta = servidor.address().port;
+    const lookupConexao = (h, o, cb) => (o?.all ? cb(null, [{ address: '127.0.0.1', family: 4 }]) : cb(null, '127.0.0.1', 4));
+    const saida = [];
+    try { await fetchFixado('http://hostil.test:' + porta + '/', { lookupConexao, signal: AbortSignal.timeout(3000) }); saida.push('sem erro'); }
+    catch (e) { saida.push('rejeitou:' + /Status HTTP inválido/.test(e.message)); }
+    const ok = await fetchFixado('http://hostil.test:' + porta + '/', { lookupConexao, signal: AbortSignal.timeout(3000) });
+    saida.push('depois:' + ok.status + ':' + await ok.text());
+    servidor.close();
+    console.log(saida.join('|'));`;
+  const { stdout } = await new Promise((resolve, reject) => execFile(process.execPath, ['--input-type=module', '-e', script], { timeout: 15000 },
+    (e, out, err) => (e ? reject(Object.assign(e, { stderr: err })) : resolve({ stdout: out }))));
+  assert.equal(stdout.trim(), 'rejeitou:true|depois:200:ok');
+});

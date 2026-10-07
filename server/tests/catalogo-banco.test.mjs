@@ -236,3 +236,32 @@ test('mudar, acrescentar ou retirar a fonte IBAMA publica um snapshot novo com o
   const manifesto = (await db.query('SELECT manifesto FROM snapshots_universo WHERE id=$1', [industria.snapshotId])).rows[0].manifesto;
   assert.match(manifesto[0].ibama, /^ibama:[0-9a-f]{64}$/);
 });
+
+test('continuação: mutação dentro de buscar e filtro "com evento" também recomeçam', async t => {
+  const { importarEventos } = await import('../src/agente/eventos.mjs');
+  const db = await bancoDeTeste(); t.after(() => db.close());
+  await importarCatalogo(db, { texto: fonte() });
+  const mes = (d) => { const x = new Date(); x.setUTCDate(1); x.setUTCMonth(x.getUTCMonth() + d); return x.toISOString().slice(0, 7); };
+  const evento = (base) => importarEventos(db, { texto: `const EVENTOS_CNPJ = ${JSON.stringify({ de: mes(-2), ate: mes(-1),
+    eventos: [{ base, tipo: 'aumento_de_capital', rotulo: 'x', detalhe: '1 → 3', ambiguidade: 'y' }] })};\n` });
+  // Evento importado logo depois da consulta da página 1, ainda dentro de buscar: a página e
+  // a versão dos sinais vêm da mesma instrução, então a versão devolvida é a antiga.
+  let interferir = true;
+  const comInterferencia = { ...db, query: async (...a) => { const r = await db.query(...a); if (interferir) { interferir = false; await evento('87654321'); } return r; } };
+  const p1 = await criarCatalogoBanco(comInterferencia).buscar({ incluirPossiveis: true, ordem: 'prioridade', limite: 1 });
+  assert.equal(p1.empresas[0].id, 'cnpj12345678');
+  await assert.rejects(criarCatalogoBanco(db).buscar({ incluirPossiveis: true, ordem: 'prioridade', limite: 1, offset: 1, catalogoHash: p1.hashPaginacao }),
+    (e) => e.codigo === 'base_atualizada');
+  // "Com evento" na ordem padrão: o conjunto filtrado muda sem nova publicação.
+  const catalogo = criarCatalogoBanco(db);
+  const c1 = await catalogo.buscar({ incluirPossiveis: true, comEvento: true, limite: 1 });
+  assert.notEqual(c1.hashPaginacao, c1.hash);
+  const seguir = () => catalogo.buscar({ incluirPossiveis: true, comEvento: true, limite: 1, offset: 1, catalogoHash: c1.hashPaginacao });
+  await seguir();
+  await evento('12345678');
+  await assert.rejects(seguir, (e) => e.codigo === 'base_atualizada');
+  // Sem dependência de sinais, a busca cadastral não é invalidada por eventos.
+  const b1 = await catalogo.buscar({ incluirPossiveis: true, limite: 1 });
+  await evento('87654321');
+  assert.equal((await catalogo.buscar({ incluirPossiveis: true, limite: 1, offset: 1, catalogoHash: b1.hashPaginacao })).empresas.length, 1);
+});
