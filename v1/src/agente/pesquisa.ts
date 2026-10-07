@@ -11,9 +11,10 @@ export interface Criterio {
 }
 export interface Filtros { uf: string; busca: string; cnae: string; incluirPossiveis: boolean }
 export interface Evidencia { fonte: string; url?: string; trecho?: string; referencia?: string; campo?: string }
+/** Na lista (`resumido`) vêm só veredito, resumo e lastro; justificativa e evidências vêm com o item completo. */
 export interface VereditoCriterio {
-  veredito: Veredito; resumo: string; justificativa: string; lastro: 'cadastro' | 'site' | 'ia' | 'pendente'
-  evidencias: Evidencia[]; pendente?: boolean; modelo?: string
+  veredito: Veredito; resumo: string; justificativa?: string; lastro: 'cadastro' | 'site' | 'ia' | 'pendente'
+  evidencias?: Evidencia[]; pendente?: boolean; modelo?: string
 }
 export interface Funil {
   recorte: number; avaliadas: number; truncado: boolean; semAtributos: number; eliminadas: number
@@ -30,7 +31,9 @@ export interface ItemPesquisa {
   empresa_id: string; ordem: number; etapa: 'aguardando' | 'em_revisao' | 'revisada'
   empresa: { id: string; nome: string; razaoSocial: string; cidade: string; uf: string; cnpjRaiz: string; cnaePrincipal: string; dominio: string | null; porte: string | null; capitalSocial: number | null; dataAbertura: string | null }
   vereditos: VereditoCriterio[]; aderencia: number; categoria: Categoria
-  site: { dominio: string | null; estado: string; identidade: 'cnpj' | 'nome' | 'dominio' | null; motivo: string | null; paginas: { url: string; titulo: string | null }[] } | null
+  site: { dominio: string | null; estado: string; identidade: 'cnpj' | 'nome' | 'dominio' | null; motivo: string | null; paginas?: { url: string; titulo: string | null }[] } | null
+  /** Veio da lista leve: abra o item completo para ver justificativas e trechos. */
+  resumido?: boolean
 }
 export interface Contagens { total: number; revisadas: number; pendentes: number; aderente: number; provavel: number; a_confirmar: number; nao_aderente: number }
 export interface IAInfo { provedor: string; modelo: string; gratuito: boolean }
@@ -44,6 +47,8 @@ export const pesquisaApi = {
   criar: (corpo: { id: string; tese: string; frente: 'compra' | 'venda' | null; mandatoId?: string | null }) => api<DetalhePesquisa>('/api/pesquisas', 'POST', corpo),
   obter: (id: string) => api<DetalhePesquisa>(`/api/pesquisas/${id}`),
   itens: (id: string, grupo: Categoria | 'fila', offset: number, marca?: string) => api<{ itens: ItemPesquisa[]; total: number; proximoOffset: number | null; marca?: string }>(`/api/pesquisas/${id}/itens?grupo=${grupo}&offset=${offset}${marca ? `&marca=${marca}` : ''}`),
+  /** Item completo (justificativas, trechos citados, páginas lidas), ao abrir a empresa. */
+  item: (id: string, empresaId: string) => api<{ item: ItemPesquisa }>(`/api/pesquisas/${id}/itens/${empresaId}`),
   editar: (id: string, corpo: { versao: number; criterios?: Criterio[]; filtros?: Filtros; frente?: 'compra' | 'venda'; meta?: number; limiteWeb?: number }) => api<DetalhePesquisa>(`/api/pesquisas/${id}`, 'PATCH', corpo),
   previa: (id: string, criterios: Criterio[], filtros: Filtros) => api<Previa>(`/api/pesquisas/${id}/previa`, 'POST', { criterios, filtros }),
   iniciar: (id: string, versao: number) => api<DetalhePesquisa>(`/api/pesquisas/${id}/iniciar`, 'POST', { versao }),

@@ -149,3 +149,43 @@ test('componente: B e C abrindo, C falha; "Continuar até a meta" de A envia A e
     await responder(avancos[0], { ...A, pesquisa: { ...A.pesquisa, estado: 'concluida' }, execucaoLote: 1 });
   } finally { await t.desmontar(); }
 });
+
+test('componente: lista leve; abrir a empresa busca o item completo uma vez, com falha recuperável', async () => {
+  const FUNIL = { recorte: 2, avaliadas: 2, truncado: false, semAtributos: 0, eliminadas: 0, eliminadasPor: {}, exclusivas: {}, aprovadasCadastro: 2, comSite: 2, armazenadas: 2 };
+  const base = (id) => ({ empresa_id: id, ordem: 1, etapa: 'revisada', aderencia: 80, categoria: 'provavel',
+    site: { dominio: 'alfa.com.br', estado: 'lido', identidade: 'cnpj', motivo: null },
+    empresa: { id, nome: `Empresa ${id}`, razaoSocial: `Razão ${id}`, cidade: 'Campinas', uf: 'SP', cnpjRaiz: '11111111', cnaePrincipal: '4684299', dominio: 'alfa.com.br', porte: null, capitalSocial: null, dataAbertura: null } });
+  const leve = (id) => ({ ...base(id), resumido: true, vereditos: [{ veredito: 'atende', resumo: 'Fundada em 1990', lastro: 'cadastro' }, { veredito: 'indicio', resumo: 'Cita multinacionais', lastro: 'site' }] });
+  const cheio = (id) => ({ ...base(id), site: { ...base(id).site, paginas: [{ url: 'https://alfa.com.br/', titulo: 'Alfa' }] },
+    vereditos: [{ veredito: 'atende', resumo: 'Fundada em 1990', lastro: 'cadastro', justificativa: 'Data de abertura no cadastro.', evidencias: [{ fonte: 'Receita Federal', referencia: '2026-08' }] },
+      { veredito: 'indicio', resumo: 'Cita multinacionais', lastro: 'site', justificativa: 'Termos encontrados juntos.', evidencias: [{ fonte: 'site', url: 'https://alfa.com.br/quem-somos', trecho: 'distribuidor autorizado de multinacionais' }] }] });
+  const A = det('a0000000-0000-4000-8000-000000000010', 'Tese A leve', { estado: 'pausada', funil: FUNIL, provavel: 1 });
+  A.contagens = { ...A.contagens, revisadas: 1, pendentes: 0 };
+  A.itens = [leve('cnpj11111111')];
+  const pedidos = servidor([
+    { metodo: 'GET', url: /\/api\/pesquisas$/, dados: () => ({ pesquisas: [resumo(A)], ia: null }) },
+    { metodo: 'GET', url: new RegExp(`${A.pesquisa.id}$`), dados: () => A },
+    { metodo: 'GET', url: /\/itens\/cnpj\d{8}$/, segurar: true },
+  ]);
+  const t = await montar({ pesquisaId: A.pesquisa.id });
+  try {
+    await esperar();
+    assert.doesNotMatch(document.body.textContent, /distribuidor autorizado/, 'a lista não traz trechos');
+    await clicar(botao(/Empresa cnpj11111111/));
+    const detalhe = () => document.querySelector('.pesquisa-detalhe');
+    assert.match(detalhe().textContent, /Carregando evidências/);
+    assert.equal(detalhe().getAttribute('aria-busy'), 'true');
+    const itens = () => pedidos.filter((p) => /\/itens\/cnpj/.test(p.url));
+    assert.equal(itens().length, 1);
+    assert.match(itens()[0].url, new RegExp(`${A.pesquisa.id}/itens/cnpj11111111$`));
+    // Falha: alerta com nova tentativa.
+    await responder(itens()[0], { mensagem: 'Indisponível agora.' }, 503);
+    assert.match(detalhe().querySelector('[role="alert"]').textContent, /Não foi possível carregar as evidências/);
+    await clicar(botao(/^Tentar de novo$/));
+    assert.equal(itens().length, 2);
+    await responder(itens()[1], { item: cheio('cnpj11111111') });
+    assert.match(detalhe().textContent, /distribuidor autorizado de multinacionais/);
+    assert.match(detalhe().textContent, /Termos encontrados juntos/);
+    assert.equal(detalhe().getAttribute('aria-busy'), 'false');
+  } finally { await t.desmontar(); }
+});

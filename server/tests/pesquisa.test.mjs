@@ -202,7 +202,21 @@ test('pesquisa por tese: rascunho, funil, revisão no site, entrega ao trabalho 
   assert.equal(alfa.etapa, 'revisada');
   assert.equal(alfa.site.identidade, 'cnpj');
   assert.equal(alfa.vereditos[2].veredito, 'indicio');
-  assert.match(alfa.vereditos[2].evidencias[0].trecho, /fabricantes multinacionais/);
+  // A lista vem leve: sem justificativa, trechos nem páginas; o item completo vem ao abrir a empresa.
+  assert.equal(alfa.resumido, true);
+  assert.equal(alfa.vereditos[2].evidencias, undefined);
+  assert.equal(alfa.vereditos[2].justificativa, undefined);
+  assert.equal(alfa.site.paginas, undefined);
+  const completo = (await chamar('GET', `/api/pesquisas/${id}/itens/cnpj11111111`)).json().item;
+  assert.match(completo.vereditos[2].evidencias[0].trecho, /fabricantes multinacionais/);
+  assert.ok(completo.vereditos[2].justificativa);
+  assert.ok(completo.site.paginas.length >= 1);
+  assert.equal(completo.empresa.atributos, undefined, 'atributos internos não saem no item completo');
+  assert.equal(completo.resumido, undefined);
+  assert.equal((await chamar('GET', `/api/pesquisas/${id}/itens/cnpj99999999`)).statusCode, 404);
+  assert.equal((await chamar('GET', `/api/pesquisas/${id}/itens/nao-e-cnpj`)).statusCode, 422);
+  const intruso = await entrar('intruso-item@teste.local', 'analista');
+  assert.equal((await intruso('GET', `/api/pesquisas/${id}/itens/cnpj11111111`)).statusCode, 404, 'item completo só para quem acessa a pesquisa');
   assert.equal(alfa.categoria, 'provavel');
   assert.equal(alfa.empresa.atributos, undefined, 'atributos internos não saem na API');
   const delta = lote.itens.find((i) => i.empresa_id === 'cnpj44444444');

@@ -283,7 +283,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
                     <td><Aderencia valor={i.aderencia} /></td>
                     {p.criterios.map((c, k) => <td key={c.id} data-c={`C${k + 1}`}><Simbolo v={i.vereditos[k]?.veredito ?? 'indeterminado'} titulo={`${c.texto}: ${i.vereditos[k]?.resumo ?? ''}`} /></td>)}
                   </tr>
-                  {aberto === i.empresa_id && <tr className="pesquisa-detalhe-linha"><td colSpan={3 + p.criterios.length}><Detalhe item={i} criterios={p.criterios} /></td></tr>}
+                  {aberto === i.empresa_id && <tr className="pesquisa-detalhe-linha"><td colSpan={3 + p.criterios.length}><Detalhe pesquisaId={p.id} item={i} criterios={p.criterios} /></td></tr>}
                 </Fragment>)}</tbody>
               </table></div></>}
               {g.restantes > 0 && g.offset < g.total && <button className="agente-link mt-2 text-xs" onClick={() => void mostrarMais(g.categoria, g.offset)} disabled={g.carregando || abrindo} aria-busy={g.carregando}>
@@ -343,14 +343,34 @@ function Aderencia({ valor }: { valor: number }) {
   return <span className="pesquisa-aderencia"><span className="pesquisa-aderencia-trilho" aria-hidden="true"><span style={{ width: `${valor}%` }} /></span>{valor}%</span>
 }
 
-function Detalhe({ item, criterios }: { item: ItemPesquisa; criterios: Criterio[] }) {
+/** A lista vem leve; ao abrir a empresa, busca o item completo (justificativas e trechos citados). */
+function Detalhe({ pesquisaId, item: resumo, criterios }: { pesquisaId: string; item: ItemPesquisa; criterios: Criterio[] }) {
+  const [completo, setCompleto] = useState<ItemPesquisa | null>(null)
+  const [falha, setFalha] = useState('')
+  const [tentativa, setTentativa] = useState(0)
+  // Busca de novo só quando a empresa ou o resultado dela muda, não a cada lote da revisão.
+  const empresaId = resumo.empresa_id, precisa = Boolean(resumo.resumido)
+  const versaoItem = `${resumo.categoria}:${resumo.aderencia}:${resumo.etapa}`
+  useEffect(() => {
+    if (!precisa) return
+    let vivo = true
+    setCompleto(null); setFalha('')
+    pesquisaApi.item(pesquisaId, empresaId)
+      .then((r) => { if (vivo) setCompleto(r.item) })
+      .catch((e) => { if (vivo) setFalha(mensagem(e)) })
+    return () => { vivo = false }
+  }, [pesquisaId, empresaId, precisa, versaoItem, tentativa])
+  const carregando = precisa && !completo && !falha
+  const item = (precisa ? completo : null) ?? resumo
   const e = item.empresa
-  return <div className="pesquisa-detalhe">
+  return <div className="pesquisa-detalhe" aria-busy={carregando}>
     <div className="pesquisa-detalhe-cabeca">
       <div><strong>{e.razaoSocial}</strong><small>Raiz CNPJ {e.cnpjRaiz} · CNAE {e.cnaePrincipal}{e.dataAbertura ? ` · aberta em ${e.dataAbertura.split('-').reverse().join('/')}` : ''}</small></div>
       {item.site?.dominio && <a className="agente-link text-xs" href={`https://${item.site.dominio}`} target="_blank" rel="noreferrer">{item.site.dominio}<IconeRede nome="externo" /></a>}
     </div>
     {item.site && item.site.estado === 'lido' && item.site.identidade === 'dominio' && <p className="pesquisa-alerta">O site não cita o nome nem o CNPJ da empresa. Confirme que é o site certo antes de usar as evidências.</p>}
+    {carregando && <p className="pesquisa-fonte" role="status">Carregando evidências…</p>}
+    {falha && <p className="pesquisa-alerta" role="alert">Não foi possível carregar as evidências. {falha} <button className="agente-link" onClick={() => setTentativa((n) => n + 1)}>Tentar de novo</button></p>}
     <ul>{criterios.map((c, k) => {
       const v = item.vereditos[k]
       if (!v) return null
@@ -358,9 +378,9 @@ function Detalhe({ item, criterios }: { item: ItemPesquisa; criterios: Criterio[
         <Simbolo v={v.veredito} titulo={ROTULO_VEREDITO[v.veredito]} />
         <div className="min-w-0">
           <p><b>{c.texto}</b> · {ROTULO_VEREDITO[v.veredito]}{v.resumo ? ` — ${v.resumo}` : ''}</p>
-          <p className="pesquisa-justificativa">{v.justificativa}{v.lastro === 'ia' && v.modelo ? ` (julgado por ${v.modelo})` : ''}</p>
-          {v.evidencias.filter((ev) => ev.trecho || ev.url).map((ev, n) => <blockquote key={n}>{ev.trecho && <p>“{ev.trecho}”</p>}{ev.url && <a href={ev.url} target="_blank" rel="noreferrer">{new URL(ev.url).pathname === '/' ? ev.url.replace(/^https?:\/\//, '') : ev.url.replace(/^https?:\/\/(www\.)?/, '')}<IconeRede nome="externo" /></a>}</blockquote>)}
-          {v.lastro === 'cadastro' && v.evidencias[0] && <p className="pesquisa-fonte">{v.evidencias[0].fonte} · referência {v.evidencias[0].referencia}</p>}
+          {v.justificativa && <p className="pesquisa-justificativa">{v.justificativa}{v.lastro === 'ia' && v.modelo ? ` (julgado por ${v.modelo})` : ''}</p>}
+          {(v.evidencias ?? []).filter((ev) => ev.trecho || ev.url).map((ev, n) => <blockquote key={n}>{ev.trecho && <p>“{ev.trecho}”</p>}{ev.url && <a href={ev.url} target="_blank" rel="noreferrer">{new URL(ev.url).pathname === '/' ? ev.url.replace(/^https?:\/\//, '') : ev.url.replace(/^https?:\/\/(www\.)?/, '')}<IconeRede nome="externo" /></a>}</blockquote>)}
+          {v.lastro === 'cadastro' && v.evidencias?.[0] && <p className="pesquisa-fonte">{v.evidencias[0].fonte} · referência {v.evidencias[0].referencia}</p>}
         </div>
       </li>
     })}</ul>

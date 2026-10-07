@@ -34,6 +34,12 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
   const contagens = async (id) => (await db.query(`SELECT etapa,categoria,count(*)::int n FROM pesquisa_itens WHERE pesquisa_id=$1 GROUP BY 1,2`, [id])).rows
     .reduce((acc, r) => { acc.total += r.n; if (r.etapa === 'revisada') { acc.revisadas += r.n; acc[r.categoria] += r.n; } else acc.pendentes += r.n; return acc; },
       { total: 0, revisadas: 0, pendentes: 0, aderente: 0, provavel: 0, a_confirmar: 0, nao_aderente: 0 });
+  /* Lista leve: por critério só o necessário para a tabela (veredito, resumo, lastro); justificativa,
+     trechos, páginas e modelo vêm em GET /api/pesquisas/:id/itens/:empresaId, ao abrir a empresa.
+     A entrega ao trabalho lê do banco e não depende disto. */
+  const resumir = (i) => ({ ...i, resumido: true,
+    vereditos: (i.vereditos ?? []).map((v) => ({ veredito: v.veredito, resumo: v.resumo, lastro: v.lastro, ...(v.pendente ? { pendente: true } : {}) })),
+    site: i.site ? { dominio: i.site.dominio ?? null, estado: i.site.estado, identidade: i.site.identidade ?? null, motivo: i.site.motivo ?? null } : null });
   const semAtributos = (i) => { const { atributos, ...empresa } = i.empresa; return { ...i, empresa: { ...empresa, porte: atributos?.porte ?? null, capitalSocial: atributos?.capitalSocial ?? null, dataAbertura: atributos?.dataAbertura ?? null } }; };
   /* A ordem de exibição (categoria, aderência, ordem do funil) é aplicada no SQL ANTES do corte:
      as melhores revisadas nunca ficam de fora da primeira resposta. A fila tem cota própria.
@@ -59,7 +65,7 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
         (SELECT *, 1, row_number() OVER (ORDER BY ordem) FROM base WHERE etapa<>'revisada' ORDER BY ordem LIMIT $3))
       SELECT r.*, to_jsonb(x) AS item FROM resumo r LEFT JOIN pagina x ON true ORDER BY x.grupo_, x.pos_`, [p.id, limite, fila])).rows;
     const { marca, total, revisadas, pendentes, aderente, provavel, a_confirmar, nao_aderente } = linhas[0];
-    const itens = linhas.filter((l) => l.item).map(({ item: { grupo_, pos_, ...i } }) => semAtributos(i));
+    const itens = linhas.filter((l) => l.item).map(({ item: { grupo_, pos_, ...i } }) => resumir(semAtributos(i)));
     return { pesquisa: p, marca, contagens: { total, revisadas, pendentes, aderente, provavel, a_confirmar, nao_aderente }, itens,
       ia: servicoIA ? { provedor: servicoIA.status.provedor, modelo: servicoIA.status.modelo, gratuito: servicoIA.status.gratuito } : null };
   }
@@ -151,8 +157,17 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     fila ? [pesquisa.id, q.limite, q.offset] : [pesquisa.id, q.limite, q.offset, q.grupo])).rows;
     const { marca, total } = linhas[0];
     if (q.marca && q.marca !== marca) throw new ErroHttp(409, 'lista_atualizada', 'A lista mudou com novas revisões. Ela foi recarregada; peça mais de novo.');
-    const itens = linhas.filter((l) => l.item).map(({ item: { pos_, ...i } }) => semAtributos(i));
+    const itens = linhas.filter((l) => l.item).map(({ item: { pos_, ...i } }) => resumir(semAtributos(i)));
     return { itens, total, marca, proximoOffset: q.offset + itens.length < total ? q.offset + itens.length : null };
+  });
+
+  /* Item completo (justificativas, trechos citados, páginas lidas), pedido ao abrir a empresa. */
+  app.get('/api/pesquisas/:id/itens/:empresaId', async (req) => {
+    const empresaId = z.string().regex(/^cnpj\d{8}$/).parse(req.params.empresaId);
+    const { pesquisa } = await carregar(req, req.params.id);
+    const item = (await db.query(`SELECT ${ITENS} FROM pesquisa_itens WHERE pesquisa_id=$1 AND empresa_id=$2`, [pesquisa.id, empresaId])).rows[0];
+    if (!item) throw new ErroHttp(404, 'item_inexistente', 'Empresa não encontrada nesta pesquisa.');
+    return { item: semAtributos(item) };
   });
 
   /* Edição do rascunho: critérios, recorte, frente, meta e limite de pesquisas no site. */
