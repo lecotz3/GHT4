@@ -1,4 +1,4 @@
-import { SUBSETOR, normalizar } from './catalogo.mjs';
+import { SUBSETOR, normalizar, LIMITE_RECORTE } from './catalogo.mjs';
 import { normalizarMunicipio } from './filtros.mjs';
 import { MESES_EVENTO_RECENTE, SQL_EVENTO_PUBLICO } from './eventos.mjs';
 
@@ -59,6 +59,33 @@ export function criarCatalogoBanco(db) {
         cobertura: { receitaApurada: 0, intencaoApurada: 0, classificacao: r.total, universo: r.total },
         referencia: r.referencia, hash: r.hash, totalOrigem: r.total_origem,
         fonte: 'Receita Federal · CNPJ', subsetor: SUBSETOR };
+    },
+    /** Universo de uma pesquisa por tese, com os atributos públicos gravados na importação. */
+    async recorte({ busca = '', uf = '', incluirPossiveis = false, cnae = '' } = {}) {
+      const termos = normalizar(busca).trim().split(/\s+/).filter(Boolean);
+      const { rows } = await db.query(`WITH atual AS (
+        SELECT p.*, s.referencia FROM catalogo_controle cc
+        JOIN catalogo_publicacoes p ON p.snapshot_id=cc.snapshot_id
+        JOIN snapshots_universo s ON s.id=p.snapshot_id AND s.estado='pronto'
+      ), filtradas AS (
+        SELECT 'cnpj'||trim(e.cnpj_raiz) AS id, r.nome, r.razao_social AS "razaoSocial",
+          trim(e.cnpj_raiz) AS "cnpjRaiz", r.cidade, r.uf, r.cnae_principal AS "cnaePrincipal",
+          c.estado, c.motivo, a.referencia, r.ordem,
+          CASE WHEN r.atributos = '{}'::jsonb THEN NULL ELSE r.atributos END AS atributos
+        FROM atual a JOIN catalogo_registros r ON r.snapshot_id=a.snapshot_id
+        JOIN entidades_juridicas e ON e.id=r.entidade_id
+        JOIN classificacoes_subsetor c ON c.snapshot_id=r.snapshot_id AND c.entidade_id=r.entidade_id
+        WHERE c.subsetor=$1 AND c.estado<>'excluida' AND ($2::boolean OR c.estado<>'possivel')
+          AND ($3='' OR r.uf=ANY(string_to_array($3,','))) AND ($4='' OR r.cnae_principal=$4)
+          AND NOT EXISTS (SELECT 1 FROM unnest($5::text[]) AS t(termo) WHERE strpos(r.busca_normalizada,t.termo)=0)
+      )
+      SELECT a.hash, a.referencia, (SELECT count(*)::int FROM filtradas) AS total,
+        COALESCE((SELECT jsonb_agg(to_jsonb(f)-'ordem' ORDER BY f.ordem) FROM (SELECT * FROM filtradas ORDER BY ordem LIMIT $6) f),'[]'::jsonb) AS empresas
+      FROM atual a`, [SUBSETOR, incluirPossiveis, uf, cnae, termos, LIMITE_RECORTE]);
+      const r = rows[0];
+      if (!r) throw new Error('O catálogo ainda não foi importado no banco.');
+      return { empresas: r.empresas, total: r.total, truncado: r.total > LIMITE_RECORTE, referencia: r.referencia,
+        hash: r.hash, fonte: 'Receita Federal · CNPJ', subsetor: SUBSETOR };
     },
     async obter(id) {
       if (!/^cnpj\d{8}$/.test(id)) return null;

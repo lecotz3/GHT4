@@ -14,11 +14,12 @@ const db = await bancoDeTeste();
 let app;
 try {
   const texto = await readFile(new URL('../data-quimicos.js', import.meta.url), 'utf8');
-  const carga = await importarCatalogo(db, { texto });
+  const textoIbama = await readFile(new URL('../data-ibama.js', import.meta.url), 'utf8');
+  const carga = await importarCatalogo(db, { texto, textoIbama });
   const esperado = await criarCatalogo().buscar({ limite: 12 });
   const ampliado = await criarCatalogo().buscar({ incluirPossiveis: true, limite: 0 });
   assert.equal(carga.total, esperado.totalOrigem);
-  const segundaCarga = await importarCatalogo(db, { texto });
+  const segundaCarga = await importarCatalogo(db, { texto, textoIbama });
   assert.equal(segundaCarga.reutilizado, true);
   assert.equal(segundaCarga.snapshotId, carga.snapshotId);
 
@@ -61,6 +62,17 @@ try {
   const retomado = await chamar('GET', `/api/agente/conversas/${id}`);
   assert.equal(retomado.turnos.length, 1);
   assert.equal(retomado.conversa.contexto.busca, 'Adequim');
+  // Pesquisa por tese sobre o catálogo real: proposta, funil cadastral e itens (sem ler sites).
+  const pesquisaId = randomUUID();
+  const rascunho = await chamar('POST', '/api/pesquisas', { id: pesquisaId, tese: 'Distribuidoras em SP com mais de 15 anos, sem sócio estrangeiro, com filiais' });
+  assert.equal(rascunho.pesquisa.filtros.uf, 'SP');
+  assert.ok(rascunho.pesquisa.criterios.every(c => c.tipo === 'cadastro'));
+  const previa = await chamar('POST', `/api/pesquisas/${pesquisaId}/previa`, { criterios: rascunho.pesquisa.criterios, filtros: rascunho.pesquisa.filtros });
+  assert.ok(previa.funil.aprovadasCadastro > 0 && previa.funil.aprovadasCadastro < previa.funil.recorte && previa.funil.semAtributos === 0);
+  const aplicada = await chamar('POST', `/api/pesquisas/${pesquisaId}/iniciar`, { versao: rascunho.pesquisa.versao });
+  assert.equal(aplicada.pesquisa.estado, 'concluida');
+  assert.equal(aplicada.contagens.aderente, previa.funil.aprovadasCadastro);
+  console.log(`Pesquisa por tese: ${previa.funil.recorte} no recorte SP → ${previa.funil.aprovadasCadastro} atendem aos critérios cadastrais.`);
   console.log(`Catálogo real aprovado: ${base.totalOrigem} registros de origem; ${base.total} empresas no recorte; ${ampliado.total} incluindo possíveis; referência ${base.referencia}. Carga idempotente, autenticação, filtros, paginação e retomada conferidos.`);
   if (process.argv.includes('--interface')) {
     console.log(`Interface em ${host}. PID ${process.pid}. Conta de teste: ${usuario.email}; senha exclusivamente sintética: ${senha}`);

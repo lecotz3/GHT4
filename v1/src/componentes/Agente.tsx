@@ -9,6 +9,7 @@ import { ModelosBusca } from './ModelosBusca'
 import { PreviaBusca } from './PreviaBusca'
 import { EstruturaAgente, GuiaDeUso, type SecaoAgente } from './EstruturaAgente'
 import { InicioAgente } from './InicioAgente'
+import { PesquisaTese } from './PesquisaTese'
 import { EscolherEmpresaAgente } from './EscolherEmpresaAgente'
 import { IconeRede } from './IconeRede'
 import { SeletorUfs } from './SeletorUfs'
@@ -23,7 +24,7 @@ import { api, ErroApi, type Acao, type Contexto, type Conversa, type Empresa, ty
 const campo = 'w-full rounded-ficha border border-fio-forte bg-papel px-3 py-2.5 text-sm outline-offset-2 focus:outline-comprador'
 const botao = 'rounded-ficha border border-tinta bg-tinta px-4 py-2.5 text-sm font-semibold text-papel transition hover:bg-tinta-2 disabled:cursor-not-allowed disabled:opacity-50'
 const secundario = 'rounded-ficha border border-fio-forte bg-papel px-3 py-2 text-sm font-medium hover:bg-papel-2 disabled:opacity-50'
-const ROTULOS: Record<Tarefa, string> = { interpretar_busca: 'Preparar filtros pelo pedido', conversar: 'Conversar com o agente', pesquisar_web: 'Pesquisar fontes públicas', buscar_empresas: 'Encontrar empresas', preparar_reuniao: 'Preparar reunião', mapear_acesso: 'Abrir caminho até a liderança', registrar_passo: 'Registrar próximo passo', ver_pendencias: 'Rever pendências' }
+const ROTULOS: Record<Tarefa, string> = { interpretar_busca: 'Preparar filtros pelo pedido', conversar: 'Conversar com o agente', pesquisar_web: 'Pesquisar fontes públicas', buscar_empresas: 'Encontrar empresas', preparar_reuniao: 'Preparar reunião', mapear_acesso: 'Abrir caminho até a liderança', registrar_passo: 'Registrar próximo passo', ver_pendencias: 'Rever pendências', pesquisar_tese: 'Pesquisa por tese' }
 const mensagem = (e: unknown) => e instanceof Error ? e.message : 'Não foi possível concluir esta ação.'
 
 export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: () => void; convite: string | null; aoLimparConvite: () => void }) {
@@ -38,6 +39,8 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
   const [versaoEquipe, setVersaoEquipe] = useState(0)
   const [crm, setCrm] = useState<{ id: string | null } | null>(null)
   const [trabalhoExterno, setTrabalhoExterno] = useState<string | null>(null)
+  const [pesquisaInicial, setPesquisaInicial] = useState<{ tese?: string; pesquisaId?: string } | null>(null)
+  const consumirPesquisa = useCallback(() => setPesquisaInicial(null), [])
   const conviteInicial = useRef(convite)
   const aoExpirar = useCallback(() => { setUsuario(null); setSecao('inicio'); setCrm(null); setFase('login'); setErro('Sua sessão expirou. Faça login para retomar seus trabalhos.') }, [])
 
@@ -81,6 +84,7 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
     window.scrollTo({ top: 0, behavior: 'instant' })
   }
   function abrirCrm(id: string) { setCrm({ id }); setSecao('crm'); window.scrollTo({ top: 0, behavior: 'instant' }) }
+  function pesquisar(inicial: { tese?: string; pesquisaId?: string }) { setPesquisaInicial(inicial); navegar('pesquisa') }
 
   if (usuario && !convite) return <FichaContexto.Provider value={setFicha}><EstruturaAgente usuario={usuario} secao={secao} aoNavegar={navegar} aoSair={() => void sair()} saindo={ocupado}>
     {erro && <p role="alert" className="mx-5 mt-3 text-sm text-alerta">{erro}</p>}
@@ -88,7 +92,8 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
     {secao === 'rede' && <Rede aoExpirar={aoExpirar} aoVoltar={() => navegar('agente')} />}
     {secao === 'crm' && <Oportunidades key={crm?.id ?? 'lista'} inicialId={crm?.id ?? null} aoVoltar={() => navegar('agente')} aoExpirar={aoExpirar} aoAbrirTrabalho={(id) => { setTrabalhoExterno(id); navegar('agente') }} />}
     {secao === 'ajuda' && <GuiaDeUso aoNavegar={navegar} aoExplorar={aoExplorar} />}
-    <div hidden={secao !== 'inicio' && secao !== 'agente'}><EspacoDoAgente key={usuario.id} usuario={usuario} inicio={secao === 'inicio'} aoOportunidades={() => navegar('crm')} aoTrabalhar={() => navegar('agente')} aoRede={() => navegar('rede')} aoAjuda={() => navegar('ajuda')} aoExpirar={aoExpirar} versaoEquipe={versaoEquipe} trabalhoExterno={trabalhoExterno} aoAbrirCrm={abrirCrm} /></div>
+    {secao === 'pesquisa' && <PesquisaTese usuario={usuario} inicial={pesquisaInicial} aoConsumirInicial={consumirPesquisa} aoAbrirTrabalho={(id) => { setTrabalhoExterno(id); navegar('agente') }} aoExpirar={aoExpirar} />}
+    <div hidden={secao !== 'inicio' && secao !== 'agente'}><EspacoDoAgente key={usuario.id} usuario={usuario} inicio={secao === 'inicio'} aoOportunidades={() => navegar('crm')} aoTrabalhar={() => navegar('agente')} aoRede={() => navegar('rede')} aoAjuda={() => navegar('ajuda')} aoExpirar={aoExpirar} versaoEquipe={versaoEquipe} trabalhoExterno={trabalhoExterno} aoAbrirCrm={abrirCrm} aoPesquisar={pesquisar} /></div>
     <FichaEmpresaGaveta empresaId={ficha} aoFechar={() => setFicha(null)} aoAbrirCrm={abrirCrm} podeExportar={usuario.papel !== 'leitura'} />
   </EstruturaAgente></FichaContexto.Provider>
 
@@ -117,7 +122,7 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
   </div>
 }
 
-function EspacoDoAgente({ usuario, inicio, aoOportunidades, aoTrabalhar, aoRede, aoAjuda, aoExpirar, versaoEquipe, aoAbrirCrm, trabalhoExterno }: { usuario: Usuario; inicio: boolean; aoOportunidades: () => void; aoTrabalhar: () => void; aoRede: () => void; aoAjuda: () => void; aoExpirar: () => void; versaoEquipe: number; aoAbrirCrm: (id: string) => void; trabalhoExterno: string | null }) {
+function EspacoDoAgente({ usuario, inicio, aoOportunidades, aoTrabalhar, aoRede, aoAjuda, aoExpirar, versaoEquipe, aoAbrirCrm, trabalhoExterno, aoPesquisar }: { usuario: Usuario; inicio: boolean; aoOportunidades: () => void; aoTrabalhar: () => void; aoRede: () => void; aoAjuda: () => void; aoExpirar: () => void; versaoEquipe: number; aoAbrirCrm: (id: string) => void; trabalhoExterno: string | null; aoPesquisar: (inicial: { tese?: string; pesquisaId?: string }) => void }) {
   const [estado, setEstado] = useState<EstadoAgente | null>(null)
   const [conversas, setConversas] = useState<Conversa[]>([])
   const [mandatos, setMandatos] = useState<{ id: string; rotulo: string }[]>([])
@@ -244,7 +249,7 @@ function EspacoDoAgente({ usuario, inicio, aoOportunidades, aoTrabalhar, aoRede,
 
   if (inicio) return <main className="agente-pagina">
     {erro && <p role="alert" className="mb-5 text-sm text-alerta">{erro} <button className="underline" onClick={() => void carregar()}>Tentar novamente</button></p>}
-    {estado ? <InicioAgente usuario={usuario} estado={estado} conversas={conversas} aoComecar={comecar} aoRetomar={(id) => { aoTrabalhar(); void abrir(id) }} aoRede={aoRede} aoAjuda={aoAjuda} bloqueado={bloqueado} visivel={inicio} aoAbrirCrm={aoAbrirCrm} aoOportunidades={aoOportunidades} /> : <p role="status">Preparando seu espaço…</p>}
+    {estado ? <InicioAgente usuario={usuario} estado={estado} conversas={conversas} aoComecar={comecar} aoRetomar={(id) => { aoTrabalhar(); void abrir(id) }} aoRede={aoRede} aoAjuda={aoAjuda} aoPesquisar={(tese) => aoPesquisar({ tese })} bloqueado={bloqueado} visivel={inicio} aoAbrirCrm={aoAbrirCrm} aoOportunidades={aoOportunidades} /> : <p role="status">Preparando seu espaço…</p>}
   </main>
 
   return <main className="agente-pagina space-y-6">
@@ -289,6 +294,7 @@ function EspacoDoAgente({ usuario, inicio, aoOportunidades, aoTrabalhar, aoRede,
         {abaTrabalho === 'resultados' && <section className="space-y-4" aria-label="Resultados do trabalho">{[...turnos].reverse().map((t, i) => {
           const conteudo = <><header className="text-xs font-medium text-comprador">Tarefa {t.numero} · {ROTULOS[t.pedido.tarefa]} · {t.pedido.contexto.frente === 'compra' ? 'Compra' : 'Venda'}</header>
             {t.pedido.texto && <details className="mt-3 text-xs text-suave"><summary>Seu pedido</summary><p className="mt-2 whitespace-pre-wrap">{t.pedido.texto}</p></details>}
+            {t.pedido.contexto.pesquisaId && <button className="agente-link mt-3 text-xs" onClick={() => aoPesquisar({ pesquisaId: t.pedido.contexto.pesquisaId })}><IconeRede nome="alvo" />Abrir a pesquisa com as evidências de cada critério</button>}
             <Resposta resultado={t.resultado} aoPreparar={preparar} aoMapear={mapear} aoRevisar={(empresa) => { setRevisao({ empresa, turnoId: t.id, frente: t.pedido.contexto.frente === 'compra' ? 'compra' : 'venda' }); setAbaTrabalho('selecao') }} desabilitado={bloqueado || !podeUsar} />
             {ativa && t.resultado.propostaBusca && <PreviaBusca turno={t} conversa={ativa} contextoAtual={contexto} bloqueado={bloqueado || !podeUsar} aoOcupar={setEnviando} aoFalhar={falhou} aoAplicar={c => { setAtiva(c); setContexto(c.contexto); escolherTarefa('buscar_empresas'); setTexto(''); setConversas(cs => [c, ...cs.filter(x => x.id !== c.id)]) }} />}
             {ativa && !!t.resultado.empresas.length && podeUsar && <LoteDoResultado turno={t} conversaId={ativa.id} desabilitado={bloqueado} aoSalvar={() => setVersaoSelecao((v) => v + 1)} aoFalhar={falhou} />}
@@ -326,7 +332,7 @@ function Resposta({ resultado: r, aoPreparar, aoMapear, aoRevisar, desabilitado 
     {!!r.empresas.length && <ul>{r.empresas.map((e) => <li key={e.id} className="agente-empresa-resultado">
       <div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><p className="text-[15px] font-semibold leading-snug">{e.nome}</p>
           <span className={`agente-enquadramento ${e.estado === 'possivel' ? 'is-possivel' : e.estado === 'provavel' ? 'is-provavel' : 'is-confirmado'}`}>{e.estado === 'provavel' ? 'Enquadramento provável' : e.estado === 'possivel' ? 'Enquadramento possível' : 'Enquadramento confirmado'}</span></div>
-        <p className="agente-empresa-meta"><span><IconeRede nome="local" />{e.cidade} · {e.uf}</span><span>Raiz CNPJ <span className="tabular-nums">{e.cnpjRaiz}</span></span></p>
+        <p className="agente-empresa-meta"><span><IconeRede nome="local" />{e.cidade} · {e.uf}</span><span>Raiz CNPJ <span className="tabular-nums">{e.cnpjRaiz}</span></span>{e.aderencia !== undefined && <span>Aderência à tese <span className="tabular-nums">{e.aderencia}%</span></span>}</p>
         <SinaisEmpresa empresa={e} />
         <details className="mt-2 text-xs text-suave"><summary className="cursor-pointer">Ver cadastro e evidência</summary><p className="mt-2">{e.razaoSocial} · CNAE {e.cnaePrincipal}</p><p className="mt-1">{e.motivo}</p></details></div>
       <div className="agente-empresa-acoes"><button className={secundario} onClick={() => abrirFicha(e.id)}>Ver ficha</button><button className={secundario} onClick={() => aoPreparar(e)} disabled={desabilitado}>Preparar reunião</button>

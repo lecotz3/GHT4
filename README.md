@@ -1,5 +1,7 @@
 # GHT4 · Agente de M&A
 
+**Pesquisa por tese — 07/10/2026:** o membro descreve as empresas que procura; o agente monta critérios obrigatórios e opcionais, confere cada empresa do catálogo no cadastro da Receita (e no IBAMA) e lê o site oficial para o que o cadastro não responde. Cada veredito traz a fonte; sem evidência, o critério fica "sem evidência", nunca "não atende". As escolhidas seguem para o trabalho, a reunião e a oportunidade. Funciona sem IA; com uma chave gratuita do Gemini ou Groq, os critérios de site ganham julgamento preso a trechos literais. Inspirado na engenharia reversa do Lessie AI: [PESQUISA-LESSIE-AI.md](PESQUISA-LESSIE-AI.md). Configuração gratuita: [configurar-ia.md](docs/runbooks/configurar-ia.md). Ponto de retomada: [RETOMADA-AGENTE.md](docs/RETOMADA-AGENTE.md).
+
 **Agente de relações — 21/09/2026:** fluxo local de importação de contatos, confirmação pelo titular e revisão/retirada preparado para ativação. Consulte [o que pedir à equipe e como ativar](docs/ATIVACAO-REDE-GHT4.md). Esta entrega precisa de publicação na instalação existente; testes locais não comprovam implantação remota.
 
 Nova [visão geral da rede e organização visual](docs/EVOLUCAO-VISUAL-REDE.md), com sugestões pelas pendências reais e navegação por tarefa. Testes automatizados aprovados; conferência visual desta revisão ainda pendente.

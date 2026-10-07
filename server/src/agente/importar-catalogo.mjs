@@ -2,16 +2,19 @@ import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { lerFonteCatalogo, normalizar } from './catalogo.mjs';
 import { classificar, forcaDoEstado, normalizarSituacao } from '../../../packages/domain/classificacao.mjs';
+import { atributosDe, contarDominios, lerPegadaIbama } from './atributos.mjs';
 
 const sha = texto => createHash('sha256').update(texto).digest('hex');
 export async function lerRegrasCatalogo() {
   const arquivos = await Promise.all(['classificacao', 'taxonomia'].map(nome =>
     readFile(new URL(`../../../packages/domain/${nome}.mjs`, import.meta.url), 'utf8')));
-  return sha(['importador-catalogo-v1', ...arquivos.map(t => t.replaceAll('\r\n', '\n'))].join('\n'));
+  // v2: registros publicados levam os atributos públicos usados pela pesquisa por tese.
+  return sha(['importador-catalogo-v2', ...arquivos.map(t => t.replaceAll('\r\n', '\n'))].join('\n'));
 }
 
-function registrosDaFonte(fonte) {
+function registrosDaFonte(fonte, textoIbama = null) {
   const vistos = new Set();
+  const apoio = { dominios: contarDominios(fonte.linhas, fonte.colunas), ibama: lerPegadaIbama(textoIbama) };
   if (!fonte.linhas.length || new Set(fonte.colunas).size !== fonte.colunas.length) throw new Error('Catálogo vazio ou colunas repetidas.');
   return fonte.linhas.map((linha, indice) => {
     if (!Array.isArray(linha) || linha.length !== fonte.colunas.length) throw new Error(`Linha ${indice + 1} com formato inválido.`);
@@ -38,7 +41,7 @@ function registrosDaFonte(fonte) {
     // Lista explícita: não persistir contatos, faixas etárias ou hipóteses do protótipo.
     return { raiz: e.cnpjRaiz, nome, razao, cidade, uf, cnae, secundarios, natureza, situacao,
       estado: c.estado, subsetor: c.subsetor || 'Sem enquadramento', motivo: c.motivo,
-      sinais: c.sinais, confianca: c.confianca,
+      sinais: c.sinais, confianca: c.confianca, atributos: atributosDe(e, apoio),
       busca: normalizar(`${nome} ${razao} ${e.cnpjRaiz} ${cidade}`) };
   }).sort((a, b) => forcaDoEstado(b.estado) - forcaDoEstado(a.estado)
     || a.nome.localeCompare(b.nome, 'pt-BR') || a.raiz.localeCompare(b.raiz))
@@ -47,13 +50,13 @@ function registrosDaFonte(fonte) {
 
 const TIPO_LOTE = `raiz text, nome text, razao text, cidade text, uf text, cnae text,
   secundarios text[], natureza text, situacao text, estado text, subsetor text,
-  motivo text, sinais text[], confianca numeric, busca text, ordem int`;
+  motivo text, sinais text[], confianca numeric, busca text, ordem int, atributos jsonb`;
 
-export async function importarCatalogo(db, { texto, versaoRegras, ativar = true } = {}) {
+export async function importarCatalogo(db, { texto, textoIbama = null, versaoRegras, ativar = true } = {}) {
   const fonte = lerFonteCatalogo(texto);
   const versao = versaoRegras ?? await lerRegrasCatalogo();
   const hash = sha(`${fonte.hash}\n${versao}`);
-  const registros = registrosDaFonte(fonte);
+  const registros = registrosDaFonte(fonte, textoIbama);
   return db.transaction(async tx => {
     // Serializa publicações, inclusive a primeira; uma falha preserva o catálogo anterior.
     await tx.query('SELECT id FROM catalogo_controle WHERE id=true FOR UPDATE');
@@ -85,8 +88,8 @@ export async function importarCatalogo(db, { texto, versaoRegras, ativar = true 
         ON CONFLICT(cnpj_raiz) DO UPDATE SET razao_social=EXCLUDED.razao_social,
           natureza_juridica=EXCLUDED.natureza_juridica,situacao=EXCLUDED.situacao,
           ultimo_snapshot=EXCLUDED.ultimo_snapshot,atualizado_em=now()`, [lote, sid]);
-      await tx.query(`INSERT INTO catalogo_registros(snapshot_id,entidade_id,nome,razao_social,cidade,uf,cnae_principal,cnaes_secundarios,busca_normalizada,ordem)
-        SELECT $2,e.id,x.nome,x.razao,x.cidade,x.uf,x.cnae,x.secundarios,x.busca,x.ordem
+      await tx.query(`INSERT INTO catalogo_registros(snapshot_id,entidade_id,nome,razao_social,cidade,uf,cnae_principal,cnaes_secundarios,busca_normalizada,ordem,atributos)
+        SELECT $2,e.id,x.nome,x.razao,x.cidade,x.uf,x.cnae,x.secundarios,x.busca,x.ordem,COALESCE(x.atributos,'{}'::jsonb)
         FROM jsonb_to_recordset($1::jsonb) AS x(${TIPO_LOTE}) JOIN entidades_juridicas e ON e.cnpj_raiz=x.raiz`, [lote, sid]);
       await tx.query(`INSERT INTO classificacoes_subsetor(entidade_id,snapshot_id,setor,subsetor,estado,motivo,sinais,versao_taxonomia,confianca,execucao_id)
         SELECT e.id,$2,'Químicos',x.subsetor,x.estado,x.motivo,x.sinais,$3,x.confianca,$4

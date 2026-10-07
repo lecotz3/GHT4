@@ -24,6 +24,8 @@ import { pode, podeNoMandato } from './seguranca/rbac.mjs';
 import { consultarUm } from './db/cliente.mjs';
 import { registrarRotasDeTemplate } from './api/templates.mjs';
 import { registrarRotasDoAgente } from './api/agente.mjs';
+import { registrarPesquisas } from './api/pesquisas.mjs';
+import { criarCatalogo } from './agente/catalogo.mjs';
 import { registrarInstalacao } from './api/instalacao.mjs';
 import { registrarEquipe } from './api/equipe.mjs';
 import { registrarProspeccao } from './api/prospeccao.mjs';
@@ -74,7 +76,9 @@ export function bancoIndisponivel(erro) {
 /** Única rota que não resolve a sessão: responde pelo banco, não pelo usuário. */
 const ROTA_SAUDE = '/api/saude';
 
-export async function criarApp(db, { logger = false, instalacaoInicial = false, catalogo, redigirIA = null, servicoIA = null, origemPublica = null } = {}) {
+export async function criarApp(db, { logger = false, instalacaoInicial = false, catalogo, redigirIA = null, servicoIA = null, origemPublica = null, web = {} } = {}) {
+  // Um catálogo só para o agente, as empresas e a pesquisa por tese: o arquivo de origem é grande para ler mais de uma vez.
+  catalogo ??= criarCatalogo();
   const app = Fastify({
     logger,
     /* O corpo cru é preciso para o hash de idempotência: dois JSON iguais podem
@@ -196,6 +200,7 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
   await app.register(registrarRotasDeTemplate);
   await app.register(registrarInstalacao, { habilitada: instalacaoInicial });
   await app.register(registrarRotasDoAgente, { catalogo, redigirIA, servicoIA });
+  await app.register(registrarPesquisas, { catalogo, servicoIA, web });
   await app.register(registrarEquipe);
   await app.register(registrarProspeccao);
   await app.register(registrarRede);

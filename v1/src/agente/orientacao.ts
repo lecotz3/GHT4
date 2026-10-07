@@ -8,6 +8,7 @@ export const orientacoes: Record<Tarefa, { titulo: string; ajuda: string; acao: 
   conversar: { titulo: 'Converse sobre este trabalho', ajuda: 'Descreva sua dúvida. A IA recebe seu pedido e o contexto deste trabalho para preparar uma análise.', acao: 'Enviar ao agente' },
   pesquisar_web: { titulo: 'Pesquise fontes públicas', ajuda: 'Escreva uma pergunta com informações públicas. A consulta será enviada ao serviço de pesquisa.', acao: 'Pesquisar fontes' },
   registrar_passo: { titulo: 'Defina o próximo movimento', ajuda: 'Descreva uma ação concreta. Ela ficará na lista deste trabalho para você acompanhar.', acao: 'Salvar próximo passo' },
+  pesquisar_tese: { titulo: 'Pesquise por tese', ajuda: 'Descreva a tese. Os critérios são conferidos no cadastro e no site oficial de cada empresa.', acao: 'Abrir pesquisa' },
   ver_pendencias: { titulo: 'Retome o que falta fazer', ajuda: 'Reúna as ações ainda abertas neste trabalho e escolha por onde continuar.', acao: 'Consultar pendências' },
 }
 

@@ -1,8 +1,30 @@
 # Configurar a IA do agente GHT4
 
-O provedor ainda não foi escolhido pela GHT4. O adaptador OpenAI está implementado como opção, desabilitado por padrão. As tarefas de cadastro, reunião, ações e CRM funcionam sem credencial.
+Nenhuma IA é obrigatória. Cadastro, reunião, ações, CRM e a **pesquisa por tese** funcionam sem credencial: a pesquisa confere os critérios de cadastro por regras e lê os sites oficiais por busca de termos (vereditos marcados como "indício"). Com IA, os critérios que dependem do site passam a ter julgamento, sempre preso a trechos literais da página.
 
-## Ativação pelo operador
+## Opção gratuita (recomendada para começar)
+
+Desde 07/10/2026 o servidor aceita provedores no formato chat/completions, com camada gratuita e chave criada sem cartão:
+
+| Provedor | Onde criar a chave | Variáveis em `server/.env` (ou no painel da Vercel) | Modelo padrão | Limite gratuito (conferido em 07/10/2026) |
+|---|---|---|---|---|
+| Google Gemini | aistudio.google.com → *Get API key* | `GHT4_IA_PROVEDOR=gemini` e `GEMINI_API_KEY=...` | `gemini-2.5-flash` | ~10 pedidos/min, ~1.500/dia |
+| Groq | console.groq.com → *API Keys* | `GHT4_IA_PROVEDOR=groq` e `GROQ_API_KEY=...` | `openai/gpt-oss-120b` | ~30 pedidos/min, ~1.000/dia |
+| OpenRouter | openrouter.ai → *Keys* | `GHT4_IA_PROVEDOR=openrouter`, `OPENROUTER_API_KEY=...` e `GHT4_IA_MODELO=<modelo :free>` | (escolher) | ~50 pedidos/dia sem crédito |
+| Ollama (nesta máquina) | ollama.com, `ollama pull <modelo>` | `GHT4_IA_PROVEDOR=ollama`, `GHT4_IA_MODELO=<modelo>` | (escolher) | sem limite externo; depende do computador |
+
+Limites e modelos gratuitos mudam sem aviso; confira na página do provedor. `GHT4_IA_MODELO` sobrepõe o padrão. `GHT4_IA_CHAVE` serve como alternativa genérica ao nome da chave.
+
+A pesquisa por tese tem cota própria por dia, separada das conversas: `GHT4_IA_REVISOES_DIA` (padrão 200, máximo 2000). Cada empresa revisada com site legível consome uma chamada; montar os critérios de uma tese consome outra. Com Gemini gratuito, 200 por dia cabem com folga no limite do provedor. Quando o provedor responde "muitas requisições", a pesquisa pausa sozinha com o motivo na tela; basta continuar depois de um minuto.
+
+**Confidencialidade.** Camada gratuita pode reter os pedidos e usá-los para melhorar o produto do provedor. Por isso:
+- a pesquisa por tese envia somente o texto da tese, nome/cidade da empresa e trechos públicos do site, sem histórico nem notas;
+- o servidor **recusa** enviar documentos de oportunidade a provedor gratuito (aviso na tela, nada sai);
+- a conversa livre ainda envia objetivo e histórico do trabalho: não descreva mandato confidencial nela enquanto o provedor for gratuito.
+
+Para contratar depois, basta trocar `GHT4_IA_PROVEDOR` e a chave: as regras de validação e as cotas são as mesmas. A pesquisa web embutida (`GHT4_IA_WEB=1`) só existe no adaptador OpenAI; nos demais, "Pesquisar fontes públicas" fica indisponível, e a pesquisa por tese continua lendo os sites por conta própria.
+
+## Ativação pelo operador (OpenAI, opção paga)
 
 1. Avaliar com a boutique o provedor, o modelo, tratamento dos dados e orçamento. Não enviar chaves pelo chat.
 2. No arquivo ignorado `server/.env`, configurar `GHT4_IA_PROVEDOR=openai`, `GHT4_IA_MODELO` e `OPENAI_API_KEY`. Escolher um modelo habilitado na conta, compatível com Responses e Structured Outputs para a interpretação dos filtros. Não existe modelo padrão escondido.

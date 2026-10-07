@@ -57,7 +57,9 @@ try {
       console.warn('  Retire a variável da hospedagem agora: enquanto ela existir, todo deploy repete a redefinição.');
     }
     const texto = await readFile(new URL('../data-quimicos.js', import.meta.url), 'utf8');
-    const resultado = await importarCatalogo(db, { texto });
+    // Pegada no IBAMA é complemento: sem o arquivo, a importação segue sem ela.
+    const textoIbama = await readFile(new URL('../data-ibama.js', import.meta.url), 'utf8').catch(() => null);
+    const resultado = await importarCatalogo(db, { texto, textoIbama });
     /* Eventos societários são opcionais: só existem depois de rodar
        ferramentas/eventos-cnpj.mjs com dois meses arquivados. Sem o arquivo, o
        agente continua funcionando e o filtro "com evento" não encontra nada. */

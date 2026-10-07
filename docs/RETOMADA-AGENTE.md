@@ -1,10 +1,31 @@
 # Retomada da implementação do agente GHT4
 
-Atualizado em 22 de setembro de 2026. Branch: `main`. A instalação existente usa Vercel e Supabase. A produção anterior foi conferida no painel da Vercel em `3247883`, Ready. Este checkpoint reúne o novo visual e a apresentação do catálogo real para publicação na mesma instalação.
+Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch: `main`. A instalação existente usa Vercel e Supabase. A produção anterior foi conferida no painel da Vercel em `3247883`, Ready. Este checkpoint reúne o novo visual e a apresentação do catálogo real para publicação na mesma instalação.
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — reformulação completa da interface (22/09/2026)
+## COMECE AQUI — pesquisa por tese, gratuita (07/10/2026)
+
+Pedido: estudar o Lessie AI (engenharia reversa com o REA) e trazer para o GHT4 o que fizer sentido, inclusive interface, sem custo agora. Estudo em [PESQUISA-LESSIE-AI.md](../PESQUISA-LESSIE-AI.md).
+
+**Entregue (não commitado, não publicado):**
+- **Pesquisa por tese** (`server/src/pesquisa/`, `server/src/api/pesquisas.mjs`, migração `0018`): tese → critérios obrigatórios/opcionais → funil cadastral sobre todo o recorte → revisão em lotes no site oficial → entrega ao trabalho como resultado comum (seleção, reunião, oportunidade seguem iguais).
+- **Atributos públicos no catálogo** (`server/src/agente/atributos.mjs`): capital, porte, abertura, estabelecimentos, UFs, natureza, contagens do quadro, sócio estrangeiro, filial recente, CNAEs secundários, IBAMA e só o **domínio** do e-mail cadastral (corporativo e exclusivo). Nada de pessoa física.
+- **IA gratuita opcional** (`provedor.mjs`): Gemini, Groq, OpenRouter, Ollama no formato chat/completions; cota própria `GHT4_IA_REVISOES_DIA`; documento de oportunidade nunca vai a provedor gratuito. Guia: [configurar-ia.md](runbooks/configurar-ia.md).
+- **Interface**: Início com a tese no centro; nova seção "Pesquisar por tese" com funil ao vivo, editor de critérios, amostra de 10, tabela de vereditos com evidência e cartões no celular; guia de uso atualizado.
+
+**Validação:** 259 testes (71 domínio + 188 servidor, 9 novos em `server/tests/pesquisa.test.mjs`), build com checagem de tipos, taxonomia e paleta. `npm run lint` **não roda nesta máquina**: o Controle de Aplicativos do Windows bloqueia o binário nativo do oxlint (`An Application Control policy has blocked this file`); rodar em outra máquina ou liberar o arquivo. Ensaio com o catálogo real (`node ferramentas/ensaio-catalogo-real.mjs --interface`, agora com IBAMA e checagem da pesquisa): 725 empresas em SP → 93 passam em "mais de 15 anos, sem sócio estrangeiro, com filiais". Rodada completa sem IA lendo sites reais: 40 empresas pesquisadas, 7 prováveis. Conferência no navegador em 1440 e 390 px; capturas em `.cache/visual-pesquisa/`.
+
+**Não verificado:** chamada real a Gemini/Groq (não há chave nesta máquina; os testes usam provedor simulado no formato oficial). Primeira chamada real: criar a chave gratuita, pôr no `server/.env`, montar uma tese e conferir a resposta.
+
+**Para publicar (Vercel + Supabase):**
+1. Revisar e commitar; ao subir para `main`, a Vercel publica e a migração `0018` roda (só acrescenta coluna com valor padrão e tabelas novas).
+2. **Reimportar o catálogo** com `node ferramentas/preparar-banco.mjs` apontando para o banco (precisa da credencial; ver seção 2 do checkpoint de 18/09). O importador passou para `v2` e publica um snapshot novo **com atributos e IBAMA**. Antes disso, em produção, os critérios cadastrais (exceto UF e município) ficam "sem evidência" e o funil avisa "sem dados cadastrais completos". Buscas paginadas antigas pedem para recomeçar (hash do catálogo muda).
+3. Opcional: `GEMINI_API_KEY` e `GHT4_IA_PROVEDOR=gemini` nas variáveis da Vercel.
+
+**Próximos passos sugeridos:** observar a equipe usando a amostra de 10 e calibrar sinônimos do modo sem IA (`SINONIMOS` em `fontes-web.mjs`); monitoramento semanal de tese (rodar de novo e mostrar só empresas novas); fontes gratuitas extras por CNPJ (Portal da Transparência, CVM) como critérios de cadastro.
+
+## Histórico — reformulação completa da interface (22/09/2026)
 
 Pedido: mudar todo o visual operacional, corrigir a sensação de botões sem efeito e explicar melhor como usar. Entregue: entrada e início novos, menu permanente/móvel, tarefas com seleção direta de empresa, formulários e históricos recolhíveis, guia de uso, oportunidades divididas por atividade com próximo passo em destaque, confirmação de salvamento e equipe organizada por áreas. [Detalhes e evidências](EVOLUCAO-VISUAL-AGENTE.md).
 

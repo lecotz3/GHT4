@@ -23,6 +23,17 @@ const desenhos = {
   certo: <path d="m5 12 4 4L19 6"/>,
   local: <><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></>,
   atencao: <><path d="M12 4 2.5 20h19Z"/><path d="M12 10v4m0 3h.01"/></>,
+  alvo: <><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/></>,
+  pausa: <path d="M9 5v14m6-14v14"/>,
+  continuar: <path d="m8 5 11 7-11 7Z"/>,
+  xis: <path d="m7 7 10 10M7 17 17 7"/>,
+  duvida: <><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 5 0c0 1.7-2.5 1.9-2.5 3.5m0 3h.01"/></>,
+  aproximado: <path d="M5 9c2-2 4 2 7 0s5-2 7 0M5 15c2-2 4 2 7 0s5-2 7 0"/>,
+  externo: <><path d="M14 4h6v6m0-6-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></>,
+  lixo: <><path d="M4 7h16m-10 4v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3"/></>,
+  funil: <path d="M3 4h18l-7 9v6l-4 2v-8Z"/>,
+  globo: <><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></>,
+  documento: <><path d="M6 3h8l4 4v14H6Z"/><path d="M14 3v4h4M9 12h6m-6 4h6"/></>,
 } satisfies Record<string, ReactNode>
 
 export function IconeRede({ nome, className = '' }: { nome: keyof typeof desenhos; className?: string }) {

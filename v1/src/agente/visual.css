@@ -420,3 +420,22 @@
 .agente-cadastro-valores { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
 .agente-cadastro-valores s { color: var(--color-suave); }
 .agente-cadastro-valores svg { width: 12px; height: 12px; flex: none; }
+
+/* Início com a tese no centro: a pergunta vem antes dos atalhos. */
+.inicio-tese { max-width: 860px; padding: 8px 0 4px; }
+.inicio-tese h2 { font-size: clamp(28px, 3.1vw, 44px); font-weight: 600; line-height: 1.14; letter-spacing: -.045em; margin-top: 12px; }
+.inicio-tese > p { font-size: 14px; line-height: 1.7; color: var(--color-suave); max-width: 600px; margin-top: 12px; }
+.inicio-exemplos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.inicio-exemplos button { max-width: 100%; text-align: left; font-size: 12px; color: var(--color-tinta-2); background: white; border: 1px solid var(--color-fio); border-radius: 999px; padding: 7px 14px 7px 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
+.inicio-exemplos button:hover:not(:disabled) { border-color: var(--color-comprador-fio); background: var(--color-comprador-fundo); }
+.inicio-exemplos button span { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--color-alvo-tinta); background: var(--color-alvo-fundo); border-radius: 999px; padding: 3px 8px; margin-right: 8px; }
+.agente-acoes-iniciais.compactas .agente-acao-inicial { min-height: 0; flex-direction: row; align-items: center; gap: 14px; padding: 16px 18px; }
+.agente-acoes-iniciais.compactas .agente-acao-inicial h4 { margin-top: 0; font-size: 14px; }
+.agente-acoes-iniciais.compactas .agente-acao-inicial p { margin-top: 3px; }
+.agente-acoes-iniciais.compactas .agente-acao-inicial > div { flex: 1; min-width: 0; }
+.agente-acoes-iniciais.compactas .agente-acao-rodape { width: auto; padding: 0; margin: 0; color: var(--color-suave); }
+@media (max-width: 760px) {
+  .inicio-exemplos button { white-space: normal; border-radius: 12px; }
+  .agente-acoes-iniciais.compactas .agente-acao-rodape { display: none; }
+  .agente-acoes-iniciais.compactas .agente-acao-inicial { display: flex; padding: 16px; }
+}
