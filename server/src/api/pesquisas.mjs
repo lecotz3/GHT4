@@ -88,11 +88,16 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
         return c;
       });
     }
-    let recorte;
-    try { recorte = await motor.base(); }
-    catch { throw new ErroHttp(503, 'base_indisponivel', 'A base de empresas não está disponível agora. Tente novamente.'); }
-    const proposta = await motor.propor(p.tese, { referencia: recorte.referencia,
-      execucao: { usuarioId: u.id, conversaId: conversa.id, chave: p.id } });
+    let recorte, proposta;
+    try {
+      recorte = await motor.base();
+      proposta = await motor.propor(p.tese, { referencia: recorte.referencia,
+        execucao: { usuarioId: u.id, conversaId: conversa.id, chave: p.id } });
+    } catch {
+      // A conversa criada só para esta pesquisa não fica órfã no "Continue de onde parou".
+      if (!p.conversaId) await db.query('UPDATE agente_conversas SET arquivada_em=now() WHERE id=$1 AND arquivada_em IS NULL', [conversa.id]);
+      throw new ErroHttp(503, 'base_indisponivel', 'A base de empresas não está disponível agora. Tente novamente.');
+    }
     const criterios = proposta.criterios.length ? proposta.criterios
       : [{ id: 'atividade', texto: p.tese.slice(0, 200), obrigatorio: true, tipo: 'pesquisa', regra: null, trecho: null, origem: 'regras' }];
     const filtros = Filtros.parse(proposta.filtros);
@@ -235,15 +240,32 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     const ROTULO = { aderente: 'aderente', provavel: 'provável', a_confirmar: 'a confirmar', nao_aderente: 'não aderente' };
     const SIMBOLO = { atende: '✓', indicio: '≈', indeterminado: '?', nao_atende: '✗' };
     const empresas = itens.map((i) => { const { atributos, dominio, ...e } = i.empresa; return { ...e, aderencia: i.aderencia, categoria: i.categoria }; });
-    const sites = itens.flatMap((i) => (i.site?.paginas || []).slice(0, 1).map((pg) => ({ titulo: `Site · ${i.empresa.nome}`, url: pg.url, referencia: i.site.dominio,
-      descricao: 'Página pública lida na revisão por critério. Confira o trecho citado antes de usar.' })));
+    // Lastro da entrega: cada critério leva o veredito e as evidências efetivamente citadas
+    // (trecho, URL e data da leitura), e as fontes incluem toda página citada, não só a inicial.
+    const lidaEm = (i, url) => i.site?.paginas?.find((pg) => pg.url === url)?.obtidaEm ?? null;
+    const avaliacoes = itens.map((i) => ({ empresaId: i.empresa_id, aderencia: i.aderencia, categoria: i.categoria,
+      criterios: pesquisa.criterios.map((c, k) => ({ id: c.id, texto: c.texto, obrigatorio: c.obrigatorio, tipo: c.tipo,
+        veredito: i.vereditos[k]?.veredito ?? 'indeterminado', resumo: i.vereditos[k]?.resumo ?? '', lastro: i.vereditos[k]?.lastro ?? null,
+        evidencias: (i.vereditos[k]?.evidencias ?? []).map((ev) => ({ ...ev, ...(ev.url ? { lidaEm: lidaEm(i, ev.url) } : {}) })) })) }));
+    const citadas = new Map();
+    for (const a of avaliacoes) for (const c of a.criterios) for (const ev of c.evidencias) {
+      if (ev.url && !citadas.has(ev.url)) citadas.set(ev.url, { titulo: `Site · ${itens.find((i) => i.empresa_id === a.empresaId).empresa.nome}`, url: ev.url,
+        referencia: ev.lidaEm ? `lida em ${ev.lidaEm.slice(0, 10).split('-').reverse().join('/')}` : ev.referencia,
+        descricao: 'Página pública citada como evidência na revisão por critério. Confira o trecho antes de usar.' });
+    }
+    const sites = [...citadas.values()];
+    const evidenciasTexto = avaliacoes.flatMap((a) => a.criterios.flatMap((c) => c.evidencias.filter((ev) => ev.trecho).slice(0, 1)
+      .map((ev) => `${itens.find((i) => i.empresa_id === a.empresaId).empresa.nome} · ${c.texto}: "${resumir(ev.trecho, 160)}" (${ev.url ?? ev.fonte})`))).slice(0, 40);
     const resultado = {
       modo: 'pesquisa_por_tese', titulo: `Pesquisa por tese · ${empresas.length} ${empresas.length === 1 ? 'empresa' : 'empresas'}`,
       resumo: `Empresas escolhidas na pesquisa "${resumir(pesquisa.tese, 160)}". Aderência calculada critério a critério; cada veredito traz a fonte. Ausência de evidência ficou como "?" e não como reprovação.`,
       empresas, fontes: [{ titulo: 'Receita Federal — cadastro CNPJ', referencia: pesquisa.referencia, descricao: 'Critérios cadastrais conferidos no snapshot indicado.' }, ...sites].slice(0, 40),
+      pesquisa: { id: pesquisa.id, tese: pesquisa.tese, referencia: pesquisa.referencia, catalogoHash: pesquisa.catalogo_hash },
+      avaliacoes,
       blocos: [
         { titulo: 'Critérios da pesquisa', itens: pesquisa.criterios.map((c) => `${c.obrigatorio ? 'Obrigatório' : 'Opcional'} · ${c.texto} (${c.tipo === 'cadastro' ? 'cadastro' : 'fonte pública'})`) },
         { titulo: 'Aderência por empresa', itens: itens.map((i) => `${i.empresa.nome}: ${i.aderencia}% · ${ROTULO[i.categoria]} · ${pesquisa.criterios.map((c, k) => `${SIMBOLO[i.vereditos[k]?.veredito] ?? '?'} ${c.texto}`).join(' · ')}`) },
+        ...(evidenciasTexto.length ? [{ titulo: 'Evidências citadas', itens: evidenciasTexto }] : []),
         { titulo: 'Antes de priorizar', itens: ['Confirme com a empresa os critérios marcados com "?" e "≈".', 'Cadastro e site não informam faturamento nem intenção de transação.'] },
       ],
       proximas: ['preparar_reuniao', 'mapear_acesso', 'registrar_passo'],

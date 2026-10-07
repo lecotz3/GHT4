@@ -574,3 +574,32 @@ test('localização: capital explícita vira município no estado; "sede em" amb
   const explicito = interpretarTese('Distribuidoras sem holding no quadro', { referencia: REF });
   assert.equal(explicito.criterios.find((c) => c.regra?.campo === 'sem_socio_pj').obrigatorio, true, 'pedido explícito continua obrigatório');
 });
+
+test('entrega leva avaliação por critério com trecho, URL interna e data; base fora do ar não deixa conversa órfã', async (t) => {
+  const { chamar, db } = await preparar(t);
+  const id = randomUUID();
+  const { pesquisa } = (await chamar('POST', '/api/pesquisas', { id, tese: 'Distribuidoras com mais de 20 anos, sem holding no quadro, que representem fabricantes multinacionais' })).json();
+  const editada = (await chamar('PATCH', `/api/pesquisas/${id}`, { versao: pesquisa.versao, meta: 1 })).json();
+  await chamar('POST', `/api/pesquisas/${id}/iniciar`, { versao: editada.pesquisa.versao });
+  await chamar('POST', `/api/pesquisas/${id}/avancar`, { quantidade: 5 });
+  const { turno } = (await chamar('POST', `/api/pesquisas/${id}/registrar`, { chave: randomUUID(), empresas: ['cnpj11111111'] })).json();
+  const r = turno.resultado;
+  assert.equal(r.pesquisa.id, id); assert.ok(r.pesquisa.catalogoHash);
+  const criterio = r.avaliacoes[0].criterios.find((c) => c.tipo === 'pesquisa');
+  assert.ok(criterio.evidencias.length, 'evidência do critério de pesquisa chega à entrega');
+  assert.equal(criterio.evidencias[0].url, 'https://www.alfa.com.br/quem-somos', 'página interna citada, não só a inicial');
+  assert.match(criterio.evidencias[0].lidaEm, /^\d{4}-\d{2}-\d{2}/);
+  assert.ok(r.fontes.some((f) => f.url === 'https://www.alfa.com.br/quem-somos'));
+  assert.ok(r.blocos.some((b) => b.titulo === 'Evidências citadas'));
+
+  // Base indisponível na criação: a conversa criada para a pesquisa é arquivada.
+  const quebrado = { buscar: async () => { throw new Error('fora do ar'); }, obter: async () => null };
+  const app2 = await criarApp(db, { catalogo: quebrado, web: { fetchImpl: fetchSites, resolver: async () => [{ address: '200.1.2.3' }] } });
+  t.after(() => app2.close());
+  const login = await app2.inject({ method: 'POST', url: '/api/sessao', payload: { email: 'analista@teste.local', senha: 'senha-de-teste' } });
+  const cookie = login.headers['set-cookie'].split(';')[0];
+  const antes = (await app2.inject({ method: 'GET', url: '/api/agente/conversas', headers: { cookie } })).json().conversas.length;
+  const falha = await app2.inject({ method: 'POST', url: '/api/pesquisas', headers: { cookie }, payload: { id: randomUUID(), tese: 'Distribuidoras com mais de 20 anos em SP' } });
+  assert.equal(falha.statusCode, 503);
+  assert.equal((await app2.inject({ method: 'GET', url: '/api/agente/conversas', headers: { cookie } })).json().conversas.length, antes);
+});

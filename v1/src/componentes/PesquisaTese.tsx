@@ -152,19 +152,28 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
     try { aplicar(await pesquisaApi.editar(p.id, { versao: p.versao, ...campos })) } catch (e) { falhou(e) }
   }
 
+  // Chave e corpo de cada envio ficam guardados até a confirmação: uma resposta perdida,
+  // repetida, devolve o mesmo resultado em vez de criar outra rodada ou outro turno.
+  const envioAjuste = useRef<{ origem: string; id: string } | null>(null)
+  const envioRegistro = useRef<{ corpo: string; chave: string } | null>(null)
   async function ajustar() {
     if (!p || ocupado) return
     setOcupado(true); setErro('')
-    try { const d = await pesquisaApi.ajustar(p.id, crypto.randomUUID()); aplicar(d); setPrevia(null); setSelecionadas(new Set()); setAviso('Nova rodada criada a partir dos critérios anteriores. Ajuste e rode de novo; a rodada anterior continua no histórico.'); void recarregarLista() }
+    if (envioAjuste.current?.origem !== p.id) envioAjuste.current = { origem: p.id, id: crypto.randomUUID() }
+    try { const d = await pesquisaApi.ajustar(p.id, envioAjuste.current.id); envioAjuste.current = null; aplicar(d); setPrevia(null); setSelecionadas(new Set()); setAviso('Nova rodada criada a partir dos critérios anteriores. Ajuste e rode de novo; a rodada anterior continua no histórico.'); void recarregarLista() }
     catch (e) { falhou(e) } finally { setOcupado(false) }
   }
 
   async function registrar() {
     if (!p || !selecionadas.size || ocupado) return
     setOcupado(true); setErro('')
+    const empresas = [...selecionadas].sort()
+    const corpo = JSON.stringify([p.id, empresas])
+    if (envioRegistro.current?.corpo !== corpo) envioRegistro.current = { corpo, chave: crypto.randomUUID() }
     try {
-      const r = await pesquisaApi.registrar(p.id, crypto.randomUUID(), [...selecionadas])
-      setEntregue({ conversaId: r.conversa.id, n: selecionadas.size }); setSelecionadas(new Set())
+      const r = await pesquisaApi.registrar(p.id, envioRegistro.current.chave, empresas)
+      envioRegistro.current = null
+      setEntregue({ conversaId: r.conversa.id, n: empresas.length }); setSelecionadas(new Set())
     } catch (e) { falhou(e) } finally { setOcupado(false) }
   }
 
