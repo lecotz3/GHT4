@@ -404,7 +404,7 @@ export function interpretarTese(tese, { referencia } = {}) {
   }
 
   // O que sobrou vira critério de pesquisa, com o texto do próprio membro.
-  let resto = '';
+  let resto = '', excedentesPesquisa = 0;
   for (let i = 0; i < original.length; i++) resto += usados.some(([a, b]) => i >= a && i < b) ? '|' : original[i];
   const pedacos = resto.split(/[|;\n.]+|,(?![^(]*\))|\s+e\s+(?=que\b|com\b|sem\b|tenh|possu|atu|sej|represent|distribu|vend|revend|import|export|transport|fabri|produz|atend|ofere|prest)/i);
   for (const bruto of pedacos) {
@@ -414,7 +414,8 @@ export function interpretarTese(tese, { referencia } = {}) {
     if (palavras.length < 2) continue;
     const texto = maiuscula(p.slice(pn.match(CONECTORES)?.[0]?.length ?? 0)
       .replace(/(?:\s+(?:e|ou|que|com|de|da|do|das|dos|em|a|o))+\s*$/i, '').replace(/^[\s,:-]+|[\s,:-]+$/g, '')).slice(0, 200);
-    if (texto.length < 6 || criterios.filter((c) => c.tipo === 'pesquisa').length >= MAX_PESQUISA) continue;
+    if (texto.length < 6) continue;
+    if (criterios.filter((c) => c.tipo === 'pesquisa').length >= MAX_PESQUISA) { excedentesPesquisa++; continue; }
     criterios.push({ id: slug(`pesquisa_${palavras.slice(0, 3).join('_')}`), texto, obrigatorio: !PREFERENCIA.test(pn), tipo: 'pesquisa', regra: null, trecho: p.slice(0, 300), origem: 'regras' });
   }
   // Ids únicos e no máximo o limite, preservando a ordem de aparição.
@@ -425,6 +426,7 @@ export function interpretarTese(tese, { referencia } = {}) {
     vistos.add(id);
     return { ...c, id };
   });
+  if (excedentesPesquisa) notas.push(`${excedentesPesquisa} trecho(s) da tese passaram do limite de ${MAX_PESQUISA} critérios de pesquisa e não viraram critério. Divida a pesquisa.`);
   if (criterios.length > MAX_CRITERIOS) notas.push(`A tese gerou mais de ${MAX_CRITERIOS} critérios; os excedentes ficaram de fora. Divida a pesquisa.`);
   if (!finais.length) notas.push('Não identifiquei critérios verificáveis. Descreva porte, região, tempo de mercado, estrutura ou o que a empresa faz.');
   return { frente, filtros, criterios: finais, notas: [...new Set(notas)] };

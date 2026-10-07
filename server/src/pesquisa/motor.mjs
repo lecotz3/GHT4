@@ -68,7 +68,14 @@ const PropostaIA = z.object({
   notas: z.array(z.string().max(400)).max(10).optional(),
 }).passthrough();
 
-/** Proposta da IA validada critério a critério; o que não confere é descartado com nota. */
+// Regras numéricas cujo valor precisa aparecer no próprio trecho citado ("mais de 20 anos" → 20).
+const NUMERO_NO_TRECHO = new Set(['idade_min', 'estabelecimentos_min', 'ufs_atuacao_min', 'socios_max', 'filial_recente_anos']);
+
+/**
+ * Proposta da IA validada critério a critério; o que não confere é descartado com nota.
+ * Todo critério da IA precisa de trecho literal da tese (procedência). Critérios do membro
+ * entram por outro caminho (origem 'usuario'), sem essa exigência.
+ */
 export function validarPropostaIA(bruto, tese) {
   const p = PropostaIA.parse(bruto);
   const t = espacos(tese);
@@ -76,8 +83,10 @@ export function validarPropostaIA(bruto, tese) {
   let descartados = 0;
   for (const [i, c] of p.criterios.entries()) {
     const trecho = c.trecho?.trim() || null;
-    if (trecho && !t.includes(espacos(trecho))) { descartados++; continue; }
+    if (!trecho || !t.includes(espacos(trecho))) { descartados++; continue; }
     const regra = c.tipo === 'cadastro' && c.regra && CAMPOS_REGRA.includes(c.regra.campo) ? { campo: c.regra.campo, valor: c.regra.valor } : null;
+    // Citação prova de onde veio, não que o valor inferido esteja certo: o número tem de estar no trecho.
+    if (regra && NUMERO_NO_TRECHO.has(regra.campo) && !(typeof regra.valor === 'number' && new RegExp(`(^|\\D)${regra.valor}(\\D|$)`).test(trecho))) { descartados++; continue; }
     const r = Criterio.safeParse({ id: `ia_${i + 1}`, texto: c.texto, obrigatorio: c.obrigatorio, tipo: regra ? 'cadastro' : 'pesquisa',
       regra, trecho, origem: 'ia' });
     if (r.success) criterios.push(r.data); else descartados++;
@@ -206,7 +215,9 @@ export function criarMotorPesquisa({ db, catalogo, servicoIA = null, web = {} })
           .map((c) => { let id = c.id; while (ids.has(id)) id += '_'; ids.add(id); return { ...c, id }; });
         const pesquisa = criterios.filter((c) => c.tipo === 'pesquisa');
         const finais = [...criterios.filter((c) => c.tipo === 'cadastro'), ...pesquisa.slice(0, MAX_PESQUISA)].slice(0, 12);
-        return { frente: ia.frente ?? local.frente, filtros: local.filtros, criterios: finais, notas: [...new Set([...local.notas, ...ia.notas])].slice(0, 10), modo };
+        const cortados = criterios.length - finais.length;
+        const notaCorte = cortados ? [`${cortados} critério(s) sugerido(s) ficaram de fora pelo limite de ${MAX_PESQUISA} critérios de pesquisa (12 no total). Divida a tese se precisar deles.`] : [];
+        return { frente: ia.frente ?? local.frente, filtros: local.filtros, criterios: finais, notas: [...new Set([...local.notas, ...ia.notas, ...notaCorte])].slice(0, 10), modo };
       } catch {
         return { ...local, notas: [...local.notas, 'A IA não retornou uma proposta utilizável; os critérios abaixo vêm das regras locais.'], modo: 'regras' };
       }

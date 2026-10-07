@@ -513,3 +513,17 @@ test('resposta HTTP hostil vira erro recuperável, sem derrubar o processo', asy
     (e, out, err) => (e ? reject(Object.assign(e, { stderr: err })) : resolve({ stdout: out }))));
   assert.equal(stdout.trim(), 'rejeitou:true|depois:200:ok');
 });
+
+test('IA: sem trecho ou com valor que o trecho não diz, o critério é descartado; corte de pesquisa avisa', () => {
+  const tese = 'Distribuidoras com mais de 20 anos e pelo menos 3 filiais';
+  const r = validarPropostaIA({ frente: null, criterios: [
+    { texto: 'Sem sócio PJ', obrigatorio: true, tipo: 'cadastro', regra: { campo: 'sem_socio_pj', valor: true }, trecho: null },
+    { texto: 'Mais de 30 anos', obrigatorio: true, tipo: 'cadastro', regra: { campo: 'idade_min', valor: 30 }, trecho: 'mais de 20 anos' },
+    { texto: 'Mais de 2 anos', obrigatorio: true, tipo: 'cadastro', regra: { campo: 'idade_min', valor: 2 }, trecho: 'mais de 20 anos' },
+    { texto: 'Mais de 20 anos', obrigatorio: true, tipo: 'cadastro', regra: { campo: 'idade_min', valor: 20 }, trecho: 'mais de 20 anos' },
+  ], notas: [] }, tese);
+  assert.deepEqual(r.criterios.map((c) => c.regra?.valor), [20]);
+  assert.ok(r.notas.some((n) => /3 critério/.test(n)));
+  const muitas = interpretarTese('Distribuidoras que representem fabricantes alemães; que atendam o agronegócio paulista; que tenham laboratório próprio certificado; que exportem solventes industriais; que façam mistura de resinas; que possuam frota própria refrigerada');
+  assert.ok(muitas.notas.some((n) => /limite de \d+ critérios de pesquisa/.test(n)), muitas.notas.join(' | '));
+});
