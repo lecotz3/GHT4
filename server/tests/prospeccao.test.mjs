@@ -490,3 +490,33 @@ test('briefing em PDF traz ficha, restrição em destaque e roteiro da frente; r
   assert.equal((await leitura.chamar('GET',`/api/empresas/${empresa.id}/briefing`)).statusCode,403);
   assert.equal((await a.chamar('GET',`/api/empresas/${empresa.id}/briefing?frente=xx`)).statusCode,422);
 });
+
+test('acervo: corte de 30 depois da versão atual de cada série; títulos iguais em espaços distintos mantêm a origem', async (t) => {
+  const { db, usuario, selecionar, criar } = await montar(t);
+  const a = await usuario('a@teste.local');
+  const { o } = await criar(a,(await selecionar(a)).s);
+  const { o: outra } = await criar(a,(await selecionar(a,null,'compra')).s);
+  const espaco = await criarMandato(db, { codigo: 'M-ACERVO', rotulo: 'Espaço B', confidencial: false });
+  await darAcesso(db, espaco.id, a.id);
+  await db.query('UPDATE crm_oportunidades SET titulo=(SELECT titulo FROM crm_oportunidades WHERE id=$1), mandato_id=$2 WHERE id=$3',[o.id,espaco.id,outra.id]);
+  // 32 séries; a primeira tem v1 revisada e v2 atual NÃO revisada, mais antiga que as demais.
+  const serie1 = randomUUID();
+  await db.query(`INSERT INTO crm_registros (id,serie_id,oportunidade_id,tipo,versao,dados,revisado,usuario_id,criado_em) VALUES
+    ($1,$1,$2,'tese',1,'{"titulo":"Série 1 v1"}',true,$3,now()-interval '3 days'),($4,$1,$2,'tese',2,'{"titulo":"Série 1 v2"}',false,$3,now()-interval '1 hour')`,[serie1,o.id,a.id,randomUUID()]);
+  for (let n = 2; n <= 31; n++) {
+    const id = randomUUID();
+    await db.query(`INSERT INTO crm_registros (id,serie_id,oportunidade_id,tipo,versao,dados,revisado,usuario_id,criado_em) VALUES ($1,$1,$2,'evidencia',1,$3,true,$4,now()-make_interval(mins => $5))`,
+      [id,o.id,JSON.stringify({ titulo: `Série ${n}` }),a.id,n]);
+  }
+  await db.query(`INSERT INTO crm_registros (id,serie_id,oportunidade_id,tipo,versao,dados,revisado,usuario_id,criado_em) VALUES ($1,$1,$2,'tese',1,'{"titulo":"Tese do espaço B"}',true,$3,now())`,[randomUUID(),outra.id,a.id]);
+  const f = (await a.chamar('GET',`/api/empresas/${empresa.id}/ficha`)).json();
+  const regs = f.acervo.registros;
+  assert.equal(regs.length, 30, 'corte de 30 aplicado depois de escolher a versão atual');
+  assert.ok(!regs.some((r) => r.titulo === 'Série 1 v1'), 'versão antiga revisada não ressuscita');
+  assert.ok(!regs.some((r) => r.titulo === 'Série 31'), 'o mais antigo fica de fora do corte');
+  const doB = regs.find((r) => r.titulo === 'Tese do espaço B');
+  const doA = regs.find((r) => r.titulo === 'Série 2');
+  assert.equal(doB.oportunidade, doA.oportunidade, 'mesmo título de oportunidade');
+  assert.equal(doB.espaco, 'Espaço B'); assert.equal(doA.espaco, null);
+  assert.notEqual(doB.oportunidadeId, doA.oportunidadeId);
+});
