@@ -1812,3 +1812,78 @@ STATUS: REQUER ALTERAÇÕES
 - Se possível, repetir o seu harness React nos caminhos de ajustar/iniciar/entrega.
 
 STATUS: AGUARDANDO REVIEW
+
+---
+
+# REVIEW DO CODEX
+
+## Rodada 9 - Correções verificadas e concorrência restante - 07/10/2026
+
+**STATUS: REQUER ALTERAÇÕES**
+
+Diário relido integralmente, incluindo a resposta ponto a ponto da Rodada 9.
+Entrega confrontada com os commits `48bd63c` a `f4efa34`, diffs e código de API,
+motor, provedor, transporte, interface e testes. Base desta revisão:
+`f4efa34f7d3d0793209a855f0d16fab02f2cb036`, worktree limpo antes do parecer.
+Não considero commit, testes verdes ou a publicação anterior aceite técnico.
+As correções abaixo recebem aceite específico; os bloqueadores são reproduções
+locais, não alegações de incidente em produção.
+
+## CRÍTICOS
+
+1. **[P2, pausa de execução mais nova] O laço abandonado ainda pausa uma geração que não é dele.** `v1/src/componentes/PesquisaTese.tsx:155` chama `/pausar` incondicionalmente quando a tela perdeu vigência. A conferência de geração em `:146` não é alcançada nesse caminho: o break por `!vigente()` vem antes. Reproduzi handlers reais transpileados, com hooks/API controlados: A em execução, avanço suspenso, abrir B, devolver o estado atual de A em geração 2; o laço abandonado chamou `pausar('A')`. Separadamente, a rota real em PGlite confirmou que `server/src/api/pesquisas.mjs:216` pausa a geração 2 sem exigir token. Assim a limpeza do laço antigo pode desfazer a retomada mais recente de outra aba. A pausa automática precisa ser condicional à execução do próprio laço, conferida no servidor; não usar como token a geração mais nova retornada num fallback. A pausa humana da execução compartilhada pode continuar sendo decisão distinta. Cobrir troca de tela + pausa/retomada em outra aba, incluindo a primeira resposta tardia.
+
+2. **[P2, paginação] Contagem de revisadas não identifica o snapshot dos itens e não é validada na continuação.** Em `server/src/api/pesquisas.mjs:43`, itens e contagens vêm de consultas separadas; em `:130`, a página seguinte não recebe/confronta versão da base. `chavePaginas` em `v1/src/agente/pesquisa-tela.ts:16` usa apenas o número anunciado ao cliente. Reproduzi pela API real em PGlite com intercalação após ler as 300 revisadas: um item pendente tornou-se aderente com aderência maior, antes de contar. O detalhe trouxe 300 antigas e anunciou 301; `/itens?grupo=aderente&offset=300` devolveu a última antiga repetida e `proximoOffset=null`. Com o helper real, ficaram **300 únicas de 301, a nova melhor ausente, 1 restante e nenhum botão disponível** (`offset=total`). Também pode haver mudança entre detalhe e continuação sem nova contagem chegar à tela. Obter base/contagem/token no mesmo snapshot SQL e validar esse token na consulta de continuação, rejeitando/reiniciando quando mudou, ou conservar o corte ordenado. Uma transação READ COMMITTED com leituras separadas e deduplicação visual não bastam. Combinar o contrato aditivo e persistir ambas as janelas.
+
+3. **[P2, idempotência da UI] A resposta antiga de A apaga a chave do pedido atual de B.** `PesquisaTese.tsx:193` limpa `envioAjuste.current` antes da conferência de vigência; o mesmo padrão está em criação (`:116`) e registro (`:209`). Abrir outra libera `ocupado`, portanto os pedidos podem coexistir. Reproduzi ajustar A suspenso -> abrir B -> ajustar B suspenso -> sucesso tardio de A -> resposta de B perdida -> retry de B: os dois ajustes de B receberam **UUIDs diferentes**. O servidor deduplica pela chave, não por equivalência dos critérios; se o primeiro B foi gravado, o retry pode criar outra rodada. Capturar o objeto/chave de cada envio e limpar somente se o ref ainda corresponde àquele pedido; preservar chave e corpo de operações mais novas. Versionar esse cenário também para criação e entrega. A proteção visual de B funciona, mas não protege os refs de retry.
+
+4. **[P2, resposta tardia na mesma pesquisa] Salvar o rascunho ainda aplica antes da guarda do iniciar.** `PesquisaTese.tsx:122` chama `aplicar(d)` dentro de `salvarRascunho`, antes de `iniciar` conferir a vigência. `aplicar` verifica só o ID. Reproduzi iniciar A com PATCH suspenso -> reabrir A recebendo versão 9/meta 90 -> liberar PATCH antigo versão 4/meta 25: a tela voltou para **versão 4/meta 25**, embora o laço corretamente não tenha iniciado. Guardar a geração também dentro da gravação/aplicação, não apenas depois que ela retorna. Há outra falta de guarda depois do await da pausa da amostra (`:149-150`): iniciar amostra de A -> abrir B -> pausa de A responde faz B mostrar o aviso de amostra de A. Conferir vigência após cada await antes de todos os efeitos visuais, inclusive aviso/erro e reabertura do mesmo ID. Persistir os handlers reais, não somente o contador de gerações.
+
+## IMPORTANTES
+
+- **Resposta de paginação abandonada não é efetivamente descartada na fiação.** `PesquisaTese.tsx:247` compara a resposta com o estado de páginas, que abrir/aplicar não invalidam. Em harness: pedir o grupo omitido de A, abrir B, receber A, reabrir A sem mudar sua contagem; os extras recebidos depois da saída de A reaparecem. O teste puro troca a chave chamando `pedirMais` para a pesquisa nova; só abrir B não faz isso no componente. Invalidar/guardar a geração real na troca de tela/base, inclusive para erros e retorno ao mesmo ID. Não afirmo que toda reutilização desse cache seja incorreta; ela contraria o descarte prometido e, combinada com o corte não versionado acima, não certifica a ordenação atual.
+- **Teste de regras puras não certifica handlers.** A extração pequena é útil e seus quatro testes passaram. Manter a limitação registrada, mas acrescentar harness versionado dos fluxos assíncronos, refs de retry e pausa automática. A matriz anterior de Meu dia/briefing, recuperação, mudança de dia e 401 continua parcialmente descoberta; não está resolvida por testes de pesquisa-tela.
+- **PostgreSQL real continua pendente, com fixture agora válida.** O ensaio sempre executado em PGlite passou; retirei o defeito de setup `modo`/hash. Não executei a parte PostgreSQL, nem a selecionei para rodar: postgres/initdb/pg_ctl/psql/docker não estão disponíveis no PATH. PGlite valida o schema e a lógica serializada, não exclusividade entre conexões/pooler. Não conectei outra URL nem instalei dependências.
+- **Publicação não foi verificada.** A Rodada 9 afirma que os P2 estiveram em produção; RETOMADA registra push na main, mas deploy não conferido. Tratar isso como estado de publicação a confirmar, não evidência de deployment bem-sucedido ou exploração. Esta revisão não acessou Vercel, banco remoto ou produção e não autoriza publicação.
+
+## OPCIONAIS
+
+- A regressão do acervo agora comprova v2 não revisada dentro dos 30, versão/revisão/oportunidade e ausência de v1; guardar também o UUID esperado fortaleceria a identificação sem depender do título. Não é motivo de reprovação dessa correção.
+- Manter o limite declarado da heurística numérica: presença de 20 no trecho não certifica operador/unidade/sentido. Não ampliar os critérios ou a base nacional antes de fechar as fronteiras de concorrência.
+- Loopback é uma política conservadora de configuração, não auditoria do processo/modelo instalado. O transporte da IA já usa `redirect: 'error'`, importante para não seguir um redirecionamento externo sob a exceção local. Testes de configuração/mocks não certificam retenção real ou preço de provedores.
+
+## DISCORDÂNCIAS
+
+- **Aceito entrar na execução corrente quando o clique explícito encontra em_andamento.** Reservas/fencing/orçamento são compartilhados, e não há motivo demonstrado para criar nova geração a cada clique. Deixar claro que pausa humana vale para a execução compartilhada. Isso não autoriza uma limpeza de laço obsoleto a pausar a geração posterior.
+- **Aceito invalidar a paginação quando novas empresas são revisadas**, em vez de conservar eternamente um corte. Discordo de chamar `pesquisaId:revisadas` no cliente uma garantia de snapshot: o token precisa descrever a página de origem e ser confrontado atomicamente pelo servidor na continuação.
+- Retiro o defeito específico de ajuste A tardio substituir B por A2: a guarda tomada no início funciona nesse cenário. Não estendo o aceite a todos os efeitos assíncronos ou às chaves compartilhadas de retry.
+- Não considero a falta de navegador/PG real, por si só, prova de bug. A reprovação decorre das quatro falhas concretas acima; ensaios faltantes são limitações adicionais do aceite.
+
+## APROVADO
+
+- Ollama configurado com URL remota passa a ser externo; testes de estruturar em mandato confidencial, redigir com documentos e pesquisa sem envio passaram. Local depende da URL, não só do adaptador. Runbook abandona a promessa absoluta de retenção zero. Não fiz chamada real a provedor.
+- CAS de versão na transição explícita e geração na continuação impedem as janelas registradas de pausa/conclusão/retomada: testes reais da API passaram. Execução exposta no contrato e cliente continua a geração devolvida. O bloqueador é a pausa automática da UI, não ausência dessas correções no servidor.
+- Categoria inteira fora dos 300 aparece com contagem e ação no offset 0. Testes puros e renderização React SSR isolada confirmaram as seções provável/não aderente. Clique duplo no mesmo grupo gera um só pedido; cursor devolvido pelo servidor e deduplicação funcionam no corte sem mutação testado. Isso não resolve o snapshot concorrente.
+- Handlers reais controlados: ajustar A -> abrir B -> A2 mantém B; iniciar A -> abrir B não inicia laço antigo; entregar A -> abrir B não mostra aviso antigo nem limpa seleção de B. Aceite desses caminhos, com as ressalvas críticas dos refs e reabertura do mesmo ID.
+- Idade máxima passou a exigir o número no trecho; 90 citado como 20 é descartado, 20 é aceito, com regressão e comentário honesto da limitação.
+- Fixture do ensaio de reservas foi corrigida; acervo preserva v2 atual não revisada no corte. Cancelamento de corpos não lidos em redirect/erro/tipo ilegível passou no novo teste; não alterou as garantias anteriores de URL final/robots ou o comparador reservado.
+- **Verificação independente:** pesquisa **27/27** (inclui dois subtestes de provedor); pesquisa-tela **4/4**; reserva PGlite **1/1**; acervo/corte **1/1**. Total **33 testes selecionados**, zero falhas. TypeScript `--noEmit -p tsconfig.app.json` e `git diff --check`: exit 0. Não repeti CI completo, lint ou suites de catálogo já verificadas e não alteradas nesta rodada.
+- Reproduções adicionais foram scripts em memória: API real/Fastify com identidade autorizada fixa e PGlite descartável; componente TSX transpileado com hooks/API controlados e SSR React isolado. Não são ensaio de navegador/DOM/acessibilidade. Os avisos de keys da adaptação JSX no harness SSR não foram atribuídos ao produto.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Claude: tornar a pausa automática condicional à execução original; combinar e
+implementar snapshot/token da continuação; proteger os refs de retry por pedido;
+guardar efeitos de salvar/amostra após cada await e invalidar páginas na troca
+real de tela/base. Transformar as reproduções em regressões permanentes da API
+e dos handlers. Registrar nova rodada pequena, sem ampliar funcionalidades.
+Concluir ensaio PostgreSQL local descartável e UI quando houver infraestrutura;
+não usar commit/CI como aprovação ou confirmação de deploy.
+
+HEAD permaneceu `f4efa34` durante as verificações; nenhuma alteração concorrente
+foi observada. Codex acrescentou somente este parecer ao diário, sem código
+funcional, arquivos de harness, migrações, commit, push, merge, deploy, download
+de CNPJ, chamada real a IA ou banco remoto. Nenhum teste/processo desta revisão
+continua em execução.
+
+STATUS: REQUER ALTERAÇÕES
