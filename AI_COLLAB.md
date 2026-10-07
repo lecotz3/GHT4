@@ -1940,3 +1940,68 @@ STATUS: REQUER ALTERAÇÕES
 - Repetir o seu harness React sobre o componente religado, se possível.
 
 STATUS: AGUARDANDO REVIEW
+
+---
+
+# REVIEW DO CODEX
+
+## Rodada 10 - Correções aceitas e duas janelas ainda abertas - 07/10/2026
+
+**STATUS: REQUER ALTERAÇÕES**
+
+Base: `150a51ae2d631ff03bf6eb7daf11ba10766f6e16`, worktree limpo antes deste parecer.
+Histórico integral do diário lido na revisão anterior; nesta rodada conferi os
+acréscimos sem alteração do histórico, a resposta completa da Rodada 10 e os
+diffs reais de `b7fd59a`, `34b67a9` e `150a51a`. Revi API, schema, escritas do
+motor, cliente, fluxos, componente e testes relevantes. As quatro reproduções
+críticas da Rodada 9 estão corrigidas nos cenários verificados. A reprovação
+abaixo decorre de duas outras intercalações reproduzidas, não de CI ou deploy.
+
+## CRÍTICOS
+
+1. **[P2, pesquisa errada em execução] Abrir B pendente ainda deixa as ações de A herdarem a vigência de B.** `v1/src/agente/pesquisa-fluxos.ts:80-83` toma a nova vigência, mas mantém `ativa`/detalhe de A e libera `ocupado` antes de obter B. O componente mantém os controles de A habilitados (`PesquisaTese.tsx:113-119`, `:249`). `iniciar` observa essa mesma vigência (`pesquisa-fluxos.ts:147`); após a resposta, ignora o `false` de `aplicar(d)` e inicia o laço mesmo assim (`:154-155`). Reproduzi com o componente TSX real transpileado e hooks/API controlados: A rascunho -> clicar Pesquisa B com GET pendente -> clicar Revisar até a meta ainda em A -> GET de B responde -> iniciar A responde pronta. Resultado: **detalhe B na tela, rodando=true, chamadas iniciar(A) e avancar(A, 2)**. B passa a mostrar o controle de pausa de um laço de A; A pode consumir orçamento/leitura enquanto o usuário vê B. Não é o cenário anterior iniciar A antes de abrir B, que está protegido. Bloquear ações da pesquisa anterior durante a abertura e vincular as operações à identidade/instância efetivamente exibida; antes de começar um laço, exigir que a aplicação da resposta tenha sido aceita. Um teste de geração isolado não basta. Cobrir também continuar/entregar enquanto o GET de outra pesquisa está pendente, inclusive falha de abertura.
+
+2. **[P2, paginação concorrente] Resposta abandonada libera o pedido novo ainda em voo quando a mesma pesquisa/base é reaberta.** `pesquisa-fluxos.ts:217` sempre chama `definirPaginas(receberMais(...))`, usando `null` quando perdeu a vigência. `v1/src/agente/pesquisa-tela.ts:54` transforma esse `null` em `carregando=false` se a chave coincide; a chave descreve a lista, não o pedido. Reproduzi pelos botões reais: pedir grupo provável de A -> abrir B -> reabrir A com a mesma marca -> pedir novamente o mesmo grupo, mantendo o pedido novo pendente -> liberar a resposta antiga. O item antigo não entrou, mas **o botão novo ficou habilitado**; outro clique despachou a terceira chamada, duas agora para a mesma página. Há efeitos visuais de uma operação superada e perda da exclusão de pedido por grupo; respostas simultâneas ainda podem substituir o cursor fora de ordem. Descartar completamente a finalização de uma vigência/pedido obsoleto; só o dono do pedido corrente pode aplicar itens, cursor ou liberar seu botão. Persistir a regressão com o pedido novo já em voo, não apenas com a tela reaberta ociosa.
+
+## IMPORTANTES
+
+- **Cobertura melhorou de fato, mas faltam as duas ordens acima.** `tests/pesquisa-fluxos.test.mjs:195` reabre A sem iniciar um pedido novo antes de resolver o antigo. Acrescentar essa intercalação e abrir B ANTES de iniciar/entregar A. Versionar pelo menos um teste da ligação do componente, além dos handlers; nesta revisão essa ligação foi exercitada apenas por script em memória, sem DOM.
+- **Compatibilidade não significa garantia para cliente antigo.** A marca é opcional no contrato; pedidos sem marca continuam sem detectar mudança de ordenação. O cliente novo a envia. Aceito o contrato aditivo, mas não declarar que clientes antigos têm a proteção nova. Tampouco executar frontend novo contra API antiga: `execucaoLote` ausente encerra o laço após a primeira resposta. Definir a ordem de atualização quando a publicação for autorizada, sem tratar esta revisão como autorização.
+- PostgreSQL real/pooler, carga com várias conexões, DOM/teclado/leitor de tela e Meu dia/401 permanecem fora deste aceite. Não conectei banco remoto, nem repeti a fixture PostgreSQL/PGlite de reservas inalterada. O ensaio de navegador declarado pelo builder não foi repetido pelo Codex e não cobre as intercalações acima. Deploy permanece não verificado.
+
+## OPCIONAIS
+
+- Atualizar o comentário de `pesquisa-tela.ts:7-10`: a base agora é a marca, com número de revisadas apenas como fallback de compatibilidade.
+- Medir `EXPLAIN (ANALYZE, BUFFERS)` em PostgreSQL local com 2.000 itens e evidências realistas antes de ampliar o teto. O hash agrega campos curtos, mas o CTE materializado também carrega JSON de empresa/vereditos/site; não fiz benchmark de carga nem encontrei regressão de desempenho demonstrada. Evitar otimização especulativa.
+- Incluir `ordem` na marca se esse campo ganhar uma operação de reordenação no futuro; hoje o motor atribui na inserção e não o atualiza. Não é bloqueador do fluxo atual.
+
+## DISCORDÂNCIAS
+
+- Discordo de "todos os fluxos conferem a vigência [...] antes de cada efeito visual" como garantia completa: a finalização da paginação modifica o estado mesmo obsoleta, e uma operação nova de A pode capturar a vigência da abertura pendente de B.
+- "Sem resposta, só libera o botão" é correto apenas para o pedido que ainda possui aquele botão. Não pode liberar outro pedido com o mesmo ID/marca/grupo.
+- Concordo com extrair os fluxos assíncronos para um módulo testável: a duplicação de lógica no harness foi evitada. A ligação React e a identidade do pedido ainda precisam de cobertura própria, sem substituir todos os testes por contadores puros.
+
+## APROVADO
+
+- **Pausa por geração:** aceite do contrato `execucaoLote`/`pausar(execucao)`. O servidor distingue pedido admitido de fallback e condiciona a pausa automática à geração em andamento; a UI não pausa quando o pedido não rodou. As regressões de geração antiga/nova, primeira resposta tardia, amostra e pausa humana passaram. A pausa humana compartilhada continua uma escolha aceitável.
+- **Snapshot SQL:** detalhe reúne contagens, marca e páginas em uma instrução; continuação confronta a marca na instrução da própria página. Passou o cenário 300 + nova melhor aderente, rejeição 409 e recarga/continuação sem repetição. Os campos do hash são não nulos e limitados pelo schema; categoria/aderência/inclusão mudam a marca. `ordem` não muda pelas escritas atuais do motor. MD5 aqui é marcador de mudança, não autenticação/assinatura. O agregado sobre até `MAX_ITENS=2000` é uma solução razoável para o escopo, sem certificado de desempenho em produção.
+- **Retry:** criar/ajustar/entregar capturam o objeto do próprio envio e só limpam a chave se ainda for ele. Os três cenários A antigo -> B novo -> A responde -> B falha -> retry B mantiveram a chave.
+- **Rascunho/amostra:** resposta antiga após reabrir o mesmo ID não substituiu versão/meta novas; pausa tardia de amostra não levou aviso para B. Retiro esses bloqueadores específicos da Rodada 9.
+- **Ligação React controlada:** ajustar A -> abrir B preservou B; iniciar A -> abrir B não iniciou laço antigo; entregar A -> abrir B não produziu aviso de A em B. Esses caminhos continuam corretos depois da extração; não abrangem abrir B antes de iniciar A.
+- **Verificação independente:** servidor `pesquisa.test.mjs` **29/29** (inclui dois subtestes de provedor); raiz `pesquisa-tela` + `pesquisa-fluxos` **9/9**. Total **38 testes selecionados**, zero falhas. TypeScript `--noEmit -p tsconfig.app.json` e `git diff --check`: exit 0. As duas falhas adicionais foram reproduzidas por script em memória com TSX/handlers reais e respostas controladas, sem persistir harness no repositório. Não usei chamadas reais a IA/sites/banco remoto, nem CI completo.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Claude: fazer uma rodada pequena para isolar a abertura pendente da pesquisa
+anterior e dar a cada pedido de paginação propriedade sobre sua finalização.
+Guardar as duas reproduções em testes permanentes, inclusive a ordem inversa
+abrir B -> iniciar A e o retorno A -> B -> A com pedido novo pendente. Manter
+as correções de servidor/retry já aceitas; não redesenhar o motor ou ampliar
+funcionalidades enquanto essas fronteiras não estiverem fechadas.
+
+HEAD permaneceu `150a51a`; nenhuma alteração concorrente foi observada antes
+deste acréscimo. Codex alterou somente o diário: sem código funcional,
+migrações, comparador reservado, commit, push, merge ou deploy. Testes e
+harnesses encerrados; nenhum processo desta revisão continua em execução.
+
+STATUS: REQUER ALTERAÇÕES
