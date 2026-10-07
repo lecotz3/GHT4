@@ -4,17 +4,18 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodada 12 na branch; até a Rodada 11 na `main` (07/10/2026, noite)
+## COMECE AQUI — Rodada 12 aprovada; Rodadas 12–13 na branch (07/10/2026, noite)
 
 **Estado:**
-- **Na `main` (`48f64db`):** até a Rodada 11. A produção de `150a51a` e as anteriores constam como concluídas no status do GitHub, e `ght-4.vercel.app` responde. Sem acesso aos logs da Vercel com a conta conectada.
-- **Na branch `feat/agente-rodada-4`, sem push:** a Rodada 12. Ela traz a correção das aberturas sobrepostas pedida pelo Codex, os testes do Meu dia, a auditoria de acessibilidade com a correção de foco em "Remover da lista" e o registro do PostgreSQL real e do EXPLAIN. O registro está na **Rodada 12** em [AI_COLLAB.md](../AI_COLLAB.md).
+- **Na `main` (`48f64db`):** até a Rodada 11.
+- **Na branch `feat/agente-rodada-4`, sem push:**
+  - Rodada 12, **aprovada pelo Codex** (aberturas sobrepostas, Meu dia, acessibilidade, PostgreSQL real, lint);
+  - Rodada 13, aguardando revisão:
+    - remoção com sucesso ou falha explícitos e foco previsível;
+    - **lista leve com evidências sob demanda**: o detalhe caiu de 1.200 KB para 272 KB com 2.000 itens. A rota nova é `GET /api/pesquisas/:id/itens/:empresaId`.
+- O registro está nas Rodadas 12 e 13 do [AI_COLLAB.md](../AI_COLLAB.md).
 
-**Feito nesta rodada:**
-- **PostgreSQL real:** o ensaio de concorrência passou 5×, num banco UTF-8 descartável local.
-- **EXPLAIN:** detalhe com cerca de 8 ms de execução, mas a resposta pesa ~1,2 MB com 2.000 itens.
-- **Lint:** roda nesta máquina, sem avisos.
-- **CI completo:** `npm run ci` termina com exit 0.
+**Validação:** `npm run ci` com exit 0 (lint, build, 99 raiz, 252 servidor + 1 pulado sem URL, dados). O PostgreSQL real passou na Rodada 12; a receita está abaixo.
 
 **Como rodar o PostgreSQL real numa máquina sem Postgres:**
 1. Instale `embedded-postgres` numa pasta fora do repositório e suba numa porta local.
@@ -23,13 +24,12 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
 
 ### Próximos passos, em ordem
 
-1. **Pedir ao Codex a revisão da Rodada 12.**
-2. **Levar a Rodada 12 à `main`** quando o usuário decidir. Só muda cliente e testes.
-3. **Decidir o tamanho da primeira resposta da pesquisa** (~1,2 MB com vereditos densos): vir sem evidências completas e carregá-las ao abrir a empresa?
-4. **Ensaio com leitor de tela real** (NVDA/VoiceOver) e conferência visual de foco/contraste. A auditoria automatizada cobre só a estrutura.
-5. **Funcionalidades em espera** (o Codex pediu para fechar as fronteiras antes; dependem de decisão do usuário):
+1. **Pedir ao Codex a revisão da Rodada 13.**
+2. **Levar as Rodadas 12–13 à `main`** quando o usuário decidir. A Rodada 13 muda servidor e cliente juntos: a lista leve exige o cliente novo para ver as evidências, e um deploy único da Vercel publica os dois.
+3. **Ensaio com leitor de tela real** (NVDA/VoiceOver) e conferência visual de foco e contraste. A auditoria automatizada cobre só a estrutura.
+4. **Funcionalidades em espera** (dependem de escopo acordado com o usuário):
    - monitoramento semanal de tese;
-   - base CNPJ nacional: importar a base RFB enxuta e trocar o subsetor fixo por taxonomia por CNAE.
+   - base CNPJ nacional (plano de banco e volume; importar a base RFB enxuta e trocar o subsetor fixo por taxonomia por CNAE).
 
 ## Checkpoint anterior — correções das Rodadas 4–8 (07/10/2026, noite)
 

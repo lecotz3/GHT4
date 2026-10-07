@@ -2229,3 +2229,43 @@ Para a próxima ampliação, apresentar ao usuário a decisão sobre carregament
 Codex acrescentou somente este parecer. Nenhum código funcional, migração ou arquivo reservado do comparador foi editado; nenhum commit, push, merge ou deploy foi feito. Não há processo de teste ou PostgreSQL desta revisão ainda em execução.
 
 STATUS: APROVADO
+
+
+---
+
+## RODADA 13 — Opcionais da Rodada 12 e decisão sobre o carregamento de evidências (07/10/2026) — Claude (builder)
+
+**Contexto:** a Rodada 12 foi **aprovada** pelo Codex (parecer em `c1b0377`). O usuário delegou a decisão do item 3 do ponto de retomada ("pode decidir o que quiser"). Esta rodada está na branch `feat/agente-rodada-4`, **sem push**. Os ajustes ficam separados, como pedido: (A) opcionais da Rodada 12 e (B) a decisão sobre evidências.
+
+### (A) Opcionais da Rodada 12
+
+- **P3, contrato de remoção e foco** (`6300086`): `aoExcluir` passa a devolver `Promise<boolean>`. O `Agente` devolve `true` depois do DELETE e de atualizar a lista, e `false` quando mostra a falha. O `InicioAgente` usa esse resultado:
+  - removido: foco no título da seção;
+  - falhou: foco de volta à lixeira do item, que continua na lista.
+
+  O teste agora usa **um pai com estado real** de `conversas`. Na falha, o item fica e o foco vai **exatamente** para a lixeira dele; no sucesso, o item sai das props, o outro continua e o foco vai **exatamente** para o `H3` "Continue de onde parou". Conferido: a falha derruba o teste no código anterior (o foco ia ao título).
+- **Correção do diário (Rodada 12):** onde escrevi que "nova pesquisa e desmontagem zeram `mostrada`", vale só para Nova pesquisa (`esvaziar`). A desmontagem (`desmontar`) **não zera** `mostrada`: ela toma nova vigência e sinaliza `parar`, o que invalida respostas e interrompe o laço, e o componente desmontado não dispara mais ações.
+
+### (B) Decisão: lista leve, evidências sob demanda (`caaf49f`)
+
+- **Decisão:** a primeira resposta da pesquisa (detalhe, `avancar`) e a continuação (`/itens`) passam a levar, por critério, só `veredito`, `resumo`, `lastro` e `pendente`, marcados `resumido: true`, e o `site` sem `paginas`. Justificativa, trechos citados, URLs, páginas lidas e modelo saem de **`GET /api/pesquisas/:id/itens/:empresaId`**, com o mesmo `carregar` (dono e mandato), 404 para empresa fora da pesquisa e 422 para ID inválido.
+- **Por que assim:** a tabela só usa símbolo e resumo. Trechos e justificativas aparecem quando alguém abre a empresa, e isso acontece em poucas empresas por sessão. A entrega ao trabalho (`registrar`) lê do banco e não muda. A marca da lista não muda, porque descreve categoria e aderência, não evidência.
+- **Tela:** o `Detalhe` busca o item completo ao abrir. Mostra "Carregando evidências…" com `aria-busy`, e na falha um alerta com "Tentar de novo". Só busca de novo se a empresa ou o resultado dela (categoria, aderência, etapa) mudar, não a cada lote da revisão.
+- **Medido** com o mesmo cenário da Rodada 12 (2.000 itens, 4 vereditos densos cada), em PGlite:
+  - detalhe: **1.200 KB → 272 KB** (−77%);
+  - continuação de 100 itens: **343 KB → 78 KB**.
+- **Testes:**
+  - servidor: lista sem `evidencias`, `justificativa` e `paginas`; item completo com trecho, justificativa e páginas, sem atributos internos; 404, 422 e **intruso 404**;
+  - componente: a lista não traz trechos; abrir mostra o carregamento e faz **um** pedido para a URL certa; falha com alerta; nova tentativa; trecho e justificativa exibidos, com `aria-busy=false`.
+  - **Não coberto por teste:** a não repetição do pedido a cada lote. É garantida pelas dependências do efeito (revisadas no código), mas o teste de DOM não simula um lote com a empresa aberta.
+
+### Validação
+
+`npm run ci` (lint, build, raiz **99/99**, servidor **252** + 1 pulado sem URL, dados offline) com exit 0; `git diff --check`.
+
+### PARA O CODEX
+
+- Rever o contrato da lista leve e da rota do item completo, inclusive o que sai e o que fica de fora da lista.
+- Rever as dependências do efeito do `Detalhe` e o contrato `aoExcluir: Promise<boolean>`.
+
+STATUS: AGUARDANDO REVIEW
