@@ -174,6 +174,11 @@ async function baixar(url, { fetchImpl, resolver, redirecionamentos = 3, seguir 
   catch (e) { if (e?.code === 'PRAZO' || sinal?.aborted) return { estado: 'interrompida', motivo: 'prazo do lote' }; throw e; }
 }
 
+/** Encerra o corpo que não vai ser lido (redirecionamento, erro, tipo ilegível): libera a conexão já. */
+function descartar(r) {
+  try { r.body?.cancel().catch(() => {}); } catch { /* corpo já consumido ou travado */ }
+}
+
 async function baixarSemPrazo(url, { fetchImpl, resolver, redirecionamentos, seguir, sinal }) {
   let atual = urlLegivel(url);
   const cadeia = [];
@@ -195,13 +200,14 @@ async function baixarSemPrazo(url, { fetchImpl, resolver, redirecionamentos, seg
       return e?.code === 'ENDERECO_NAO_PUBLICO' ? { estado: 'bloqueada', motivo: 'endereço não público' } : { estado: 'falhou', motivo: 'sem resposta' };
     }
     if ([301, 302, 303, 307, 308].includes(r.status)) {
+      descartar(r);
       const destino = r.headers.get('location');
       atual = destino ? urlLegivel(new URL(destino, atual).href) : null;
       continue;
     }
-    if (!r.ok) return { estado: 'falhou', motivo: `HTTP ${r.status}`, url: atual.href, cadeia };
+    if (!r.ok) { descartar(r); return { estado: 'falhou', motivo: `HTTP ${r.status}`, url: atual.href, cadeia }; }
     const tipo = r.headers.get('content-type') || '';
-    if (!/text\/html|application\/xhtml|text\/plain/i.test(tipo)) return { estado: 'sem_html', motivo: tipo.slice(0, 60), url: atual.href, cadeia };
+    if (!/text\/html|application\/xhtml|text\/plain/i.test(tipo)) { descartar(r); return { estado: 'sem_html', motivo: tipo.slice(0, 60), url: atual.href, cadeia }; }
     const partes = []; let bytes = 0;
     try {
       for await (const parte of r.body) {

@@ -531,6 +531,28 @@ test('corte de 300 não esconde a aderente; grupos e fila continuam por página 
   assert.equal((await chamar('GET', `/api/pesquisas/${id}/itens?grupo=outro`)).statusCode, 422);
 });
 
+test('corpo não lido é encerrado: redirecionamento, HTTP de erro e tipo ilegível', async (t) => {
+  const db = await bancoDeTeste();
+  t.after(() => db.close());
+  const encerrados = [];
+  // Corpo que nunca termina sozinho: só é liberado se quem recebe cancelar.
+  const corpo = (nome) => new ReadableStream({ pull: () => new Promise(() => {}), cancel: () => { encerrados.push(nome); } });
+  const fetchImpl = async (url) => {
+    if (url.endsWith('/robots.txt')) return new Response('User-agent: *\nDisallow:', { headers: { 'content-type': 'text/plain' } });
+    if (url === 'https://redir.com.br/') return new Response(corpo('redirecionamento'), { status: 301, headers: { location: 'https://redir.com.br/fim' } });
+    if (url === 'https://redir.com.br/fim') return new Response(corpo('erro'), { status: 500 });
+    if (url === 'https://pdf.com.br/') return new Response(corpo('tipo'), { headers: { 'content-type': 'application/pdf' } });
+    return new Response('nao', { status: 404 });
+  };
+  const resolver = async () => [{ address: '200.1.2.3' }];
+  const r1 = await obterPagina(db, 'https://redir.com.br/', { fetchImpl, resolver });
+  assert.equal(r1.estado, 'falhou');
+  const r2 = await obterPagina(db, 'https://pdf.com.br/', { fetchImpl, resolver });
+  assert.equal(r2.estado, 'sem_html');
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(encerrados.sort(), ['erro', 'redirecionamento', 'tipo']);
+});
+
 test('resposta HTTP hostil vira erro recuperável, sem derrubar o processo', async () => {
   const { execFile } = await import('node:child_process');
   const modulo = new URL('../src/pesquisa/fontes-web.mjs', import.meta.url).href;
