@@ -292,13 +292,15 @@ export function interpretarTese(tese, { referencia } = {}) {
   }
 
   // Localização: cidade explícita, região, nomes de estado e siglas em maiúsculas.
-  for (const m of todos(/\b(?:na cidade de|cidade de|municipio de|sediadas? em|com sede em)\s+([a-z' ]{3,40}?)(?=\s*(?:[,;.\n]|\s-\s|\(|\/|$|\s(?:e|com|que|sem|de preferencia|preferencialmente)\b))/g)) {
-    const nomeOriginal = original.slice(m.index + m[0].length - m[1].length, m.index + m[0].length).trim();
-    const uf = NOMES_UF.find(([nome]) => nome === m[1].trim());
-    if (uf) continue; // "sede em São Paulo" é tratado como estado abaixo
+  const ufs = new Set();
+  for (const m of todos(/\b(na cidade d[eo]|cidade d[eo]|municipio d[eo]|sediadas? (?:em|n[ao])|com sede (?:em|n[ao]))\s+([a-z' ]{3,40}?)(?=\s*(?:[,;.\n]|\s-\s|\(|\/|$|\s(?:e|com|que|sem|de preferencia|preferencialmente)\b))/g)) {
+    const nomeOriginal = original.slice(m.index + m[0].length - m[2].length, m.index + m[0].length).trim();
+    const uf = NOMES_UF.find(([nome]) => nome === m[2].trim());
+    if (uf && !/cidade|municipio/.test(m[1])) continue; // "sede em São Paulo" é ambíguo: tratado como estado abaixo, com nota
+    // "Cidade de São Paulo"/"cidade do Rio de Janeiro": município da capital, dentro do seu estado.
+    if (uf) ufs.add(uf[1]);
     adicionar(m, `Sede em ${maiuscula(nomeOriginal)}`, { campo: 'municipio', valor: nomeOriginal });
   }
-  const ufs = new Set();
   for (const m of todos(/\b(?:regiao |no |na |do |da )?(sudeste|nordeste|centro[- ]oeste|sul|norte)\b(?! de)/g)) {
     if (!/regiao|no |na |do |da /.test(m[0])) continue;
     REGIOES[m[1]].forEach((u) => ufs.add(u)); marcar(m);
@@ -308,7 +310,7 @@ export function interpretarTese(tese, { referencia } = {}) {
     for (const m of todos(new RegExp(`\\b${nome}\\b`, 'g'))) {
       if (usados.some(([a, b]) => m.index >= a && m.index < b)) continue;
       ufs.add(uf); marcar(m);
-      if (uf === 'SP' || uf === 'RJ') notas.push(`"${original.slice(m.index, m.index + m[0].length)}" foi lido como estado (${uf}). Para a capital, escreva "cidade de ${original.slice(m.index, m.index + m[0].length)}".`);
+      if (uf === 'SP' || uf === 'RJ') notas.push(`"${original.slice(m.index, m.index + m[0].length)}" foi lido como estado (${uf}). Para a capital, escreva "cidade ${uf === 'RJ' ? 'do' : 'de'} ${original.slice(m.index, m.index + m[0].length)}".`);
     }
   }
   for (const m of original.matchAll(/(?<![A-Za-zÀ-ÿ])(?:em|no|na|de|do|da|e|,|\/|sede|UF|estado)\s+([A-Z]{2})(?![A-Za-zÀ-ÿ])/g)) {
@@ -384,8 +386,18 @@ export function interpretarTese(tese, { referencia } = {}) {
   }
   for (const m of todos(/\b(?:empresas? )?familiar(?:es)?\b|\bde controle familiar\b|\bcontrolad[ao]s? por familias?\b|\bempresas? de dono\b|\bcontrole (?:por )?pessoas? fisicas?\b|\bsem (?:holding|fundo|private equity|socio pessoa juridica)\b|\bfounder[- ]led\b/g)) {
     if (criterios.some((c) => c.regra?.campo === 'sem_socio_pj')) { marcar(m); continue; }
+    if (/familia/.test(m[0])) {
+      // Família não está no cadastro, e família com holding também é familiar: o requisito fica para
+      // a pesquisa, e a ausência de PJ entra só como preferência, que o membro pode tornar obrigatória.
+      const trecho = marcar(m);
+      criterios.push({ id: slug(`pesquisa_controle_familiar_${criterios.length + 1}`), texto: 'Controle familiar', obrigatorio: !PREFERENCIA.test(clausulaDe(m.index)),
+        tipo: 'pesquisa', regra: null, trecho, origem: 'regras' });
+      criterios.push({ id: slug(`sem_socio_pj_${criterios.length + 1}`), texto: 'Controle por pessoas físicas (sem empresa no quadro)', obrigatorio: false,
+        tipo: 'cadastro', regra: { campo: 'sem_socio_pj', valor: true }, trecho, origem: 'regras' });
+      notas.push('"Familiar" não consta no cadastro: virou critério de pesquisa. "Sem empresa no quadro" entrou como opcional, porque família com holding também é familiar; torne-o obrigatório só se fizer sentido para a tese.');
+      continue;
+    }
     adicionar(m, 'Controle por pessoas físicas (sem empresa no quadro)', { campo: 'sem_socio_pj', valor: true });
-    if (/familia/.test(m[0])) notas.push('"Familiar" não consta no cadastro. Usei a ausência de sócio pessoa jurídica como indício; confirme o controle familiar na conversa com a empresa.');
   }
   for (const m of todos(/\bsociedades? anonimas?\b|\bs\/a\b|(?<![a-z])s\.a\.?(?![a-z])/g)) adicionar(m, 'Sociedade anônima', { campo: 'natureza', valor: ['sa'] });
   for (const m of todos(/\b(?:sociedades? )?limitadas?\b|\bltda\b/g)) adicionar(m, 'Sociedade limitada', { campo: 'natureza', valor: ['ltda'] });

@@ -27,11 +27,11 @@ test('tese vira recorte, critérios cadastrais e de pesquisa, com preferência o
   const porCampo = Object.fromEntries(r.criterios.filter((c) => c.regra).map((c) => [c.regra.campo, c]));
   assert.equal(porCampo.idade_min.regra.valor, 15);
   assert.equal(porCampo.socio_estrangeiro.regra.valor, false);
-  assert.equal(porCampo.sem_socio_pj.obrigatorio, true);
+  assert.equal(porCampo.sem_socio_pj.obrigatorio, false, '"familiar" não vira reprovação por holding');
   assert.equal(porCampo.estabelecimentos_min.regra.valor, 2);
   const pesquisa = r.criterios.filter((c) => c.tipo === 'pesquisa');
-  assert.deepEqual(pesquisa.map((c) => c.texto), ['Representem fabricantes multinacionais', 'Laboratório próprio']);
-  assert.equal(pesquisa[1].obrigatorio, false);
+  assert.deepEqual(pesquisa.map((c) => c.texto), ['Controle familiar', 'Representem fabricantes multinacionais', 'Laboratório próprio']);
+  assert.equal(pesquisa[2].obrigatorio, false);
   assert.ok(r.notas.some((n) => /Familiar/.test(n)));
   ListaCriterios.parse(r.criterios);
   const regiao = interpretarTese('Distribuidoras de médio porte no Sul, capital social acima de R$ 1,5 milhão', { referencia: REF });
@@ -556,4 +556,21 @@ test('prazo do lote chega ao DNS e ao corpo: o lote para no prazo e a empresa vo
   assert.equal(itens.etapa, 'aguardando');
   const falhas = (await db.query(`SELECT count(*)::int n FROM paginas_publicas WHERE estado='falhou'`)).rows[0].n;
   assert.equal(falhas, 0, 'interrupção por prazo não vira "site indisponível" no cache');
+});
+
+test('localização: capital explícita vira município no estado; "sede em" ambíguo fica como estado com nota', () => {
+  const regra = (t, campo) => interpretarTese(t, { referencia: REF }).criterios.find((c) => c.regra?.campo === campo)?.regra.valor;
+  const sp = interpretarTese('Distribuidoras na cidade de São Paulo que vendam solventes', { referencia: REF });
+  assert.equal(sp.filtros.uf, 'SP'); assert.equal(regra('Distribuidoras na cidade de São Paulo que vendam solventes', 'municipio'), 'São Paulo');
+  const rj = interpretarTese('Distribuidoras na cidade do Rio de Janeiro', { referencia: REF });
+  assert.equal(rj.filtros.uf, 'RJ'); assert.equal(regra('Distribuidoras na cidade do Rio de Janeiro', 'municipio'), 'Rio de Janeiro');
+  const ambigua = interpretarTese('Distribuidoras sediadas em São Paulo', { referencia: REF });
+  assert.equal(ambigua.filtros.uf, 'SP'); assert.equal(regra('Distribuidoras sediadas em São Paulo', 'municipio'), undefined);
+  assert.ok(ambigua.notas.some((n) => /cidade de São Paulo/.test(n)));
+  assert.equal(regra('Distribuidoras com sede em Campinas', 'municipio'), 'Campinas');
+  // Sede (município) e atuação (UF de estabelecimento) continuam critérios diferentes.
+  const atuacao = interpretarTese('Distribuidoras na cidade de São Paulo com atuação em MG', { referencia: REF });
+  assert.ok(atuacao.criterios.some((c) => c.regra?.campo === 'municipio'));
+  const explicito = interpretarTese('Distribuidoras sem holding no quadro', { referencia: REF });
+  assert.equal(explicito.criterios.find((c) => c.regra?.campo === 'sem_socio_pj').obrigatorio, true, 'pedido explícito continua obrigatório');
 });
