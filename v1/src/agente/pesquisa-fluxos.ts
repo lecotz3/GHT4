@@ -32,6 +32,8 @@ export interface EfeitosFluxos {
   mostrar(d: DetalhePesquisa): void
   /** Ao trocar de pesquisa: erro, aviso, entrega, seleção, linha aberta e prévia. */
   limparTela(): void
+  /** Abertura de outra pesquisa em curso: as ações da pesquisa ainda exibida ficam bloqueadas. */
+  abrindo(v: boolean): void
   rodando(v: boolean): void
   ocupado(v: boolean): void
   erro(e: unknown): void
@@ -59,7 +61,10 @@ export function criarFluxos(api: ApiFluxos, ef: EfeitosFluxos, { uuid = () => cr
   let envioAjuste: { origem: string; id: string } | null = null
   let envioRegistro: { corpo: string; chave: string } | null = null
   let paginas = paginasVazias()
+  let pedidos = 0
   const definirPaginas = (p: Paginas) => { paginas = p; ef.paginas(p) }
+  /** Ações valem só para a pesquisa efetivamente exibida; durante uma abertura, nenhuma está. */
+  const exibida = (d: DetalhePesquisa) => ativa !== null && d.pesquisa.id === ativa
 
   /** Mostra `d` se for a pesquisa aberta; `trocar` é para quem escolhe abrir outra. */
   function aplicar(d: DetalhePesquisa, trocar = false) {
@@ -74,14 +79,21 @@ export function criarFluxos(api: ApiFluxos, ef: EfeitosFluxos, { uuid = () => cr
   /** Deixa a tela sem pesquisa (nova tese): o laço em curso perde a vigência e pausa a própria geração. */
   function esvaziar() {
     parar = true; ativa = null; tela.tomar(); definirPaginas(paginasVazias())
-    ef.rodando(false); ef.ocupado(false)
+    ef.rodando(false); ef.ocupado(false); ef.abrindo(false)
   }
 
   async function abrir(id: string) {
     const g = tela.tomar()
+    // Até a resposta, nenhuma pesquisa está "exibida": a anterior continua visível, mas não
+    // aceita ações (que herdariam a vigência desta abertura).
+    const anterior = ativa
+    ativa = null; ef.abrindo(true)
     parar = true; ef.rodando(false); ef.ocupado(false); ef.limparTela()
     try { const d = await api.obter(id); if (tela.vigente(g)) aplicar(d, true) }
-    catch (e) { if (tela.vigente(g)) ef.erro(e) }
+    catch (e) {
+      // Falhou: a anterior volta a aceitar ações; operações dela que estavam em curso já perderam a vigência.
+      if (tela.vigente(g)) { ativa = anterior; ef.erro(e) }
+    } finally { if (tela.vigente(g)) ef.abrindo(false) }
   }
 
   async function montar(texto: string, frente: 'compra' | 'venda' | null) {
@@ -109,6 +121,7 @@ export function criarFluxos(api: ApiFluxos, ef: EfeitosFluxos, { uuid = () => cr
   }
 
   async function revisar(ate: 'amostra' | 'meta', base: DetalhePesquisa) {
+    if (!exibida(base)) return
     let d: DetalhePesquisa = base
     const id = base.pesquisa.id
     const g = tela.tomar()
@@ -143,6 +156,7 @@ export function criarFluxos(api: ApiFluxos, ef: EfeitosFluxos, { uuid = () => cr
   }
 
   async function iniciar(ate: 'amostra' | 'meta', r: Rascunho) {
+    if (!exibida(r.detalhe)) return
     ef.ocupado(true)
     const g = tela.observar()
     try {
@@ -150,19 +164,22 @@ export function criarFluxos(api: ApiFluxos, ef: EfeitosFluxos, { uuid = () => cr
       if (!tela.vigente(g)) return
       const d = await api.iniciar(salvo.pesquisa.id, salvo.pesquisa.versao)
       // Outra pesquisa (ou a mesma, reaberta) entrou na tela: esta fica "pronta" no histórico, sem laço.
-      if (!tela.vigente(g)) return
-      aplicar(d); ef.ocupado(false)
+      // O laço só começa se a resposta foi de fato aceita na tela.
+      if (!tela.vigente(g) || !aplicar(d)) return
+      ef.ocupado(false)
       if (d.pesquisa.estado === 'pronta') await revisar(ate, d)
     } catch (e) { if (tela.vigente(g)) ef.erro(e) } finally { if (tela.vigente(g)) ef.ocupado(false) }
   }
 
   async function ajustarLimites(d: DetalhePesquisa, campos: { meta?: number; limiteWeb?: number }) {
+    if (!exibida(d)) return
     const g = tela.observar()
     try { const n = await api.editar(d.pesquisa.id, { versao: d.pesquisa.versao, ...campos }); if (tela.vigente(g)) aplicar(n) }
     catch (e) { if (tela.vigente(g)) ef.erro(e) }
   }
 
   async function ajustar(d: DetalhePesquisa) {
+    if (!exibida(d)) return
     const id = d.pesquisa.id
     ef.ocupado(true)
     if (envioAjuste?.origem !== id) envioAjuste = { origem: id, id: uuid() }
@@ -179,6 +196,7 @@ export function criarFluxos(api: ApiFluxos, ef: EfeitosFluxos, { uuid = () => cr
   }
 
   async function registrar(d: DetalhePesquisa, selecionadas: Iterable<string>) {
+    if (!exibida(d)) return
     const id = d.pesquisa.id
     const empresas = [...selecionadas].sort()
     const corpo = JSON.stringify([id, empresas])
@@ -195,9 +213,11 @@ export function criarFluxos(api: ApiFluxos, ef: EfeitosFluxos, { uuid = () => cr
   }
 
   async function mostrarMais(d: DetalhePesquisa, grupo: Categoria, offset: number) {
+    if (!exibida(d)) return
     const id = d.pesquisa.id
     const chave = chavePaginas(d)
-    const marcado = pedirMais(paginas, chave, grupo)
+    const meu = ++pedidos
+    const marcado = pedirMais(paginas, chave, grupo, meu)
     if (!marcado) return
     definirPaginas(marcado)
     const g = tela.observar()
@@ -213,8 +233,10 @@ export function criarFluxos(api: ApiFluxos, ef: EfeitosFluxos, { uuid = () => cr
         }
       }
     }
-    // Resposta de tela superada não entra; sem resposta, só libera o botão (mesma chave).
-    definirPaginas(receberMais(paginas, chave, grupo, tela.vigente(g) && ativa === id ? r : null))
+    // Só o dono do pedido finaliza: pedido superado (tela reaberta, outro em voo) não toca em nada.
+    // Dono com tela superada só libera o próprio botão.
+    const final = receberMais(paginas, chave, grupo, tela.vigente(g) && ativa === id ? r : null, meu)
+    if (final !== paginas) definirPaginas(final)
   }
 
   return {

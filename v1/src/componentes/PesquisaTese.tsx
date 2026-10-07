@@ -35,6 +35,9 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
   const [previa, setPrevia] = useState<Previa | null>(null)
   const [calculando, setCalculando] = useState(false)
   const [ocupado, setOcupado] = useState(false)
+  // Outra pesquisa abrindo: as ações da que ainda aparece ficam bloqueadas até a resposta.
+  const [abrindo, setAbrindo] = useState(false)
+  const bloqueado = ocupado || abrindo
   const [rodando, setRodando] = useState(false)
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
@@ -66,7 +69,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
   fluxos.current ??= criarFluxos(pesquisaApi, {
     mostrar: (d) => { setDetalhe(d); setCriterios(d.pesquisa.criterios); setFiltros(d.pesquisa.filtros); setMeta(d.pesquisa.meta); setLimiteWeb(d.pesquisa.limite_web); if (d.ia !== undefined) setIa(d.ia) },
     limparTela: () => { setErro(''); setAviso(''); setEntregue(null); setSelecionadas(new Set()); setAberto(null); setPrevia(null) },
-    rodando: setRodando, ocupado: setOcupado, aviso: setAviso,
+    rodando: setRodando, ocupado: setOcupado, abrindo: setAbrindo, aviso: setAviso,
     erro: (e) => efeitosVivos.current.falhou(e),
     limparPrevia: () => setPrevia(null), limparSelecao: () => setSelecionadas(new Set()),
     entregue: setEntregue, paginas: setPaginas,
@@ -112,14 +115,14 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
   const rascunhoAtual = (): Rascunho | null => detalhe ? { detalhe, criterios, filtros, meta, limiteWeb } : null
   async function iniciar(ate: 'amostra' | 'meta') {
     const r = rascunhoAtual()
-    if (!r || ocupado) return
+    if (!r || bloqueado) return
     setErro('')
     await f.iniciar(ate, r)
   }
   function revisar(ate: 'amostra' | 'meta') { if (detalhe) { setErro(''); void f.revisar(ate, detalhe) } }
   function ajustarLimites(campos: { meta?: number; limiteWeb?: number }) { if (detalhe) void f.ajustarLimites(detalhe, campos) }
-  function ajustar() { if (detalhe && !ocupado) { setErro(''); void f.ajustar(detalhe) } }
-  function registrar() { if (detalhe && selecionadas.size && !ocupado) { setErro(''); void f.registrar(detalhe, selecionadas) } }
+  function ajustar() { if (detalhe && !bloqueado) { setErro(''); void f.ajustar(detalhe) } }
+  function registrar() { if (detalhe && selecionadas.size && !bloqueado) { setErro(''); void f.registrar(detalhe, selecionadas) } }
 
   function alternar(id: string, campo: 'obrigatorio') { setCriterios((cs) => cs.map((c) => c.id === id ? { ...c, [campo]: !c[campo] } : c)) }
   function remover(id: string) { setCriterios((cs) => cs.length > 1 ? cs.filter((c) => c.id !== id) : cs) }
@@ -244,9 +247,9 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
             </div>
           </details>
           <div className="pesquisa-acoes">
-            <button className="agente-btn-primario" onClick={() => void iniciar(temPesquisa ? 'amostra' : 'meta')} disabled={ocupado || rodando || !podeUsar || !criterios.length}>
+            <button className="agente-btn-primario" onClick={() => void iniciar(temPesquisa ? 'amostra' : 'meta')} disabled={bloqueado || rodando || !podeUsar || !criterios.length}>
               {temPesquisa ? `Revisar as ${Math.min(AMOSTRA, funil?.aprovadasCadastro ?? AMOSTRA) || AMOSTRA} primeiras` : 'Aplicar critérios'}<IconeRede nome="seta" /></button>
-            {temPesquisa && <button className="agente-btn-secundario" onClick={() => void iniciar('meta')} disabled={ocupado || rodando || !podeUsar}>Revisar até a meta</button>}
+            {temPesquisa && <button className="agente-btn-secundario" onClick={() => void iniciar('meta')} disabled={bloqueado || rodando || !podeUsar}>Revisar até a meta</button>}
             <span className="text-xs text-suave">{temPesquisa ? 'A amostra mostra se os critérios estão certos antes do gasto maior.' : 'Só critérios de cadastro: o resultado sai na hora.'}</span>
           </div>
         </section> : <>
@@ -255,10 +258,10 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
               <div className="pesquisa-barra" aria-hidden="true"><span style={{ width: `${total ? Math.round((100 * revisadas) / total) : 0}%` }} /></div></div>
             <div className="pesquisa-controle-botoes">
               {rodando ? <button className="agente-btn-secundario" onClick={() => f.pausar()}><IconeRede nome="pausa" />Pausar</button>
-                : ['pronta', 'pausada', 'em_andamento'].includes(p.estado) && <button className="agente-btn-primario" onClick={() => void revisar('meta')} disabled={!podeUsar}><IconeRede nome="continuar" />Continuar até a meta</button>}
-              {p.estado === 'concluida' && (detalhe?.contagens.pendentes ?? 0) > 0 && <button className="agente-btn-secundario" onClick={() => void ajustarLimites({ meta: p.meta + 10 })} disabled={rodando}>Ampliar meta (+10)</button>}
-              {p.estado === 'pausada' && /Limite de/.test(p.motivo_estado || '') && <button className="agente-btn-secundario" onClick={() => void ajustarLimites({ limiteWeb: p.limite_web + 40 })} disabled={rodando}>Ler mais 40 sites</button>}
-              <button className="agente-btn-secundario" onClick={() => void ajustar()} disabled={rodando || ocupado || !podeUsar}><IconeRede nome="funil" />Ajustar critérios</button>
+                : ['pronta', 'pausada', 'em_andamento'].includes(p.estado) && <button className="agente-btn-primario" onClick={() => void revisar('meta')} disabled={bloqueado || !podeUsar}><IconeRede nome="continuar" />Continuar até a meta</button>}
+              {p.estado === 'concluida' && (detalhe?.contagens.pendentes ?? 0) > 0 && <button className="agente-btn-secundario" onClick={() => void ajustarLimites({ meta: p.meta + 10 })} disabled={rodando || bloqueado}>Ampliar meta (+10)</button>}
+              {p.estado === 'pausada' && /Limite de/.test(p.motivo_estado || '') && <button className="agente-btn-secundario" onClick={() => void ajustarLimites({ limiteWeb: p.limite_web + 40 })} disabled={rodando || bloqueado}>Ler mais 40 sites</button>}
+              <button className="agente-btn-secundario" onClick={() => void ajustar()} disabled={rodando || bloqueado || !podeUsar}><IconeRede nome="funil" />Ajustar critérios</button>
             </div>
           </section>
           <Legenda criterios={p.criterios} />
@@ -283,7 +286,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
                   {aberto === i.empresa_id && <tr className="pesquisa-detalhe-linha"><td colSpan={3 + p.criterios.length}><Detalhe item={i} criterios={p.criterios} /></td></tr>}
                 </Fragment>)}</tbody>
               </table></div></>}
-              {g.restantes > 0 && g.offset < g.total && <button className="agente-link mt-2 text-xs" onClick={() => void mostrarMais(g.categoria, g.offset)} disabled={g.carregando} aria-busy={g.carregando}>
+              {g.restantes > 0 && g.offset < g.total && <button className="agente-link mt-2 text-xs" onClick={() => void mostrarMais(g.categoria, g.offset)} disabled={g.carregando || abrindo} aria-busy={g.carregando}>
                 {g.carregando ? 'Carregando…' : <>{g.itens.length ? 'Mostrar mais' : 'Mostrar empresas'} ({numero(g.restantes)} {g.itens.length ? 'restantes' : 'no grupo'})<IconeRede nome="seta" /></>}</button>}
             </details>)}
             {(detalhe?.contagens.pendentes ?? 0) > 0 && <p className="pesquisa-fila"><IconeRede nome="tempo" />{numero(detalhe?.contagens.pendentes ?? 0)} {detalhe?.contagens.pendentes === 1 ? 'empresa aguarda' : 'empresas aguardam'} pesquisa no site.</p>}
@@ -292,7 +295,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
           {selecionadas.size > 0 && <div className="pesquisa-barra-selecao" role="region" aria-label="Empresas selecionadas">
             <span><strong>{selecionadas.size}</strong> selecionada{selecionadas.size > 1 ? 's' : ''}</span>
             <button className="agente-btn-secundario" onClick={() => setSelecionadas(new Set())}>Limpar</button>
-            <button className="agente-btn-primario" onClick={() => void registrar()} disabled={ocupado}>{ocupado ? 'Enviando…' : 'Levar para o trabalho'}<IconeRede nome="seta" /></button>
+            <button className="agente-btn-primario" onClick={() => void registrar()} disabled={bloqueado}>{ocupado ? 'Enviando…' : 'Levar para o trabalho'}<IconeRede nome="seta" /></button>
           </div>}
         </>}
       </div>

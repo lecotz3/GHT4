@@ -26,7 +26,7 @@ function harness() {
   const tela = { mostrado: null, aviso: '', erros: [], ocupado: false, rodando: false, paginas: null, entregue: null };
   let n = 0;
   const f = criarFluxos(api, {
-    mostrar: (d) => { tela.mostrado = d; }, limparTela: () => { tela.aviso = ''; tela.entregue = null; },
+    mostrar: (d) => { tela.mostrado = d; }, limparTela: () => { tela.aviso = ''; tela.entregue = null; }, abrindo: (v) => { tela.abrindo = v; },
     rodando: (v) => { tela.rodando = v; }, ocupado: (v) => { tela.ocupado = v; }, erro: (e) => tela.erros.push(e),
     aviso: (t) => { tela.aviso = t; }, limparPrevia: () => {}, limparSelecao: () => {}, entregue: (v) => { tela.entregue = v; },
     paginas: (p) => { tela.paginas = p; }, recarregarLista: () => {},
@@ -223,4 +223,77 @@ test('paginação: resposta recebida depois de sair não volta ao reabrir; lista
     assert.deepEqual(h.tela.erros, []);
     assert.equal(montarGrupos(h.tela.mostrado, h.tela.paginas).find((x) => x.categoria === 'provavel').carregando, false);
   }
+});
+
+test('abertura pendente de B bloqueia as ações de A; falha na abertura devolve A', async () => {
+  const h = harness();
+  await abrir(h, 'A', { estado: 'rascunho', versao: 3 });
+  const a = h.tela.mostrado;
+  const abrindoB = h.f.abrir('B');
+  const getB = await h.chamada('obter');
+  assert.equal(h.tela.abrindo, true, 'a tela sinaliza a abertura para bloquear os controles');
+  // Cliques ainda na tela de A durante a abertura de B: nenhum vira chamada.
+  await h.f.iniciar('meta', { detalhe: a, criterios: [], filtros: a.pesquisa.filtros, meta: 20, limiteWeb: 40 });
+  await h.f.revisar('meta', a);
+  await h.f.registrar(a, ['cnpj11111111']);
+  await h.f.ajustar(a);
+  await h.f.ajustarLimites(a, { meta: 30 });
+  await h.f.mostrarMais(a, 'provavel', 0);
+  assert.deepEqual(h.chamadas.filter((c) => c.metodo !== 'obter').map((c) => c.metodo), []);
+  getB.resolve(det('B'));
+  await abrindoB;
+  assert.equal(h.tela.mostrado.pesquisa.id, 'B');
+  assert.equal(h.tela.rodando, false);
+  assert.equal(h.tela.abrindo, false);
+  // Abertura de C falha: B volta a aceitar ações.
+  const abrindoC = h.f.abrir('C');
+  (await h.chamada('obter')).reject(new Error('fora do ar'));
+  await abrindoC;
+  assert.equal(h.tela.abrindo, false);
+  assert.equal(h.tela.erros.length, 1);
+  const entrega = h.f.registrar(h.tela.mostrado, ['cnpj22222222']);
+  const pr = await h.chamada('registrar');
+  assert.equal(pr.args[0], 'B');
+  pr.resolve({ conversa: { id: 'cb' } });
+  await entrega;
+  assert.deepEqual(h.tela.entregue, { conversaId: 'cb', n: 1 });
+});
+
+test('iniciar só começa o laço se a resposta foi aceita na tela', async () => {
+  const h = harness();
+  await abrir(h, 'A', { estado: 'rascunho' });
+  const a = h.tela.mostrado;
+  const ini = h.f.iniciar('meta', { detalhe: a, criterios: a.pesquisa.criterios, filtros: a.pesquisa.filtros, meta: a.pesquisa.meta, limiteWeb: 40 });
+  const pi = await h.chamada('iniciar');
+  const abrindoB = h.f.abrir('B');
+  pi.resolve(det('A', { estado: 'pronta' }));
+  await ini;
+  (await h.chamada('obter')).resolve(det('B'));
+  await abrindoB;
+  assert.ok(!h.chamadas.some((c) => c.metodo === 'avancar'), 'nenhum laço de A');
+  assert.equal(h.tela.mostrado.pesquisa.id, 'B');
+  assert.equal(h.tela.rodando, false);
+});
+
+test('pedido de paginação superado não libera o botão nem aplica cursor do pedido novo em voo', async () => {
+  const h = harness();
+  await abrir(h, 'A', { provavel: 3, revisadas: 3 });
+  const velho = h.f.mostrarMais(h.tela.mostrado, 'provavel', 0);
+  const p1 = await h.chamada('itens');
+  await abrir(h, 'B');
+  await abrir(h, 'A', { provavel: 3, revisadas: 3 });
+  const novo = h.f.mostrarMais(h.tela.mostrado, 'provavel', 0);
+  const p2 = await h.chamada('itens');
+  const grupo = () => montarGrupos(h.tela.mostrado, h.tela.paginas).find((x) => x.categoria === 'provavel');
+  // A resposta antiga chega por último entre as duas: não toca no pedido novo.
+  p1.resolve({ itens: [{ empresa_id: 'velha', categoria: 'provavel', etapa: 'revisada', vereditos: [] }], total: 3, proximoOffset: 1, marca: 'm1' });
+  await velho;
+  assert.equal(grupo().carregando, true, 'o botão do pedido novo continua bloqueado');
+  assert.deepEqual(grupo().itens, []);
+  // Clique repetido enquanto o novo está em voo não despacha outra chamada.
+  await h.f.mostrarMais(h.tela.mostrado, 'provavel', 0);
+  assert.equal(h.chamadas.filter((c) => c.metodo === 'itens').length, 2);
+  p2.resolve({ itens: [{ empresa_id: 'nova', categoria: 'provavel', etapa: 'revisada', vereditos: [] }], total: 3, proximoOffset: 1, marca: 'm1' });
+  await novo;
+  assert.deepEqual([grupo().itens.map((i) => i.empresa_id), grupo().offset, grupo().carregando], [['nova'], 1, false]);
 });

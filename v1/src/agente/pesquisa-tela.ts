@@ -5,12 +5,13 @@ import type { Categoria, DetalhePesquisa, ItemPesquisa } from './pesquisa'
 export const CATEGORIAS: Categoria[] = ['aderente', 'provavel', 'a_confirmar', 'nao_aderente']
 
 /**
- * Continuação de um grupo além da primeira resposta. Vale só para a pesquisa e a "base"
- * (número de revisadas) em que foi pedida: quando um lote revisa mais empresas, categorias e
- * aderências podem mudar de lugar, e a continuação antiga é descartada (basta pedir de novo).
+ * Continuação de um grupo além da primeira resposta. Vale só para a pesquisa e a lista em que
+ * foi pedida, identificada pela marca do servidor (o número de revisadas é só o fallback de
+ * compatibilidade): quando a lista muda, a continuação antiga é descartada (basta pedir de novo).
  */
-/** `proximo`: cursor devolvido pelo servidor; null = acabou; ausente = nada carregado ainda. */
-export interface Continuacao { itens: ItemPesquisa[]; proximo?: number | null; carregando: boolean }
+/** `proximo`: cursor devolvido pelo servidor; null = acabou; ausente = nada carregado ainda.
+ *  `pedido`: dono do pedido em voo; só ele finaliza (itens, cursor, botão). */
+export interface Continuacao { itens: ItemPesquisa[]; proximo?: number | null; carregando: boolean; pedido?: number }
 export interface Paginas { chave: string; grupos: Partial<Record<Categoria, Continuacao>> }
 
 // A marca vem do servidor, calculada no mesmo snapshot da página; sem ela, o número de revisadas.
@@ -39,19 +40,24 @@ export function montarGrupos(d: DetalhePesquisa | null | undefined, paginas: Pag
   }).filter((g) => g.total > 0)
 }
 
-/** Marca o pedido em voo. Devolve null se já há um pedido desse grupo (clique repetido). */
-export function pedirMais(p: Paginas, chave: string, grupo: Categoria): Paginas | null {
+/** Marca o pedido `pedido` em voo. Devolve null se já há um pedido desse grupo (clique repetido). */
+export function pedirMais(p: Paginas, chave: string, grupo: Categoria, pedido = 0): Paginas | null {
   const atual = p.chave === chave ? p : paginasVazias(chave)
   const c = atual.grupos[grupo]
   if (c?.carregando) return null
-  return { chave, grupos: { ...atual.grupos, [grupo]: { itens: c?.itens ?? [], proximo: c?.proximo, carregando: true } } }
+  return { chave, grupos: { ...atual.grupos, [grupo]: { itens: c?.itens ?? [], proximo: c?.proximo, carregando: true, pedido } } }
 }
 
-/** Aplica a resposta só se ainda é a mesma pesquisa/base; o cursor é o que o servidor devolveu. */
-export function receberMais(p: Paginas, chave: string, grupo: Categoria, r: { itens: ItemPesquisa[]; proximoOffset: number | null } | null): Paginas {
+/**
+ * Finaliza o pedido `pedido`: só se ainda é a mesma lista E ele ainda é o dono do grupo. Resposta
+ * de pedido superado (tela reaberta, outro pedido em voo) não aplica itens, cursor nem libera o
+ * botão. `r` null = sem resposta aproveitável: só libera o botão do próprio pedido.
+ */
+export function receberMais(p: Paginas, chave: string, grupo: Categoria, r: { itens: ItemPesquisa[]; proximoOffset: number | null } | null, pedido = 0): Paginas {
   if (p.chave !== chave) return p
   const c = p.grupos[grupo]
-  if (!r) return { chave, grupos: { ...p.grupos, [grupo]: { itens: c?.itens ?? [], proximo: c?.proximo, carregando: false } } }
+  if (!c?.carregando || c.pedido !== pedido) return p
+  if (!r) return { chave, grupos: { ...p.grupos, [grupo]: { itens: c.itens, proximo: c.proximo, carregando: false } } }
   const vistos = new Set((c?.itens ?? []).map((i) => i.empresa_id))
   const novos = r.itens.filter((i) => !vistos.has(i.empresa_id) && (vistos.add(i.empresa_id), true))
   return { chave, grupos: { ...p.grupos, [grupo]: { itens: [...(c?.itens ?? []), ...novos], proximo: r.proximoOffset, carregando: false } } }
