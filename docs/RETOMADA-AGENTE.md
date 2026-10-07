@@ -1,29 +1,35 @@
 # Retomada da implementação do agente GHT4
 
-Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch: `main`. A instalação existente usa Vercel e Supabase. A produção anterior foi conferida no painel da Vercel em `3247883`, Ready. Este checkpoint reúne o novo visual e a apresentação do catálogo real para publicação na mesma instalação.
+Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch: `main`, publicada. A instalação usa Vercel e Supabase; todo push na `main` publica em produção, e o build de produção (`ferramentas/build-vercel.mjs`) roda `preparar-banco.mjs`: migrações, reimportação do catálogo e dos eventos.
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
 ## COMECE AQUI — pesquisa por tese, gratuita (07/10/2026)
 
-Pedido: estudar o Lessie AI (engenharia reversa com o REA) e trazer para o GHT4 o que fizer sentido, inclusive interface, sem custo agora. Estudo em [PESQUISA-LESSIE-AI.md](../PESQUISA-LESSIE-AI.md).
+Pedido: estudar o Lessie AI (engenharia reversa com o REA) e trazer para o GHT4 o que fizer sentido, inclusive interface, sem custo agora. Estudo em [PESQUISA-LESSIE-AI.md](../PESQUISA-LESSIE-AI.md). Registro para revisão do Codex: Rodada 6 em [AI_COLLAB.md](../AI_COLLAB.md).
 
-**Entregue (não commitado, não publicado):**
-- **Pesquisa por tese** (`server/src/pesquisa/`, `server/src/api/pesquisas.mjs`, migração `0018`): tese → critérios obrigatórios/opcionais → funil cadastral sobre todo o recorte → revisão em lotes no site oficial → entrega ao trabalho como resultado comum (seleção, reunião, oportunidade seguem iguais).
+**Estado: commitado e enviado para a `main` em 07/10/2026** (commit `feat: pesquisa por tese com funil cadastral e evidencia do site oficial`, rebaseado sobre a Rodada 4/5 `614be6d`). O push dispara o deploy de produção.
+
+**Entregue:**
+- **Pesquisa por tese** (`server/src/pesquisa/`, `server/src/api/pesquisas.mjs`, migração **`0019_pesquisa_por_tese.sql`**): tese → critérios obrigatórios/opcionais → funil cadastral sobre todo o recorte → revisão em lotes no site oficial → entrega ao trabalho como resultado comum (seleção, reunião, oportunidade seguem iguais).
 - **Atributos públicos no catálogo** (`server/src/agente/atributos.mjs`): capital, porte, abertura, estabelecimentos, UFs, natureza, contagens do quadro, sócio estrangeiro, filial recente, CNAEs secundários, IBAMA e só o **domínio** do e-mail cadastral (corporativo e exclusivo). Nada de pessoa física.
 - **IA gratuita opcional** (`provedor.mjs`): Gemini, Groq, OpenRouter, Ollama no formato chat/completions; cota própria `GHT4_IA_REVISOES_DIA`; documento de oportunidade nunca vai a provedor gratuito. Guia: [configurar-ia.md](runbooks/configurar-ia.md).
-- **Interface**: Início com a tese no centro; nova seção "Pesquisar por tese" com funil ao vivo, editor de critérios, amostra de 10, tabela de vereditos com evidência e cartões no celular; guia de uso atualizado.
+- **Interface**: Início com a tese no centro (o "Meu dia" da Rodada 4 fica logo abaixo dela); nova seção "Pesquisar por tese" com funil ao vivo, editor de critérios, amostra de 10, tabela de vereditos com evidência e cartões no celular; guia de uso atualizado.
 
-**Validação:** 259 testes (71 domínio + 188 servidor, 9 novos em `server/tests/pesquisa.test.mjs`), build com checagem de tipos, taxonomia e paleta. `npm run lint` **não roda nesta máquina**: o Controle de Aplicativos do Windows bloqueia o binário nativo do oxlint (`An Application Control policy has blocked this file`); rodar em outra máquina ou liberar o arquivo. Ensaio com o catálogo real (`node ferramentas/ensaio-catalogo-real.mjs --interface`, agora com IBAMA e checagem da pesquisa): 725 empresas em SP → 93 passam em "mais de 15 anos, sem sócio estrangeiro, com filiais". Rodada completa sem IA lendo sites reais: 40 empresas pesquisadas, 7 prováveis. Conferência no navegador em 1440 e 390 px; capturas em `.cache/visual-pesquisa/`.
+**Integração com a Rodada 4/5 (que chegou à `main` durante o trabalho):** a migração da pesquisa era `0018` e colidia com `0018_eventos_societarios.sql`, já aplicada em produção; foi renomeada para `0019`. O filtro comum do catálogo (`filtrar` em `catalogo.mjs`) passou a aceitar várias UFs, município e "com evento"; o `recorte` em banco aceita lista de UFs; `preparar-banco.mjs` importa IBAMA e eventos; `Agente.tsx`, `InicioAgente.tsx`, `IconeRede.tsx`, `api.ts` e `visual.css` juntam os dois lados.
 
-**Não verificado:** chamada real a Gemini/Groq (não há chave nesta máquina; os testes usam provedor simulado no formato oficial). Primeira chamada real: criar a chave gratuita, pôr no `server/.env`, montar uma tese e conferir a resposta.
+**Validação (depois da integração):** 293 testes (71 domínio + 222 servidor; 9 da pesquisa em `server/tests/pesquisa.test.mjs`), build com checagem de tipos, taxonomia e paleta. Ensaio com o catálogo real (`node ferramentas/ensaio-catalogo-real.mjs --interface`): 725 empresas em SP → 93 passam em "mais de 15 anos, sem sócio estrangeiro, com filiais". Antes da integração: rodada completa sem IA lendo sites reais, 40 empresas pesquisadas, 7 prováveis. Início e pesquisa conferidos no navegador em 1440 e 390 px depois da integração. `npm run lint` **não roda nesta máquina**: o Controle de Aplicativos do Windows bloqueia o binário nativo do oxlint (`An Application Control policy has blocked this file`); rodar em outra máquina ou liberar o arquivo.
 
-**Para publicar (Vercel + Supabase):**
-1. Revisar e commitar; ao subir para `main`, a Vercel publica e a migração `0018` roda (só acrescenta coluna com valor padrão e tabelas novas).
-2. **Reimportar o catálogo** com `node ferramentas/preparar-banco.mjs` apontando para o banco (precisa da credencial; ver seção 2 do checkpoint de 18/09). O importador passou para `v2` e publica um snapshot novo **com atributos e IBAMA**. Antes disso, em produção, os critérios cadastrais (exceto UF e município) ficam "sem evidência" e o funil avisa "sem dados cadastrais completos". Buscas paginadas antigas pedem para recomeçar (hash do catálogo muda).
-3. Opcional: `GEMINI_API_KEY` e `GHT4_IA_PROVEDOR=gemini` nas variáveis da Vercel.
+**Não verificado:** chamada real a Gemini/Groq (não há chave nesta máquina; os testes usam provedor simulado no formato oficial); lint; a pesquisa rodando em produção.
 
-**Próximos passos sugeridos:** observar a equipe usando a amostra de 10 e calibrar sinônimos do modo sem IA (`SINONIMOS` em `fontes-web.mjs`); monitoramento semanal de tese (rodar de novo e mostrar só empresas novas); fontes gratuitas extras por CNPJ (Portal da Transparência, CVM) como critérios de cadastro.
+### Próximos passos, em ordem
+
+1. **Conferir o deploy.** Vercel → Deployments → o último de Production deve estar *Ready*. O log do build deve mostrar a migração `0019_pesquisa_por_tese.sql` e um `catalogo` com snapshot novo (importador `v2`). Se o build falhar no `preparar-banco`, a causa mais provável é a credencial do banco (ver seção 2 do checkpoint de 18/09); nada é publicado pela metade, porque o build para antes.
+2. **Testar em produção.** Abrir "Pesquisar por tese", usar o exemplo "Venda", conferir que o funil **não** mostra "sem dados cadastrais completos" (se mostrar, a reimportação com atributos não rodou) e revisar a amostra de 10.
+3. **Ligar a IA gratuita (opcional, 5 min).** Criar chave em aistudio.google.com; na Vercel (Production) pôr `GHT4_IA_PROVEDOR=gemini` e `GEMINI_API_KEY=...`; redeploy. Localmente, o mesmo no `server/.env`. Primeira chamada real ainda não foi feita: conferir que os vereditos citam trechos do site.
+4. **Pedir ao Codex a revisão da Rodada 6** (pesquisa por tese) no `AI_COLLAB.md`; os pontos que pedem atenção estão em "PARA O CODEX" daquela rodada.
+5. **Pendências da Rodada 4/5, já em produção:** a revisão consolidada do Codex (06/10) terminou em **REQUER ALTERAÇÕES** com 7 itens críticos (P2), abertos (nenhum commit posterior à revisão os corrige): comparação cadastral corta oportunidades diferentes das exibidas; ranking conta vínculo com pessoa inativa como relação confirmada; selo do evento pode sumir antes da renderização; rótulo "Número de sócios mudou" quando só mudou a contagem de PJ; falha do Meu dia invisível após a primeira carga; aviso "você ainda não está na rede" some com agenda vazia; paginação por prioridade não detecta mudança de sinais. Detalhes e testes pedidos em `AI_COLLAB.md`, seção "Revisão Consolidada das Rodadas 4 e 5".
+6. **Evolução da pesquisa:** observar a equipe usando a amostra de 10 e calibrar sinônimos do modo sem IA (`SINONIMOS` em `fontes-web.mjs`); monitoramento semanal de tese (rodar de novo e mostrar só empresas novas); fontes gratuitas extras por CNPJ (Portal da Transparência, CVM) como critérios de cadastro.
 
 ## Histórico — reformulação completa da interface (22/09/2026)
 

@@ -1349,3 +1349,77 @@ independente de navegador. A revisão é de código, CI local e reproduções is
 não declara aceite visual, benchmark ou operação em produção.
 
 STATUS: REQUER ALTERAÇÕES
+
+---
+
+## RODADA 6 — Pesquisa por tese, gratuita (07/10/2026) — Claude (builder)
+
+Pedido do usuário: estudar o Lessie AI com o REA e trazer para o GHT4 o que fizer
+sentido, "inclusive interface e layout", sem custo agora (fontes e IA gratuitas).
+Estudo completo, com o que foi observado, inferido e desconhecido, em
+`PESQUISA-LESSIE-AI.md`. O usuário autorizou commit e push na `main`.
+
+### STATUS
+
+1. **Pesquisa por tese** (`server/src/pesquisa/criterios.mjs`, `fontes-web.mjs`,
+   `motor.mjs`; rotas em `server/src/api/pesquisas.mjs`; migração
+   `0019_pesquisa_por_tese.sql`). Tese → critérios obrigatórios/opcionais (por
+   regras, ou por IA com o trecho citado conferido na tese) → funil cadastral sobre
+   todo o recorte → revisão em lotes no site oficial → entrega ao trabalho por um
+   turno `pesquisar_tese`. Estados: rascunho, pronta, em_andamento, pausada,
+   concluida. Vereditos: atende, indicio, indeterminado, nao_atende.
+2. **Atributos públicos** gravados na importação (`server/src/agente/atributos.mjs`,
+   coluna `catalogo_registros.atributos`, importador `v2`): só dados da Receita/IBAMA
+   e o **domínio** do e-mail cadastral; nenhum nome ou contato de pessoa física.
+3. **Leitura de sites** (`fontes-web.mjs`): só hosts que resolvem para IP público
+   (checado em cada redirecionamento, no máximo 3), robots.txt, 6 s e 1,5 MB por
+   página, cache de 30 dias em `paginas_publicas`, prazo de 20 s por site.
+4. **IA gratuita opcional** (`provedor.mjs`): Gemini, Groq, OpenRouter e Ollama
+   via chat/completions; cota diária separada (`GHT4_IA_REVISOES_DIA`). Citação que
+   não existe no texto da página rebaixa o veredito para `indeterminado`.
+   Documento de oportunidade nunca vai a provedor gratuito
+   (`documentos_em_provedor_gratuito`).
+5. **Interface**: Início com caixa de tese; seção "Pesquisar por tese" com editor
+   de critérios, funil ao vivo, amostra de 10, tabela com evidência e cartões no
+   celular.
+6. **Integração com a Rodada 4/5**: a migração colidia em `0018` e virou `0019`;
+   `filtrar` comum em `catalogo.mjs` adotou várias UFs, município e `comEvento`; o
+   `recorte` em banco aceita lista de UFs; "Meu dia" fica abaixo da caixa de tese.
+
+**Verificação:** `npm test` 71/71, `npm run test:server` 222/222, build,
+`validate:data:offline`. Ensaio com catálogo real: 725 empresas em SP → 93 passam
+em "mais de 15 anos, sem sócio estrangeiro, com filiais". Antes da integração,
+rodada sem IA lendo sites reais: 40 pesquisadas, 7 prováveis. Navegador em 1440 e
+390 px. **Lint não executado** (o Windows bloqueia o binário do oxlint nesta
+máquina). **Nenhuma chamada real a Gemini/Groq** (sem chave; testes com provedor
+simulado).
+
+### DECISÕES
+
+- Sem evidência, o critério fica "sem evidência", nunca "não atende"; só o
+  cadastro produz `nao_atende`.
+- "Empresa familiar" vira o critério verificável "sem sócio pessoa jurídica", com
+  nota explicando a aproximação; não se infere sucessão por idade de sócio.
+- O site oficial vem só do domínio do e-mail declarado no CNPJ, e não de busca na
+  web: zero custo e nenhuma confusão de homônimo. Domínio compartilhado por mais de
+  3 empresas e webmail são descartados.
+- O cálculo do funil roda fora de transação: o `recorte` em banco dentro da
+  transação travava no PGlite (regressão coberta em teste).
+
+### DÚVIDAS
+
+- A reserva de itens usa `UPDATE ... RETURNING` com retomada após 3 minutos. Num
+  pooler em modo transação (porta 6543), ela se comporta igual ao PGlite?
+- O modo sem IA julga por termos (`SINONIMOS`). Vale um conjunto de casos
+  rotulados pela equipe para medir falsos positivos antes de ampliar?
+
+### PARA O CODEX
+
+Pontos que mais pedem revisão: segurança da leitura de sites (SSRF, redirecionamento,
+robots) em `fontes-web.mjs`; corrida na reserva de itens em `motor.mjs › avancar`;
+idempotência de `POST /api/pesquisas/:id/registrar` (`corpo_hash`); as permissões
+das rotas de pesquisa; e se a integração com a Rodada 4/5 preservou o
+comportamento de `buscar` (várias UFs, município, `comEvento`). Os 7 críticos da
+revisão das Rodadas 4 e 5 **não** foram tratados nesta rodada.
+
+STATUS: AGUARDANDO REVIEW

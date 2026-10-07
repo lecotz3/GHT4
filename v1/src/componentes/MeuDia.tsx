@@ -34,7 +34,7 @@ export function MeuDia({ visivel, aoAbrirCrm, aoRede, aoOportunidades }: { visiv
       <span className={c.hoje ? 'is-hoje' : ''}><strong>{c.hoje}</strong>para hoje</span>
       <span><strong>{c.semana}</strong>nos próximos 7 dias</span>
     </div>}
-    {nada ? <div className="agente-meu-dia-livre"><IconeRede nome="certo" /><p>Nada pendente com você agora.<span>Comece uma pesquisa abaixo ou confira a carteira da equipe.</span></p></div> : <div className="agente-meu-dia-grade">
+    {nada ? <div className="agente-meu-dia-livre"><IconeRede nome="certo" /><p>Nada pendente com você agora.<span>Comece uma pesquisa acima ou confira a carteira da equipe.</span></p></div> : <div className="agente-meu-dia-grade">
       {!!c?.itens.length && <ul className="agente-meu-dia-lista" aria-label="Seus próximos compromissos">{c.itens.map((i, n) => {
         const quando = i.prazo < dados.hoje ? 'Vencido' : i.prazo === dados.hoje ? 'Hoje' : dataCurta(i.prazo)
         return <li key={`${i.oportunidade_id}-${n}`}><button onClick={() => aoAbrirCrm(i.oportunidade_id)}>
