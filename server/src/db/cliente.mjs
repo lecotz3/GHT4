@@ -200,7 +200,8 @@ export function semParametrosTls(url) {
   } catch { return url; }
 }
 
-async function abrirPostgres(url) {
+/** Pool próprio, fora da instância global: também usado pelo ensaio de concorrência. */
+export async function abrirPostgres(url) {
   const { default: pg } = await import('pg');
   const pool = new pg.Pool({
     connectionString: semParametrosTls(url),
