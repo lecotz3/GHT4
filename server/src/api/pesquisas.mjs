@@ -40,10 +40,27 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
      Contagens são globais; o resto de cada grupo vem por `GET /api/pesquisas/:id/itens`. */
   const ITENS = 'empresa_id,ordem,empresa,etapa,vereditos,aderencia,categoria,site,revisado_em';
   const ORDEM_SQL = `CASE categoria WHEN 'aderente' THEN 0 WHEN 'provavel' THEN 1 WHEN 'a_confirmar' THEN 2 ELSE 3 END, aderencia DESC, ordem`;
+  /* Marca do conjunto revisado: muda quando uma empresa é revisada ou muda de categoria/aderência,
+     ou seja, sempre que a ordenação das revisadas pode mudar. Calculada na MESMA instrução que lê
+     a página, para descrever exatamente a lista entregue; a continuação a confronta. */
+  const MARCA_SQL = `md5(COALESCE(string_agg(empresa_id||':'||categoria||':'||aderencia, ',' ORDER BY empresa_id) FILTER (WHERE etapa='revisada'), ''))`;
   async function detalhar(p, { limite = 300, fila = 50 } = {}) {
-    const revisadas = (await db.query(`SELECT ${ITENS} FROM pesquisa_itens WHERE pesquisa_id=$1 AND etapa='revisada' ORDER BY ${ORDEM_SQL} LIMIT $2`, [p.id, limite])).rows;
-    const pendentes = (await db.query(`SELECT ${ITENS} FROM pesquisa_itens WHERE pesquisa_id=$1 AND etapa<>'revisada' ORDER BY ordem LIMIT $2`, [p.id, fila])).rows;
-    return { pesquisa: p, contagens: await contagens(p.id), itens: [...revisadas, ...pendentes].map(semAtributos),
+    // Uma instrução, um snapshot: contagens, marca, revisadas e fila são do mesmo instante.
+    const linhas = (await db.query(`WITH base AS MATERIALIZED (SELECT ${ITENS} FROM pesquisa_itens WHERE pesquisa_id=$1),
+      resumo AS (SELECT ${MARCA_SQL} AS marca, count(*)::int AS total,
+          count(*) FILTER (WHERE etapa='revisada')::int AS revisadas, count(*) FILTER (WHERE etapa<>'revisada')::int AS pendentes,
+          count(*) FILTER (WHERE etapa='revisada' AND categoria='aderente')::int AS aderente,
+          count(*) FILTER (WHERE etapa='revisada' AND categoria='provavel')::int AS provavel,
+          count(*) FILTER (WHERE etapa='revisada' AND categoria='a_confirmar')::int AS a_confirmar,
+          count(*) FILTER (WHERE etapa='revisada' AND categoria='nao_aderente')::int AS nao_aderente FROM base),
+      pagina AS (
+        (SELECT *, 0 AS grupo_, row_number() OVER (ORDER BY ${ORDEM_SQL}) AS pos_ FROM base WHERE etapa='revisada' ORDER BY ${ORDEM_SQL} LIMIT $2)
+        UNION ALL
+        (SELECT *, 1, row_number() OVER (ORDER BY ordem) FROM base WHERE etapa<>'revisada' ORDER BY ordem LIMIT $3))
+      SELECT r.*, to_jsonb(x) AS item FROM resumo r LEFT JOIN pagina x ON true ORDER BY x.grupo_, x.pos_`, [p.id, limite, fila])).rows;
+    const { marca, total, revisadas, pendentes, aderente, provavel, a_confirmar, nao_aderente } = linhas[0];
+    const itens = linhas.filter((l) => l.item).map(({ item: { grupo_, pos_, ...i } }) => semAtributos(i));
+    return { pesquisa: p, marca, contagens: { total, revisadas, pendentes, aderente, provavel, a_confirmar, nao_aderente }, itens,
       ia: servicoIA ? { provedor: servicoIA.status.provedor, modelo: servicoIA.status.modelo, gratuito: servicoIA.status.gratuito } : null };
   }
 
@@ -120,14 +137,22 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
   /* Continuação de um grupo (categoria revisada ou fila), na mesma ordem da primeira resposta. */
   app.get('/api/pesquisas/:id/itens', async (req) => {
     const q = z.object({ grupo: z.enum(['aderente', 'provavel', 'a_confirmar', 'nao_aderente', 'fila']),
-      offset: z.coerce.number().int().min(0).max(5000).default(0), limite: z.coerce.number().int().min(1).max(200).default(100) }).strict().parse(req.query);
+      offset: z.coerce.number().int().min(0).max(5000).default(0), limite: z.coerce.number().int().min(1).max(200).default(100),
+      marca: z.string().regex(/^[a-f0-9]{32}$/).optional() }).strict().parse(req.query);
     const { pesquisa } = await carregar(req, req.params.id);
     const fila = q.grupo === 'fila';
-    const r = (await db.query(`SELECT ${ITENS}, count(*) OVER()::int AS total_grupo FROM pesquisa_itens WHERE pesquisa_id=$1
-      AND ${fila ? "etapa<>'revisada'" : "etapa='revisada' AND categoria=$4"} ORDER BY ${fila ? 'ordem' : ORDEM_SQL} LIMIT $2 OFFSET $3`,
+    const filtro = fila ? "etapa<>'revisada'" : "etapa='revisada' AND categoria=$4";
+    // Página, total e marca na mesma instrução: se a lista mudou desde a página de origem, recusa.
+    const linhas = (await db.query(`WITH base AS MATERIALIZED (SELECT ${ITENS} FROM pesquisa_itens WHERE pesquisa_id=$1),
+      resumo AS (SELECT ${MARCA_SQL} AS marca, count(*) FILTER (WHERE ${filtro})::int AS total FROM base),
+      pagina AS (SELECT *, row_number() OVER (ORDER BY ${fila ? 'ordem' : ORDEM_SQL}) AS pos_ FROM base WHERE ${filtro}
+        ORDER BY ${fila ? 'ordem' : ORDEM_SQL} LIMIT $2 OFFSET $3)
+      SELECT r.marca, r.total, to_jsonb(x) AS item FROM resumo r LEFT JOIN pagina x ON true ORDER BY x.pos_`,
     fila ? [pesquisa.id, q.limite, q.offset] : [pesquisa.id, q.limite, q.offset, q.grupo])).rows;
-    const total = r[0]?.total_grupo ?? (await contagens(pesquisa.id))[fila ? 'pendentes' : q.grupo];
-    return { itens: r.map(({ total_grupo, ...i }) => semAtributos(i)), total, proximoOffset: q.offset + r.length < total ? q.offset + r.length : null };
+    const { marca, total } = linhas[0];
+    if (q.marca && q.marca !== marca) throw new ErroHttp(409, 'lista_atualizada', 'A lista mudou com novas revisões. Ela foi recarregada; peça mais de novo.');
+    const itens = linhas.filter((l) => l.item).map(({ item: { pos_, ...i } }) => semAtributos(i));
+    return { itens, total, marca, proximoOffset: q.offset + itens.length < total ? q.offset + itens.length : null };
   });
 
   /* Edição do rascunho: critérios, recorte, frente, meta e limite de pesquisas no site. */
@@ -192,7 +217,9 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     const { quantidade, execucao: continuacao } = z.object({ quantidade: z.number().int().min(1).max(5).default(3),
       execucao: z.number().int().min(0).optional() }).strict().parse(req.body ?? {});
     const { pesquisa, usuario } = await carregar(req, req.params.id, 'agente.usar');
-    const parado = async () => ({ ...(await detalhar((await db.query(`SELECT ${CAMPOS} FROM pesquisas_tese WHERE id=$1`, [pesquisa.id])).rows[0])), atualizados: [] });
+    // `execucaoLote`: a geração em que ESTE pedido rodou; null quando não rodou. É a ficha que o
+    // laço usa para continuar e para a sua pausa automática (nunca a geração mais nova de outro).
+    const parado = async () => ({ ...(await detalhar((await db.query(`SELECT ${CAMPOS} FROM pesquisas_tese WHERE id=$1`, [pesquisa.id])).rows[0])), atualizados: [], execucaoLote: null });
     if (!['pronta', 'em_andamento', 'pausada'].includes(pesquisa.estado)) return parado();
     // Transição condicional ao que esta chamada leu: versão (retomada) ou geração (continuação).
     const vigente = (continuacao === undefined
@@ -210,14 +237,18 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     // Só grava se ninguém pausou nem retomou em outra aba durante o lote: a decisão mais recente vale.
     const salva = r.interrompida ? depois : (await db.query(`UPDATE pesquisas_tese SET estado=$2, motivo_estado=$3, atualizado_em=now(), versao=versao+1
       WHERE id=$1 AND estado='em_andamento' AND execucao=$4 RETURNING ${CAMPOS}`, [depois.id, r.estado, r.motivo, execucao])).rows[0] ?? depois;
-    return { ...(await detalhar(salva)), atualizados: r.atualizados.map((i) => i.empresa_id) };
+    return { ...(await detalhar(salva)), atualizados: r.atualizados.map((i) => i.empresa_id), execucaoLote: execucao };
   });
 
+  /* Sem `execucao`: pausa humana da execução (compartilhada entre abas). Com `execucao`: pausa
+     automática de um laço, que só vale para a geração dele; não desfaz retomada mais nova. */
   app.post('/api/pesquisas/:id/pausar', async (req) => {
+    const { execucao } = z.object({ execucao: z.number().int().min(0).optional() }).strict().parse(req.body ?? {});
     const { pesquisa } = await carregar(req, req.params.id, 'agente.usar');
     const r = (await db.query(`UPDATE pesquisas_tese SET estado='pausada', motivo_estado='Pausada por você.', versao=versao+1, atualizado_em=now()
-      WHERE id=$1 AND estado IN ('pronta','em_andamento') RETURNING ${CAMPOS}`, [pesquisa.id])).rows[0];
-    return detalhar(r ?? pesquisa);
+      WHERE id=$1 AND estado IN ('pronta','em_andamento') AND ($2::int IS NULL OR (estado='em_andamento' AND execucao=$2::int)) RETURNING ${CAMPOS}`,
+    [pesquisa.id, execucao ?? null])).rows[0];
+    return detalhar(r ?? (await db.query(`SELECT ${CAMPOS} FROM pesquisas_tese WHERE id=$1`, [pesquisa.id])).rows[0]);
   });
 
   /* Nova rodada no mesmo trabalho, partindo dos critérios desta. A anterior fica no histórico. */

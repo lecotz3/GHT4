@@ -553,6 +553,59 @@ test('corpo não lido é encerrado: redirecionamento, HTTP de erro e tipo ilegí
   assert.deepEqual(encerrados.sort(), ['erro', 'redirecionamento', 'tipo']);
 });
 
+test('continuação da lista confronta a marca do snapshot: revisão nova entre páginas é recusada', async (t) => {
+  const { chamar, db } = await preparar(t);
+  const id = await pesquisaPronta(chamar);
+  // 300 aderentes revisadas + 1 pendente que vai virar a melhor aderente.
+  await db.query('DELETE FROM pesquisa_itens WHERE pesquisa_id=$1', [id]);
+  await db.query(`INSERT INTO pesquisa_itens (pesquisa_id,empresa_id,ordem,empresa,etapa,vereditos,aderencia,categoria,revisado_em)
+    SELECT $1, 'cnpj'||lpad(n::text,8,'0'), n, jsonb_build_object('id','cnpj'||lpad(n::text,8,'0'),'nome','E'||n,'cidade','X','uf','SP'),
+      CASE WHEN n=301 THEN 'aguardando' ELSE 'revisada' END, '[]', 80, CASE WHEN n=301 THEN 'a_confirmar' ELSE 'aderente' END,
+      CASE WHEN n=301 THEN NULL ELSE now() END
+    FROM generate_series(1,301) n`, [id]);
+  const d = (await chamar('GET', `/api/pesquisas/${id}`)).json();
+  assert.match(d.marca, /^[a-f0-9]{32}$/);
+  assert.equal(d.contagens.aderente, 300);
+  assert.equal(d.itens.filter((i) => i.etapa === 'revisada').length, 300, 'contagem e itens do mesmo snapshot');
+  // Mesma marca: continuação aceita.
+  const ok = await chamar('GET', `/api/pesquisas/${id}/itens?grupo=aderente&offset=300&marca=${d.marca}`);
+  assert.equal(ok.statusCode, 200); assert.equal(ok.json().marca, d.marca);
+  // A pendente é revisada como a melhor aderente entre o detalhe e a continuação.
+  await db.query(`UPDATE pesquisa_itens SET etapa='revisada', categoria='aderente', aderencia=100, revisado_em=now() WHERE pesquisa_id=$1 AND empresa_id='cnpj00000301'`, [id]);
+  const velha = await chamar('GET', `/api/pesquisas/${id}/itens?grupo=aderente&offset=300&marca=${d.marca}`);
+  assert.equal(velha.statusCode, 409);
+  assert.equal(velha.json().codigo ?? velha.json().erro ?? velha.json().code, 'lista_atualizada', velha.body);
+  // Recarregado, a nova melhor vem primeiro e a marca é outra.
+  const novo = (await chamar('GET', `/api/pesquisas/${id}`)).json();
+  assert.notEqual(novo.marca, d.marca);
+  assert.equal(novo.itens[0].empresa_id, 'cnpj00000301');
+  assert.equal(novo.contagens.aderente, 301);
+  const resto = (await chamar('GET', `/api/pesquisas/${id}/itens?grupo=aderente&offset=300&marca=${novo.marca}`)).json();
+  assert.equal(resto.itens.length, 1); assert.equal(resto.proximoOffset, null);
+  assert.ok(!novo.itens.some((i) => i.empresa_id === resto.itens[0].empresa_id), 'a continuação não repete a primeira página');
+});
+
+test('pausa automática com ficha só pausa a geração do próprio laço; a humana pausa a execução', async (t) => {
+  const { chamar, db } = await preparar(t);
+  const id = await pesquisaPronta(chamar, 4);
+  const g1 = (await chamar('POST', `/api/pesquisas/${id}/avancar`, { quantidade: 1 })).json();
+  assert.equal(g1.execucaoLote, 1);
+  // Outra aba pausa e retoma: geração 2 (a retomada é simulada no banco para não esgotar a fila pequena).
+  await chamar('POST', `/api/pesquisas/${id}/pausar`);
+  await db.query(`UPDATE pesquisas_tese SET estado='em_andamento', motivo_estado=NULL, execucao=2 WHERE id=$1`, [id]);
+  // Continuação atrasada da geração 1 não roda e diz isso.
+  const velho = (await chamar('POST', `/api/pesquisas/${id}/avancar`, { quantidade: 1, execucao: 1 })).json();
+  assert.equal(velho.execucaoLote, null);
+  // Pausa automática do laço abandonado (geração 1) não desfaz a retomada 2.
+  const auto = (await chamar('POST', `/api/pesquisas/${id}/pausar`, { execucao: 1 })).json();
+  assert.equal(auto.pesquisa.estado, 'em_andamento'); assert.equal(auto.pesquisa.execucao, 2);
+  // Com a ficha certa, pausa.
+  assert.equal((await chamar('POST', `/api/pesquisas/${id}/pausar`, { execucao: 2 })).json().pesquisa.estado, 'pausada');
+  // Pausa humana (sem ficha) vale para a execução compartilhada.
+  await db.query(`UPDATE pesquisas_tese SET estado='em_andamento', execucao=3 WHERE id=$1`, [id]);
+  assert.equal((await chamar('POST', `/api/pesquisas/${id}/pausar`)).json().pesquisa.estado, 'pausada');
+});
+
 test('resposta HTTP hostil vira erro recuperável, sem derrubar o processo', async () => {
   const { execFile } = await import('node:child_process');
   const modulo = new URL('../src/pesquisa/fontes-web.mjs', import.meta.url).href;
