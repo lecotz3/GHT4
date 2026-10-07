@@ -185,10 +185,23 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
     setAtalho('')
   }
 
+  // Itens além da primeira resposta, por grupo; a lista do servidor vem antes e não se repete.
+  const [mais, setMais] = useState<{ pesquisaId: string; itens: ItemPesquisa[] }>({ pesquisaId: '', itens: [] })
   const grupos = useMemo(() => {
-    const itens = detalhe?.itens ?? []
+    const base = detalhe?.itens ?? []
+    const vistos = new Set(base.map((i) => i.empresa_id))
+    const extras = mais.pesquisaId === detalhe?.pesquisa.id ? mais.itens.filter((i) => !vistos.has(i.empresa_id)) : []
+    const itens = [...base, ...extras]
     return { revisadas: CATEGORIAS.map((c) => ({ categoria: c, itens: itens.filter((i) => i.etapa === 'revisada' && i.categoria === c) })), fila: itens.filter((i) => i.etapa !== 'revisada') }
-  }, [detalhe])
+  }, [detalhe, mais])
+  async function mostrarMais(grupo: Categoria, carregados: number) {
+    if (!detalhe) return
+    const id = detalhe.pesquisa.id
+    try {
+      const r = await pesquisaApi.itens(id, grupo, carregados)
+      setMais((m) => ({ pesquisaId: id, itens: [...(m.pesquisaId === id ? m.itens : []), ...r.itens] }))
+    } catch (e) { setErro(e instanceof Error ? e.message : 'Não foi possível carregar mais empresas.') }
+  }
   const funil = rascunho ? previa?.funil : p && funilValido(p.funil) ? p.funil : undefined
   const temPesquisa = criterios.some((c) => c.tipo === 'pesquisa')
 
@@ -303,7 +316,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
             <div className="pesquisa-controle-botoes">
               {rodando ? <button className="agente-btn-secundario" onClick={() => { parar.current = true }}><IconeRede nome="pausa" />Pausar</button>
                 : ['pronta', 'pausada', 'em_andamento'].includes(p.estado) && <button className="agente-btn-primario" onClick={() => void revisar('meta')} disabled={!podeUsar}><IconeRede nome="continuar" />Continuar até a meta</button>}
-              {p.estado === 'concluida' && grupos.fila.length > 0 && <button className="agente-btn-secundario" onClick={() => void ajustarLimites({ meta: p.meta + 10 })} disabled={rodando}>Ampliar meta (+10)</button>}
+              {p.estado === 'concluida' && (detalhe?.contagens.pendentes ?? 0) > 0 && <button className="agente-btn-secundario" onClick={() => void ajustarLimites({ meta: p.meta + 10 })} disabled={rodando}>Ampliar meta (+10)</button>}
               {p.estado === 'pausada' && /Limite de/.test(p.motivo_estado || '') && <button className="agente-btn-secundario" onClick={() => void ajustarLimites({ limiteWeb: p.limite_web + 40 })} disabled={rodando}>Ler mais 40 sites</button>}
               <button className="agente-btn-secundario" onClick={() => void ajustar()} disabled={rodando || ocupado || !podeUsar}><IconeRede nome="funil" />Ajustar critérios</button>
             </div>
@@ -313,7 +326,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
           <section className="pesquisa-resultados" aria-label="Empresas revisadas">
             {!revisadas && !rodando && <div className="agente-vazio-compacto agente-superficie"><IconeRede nome="alvo" /><p>Nenhuma empresa revisada ainda.</p><span>{total ? 'Clique em continuar para revisar a fila.' : 'Nenhuma empresa passou nos critérios de cadastro. Use “Ajustar critérios” e torne algum opcional.'}</span></div>}
             {grupos.revisadas.filter((g) => g.itens.length).map((g) => <details key={g.categoria} className={`pesquisa-grupo ${g.categoria}`} open={g.categoria !== 'nao_aderente'}>
-              <summary><span className="pesquisa-grupo-ponto" />{ROTULO_CATEGORIA[g.categoria]} <b>{g.itens.length}</b><small>{DESCRICAO_CATEGORIA[g.categoria]}</small></summary>
+              <summary><span className="pesquisa-grupo-ponto" />{ROTULO_CATEGORIA[g.categoria]} <b>{numero(detalhe?.contagens[g.categoria] ?? g.itens.length)}</b><small>{DESCRICAO_CATEGORIA[g.categoria]}</small></summary>
               <div className="pesquisa-tabela-rolagem"><table className="pesquisa-tabela">
                 <thead><tr><th scope="col" className="w-8"><span className="sr-only">Selecionar</span></th><th scope="col">Empresa</th><th scope="col">Aderência</th>{p.criterios.map((c, k) => <th key={c.id} scope="col" title={c.texto}>C{k + 1}</th>)}</tr></thead>
                 <tbody>{g.itens.map((i) => <Fragment key={i.empresa_id}>
@@ -328,8 +341,11 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
                   {aberto === i.empresa_id && <tr className="pesquisa-detalhe-linha"><td colSpan={3 + p.criterios.length}><Detalhe item={i} criterios={p.criterios} /></td></tr>}
                 </Fragment>)}</tbody>
               </table></div>
+              {(detalhe?.contagens[g.categoria] ?? 0) > g.itens.length && <button className="agente-link mt-2 text-xs" onClick={() => void mostrarMais(g.categoria, g.itens.length)}>
+                Mostrar mais ({numero((detalhe?.contagens[g.categoria] ?? 0) - g.itens.length)} restantes)<IconeRede nome="seta" /></button>}
             </details>)}
-            {!!grupos.fila.length && <p className="pesquisa-fila"><IconeRede nome="tempo" />{numero(grupos.fila.length)} {grupos.fila.length === 1 ? 'empresa aguarda' : 'empresas aguardam'} pesquisa no site{(detalhe?.contagens.pendentes ?? 0) > grupos.fila.length ? ` (exibindo as primeiras)` : ''}.</p>}
+            {(detalhe?.contagens.pendentes ?? 0) > 0 && <p className="pesquisa-fila"><IconeRede nome="tempo" />{numero(detalhe?.contagens.pendentes ?? 0)} {detalhe?.contagens.pendentes === 1 ? 'empresa aguarda' : 'empresas aguardam'} pesquisa no site.</p>}
+            {funilValido(p.funil) && p.funil.aprovadasCadastro > total && <p className="pesquisa-fila"><IconeRede nome="atencao" />{numero(p.funil.aprovadasCadastro)} empresas passaram no cadastro; a pesquisa guarda as primeiras {numero(total)} na ordem do funil. Para ver as demais, torne os critérios mais específicos.</p>}
           </section>
           {selecionadas.size > 0 && <div className="pesquisa-barra-selecao" role="region" aria-label="Empresas selecionadas">
             <span><strong>{selecionadas.size}</strong> selecionada{selecionadas.size > 1 ? 's' : ''}</span>

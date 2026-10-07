@@ -464,3 +464,27 @@ test('redirecionamento: outro domínio não vira evidência, robots vale por ori
   assert.equal((await obterPagina(db, 'https://www.delta.com.br/', { fetchImpl: volta, resolver, agora: agora + 2 * 24 * 3600 * 1000 })).estado, 'ok');
   assert.equal(chamadas, 1);
 });
+
+test('corte de 300 não esconde a aderente; grupos e fila continuam por página com contagem global', async (t) => {
+  const { chamar, db } = await preparar(t);
+  const id = await pesquisaPronta(chamar);
+  // 301 revisadas a confirmar + a única aderente na posição 300 da ordem do funil + 60 na fila.
+  await db.query('DELETE FROM pesquisa_itens WHERE pesquisa_id=$1', [id]);
+  await db.query(`INSERT INTO pesquisa_itens (pesquisa_id,empresa_id,ordem,empresa,etapa,vereditos,aderencia,categoria,revisado_em)
+    SELECT $1, 'cnpj'||lpad(n::text,8,'0'), n, jsonb_build_object('id','cnpj'||lpad(n::text,8,'0'),'nome','E'||n,'cidade','X','uf','SP'),
+      CASE WHEN n>301 THEN 'aguardando' ELSE 'revisada' END, '[]',
+      CASE WHEN n=300 THEN 100 ELSE 40 END, CASE WHEN n=300 THEN 'aderente' WHEN n>301 THEN 'a_confirmar' ELSE 'a_confirmar' END,
+      CASE WHEN n>301 THEN NULL ELSE now() END
+    FROM generate_series(1,361) n`, [id]);
+  const d = (await chamar('GET', `/api/pesquisas/${id}`)).json();
+  assert.equal(d.contagens.aderente, 1);
+  assert.equal(d.itens[0].empresa_id, 'cnpj00000300', 'a aderente vem primeiro, antes do corte');
+  assert.equal(d.itens.filter((i) => i.etapa === 'revisada').length, 300);
+  assert.equal(d.itens.filter((i) => i.etapa !== 'revisada').length, 50);
+  assert.equal(d.contagens.pendentes, 60);
+  const resto = (await chamar('GET', `/api/pesquisas/${id}/itens?grupo=a_confirmar&offset=299`)).json();
+  assert.equal(resto.total, 300); assert.equal(resto.itens.length, 1); assert.equal(resto.proximoOffset, null);
+  const fila = (await chamar('GET', `/api/pesquisas/${id}/itens?grupo=fila&offset=50`)).json();
+  assert.equal(fila.itens.length, 10);
+  assert.equal((await chamar('GET', `/api/pesquisas/${id}/itens?grupo=outro`)).statusCode, 422);
+});

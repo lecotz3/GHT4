@@ -35,10 +35,15 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     .reduce((acc, r) => { acc.total += r.n; if (r.etapa === 'revisada') { acc.revisadas += r.n; acc[r.categoria] += r.n; } else acc.pendentes += r.n; return acc; },
       { total: 0, revisadas: 0, pendentes: 0, aderente: 0, provavel: 0, a_confirmar: 0, nao_aderente: 0 });
   const semAtributos = (i) => { const { atributos, ...empresa } = i.empresa; return { ...i, empresa: { ...empresa, porte: atributos?.porte ?? null, capitalSocial: atributos?.capitalSocial ?? null, dataAbertura: atributos?.dataAbertura ?? null } }; };
-  async function detalhar(p, { limite = 300 } = {}) {
-    const itens = (await db.query(`SELECT empresa_id,ordem,empresa,etapa,vereditos,aderencia,categoria,site,revisado_em FROM pesquisa_itens
-      WHERE pesquisa_id=$1 ORDER BY (etapa='revisada') DESC, ordem LIMIT $2`, [p.id, limite])).rows;
-    return { pesquisa: p, contagens: await contagens(p.id), itens: itens.map(semAtributos).sort((a, b) => (a.etapa === 'revisada') === (b.etapa === 'revisada') ? ordenarItens(a, b) : a.etapa === 'revisada' ? -1 : 1),
+  /* A ordem de exibição (categoria, aderência, ordem do funil) é aplicada no SQL ANTES do corte:
+     as melhores revisadas nunca ficam de fora da primeira resposta. A fila tem cota própria.
+     Contagens são globais; o resto de cada grupo vem por `GET /api/pesquisas/:id/itens`. */
+  const ITENS = 'empresa_id,ordem,empresa,etapa,vereditos,aderencia,categoria,site,revisado_em';
+  const ORDEM_SQL = `CASE categoria WHEN 'aderente' THEN 0 WHEN 'provavel' THEN 1 WHEN 'a_confirmar' THEN 2 ELSE 3 END, aderencia DESC, ordem`;
+  async function detalhar(p, { limite = 300, fila = 50 } = {}) {
+    const revisadas = (await db.query(`SELECT ${ITENS} FROM pesquisa_itens WHERE pesquisa_id=$1 AND etapa='revisada' ORDER BY ${ORDEM_SQL} LIMIT $2`, [p.id, limite])).rows;
+    const pendentes = (await db.query(`SELECT ${ITENS} FROM pesquisa_itens WHERE pesquisa_id=$1 AND etapa<>'revisada' ORDER BY ordem LIMIT $2`, [p.id, fila])).rows;
+    return { pesquisa: p, contagens: await contagens(p.id), itens: [...revisadas, ...pendentes].map(semAtributos),
       ia: servicoIA ? { provedor: servicoIA.status.provedor, modelo: servicoIA.status.modelo, gratuito: servicoIA.status.gratuito } : null };
   }
 
@@ -106,6 +111,19 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
   });
 
   app.get('/api/pesquisas/:id', async (req) => detalhar((await carregar(req, req.params.id)).pesquisa));
+
+  /* Continuação de um grupo (categoria revisada ou fila), na mesma ordem da primeira resposta. */
+  app.get('/api/pesquisas/:id/itens', async (req) => {
+    const q = z.object({ grupo: z.enum(['aderente', 'provavel', 'a_confirmar', 'nao_aderente', 'fila']),
+      offset: z.coerce.number().int().min(0).max(5000).default(0), limite: z.coerce.number().int().min(1).max(200).default(100) }).strict().parse(req.query);
+    const { pesquisa } = await carregar(req, req.params.id);
+    const fila = q.grupo === 'fila';
+    const r = (await db.query(`SELECT ${ITENS}, count(*) OVER()::int AS total_grupo FROM pesquisa_itens WHERE pesquisa_id=$1
+      AND ${fila ? "etapa<>'revisada'" : "etapa='revisada' AND categoria=$4"} ORDER BY ${fila ? 'ordem' : ORDEM_SQL} LIMIT $2 OFFSET $3`,
+    fila ? [pesquisa.id, q.limite, q.offset] : [pesquisa.id, q.limite, q.offset, q.grupo])).rows;
+    const total = r[0]?.total_grupo ?? (await contagens(pesquisa.id))[fila ? 'pendentes' : q.grupo];
+    return { itens: r.map(({ total_grupo, ...i }) => semAtributos(i)), total, proximoOffset: q.offset + r.length < total ? q.offset + r.length : null };
+  });
 
   /* Edição do rascunho: critérios, recorte, frente, meta e limite de pesquisas no site. */
   app.patch('/api/pesquisas/:id', async (req) => {

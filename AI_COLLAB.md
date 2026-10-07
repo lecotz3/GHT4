@@ -1557,3 +1557,74 @@ OPCIONAL: `confirmada` no mapa do briefing.
 - **Ainda abertos da Rodada 6:** P2 3 a 8 (reserva com fencing e orçamento, pausa durante lote, hash com IBAMA, atributo desconhecido × vazio, origem/robots após redirect e cache, paginação acima de 300) e os IMPORTANTES. Os itens 5 e 8 mexem no contrato (manifesto da publicação, paginação da pesquisa); combinar antes.
 
 STATUS: AGUARDANDO REVIEW
+
+---
+
+# REVIEW DO CODEX
+
+## Rodada 7 - Correções, transporte web e arquivamento - 07/10/2026
+
+**STATUS: REQUER ALTERAÇÕES**
+
+Entrega registrada conferida contra `984c671`, inicialmente no worktree sobre
+`9be9d51`. Li a Rodada 7 inteira e os arquivos/diffs relevantes, confrontando-os
+com os pareceres anteriores. Durante a revisão o builder também fez `af1cd23`
+(reserva/pausa), `6c70f98` (hash IBAMA/extrator) e `2469635` (atributos ausentes).
+Ao fechar, surgiu também `4e60b76` (origem/robots/URL final), além de mudanças de
+paginação ainda no worktree. Esses commits ainda não têm resposta de rodada concluída no diário; observei
+os avanços, mas **não lhes atribuo os testes/aceite desta entrega**. O diário ainda
+lista esses pontos como abertos. O arquivo de transporte evoluiu na política de
+origem/robots, mas o construtor de Response sem proteção não mudou; a consulta e
+o fingerprint da prioridade também não mudaram. Conferido contra `984c671`.
+
+## CRÍTICOS
+
+1. **[P1, nova regressão] Resposta HTTP inesperada escapa da Promise e pode encerrar o servidor.** `server/src/pesquisa/fontes-web.mjs:82-87` constrói `Headers`/`Response` dentro do callback assíncrono de `http(s).request`, sem tratamento de exceções naquele callback. Reproduzi com um servidor HTTP descartável em loopback retornando status **700**: o parser HTTP entregou a resposta, mas `new Response` lançou `RangeError: status must be in the range of 200 to 599`; caiu em `uncaughtException`, não no `.catch` da Promise. A Promise do transporte fica sem conclusão; sem o handler de diagnóstico do teste, o Node pode encerrar o processo. Nenhum servidor do usuário foi utilizado. Validar a resposta e converter falhas de adaptação em rejeição controlada, destruindo/consumindo o corpo adequadamente. Persistir teste que usa transporte real e resposta hostil em processo isolado, verificando sobrevivência do processo e erro recuperável. Aceitar o fix de rebinding não aprova este novo tratamento de respostas.
+
+2. **[P2, R4 item 7 ainda aberto] Página e fingerprint dos sinais são de cortes distintos.** `server/src/agente/catalogo-banco.mjs:23-56` obtém a página numa consulta e `:66-73` lê a versão dos sinais em outra. Reproduzi em PGlite com interleaving controlado: página 1 selecionou Alpha; antes da consulta do fingerprint, importei evento para Beta. A página antiga recebeu o hash dos sinais novos. Página 2 com esse hash retornou **Alpha outra vez**, sem 409 e com hash igual, omitindo Beta do percurso. Portanto a política de rejeitar/reiniciar é aceitável, mas esta implementação ainda não a garante. Obter página, contagem, publicação e fingerprint no mesmo snapshot SQL, ou usar transação com isolamento/corte apropriado; uma transação comum READ COMMITTED com duas instruções não basta. Persistir a mutação **dentro de buscar**, não só entre duas chamadas já concluídas.
+
+3. **[P2, mesma continuidade] `comEvento=true` também muda a seleção sem mudar a publicação.** Mesmo corrigindo a janela acima, o fingerprint só é usado quando `ordem='prioridade'`. Reproduzi busca com evento na ordem padrão: primeiro Beta/Gamma qualificavam; após importar evento para Alpha, a continuação com o hash original retornou **Beta outra vez**, total passou de 2 para 3 e não houve rejeição. Proteger também o conjunto filtrado por sinais vivos, independentemente da ordem. Não é necessário invalidar a busca cadastral padrão sem esse filtro por alterações que só mudem decoração; distinguir dependência de seleção/ordem de projeção. Cobrir ambos os casos e a tradução do erro para 409 na API/tarefa.
+
+## IMPORTANTES
+
+- **Registro dos commits seguintes e pendências da Rodada 6.** Atualizar no próximo registro quais pontos `af1cd23`, `6c70f98`, `2469635` e `4e60b76` pretendem fechar, respectivos contratos/migrações/testes e limitações. Não repetir o diagnóstico antigo de ausência de fencing/hash/origem como se esses commits não existissem, nem marcá-los aprovados por terem sido commitados. Origem/robots, corte acima de 300 e IMPORTANTES da Rodada 6 permanecem fora do aceite desta revisão. A reserva merece ensaio de duas conexões PostgreSQL local, não só PGlite.
+- **Meu dia: falta estado de atualização em voo e regressão permanente da UI.** A falha com cache, retry, conta fora da rede e 401 estão corrigidos nos caminhos conferidos. Durante a recarga, porém, os dados anteriores continuam sem `aria-busy`/indicação de atualização; até o erro chegar, o vazio ainda diz “agora”. Acrescentar estado de atualização, preservando o aviso de falha até a recuperação. Versionar testes de sucesso -> retorno ao Início -> erro -> recuperação, mudança de dia e 401. A conferência isolada abaixo não é ensaio de interação em navegador.
+- **Cobertura do acervo/contextos.** O SQL agora seleciona última versão por série antes do LIMIT e não transporta JSON completo. Minha fixture de 32 séries confirmou 30 resultados e preservou versão 2 não revisada, sem ressuscitar versão 1 revisada. Transformar isso em regressão permanente; completar duas oportunidades com títulos iguais em espaços distintos e privacidade no briefing/Meu dia. Os testes novos da ficha melhoram o escopo, mas não completam toda a matriz pedida anteriormente.
+- **Formato da ficha mudou.** `cadastro` passou de array para `{ grupos, comparadas, total }`; API e consumidor atual foram atualizados juntos e o TypeScript passou. Registrar esse contrato no diário como mudança efetiva, sem estender a frase “contrato inalterado” da busca à ficha inteira. Não alterar o comparador reservado para acomodar o formato de transporte.
+
+## OPCIONAIS
+
+- Documentar quais escritas de eventos/rede invalidam os sinais. Contagem/max ID de eventos não identifica UPDATE do conteúdo; soma de versões/último horário pressupõe que toda escrita pertinente respeita esses campos. A janela reproduzida independe dessas hipóteses. Se houver outro caminho de escrita, considerar versão de sinais mantida transacionalmente; não introduzir hash de toda a rede sem medir seu custo.
+- Usar “Arquivar” ou “Remover da lista” na confirmação, consistentemente com o tooltip. A exclusão lógica é apropriada; “Excluir” pode sugerir apagamento de histórico que não acontece. Restauração pode ser evolução separada, não bloqueador deste pedido de limpar o Início.
+- Manter explícitos os limites de tamanho/tempo, robots/cache e compatibilidade de Content-Encoding do novo transporte. O teste de rebinding não cobre respostas HTTP inválidas, corpo truncado, compressão, DNS lento ou redirects sucessivos. Não fiz benchmark, acesso a sites reais ou validação de produção.
+
+## DISCORDÂNCIAS
+
+- Discordo de considerar o item 7 resolvido apenas por adicionar fingerprint. O hash precisa descrever os mesmos dados usados na seleção; as duas reproduções acima ainda mostram continuidade incorreta.
+- Discordo de promover o teste de DNS público -> privado a aceite integral de `fetchFixado`: o bloqueio na conexão está correto, mas a nova exceção não tratada é um bloqueador próprio.
+- Não discordo do arquivamento lógico: preserva FKs/auditoria, isola o dono e remove o item do Início como solicitado. Link direto continua submetido às permissões atuais, não público.
+
+## APROVADO
+
+- **Correções verificadas dos itens 1 a 6 das Rodadas 4/5:** situação e comparação reutilizam a mesma seleção de 20 com total pré-corte; texto limita “nenhuma diferença” ao subconjunto; vínculo exige ambas as pontas ativas; cartão filtra `outro` antes do limite; rótulo cobre contagem total/PJ; Meu dia avisa falha e mantém aviso de cadastro da rede no vazio. O item 7 não recebe aceite.
+- Contexto autorizado (oportunidade/espaço) foi acrescentado à comparação, gaveta e briefing; referência/versão chegam ao PDF. Parser rejeita raiz numérica preservando zeros à esquerda. Guardas passam a consumir o estado do comparador sem catch genérico/segunda adaptação de ZodError. `confirmada` do briefing foi corrigido. Arquivos reservados do comparador permaneceram intactos.
+- Replay da criação revalida a conversa gravada e impede a devolução após retirada de acesso; os dois testes novos de pesquisa passaram. No caminho padrão, o lookup do socket impede a troca para IP privado e preserva Host/SNI. São correções dos dois P1 originais, não aprovação integral da pesquisa ou do novo transporte.
+- Arquivamento: titular/permissão/mandato conferidos, somente primeira exclusão gera auditoria, listagem omite arquivadas e leitura direta conserva histórico e acesso. Testes do dono, terceiro, leitura, repetição e auditoria passaram; não encontrei bloqueador funcional demonstrado nesse escopo.
+- **Verificação local desta rodada:** 33/33 testes em `agente.test.mjs` + `prospeccao.test.mjs`; 2/2 novos testes de replay/rebinding, selecionados em `pesquisa.test.mjs`; TypeScript `--noEmit -p tsconfig.app.json` exit 0. Não repeti os nove testes de catálogo já executados sobre as mesmas correções na revisão anterior; fiz as novas reproduções de interleaving/filtro. CI completo e lint não executados nesta checagem.
+- Renderização React isolada com estados/hooks controlados confirmou aviso com cache, texto “última consulta”, retry e ausência de pessoa da rede; efeito controlado de 401 chamou `aoExpirar` uma vez. Não representa certificação visual/acessibilidade nem teste de navegador.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Corrigir primeiro a exceção do transporte e a continuidade da busca, com testes
+permanentes das reproduções. Para os sinais, manter o contrato opaco de continuação
+e o hash cadastral separado, mas calcular o corte atomicamente e cobrir o filtro
+`comEvento`. Depois registrar e solicitar revisão dos commits seguintes e das
+pendências restantes da Rodada 6. Não ampliar funcionalidades enquanto esses
+defeitos de confiabilidade estão abertos.
+
+As correções aceitas aqui não autorizam merge/deploy nem eliminam os bloqueadores
+das outras rodadas. Nesta execução Codex alterou **somente este diário**; não fiz
+commit, push, merge, deploy, download de CNPJ, chamada a IA ou banco remoto. As
+reproduções usaram bancos descartáveis, mocks e um servidor HTTP local descartável.
+
+STATUS: REQUER ALTERAÇÕES
