@@ -7,6 +7,7 @@ import path from 'node:path';
 import { interpretarTese, verificarCadastro, consolidar, ListaCriterios } from '../src/pesquisa/criterios.mjs';
 import { urlLegivel, permitidoPeloRobots, obterPagina, lerSite, identidadeDoSite, ipPrivado, lookupPublico } from '../src/pesquisa/fontes-web.mjs';
 import { validarPropostaIA, julgarPorTexto } from '../src/pesquisa/motor.mjs';
+import { atributosDe } from '../src/agente/atributos.mjs';
 import { criarCatalogo } from '../src/agente/catalogo.mjs';
 import { configurarIA, criarServicoIA } from '../src/agente/provedor.mjs';
 import { criarApp } from '../src/app.mjs';
@@ -405,4 +406,18 @@ test('orçamento web conta reservas em voo', async (t) => {
   await primeiro;
   const usados = (await db.query('SELECT count(*)::int n FROM pesquisa_itens WHERE pesquisa_id=$1 AND site IS NOT NULL', [id])).rows[0].n;
   assert.equal(usados, 1);
+});
+
+test('atributo que a fonte não trouxe é desconhecido; vazio apurado continua reprovando', () => {
+  const v = (atributos, campo, valor) => verificarCadastro({ campo, valor }, empresa(atributos), REF).veredito;
+  const parcial = atributosDe({ cnpjRaiz: '12345678' });
+  assert.equal(parcial.filialRecente, null); assert.equal(parcial.cnaesSecundarios, null); assert.equal(parcial.ufsAtuacao, null);
+  assert.equal(v(parcial, 'filial_recente_anos', 3), 'indeterminado');
+  assert.equal(v(parcial, 'cnae_secundario', ['4689399']), 'indeterminado');
+  assert.equal(v(parcial, 'cnae_secundario', ['4684299']), 'atende', 'o CNAE principal ainda decide');
+  assert.equal(v(parcial, 'ufs_atuacao_min', 2), 'indeterminado');
+  const apurado = atributosDe({ cnpjRaiz: '12345678', aberturaFilialRecente: null, cnaeSecundarias: [], ufsAtuacao: [] });
+  assert.equal(apurado.filialRecente, false);
+  assert.equal(v(apurado, 'filial_recente_anos', 3), 'nao_atende');
+  assert.equal(v(apurado, 'cnae_secundario', ['4689399']), 'nao_atende');
 });

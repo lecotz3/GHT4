@@ -179,7 +179,9 @@ export function verificarCadastro(regra, empresa, referencia) {
         evidencias: [{ fonte: 'IBAMA · RAPP', referencia: i.ano ? `ano ${i.ano}` : 'cruzamento por raiz de CNPJ', campo: 'ibama' }] };
     }
     case 'filial_recente_anos': {
-      if (!a.filialRecente) return v('nao_atende', 'Sem abertura recente de filial', 'Nenhuma filial ativa com abertura registrada no período.', 'filialRecente', referencia);
+      // null: a fonte não trouxe a coluna (desconhecido); false: apurado que não há filial ativa.
+      if (a.filialRecente == null) return semDado('filialRecente', referencia);
+      if (a.filialRecente === false) return v('nao_atende', 'Sem filial ativa', 'O cadastro não registra estabelecimento ativo além da matriz.', 'filialRecente', referencia);
       const anos = anosEntre(a.filialRecente, ref);
       return v(anos <= valor ? 'atende' : 'nao_atende', `Filial aberta em ${a.filialRecente.split('-').reverse().join('/')}`,
         'Data de abertura do estabelecimento ativo mais recente.', 'filialRecente', referencia);
@@ -187,6 +189,7 @@ export function verificarCadastro(regra, empresa, referencia) {
     case 'cnae_secundario': {
       const todos = [empresa.cnaePrincipal, ...(a.cnaesSecundarios || [])].filter(Boolean);
       const comuns = valor.filter((c) => todos.includes(c));
+      if (!comuns.length && a.cnaesSecundarios == null) return semDado('cnaesSecundarios', referencia);
       return v(comuns.length ? 'atende' : 'nao_atende', comuns.length ? `CNAE ${comuns.join(', ')} declarado` : 'CNAE pedido não declarado',
         'CNAEs principal e secundários do CNPJ.', 'cnaes', referencia);
     }

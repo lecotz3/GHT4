@@ -86,13 +86,14 @@ export function atributosDe(e, { dominios = new Map(), ibama = new Map() } = {})
     optanteSimples: typeof e.optanteSimples === 'boolean' ? e.optanteSimples : null,
     dataAbertura: data(e.dataAbertura),
     estabelecimentosAtivos: inteiro(e.estabelecimentosAtivos),
-    ufsAtuacao: lista(e.ufsAtuacao, /^[A-Z]{2}$/),
+    // Coluna ausente na fonte é desconhecido (null); lista vazia ou data vazia é ausência apurada.
+    ufsAtuacao: Array.isArray(e.ufsAtuacao) ? lista(e.ufsAtuacao, /^[A-Z]{2}$/) : null,
     naturezaJuridica: typeof e.naturezaJuridica === 'string' && /^\d{4}$/.test(e.naturezaJuridica) ? e.naturezaJuridica : null,
     qtdSocios: inteiro(e.qtdSocios),
     qtdSociosPj: inteiro(e.qtdSociosPj),
     socioEstrangeiro: typeof e.socioEstrangeiro === 'boolean' ? e.socioEstrangeiro : null,
-    filialRecente: data(e.aberturaFilialRecente),
-    cnaesSecundarios: lista(e.cnaeSecundarias, /^\d{7}$/),
+    filialRecente: 'aberturaFilialRecente' in e ? data(e.aberturaFilialRecente) ?? false : null,
+    cnaesSecundarios: Array.isArray(e.cnaeSecundarias) ? lista(e.cnaeSecundarias, /^\d{7}$/) : null,
     dominio: dominio && (dominios.get(dominio) ?? 1) <= LIMITE_DOMINIO_COMPARTILHADO ? dominio : null,
     ibama: ibama.get(e.cnpjRaiz) ?? null,
   };
