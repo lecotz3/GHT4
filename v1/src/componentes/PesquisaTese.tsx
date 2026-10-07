@@ -5,11 +5,11 @@ import {
   pesquisaApi, ATALHOS_CADASTRO, DESCRICAO_CATEGORIA, EXEMPLOS_TESE, ROTULO_CATEGORIA, ROTULO_VEREDITO,
   type Categoria, type Criterio, type DetalhePesquisa, type Filtros, type Funil, type IAInfo, type ItemPesquisa, type Previa, type ResumoPesquisa, type Veredito,
 } from '../agente/pesquisa'
+import { chavePaginas, criarVigencia, montarGrupos, paginasVazias, pedirMais, receberMais, type Paginas } from '../agente/pesquisa-tela'
 import '../agente/pesquisa.css'
 
 const UFS = ['', 'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO']
 const AMOSTRA = 10
-const CATEGORIAS: Categoria[] = ['aderente', 'provavel', 'a_confirmar', 'nao_aderente']
 const ICONE: Record<Veredito, 'certo' | 'aproximado' | 'duvida' | 'xis'> = { atende: 'certo', indicio: 'aproximado', indeterminado: 'duvida', nao_atende: 'xis' }
 const mensagem = (e: unknown) => e instanceof Error ? e.message : 'Não foi possível concluir esta ação.'
 const numero = (n: number | undefined) => (n ?? 0).toLocaleString('pt-BR')
@@ -44,10 +44,10 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
   const [atalho, setAtalho] = useState('')
   const [parametro, setParametro] = useState(0)
   const parar = useRef(false)
-  // Pesquisa exibida e geração da execução na tela: resposta de outra pesquisa ou de um laço
-  // antigo não sobrescreve a que está aberta, e só a última abertura vale.
+  // Pesquisa exibida e vigência das operações: cada uma guarda a geração ao começar, e a
+  // resposta de uma operação superada (outra pesquisa aberta, nova rodada) não mexe na tela.
   const ativa = useRef<string | null>(null)
-  const execucaoTela = useRef(0)
+  const tela = useRef(criarVigencia()).current
   const envio = useRef<{ id: string; tese: string } | null>(null)
   // A tese escrita no Início já é um pedido: monta os critérios sem exigir outro clique.
   const autoEnviar = useRef<string | null>(null)
@@ -71,19 +71,19 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
     return true
   }, [])
   const abrir = useCallback(async (id: string) => {
-    const minha = ++execucaoTela.current
+    const minha = tela.tomar()
     // O laço da pesquisa anterior deixa de ser desta tela: ele pausa a pesquisa dele sozinho.
-    parar.current = true; setRodando(false); setErro(''); setAviso(''); setEntregue(null); setSelecionadas(new Set()); setAberto(null); setPrevia(null)
-    try { const d = await pesquisaApi.obter(id); if (execucaoTela.current === minha) aplicar(d, true) } catch (e) { falhou(e) }
-  }, [aplicar, falhou])
+    parar.current = true; setRodando(false); setOcupado(false); setErro(''); setAviso(''); setEntregue(null); setSelecionadas(new Set()); setAberto(null); setPrevia(null)
+    try { const d = await pesquisaApi.obter(id); if (tela.vigente(minha)) aplicar(d, true) } catch (e) { if (tela.vigente(minha)) falhou(e) }
+  }, [aplicar, falhou, tela])
 
   useEffect(() => { void recarregarLista() }, [recarregarLista])
   useEffect(() => {
     if (!inicial) return
     if (inicial.pesquisaId) void abrir(inicial.pesquisaId)
-    else if (inicial.tese) { ativa.current = null; ++execucaoTela.current; setRodando(false); setDetalhe(null); setTese(inicial.tese); autoEnviar.current = inicial.tese }
+    else if (inicial.tese) { ativa.current = null; tela.tomar(); setRodando(false); setOcupado(false); setDetalhe(null); setTese(inicial.tese); autoEnviar.current = inicial.tese }
     aoConsumirInicial()
-  }, [inicial, abrir, aoConsumirInicial])
+  }, [inicial, abrir, aoConsumirInicial, tela])
   useEffect(() => () => { parar.current = true }, [])
   useEffect(() => {
     if (!autoEnviar.current || autoEnviar.current !== tese) return
@@ -109,14 +109,14 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
     const texto = pedido.trim()
     if (texto.length < 10 || ocupado) { setErro('Descreva a tese com pelo menos 10 caracteres.'); return }
     setOcupado(true); setErro(''); setAviso('')
+    const minha = tela.tomar()
     try {
       if (!envio.current || envio.current.tese !== texto) envio.current = { id: crypto.randomUUID(), tese: texto }
-      const minha = ++execucaoTela.current
       const d = await pesquisaApi.criar({ id: envio.current.id, tese: texto, frente })
       envio.current = null
-      if (execucaoTela.current === minha) { aplicar(d, true); setPrevia(null) }
+      if (tela.vigente(minha)) { aplicar(d, true); setPrevia(null) }
       void recarregarLista()
-    } catch (falha) { falhou(falha) } finally { setOcupado(false) }
+    } catch (falha) { if (tela.vigente(minha)) falhou(falha) } finally { if (tela.vigente(minha)) setOcupado(false) }
   }
 
   async function salvarRascunho() {
@@ -131,8 +131,8 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
   async function revisar(ate: 'amostra' | 'meta', base?: DetalhePesquisa) {
     let d = base ?? detalhe
     if (!d) return
-    const minha = ++execucaoTela.current
-    const vigente = () => execucaoTela.current === minha
+    const minha = tela.tomar()
+    const vigente = () => tela.vigente(minha)
     parar.current = false; setRodando(true); setErro(''); setAviso('')
     const alvo = Math.min(AMOSTRA, d.contagens.total)
     // O primeiro pedido é a retomada explícita; os seguintes continuam a geração que ela abriu.
@@ -159,18 +159,22 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
   async function iniciar(ate: 'amostra' | 'meta') {
     if (!p || ocupado) return
     setOcupado(true); setErro('')
+    const minha = tela.observar()
     try {
       const salvo = await salvarRascunho()
-      if (!salvo) return
+      if (!salvo || !tela.vigente(minha)) return
       const d = await pesquisaApi.iniciar(salvo.pesquisa.id, salvo.pesquisa.versao)
+      // Outra pesquisa foi aberta enquanto esta calculava: ela fica "pronta" no histórico, sem laço.
+      if (!tela.vigente(minha)) return
       aplicar(d); setOcupado(false)
       if (d.pesquisa.estado === 'pronta') await revisar(ate, d)
-    } catch (e) { falhou(e) } finally { setOcupado(false) }
+    } catch (e) { if (tela.vigente(minha)) falhou(e) } finally { if (tela.vigente(minha)) setOcupado(false) }
   }
 
   async function ajustarLimites(campos: { meta?: number; limiteWeb?: number }) {
     if (!p) return
-    try { aplicar(await pesquisaApi.editar(p.id, { versao: p.versao, ...campos })) } catch (e) { falhou(e) }
+    const minha = tela.observar()
+    try { const d = await pesquisaApi.editar(p.id, { versao: p.versao, ...campos }); if (tela.vigente(minha)) aplicar(d) } catch (e) { if (tela.vigente(minha)) falhou(e) }
   }
 
   // Chave e corpo de cada envio ficam guardados até a confirmação: uma resposta perdida,
@@ -181,8 +185,16 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
     if (!p || ocupado) return
     setOcupado(true); setErro('')
     if (envioAjuste.current?.origem !== p.id) envioAjuste.current = { origem: p.id, id: crypto.randomUUID() }
-    try { const d = await pesquisaApi.ajustar(p.id, envioAjuste.current.id); envioAjuste.current = null; ++execucaoTela.current; aplicar(d, true); setPrevia(null); setSelecionadas(new Set()); setAviso('Nova rodada criada a partir dos critérios anteriores. Ajuste e rode de novo; a rodada anterior continua no histórico.'); void recarregarLista() }
-    catch (e) { falhou(e) } finally { setOcupado(false) }
+    // A geração é tomada ao pedir: se outra pesquisa for aberta durante o pedido, a nova rodada
+    // fica só no histórico (lateral) e a tela continua na que foi aberta.
+    const minha = tela.tomar()
+    try {
+      const d = await pesquisaApi.ajustar(p.id, envioAjuste.current.id)
+      envioAjuste.current = null
+      void recarregarLista()
+      if (!tela.vigente(minha)) return
+      aplicar(d, true); setPrevia(null); setSelecionadas(new Set()); setAviso('Nova rodada criada a partir dos critérios anteriores. Ajuste e rode de novo; a rodada anterior continua no histórico.')
+    } catch (e) { if (tela.vigente(minha)) falhou(e) } finally { if (tela.vigente(minha)) setOcupado(false) }
   }
 
   async function registrar() {
@@ -191,11 +203,13 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
     const empresas = [...selecionadas].sort()
     const corpo = JSON.stringify([p.id, empresas])
     if (envioRegistro.current?.corpo !== corpo) envioRegistro.current = { corpo, chave: crypto.randomUUID() }
+    const minha = tela.observar()
     try {
       const r = await pesquisaApi.registrar(p.id, envioRegistro.current.chave, empresas)
       envioRegistro.current = null
-      setEntregue({ conversaId: r.conversa.id, n: empresas.length }); setSelecionadas(new Set())
-    } catch (e) { falhou(e) } finally { setOcupado(false) }
+      // Entregue mesmo se a tela mudou; o aviso e a seleção só valem para a pesquisa em que foi pedido.
+      if (tela.vigente(minha)) { setEntregue({ conversaId: r.conversa.id, n: empresas.length }); setSelecionadas(new Set()) }
+    } catch (e) { if (tela.vigente(minha)) falhou(e) } finally { if (tela.vigente(minha)) setOcupado(false) }
   }
 
   function alternar(id: string, campo: 'obrigatorio') { setCriterios((cs) => cs.map((c) => c.id === id ? { ...c, [campo]: !c[campo] } : c)) }
@@ -215,22 +229,22 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
     setAtalho('')
   }
 
-  // Itens além da primeira resposta, por grupo; a lista do servidor vem antes e não se repete.
-  const [mais, setMais] = useState<{ pesquisaId: string; itens: ItemPesquisa[] }>({ pesquisaId: '', itens: [] })
-  const grupos = useMemo(() => {
-    const base = detalhe?.itens ?? []
-    const vistos = new Set(base.map((i) => i.empresa_id))
-    const extras = mais.pesquisaId === detalhe?.pesquisa.id ? mais.itens.filter((i) => !vistos.has(i.empresa_id)) : []
-    const itens = [...base, ...extras]
-    return { revisadas: CATEGORIAS.map((c) => ({ categoria: c, itens: itens.filter((i) => i.etapa === 'revisada' && i.categoria === c) })), fila: itens.filter((i) => i.etapa !== 'revisada') }
-  }, [detalhe, mais])
-  async function mostrarMais(grupo: Categoria, carregados: number) {
+  // Continuação por grupo além da primeira resposta: um pedido por vez, cursor do servidor,
+  // sem repetir empresa, e descartada quando a pesquisa muda ou um lote revisa mais empresas.
+  const [paginas, setPaginas] = useState<Paginas>(paginasVazias())
+  const paginasAtual = useRef(paginas)
+  paginasAtual.current = paginas
+  const grupos = useMemo(() => montarGrupos(detalhe, paginas), [detalhe, paginas])
+  async function mostrarMais(grupo: Categoria, offset: number) {
     if (!detalhe) return
-    const id = detalhe.pesquisa.id
-    try {
-      const r = await pesquisaApi.itens(id, grupo, carregados)
-      setMais((m) => ({ pesquisaId: id, itens: [...(m.pesquisaId === id ? m.itens : []), ...r.itens] }))
-    } catch (e) { setErro(e instanceof Error ? e.message : 'Não foi possível carregar mais empresas.') }
+    const chave = chavePaginas(detalhe)
+    const marcado = pedirMais(paginasAtual.current, chave, grupo)
+    if (!marcado) return
+    paginasAtual.current = marcado; setPaginas(marcado)
+    let r: Awaited<ReturnType<typeof pesquisaApi.itens>> | null = null
+    try { r = await pesquisaApi.itens(detalhe.pesquisa.id, grupo, offset) }
+    catch (e) { if (ativa.current === detalhe.pesquisa.id) setErro(e instanceof Error ? e.message : 'Não foi possível carregar mais empresas.') }
+    setPaginas((atual) => { const n = receberMais(atual, chave, grupo, r); paginasAtual.current = n; return n })
   }
   const funil = rascunho ? previa?.funil : p && funilValido(p.funil) ? p.funil : undefined
   const temPesquisa = criterios.some((c) => c.tipo === 'pesquisa')
@@ -282,7 +296,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
             <h2>{p.tese}</h2>
             <p><EstadoPill estado={p.estado} rodando={rodando} /> {p.motivo_estado && !rodando && <span className="text-suave">{p.motivo_estado}</span>}</p>
           </div>
-          <button className="agente-btn-secundario" onClick={() => { parar.current = true; ativa.current = null; ++execucaoTela.current; setDetalhe(null); setTese(''); setPrevia(null); setErro(''); setAviso('') }} disabled={rodando}><IconeRede nome="mais" />Nova pesquisa</button>
+          <button className="agente-btn-secundario" onClick={() => { parar.current = true; ativa.current = null; tela.tomar(); setOcupado(false); setDetalhe(null); setTese(''); setPrevia(null); setErro(''); setAviso('') }} disabled={rodando}><IconeRede nome="mais" />Nova pesquisa</button>
         </header>
         {erro && <p role="alert" className="pesquisa-erro">{erro}</p>}
         {aviso && <p role="status" className="pesquisa-aviso">{aviso}</p>}
@@ -355,8 +369,10 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
           {entregue && <p role="status" className="pesquisa-aviso">{entregue.n} {entregue.n === 1 ? 'empresa enviada' : 'empresas enviadas'} ao trabalho. <button className="agente-link" onClick={() => aoAbrirTrabalho(entregue.conversaId)}>Abrir trabalho<IconeRede nome="seta" /></button></p>}
           <section className="pesquisa-resultados" aria-label="Empresas revisadas">
             {!revisadas && !rodando && <div className="agente-vazio-compacto agente-superficie"><IconeRede nome="alvo" /><p>Nenhuma empresa revisada ainda.</p><span>{total ? 'Clique em continuar para revisar a fila.' : 'Nenhuma empresa passou nos critérios de cadastro. Use “Ajustar critérios” e torne algum opcional.'}</span></div>}
-            {grupos.revisadas.filter((g) => g.itens.length).map((g) => <details key={g.categoria} className={`pesquisa-grupo ${g.categoria}`} open={g.categoria !== 'nao_aderente'}>
-              <summary><span className="pesquisa-grupo-ponto" />{ROTULO_CATEGORIA[g.categoria]} <b>{numero(detalhe?.contagens[g.categoria] ?? g.itens.length)}</b><small>{DESCRICAO_CATEGORIA[g.categoria]}</small></summary>
+            {grupos.map((g) => <details key={g.categoria} className={`pesquisa-grupo ${g.categoria}`} open={g.categoria !== 'nao_aderente'}>
+              <summary><span className="pesquisa-grupo-ponto" />{ROTULO_CATEGORIA[g.categoria]} <b>{numero(g.total)}</b><small>{DESCRICAO_CATEGORIA[g.categoria]}</small></summary>
+              {!g.itens.length && <p className="pesquisa-fila">Nenhuma empresa deste grupo veio na primeira lista.</p>}
+              {g.itens.length > 0 && <>
               <div className="pesquisa-tabela-rolagem"><table className="pesquisa-tabela">
                 <thead><tr><th scope="col" className="w-8"><span className="sr-only">Selecionar</span></th><th scope="col">Empresa</th><th scope="col">Aderência</th>{p.criterios.map((c, k) => <th key={c.id} scope="col" title={c.texto}>C{k + 1}</th>)}</tr></thead>
                 <tbody>{g.itens.map((i) => <Fragment key={i.empresa_id}>
@@ -370,9 +386,9 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
                   </tr>
                   {aberto === i.empresa_id && <tr className="pesquisa-detalhe-linha"><td colSpan={3 + p.criterios.length}><Detalhe item={i} criterios={p.criterios} /></td></tr>}
                 </Fragment>)}</tbody>
-              </table></div>
-              {(detalhe?.contagens[g.categoria] ?? 0) > g.itens.length && <button className="agente-link mt-2 text-xs" onClick={() => void mostrarMais(g.categoria, g.itens.length)}>
-                Mostrar mais ({numero((detalhe?.contagens[g.categoria] ?? 0) - g.itens.length)} restantes)<IconeRede nome="seta" /></button>}
+              </table></div></>}
+              {g.restantes > 0 && g.offset < g.total && <button className="agente-link mt-2 text-xs" onClick={() => void mostrarMais(g.categoria, g.offset)} disabled={g.carregando} aria-busy={g.carregando}>
+                {g.carregando ? 'Carregando…' : <>{g.itens.length ? 'Mostrar mais' : 'Mostrar empresas'} ({numero(g.restantes)} {g.itens.length ? 'restantes' : 'no grupo'})<IconeRede nome="seta" /></>}</button>}
             </details>)}
             {(detalhe?.contagens.pendentes ?? 0) > 0 && <p className="pesquisa-fila"><IconeRede nome="tempo" />{numero(detalhe?.contagens.pendentes ?? 0)} {detalhe?.contagens.pendentes === 1 ? 'empresa aguarda' : 'empresas aguardam'} pesquisa no site.</p>}
             {funilValido(p.funil) && p.funil.aprovadasCadastro > total && <p className="pesquisa-fila"><IconeRede nome="atencao" />{numero(p.funil.aprovadasCadastro)} empresas passaram no cadastro; a pesquisa guarda as primeiras {numero(total)} na ordem do funil. Para ver as demais, torne os critérios mais específicos.</p>}
