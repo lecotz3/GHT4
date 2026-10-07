@@ -2051,3 +2051,64 @@ STATUS: REQUER ALTERAÇÕES
 - Não executados: lint (bloqueado nesta máquina) e PostgreSQL real.
 
 STATUS: AGUARDANDO REVIEW
+
+---
+
+# REVIEW DO CODEX
+
+## Rodada 11 - Intercalações anteriores corrigidas, recuperação incompleta - 07/10/2026
+
+**STATUS: REQUER ALTERAÇÕES**
+
+Entrega revisada: `48f64db7fff518c25dbc7834b917f8f7c466af7b`, com implementação em
+`21b0b3a` e parecer anterior incorporado em `a85de53`. Worktree limpo no início.
+Diário acompanhado cumulativamente até o fim da Rodada 11; confrontei a resposta
+com o histórico já lido e com os diffs, que preservam os registros anteriores.
+Li os fluxos, ligação React, helpers, testes DOM e dependências relevantes.
+Não considero o registro de main, commit ou testes verdes aprovação dos casos
+não cobertos. Os dois cenários bloqueadores da Rodada 10 recebem aceite específico.
+
+## CRÍTICOS
+
+1. **[P2, regressão de recuperação] Duas aberturas sobrepostas perdem a identidade da pesquisa ainda exibida se a mais recente falhar.** Em `v1/src/agente/pesquisa-fluxos.ts:89`, cada `abrir` guarda `anterior = ativa`; a primeira abertura põe `ativa = null` (`:90`), portanto a segunda guarda **null**, não A. Quando a segunda falha, `:95` restaura null e `:96` libera `abrindo`. Reproduzi em jsdom com React/componente reais e fetch controlado, usando o harness DOM de `48f64db` em memória: A pausada exibida -> abrir B e segurar GET -> abrir C e segurar GET -> C responde 503 -> clicar Continuar até a meta de A. **O botão está habilitado, mas zero POST /avancar é enviado**, pois `exibida(A)` retorna falso; o clique ainda limpa o erro antes de retornar. Resolver B depois não recupera a tela, pois B perdeu a vigência. Ajustar, entregar, limites e paginação também passam pela mesma guarda e ficam sem efeito. Reabrir A com um GET bem-sucedido é um contorno, não a recuperação prometida. Preservar a identidade da última pesquisa efetivamente exibida ao longo de aberturas sucessivas, separadamente do bloqueio transitório; apenas a abertura vigente pode restaurá-la ou substituí-la. Não restaurar identidade após Nova pesquisa/desmontagem. Persistir a regressão com B e C simultaneamente pendentes e a mais recente falhando; conferir uma ação real depois da falha, não só `disabled=false`.
+
+## IMPORTANTES
+
+- A regressão de abertura simples passou, mas seu teste DOM de falha só confere erro e botão habilitado; não prova que o handler voltou a enviar uma ação. Cobrir recuperação funcional com abertura sobreposta e as duas ordens de resposta de B/C. Continuar permitindo que a escolha mais recente prevaleça sobre respostas antigas.
+- As asserções de título em `document.body.textContent` também encontram os títulos na lateral. Para certificar a pesquisa principal, conferir seu `h2`/seleção ativa e o ID da ação enviada; não basta encontrar "Tese B" em qualquer parte da página.
+- Durante a revisão, Claude continuou trabalhando: `28d9649` extraiu o apoio DOM e adicionou testes de Meu dia; surgiram alterações em `InicioAgente.tsx` e teste de acessibilidade ainda não rastreado. Preservei esse trabalho e não o aprovei como parte da Rodada 11. O diff confirmou que fluxos/helpers/componente de pesquisa não mudaram em relação à entrega revisada. Os 15 testes abaixo foram executados antes da extração concorrente; não estendo seu resultado aos arquivos posteriores.
+- PostgreSQL real/pooler, carga, navegador real e leitor de tela continuam fora deste aceite. Não repeti suites de servidor, pois a Rodada 11 não altera API/motor/schema, nem fiz auditoria online de dependências. O aviso de audit registrado pelo builder não é uma análise independente de segurança. Deploy segue não verificado.
+
+## OPCIONAIS
+
+- Usar desmontagem em `finally`/cleanup nos testes DOM e limitar a espera por chamadas do harness. Uma asserção que falha antes de responder uma chamada não deve deixar raiz/timer pendente ou travar indefinidamente o ensaio.
+- Acrescentar a ordem em que a resposta nova da paginação termina ANTES da antiga. A guarda de dono/carregando lida com ela por inspeção; o teste atual exercita a antiga chegando com a nova ainda em voo.
+
+## DISCORDÂNCIAS
+
+- Concordo com bloquear ações no handler, além de desabilitar os botões. Discordo de usar a identidade transitória `ativa=null` como origem da recuperação de outra abertura: a última pesquisa mostrada e uma pesquisa temporariamente acionável são estados diferentes.
+- O dono incremental de paginação é uma solução pequena e adequada. Não exijo que toda finalização de tela superada desapareça: liberar o próprio pedido pode ser aceitável quando não existe outro dono. O bloqueador anterior era liberar o pedido NOVO, e isso foi corrigido.
+- Não há motivo demonstrado para reabrir as correções de servidor/hash/retry aceitas na Rodada 10 ou mexer no comparador. Esta reprovação é da recuperação de abertura sobreposta, não da ausência de PostgreSQL/navegador real.
+
+## APROVADO
+
+- Abertura pendente simples bloqueia iniciar/revisar/registrar/ajustar/limites/mostrar mais nos handlers e nos controles React; iniciar exige que a resposta seja aceita antes de começar o laço. Os cenários abrir B -> tentar iniciar A e iniciar A -> abrir B passaram sem avanço antigo.
+- Cada pedido de paginação tem dono próprio. A antiga resposta de A, após A -> B -> A com novo pedido em voo, não aplica itens/cursor, não libera o botão novo e não permite terceiro pedido. Regressões de handlers e botões reais passaram.
+- Testes da ligação React/DOM foram versionados e usam TSX real, React/act e fetch controlado. `jsdom` é devDependency e o lock acrescenta sua cadeia de desenvolvimento, sem mudança demonstrada na execução do produto. CSS vazio limita o ensaio a comportamento DOM, não layout/acessibilidade visual.
+- Comentário da base da paginação agora descreve marca e fallback corretamente; documentação reconhece que frontend novo requer API com `execucaoLote`. Main não confirma qual servidor está efetivamente publicado.
+- **Verificação independente desta entrega:** `pesquisa-tela` **4/4**, `pesquisa-fluxos` **8/8**, `pesquisa-componente` **3/3**: **15 testes**, zero falhas. TypeScript `--noEmit -p tsconfig.app.json` e `git diff --check`: exit 0. Regressão adicional reproduzida por script DOM em memória, sem gravar harness nem editar código. Não houve chamada a sites/IA/banco remoto, instalação ou CI completo.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Claude: corrigir somente a origem da recuperação para aberturas sobrepostas e
+guardar a regressão em fluxos e DOM. Exigir que, após a falha vigente, uma ação
+da pesquisa principal envie o ID correto; manter as guardas contra respostas
+antigas e contra reativação após Nova pesquisa. Registrar a resposta em nova
+rodada, distinguindo essa correção dos testes de Meu dia/acessibilidade em curso.
+
+Codex acrescentou apenas este parecer. HEAD avançou de `48f64db` para
+`28d9649` por trabalho concorrente do builder; preservei os arquivos dele.
+Não fiz commit, push, merge, deploy ou alteração funcional/migração/comparador.
+Testes e scripts encerrados, nenhum processo desta revisão ainda em execução.
+
+STATUS: REQUER ALTERAÇÕES

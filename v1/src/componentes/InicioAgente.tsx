@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { Conversa, EstadoAgente, Tarefa, Usuario } from '../agente/api'
 import { EXEMPLOS_TESE } from '../agente/pesquisa'
 import { IconeRede } from './IconeRede'
@@ -13,7 +13,24 @@ export function InicioAgente({ usuario, estado, conversas, aoComecar, aoRetomar,
   // Excluir pede confirmação no próprio item: um clique solto não some com o trabalho.
   const [confirmando, setConfirmando] = useState('')
   const [excluindo, setExcluindo] = useState('')
-  const excluir = async (id: string) => { setExcluindo(id); try { await aoExcluir(id) } finally { setExcluindo(''); setConfirmando('') } }
+  // Teclado: abrir a confirmação, cancelar ou remover troca o botão focado por outro elemento.
+  // O foco vai para "Cancelar" ao abrir, volta à lixeira ao cancelar e vai ao título ao remover.
+  const lixeiras = useRef(new Map<string, HTMLButtonElement>())
+  const tituloRecentes = useRef<HTMLHeadingElement>(null)
+  const voltarFoco = useRef<string | null>(null)
+  useEffect(() => {
+    if (voltarFoco.current === null) return
+    const alvo = voltarFoco.current ? lixeiras.current.get(voltarFoco.current) : tituloRecentes.current
+    voltarFoco.current = null
+    alvo?.focus()
+  })
+  const cancelar = (id: string) => { voltarFoco.current = id; setConfirmando('') }
+  const excluir = async (id: string) => {
+    setExcluindo(id)
+    try { await aoExcluir(id); voltarFoco.current = '' }
+    catch { voltarFoco.current = id }
+    finally { setExcluindo(''); setConfirmando('') }
+  }
   const podeUsar = usuario.papel !== 'leitura'
   const enviar = (e?: FormEvent) => { e?.preventDefault(); if (tese.trim().length >= 10) aoPesquisar(tese.trim()) }
   return <div className="agente-inicio space-y-8">
@@ -42,7 +59,7 @@ export function InicioAgente({ usuario, estado, conversas, aoComecar, aoRetomar,
       { id: 'mapear_acesso', icone: 'rede', titulo: 'Abrir um caminho', texto: 'Veja quem da GHT4 alcança a liderança.', acao: 'Escolher empresa', cor: 'azul' },
       { id: 'preparar_reuniao', icone: 'agenda', titulo: 'Preparar uma reunião', texto: 'Contexto e perguntas antes da conversa.', acao: 'Preparar roteiro', cor: 'neutra' },
     ].map(a => <button key={a.id} className={`agente-acao-inicial ${a.cor}`} onClick={() => aoComecar(a.id as Tarefa)} disabled={bloqueado || !podeUsar}><span className="agente-icone-bloco"><IconeRede nome={a.icone as 'busca' | 'rede' | 'agenda'} /></span><div><h4>{a.titulo}</h4><p>{a.texto}</p></div><span className="agente-acao-rodape"><IconeRede nome="seta" /><span className="sr-only">{a.acao}</span></span></button>)}</div></section>
-    <div className="agente-inicio-inferior"><section className="agente-superficie p-6"><div className="agente-linha-titulo"><h3>Continue de onde parou</h3><IconeRede nome="tempo" className="text-suave" /></div>{conversas.length ? <ul className="agente-recentes">{conversas.slice(0, 4).map(c => <li key={c.id}><button onClick={() => aoRetomar(c.id)} disabled={bloqueado || excluindo === c.id}><span className="agente-icone-menor"><IconeRede nome={c.titulo.startsWith('Pesquisa ·') ? 'alvo' : 'pasta'} /></span><span><strong>{c.titulo}</strong><small>{new Date(c.atualizado_em).toLocaleDateString('pt-BR')} · {c.contexto.frente === 'compra' ? 'Compra' : 'Venda'}</small></span><IconeRede nome="seta" /></button>{podeUsar && (confirmando === c.id ? <span className="agente-recentes-confirmar" role="group" aria-label={`Remover ${c.titulo} da lista?`}><button className="is-perigo" onClick={() => void excluir(c.id)} disabled={excluindo === c.id}>{excluindo === c.id ? 'Removendo…' : 'Remover da lista'}</button><button onClick={() => setConfirmando('')} disabled={excluindo === c.id}>Cancelar</button></span> : <button className="agente-recentes-excluir" onClick={() => setConfirmando(c.id)} disabled={bloqueado} aria-label={`Remover ${c.titulo} da lista`} title="Remover da lista (o histórico fica salvo)"><IconeRede nome="lixeira" /></button>)}</li>)}</ul> : <div className="agente-vazio-compacto"><IconeRede nome="pasta" /><p>Seu primeiro trabalho começa com uma tese acima.</p><span>Os resultados ficam salvos aqui para você retomar.</span></div>}</section>
+    <div className="agente-inicio-inferior"><section className="agente-superficie p-6"><div className="agente-linha-titulo"><h3 ref={tituloRecentes} tabIndex={-1}>Continue de onde parou</h3><IconeRede nome="tempo" className="text-suave" /></div>{conversas.length ? <ul className="agente-recentes">{conversas.slice(0, 4).map(c => <li key={c.id}><button onClick={() => aoRetomar(c.id)} disabled={bloqueado || excluindo === c.id}><span className="agente-icone-menor"><IconeRede nome={c.titulo.startsWith('Pesquisa ·') ? 'alvo' : 'pasta'} /></span><span><strong>{c.titulo}</strong><small>{new Date(c.atualizado_em).toLocaleDateString('pt-BR')} · {c.contexto.frente === 'compra' ? 'Compra' : 'Venda'}</small></span><IconeRede nome="seta" /></button>{podeUsar && (confirmando === c.id ? <span className="agente-recentes-confirmar" role="group" aria-label={`Remover ${c.titulo} da lista?`} onKeyDown={(e) => { if (e.key === 'Escape') cancelar(c.id) }}><button className="is-perigo" onClick={() => void excluir(c.id)} disabled={excluindo === c.id}>{excluindo === c.id ? 'Removendo…' : 'Remover da lista'}</button><button onClick={() => cancelar(c.id)} disabled={excluindo === c.id} autoFocus>Cancelar</button></span> : <button className="agente-recentes-excluir" ref={(el) => { if (el) lixeiras.current.set(c.id, el); else lixeiras.current.delete(c.id) }} onClick={() => setConfirmando(c.id)} disabled={bloqueado} aria-label={`Remover ${c.titulo} da lista`} title="Remover da lista (o histórico fica salvo)"><IconeRede nome="lixeira" /></button>)}</li>)}</ul> : <div className="agente-vazio-compacto"><IconeRede nome="pasta" /><p>Seu primeiro trabalho começa com uma tese acima.</p><span>Os resultados ficam salvos aqui para você retomar.</span></div>}</section>
       <section className="agente-convite-rede"><span className="agente-icone-bloco"><IconeRede nome="pessoas" /></span><h3>O acesso começa com quem você conhece.</h3><p>Ajude a construir a rede da casa. Confirme suas relações, uma pessoa por vez.</p><button className="agente-link" onClick={aoRede}>Explorar relacionamentos<IconeRede nome="seta" /></button></section></div>
     {estado.base.disponivel ? <section className="agente-base-real" aria-label="Base de empresas disponível"><div><span className="agente-sobretitulo"><span className="agente-ponto" />Base de empresas</span><h3>{estado.base.subsetor || 'Catálogo de empresas'}</h3><p><strong>{(estado.base.total ?? 0).toLocaleString('pt-BR')} {estado.base.total === 1 ? 'empresa' : 'empresas'}</strong> no recorte inicial · referência {estado.base.referencia?.split('-').reverse().join('/') || 'não informada'}</p></div><details><summary>De onde vêm os dados?</summary><p>{estado.base.fonte || 'Base cadastral configurada'}{estado.base.totalOrigem !== undefined ? ` · ${estado.base.totalOrigem.toLocaleString('pt-BR')} registros na base química de origem` : ''}. A pesquisa por tese confere cada critério no cadastro da Receita Federal e, para o que o cadastro não responde, lê o site oficial da empresa (domínio declarado no CNPJ). Sem evidência, o critério fica “sem evidência”, nunca “não atende”. Os dados não confirmam faturamento nem interesse em vender; a equipe apura essas informações.</p></details></section> : <p className="agente-nota-base">Base cadastral temporariamente indisponível. Você pode continuar pelos trabalhos salvos.</p>}
   </div>
