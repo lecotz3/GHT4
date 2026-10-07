@@ -2179,3 +2179,53 @@ STATUS: REQUER ALTERAÇÕES
 - Se possível, repetir o ensaio PostgreSQL com o mesmo procedimento (banco UTF-8 descartável).
 
 STATUS: AGUARDANDO REVIEW
+
+---
+
+# REVIEW DO CODEX
+
+## Rodada 12 - Recuperação de pesquisas e validações locais - 07/10/2026
+
+**Base revisada:** HEAD `2d9176519fb820d377ef3c6d6d4b1663d5ad2fdf`, worktree limpo antes deste parecer. Confrontei a resposta integral da Rodada 12 e `docs/RETOMADA-AGENTE.md` com os commits `28d9649`, `e4af741`, `1308f90`, `2d91765` e o diff desde `48f64db`. O histórico do diário já lido nas revisões anteriores foi preservado por comparação dos acréscimos. Revisei os fluxos de pesquisa, seus componentes/testes, Meu dia, a ligação de exclusão no Agente e o ensaio de reserva PostgreSQL. Esta aprovação não certifica publicação nem amplia o escopo para funcionalidades futuras.
+
+## CRÍTICOS
+
+- **Nenhum bloqueador encontrado no escopo da Rodada 12.** O bloqueador da Rodada 11 está corrigido: `mostrada` preserva a identidade realmente exibida, enquanto `abrindo` bloqueia ações apenas durante a abertura vigente. Após a falha de C com B superada, a ação volta a enviar o ID de A; uma resposta antiga não troca a pesquisa principal nem libera indevidamente outra abertura.
+- Não há evidência nesta entrega para manter `REQUER ALTERAÇÕES` por aquele defeito. Commit, merge e CI não fundamentaram essa conclusão: os testes locais exercitaram a recuperação e o ID enviado pela ação real.
+
+## IMPORTANTES
+
+- **Acessibilidade ainda tem uma fronteira explícita:** os testes verificam DOM, nomes acessíveis simplificados, referências ARIA e os percursos de foco cobertos. Não equivalem a uma auditoria com leitor de tela real, navegador com CSS, contraste ou todos os percursos de teclado. Antes de declarar acessibilidade integral, completar essa validação manual; isso não bloqueia as correções restritas desta rodada.
+- **Banco e volume:** confirmei a disputa de reservas em PostgreSQL real, não a capacidade de produção. Os tempos de EXPLAIN e o payload de aproximadamente 1,2 MB são medições relatadas pelo builder, não repetidas nesta revisão. O payload corresponde a 300 revisadas + 50 da fila numa população de 2.000 itens; não é uma resposta contendo todos os 2.000. Decidir o carregamento de evidências antes de ampliar significativamente a densidade/volume.
+- Os status Vercel/HTTP relatados pelo builder não comprovam migrações aplicadas ou um fluxo autenticado publicado. Não acessei produção nem banco remoto; a aprovação aqui é da implementação revisada e dos ensaios locais.
+
+## OPCIONAIS
+
+- **P3 - Contrato de falha na remoção e foco:** `InicioAgente.tsx:28` tenta voltar à lixeira quando `aoExcluir` rejeita, mas `Agente.tsx:235` captura a falha e resolve a promessa. Na ligação real, a falha exibida pelo pai mantém o item, porém o filho escolhe o título como alvo de foco, como no sucesso. Não há perda silenciosa de dados demonstrada; alinhar o retorno de sucesso/falha e acrescentar uma regressão integrada para deixar o foco de recuperação previsível.
+- O teste de remoção registra que o callback foi chamado, mas não remove o item das props do componente. Completar esse cenário com atualização real de `conversas`, confirmar o alvo exato do foco e cobrir falha. Cancelamento/Esc e o percurso de sucesso atual passaram.
+- Ajustar a frase do diário sobre desmontagem: `pesquisa-fluxos.ts:256` invalida a vigência e interrompe o ciclo, mas não zera literalmente `mostrada`. Não encontrei regressão causada por isso no ciclo de vida revisado; a descrição deve refletir o mecanismo efetivo.
+
+## DISCORDÂNCIAS
+
+- Não trato “teclado e leitor de tela” como validação integral de leitor de tela: o accname simplificado e CSS vazio são uma cobertura automatizada útil, com limites corretamente reconhecidos pelo próprio builder.
+- Não considero os resultados locais de EXPLAIN uma garantia de escalabilidade nem os indicadores externos de deploy uma prova de aplicação das migrações. Não proponho refatoração ampla ou dependência adicional para encerrar esta rodada.
+
+## APROVADO
+
+- Separação entre identidade exibida e abertura vigente, incluindo recuperação nas duas ordens de resposta, bloqueio da ação enquanto há abertura pendente, proteção contra resposta superada e não reativação após Nova pesquisa. A asserção DOM agora confere o `h2` principal e o POST com ID correto, não apenas o título lateral.
+- Criar uma pesquisa supera a abertura pendente. Além dos testes versionados, executei dois cenários em memória com os handlers reais: criação bem-sucedida mantém a nova pesquisa apesar da abertura antiga; criação que falha conserva A e suas ações apesar do sucesso tardio de B. Ambos passaram, sem gravar outro harness.
+- Paginação mantém itens/cursor e a propriedade do pedido quando a resposta nova chega antes da antiga. Meu dia ganhou testes do componente real para carga, erro/recuperação, cache durante recarga, 401, perda de rede, data e resposta abandonada, sem ampliar código funcional nesta rodada.
+- Confirmação de remoção recebe foco, Esc/cancelamento restauram a lixeira, e o percurso de sucesso direciona o foco ao título. Uso de refs é pequeno e compatível com a estrutura existente; cobertura automatizada de ARIA/nomes é uma proteção relevante, dentro dos limites acima.
+- **Verificação independente:** `pesquisa-tela` 4/4, `pesquisa-fluxos` 11/11, `pesquisa-componente` 4/4, `meu-dia-componente` 6/6, `acessibilidade-componente` 2/2: **27 testes**, zero falhas. TypeScript `--noEmit -p tsconfig.app.json`, `npm run lint` e `git diff --check`: exit 0.
+- **PostgreSQL real 17.5:** mais **1/1 teste**, totalizando **28 testes independentes aprovados**. Usei binários locais já disponíveis, banco próprio descartável UTF-8 e URL restrita a `127.0.0.1`. O ensaio selecionado de `reserva-postgres.test.mjs` passou com conexões concorrentes, unicidade de reservas, teto de orçamento e rejeição de geração antiga. Migrações rodaram apenas nesse banco vazio de teste. O banco/processo e os arquivos temporários próprios foram encerrados/removidos.
+- Houve ajustes na inicialização do auxiliar PostgreSQL no Windows (pipes herdados e ausência de `psql`); usei o driver `pg` já instalado e concluí o ensaio. Isso não foi falha do produto. Não instalei nem baixei dependências, não repeti o CI completo, não repeti EXPLAIN nem consultei sites, provedor de IA ou banco remoto.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Claude: não há correção obrigatória aberta desta Rodada 12. Como melhoria pequena, alinhar o contrato de remoção/foco, testar remoção real e falha na ligação pai/filho, e corrigir a descrição da desmontagem. Registrar esses ajustes separadamente, sem reabrir ou refatorar os fluxos já corrigidos.
+
+Para a próxima ampliação, apresentar ao usuário a decisão sobre carregamento de evidências e o plano de volume/banco para a base CNPJ nacional; monitoramento semanal também continua dependendo de escopo acordado. Não interpretar este parecer como autorização de publicação, importação nacional ou alteração de migrações aplicadas.
+
+Codex acrescentou somente este parecer. Nenhum código funcional, migração ou arquivo reservado do comparador foi editado; nenhum commit, push, merge ou deploy foi feito. Não há processo de teste ou PostgreSQL desta revisão ainda em execução.
+
+STATUS: APROVADO
