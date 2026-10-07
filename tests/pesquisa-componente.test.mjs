@@ -2,18 +2,8 @@
    cliques nos botões de verdade, estado React de verdade. Complementa o harness dos fluxos. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire, register } from 'node:module';
+import { React, montar as montarDom, servidor, botao, clicar, esperar } from './apoio/dom.mjs';
 
-register('./apoio/carregador-tsx.mjs', import.meta.url);
-const doV1 = createRequire(new URL('../v1/package.json', import.meta.url));
-const { JSDOM } = doV1('jsdom');
-const dom = new JSDOM('<!doctype html><html><body><div id="raiz"></div></body></html>', { url: 'http://127.0.0.1/' });
-for (const nome of ['window', 'document', 'navigator', 'HTMLElement', 'Node', 'Event', 'MouseEvent', 'getComputedStyle', 'requestAnimationFrame', 'cancelAnimationFrame']) {
-  if (!(nome in globalThis) || nome === 'navigator') Object.defineProperty(globalThis, nome, { value: dom.window[nome] ?? ((f) => setTimeout(f, 0)), configurable: true, writable: true });
-}
-globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-const React = doV1('react');
-const { createRoot } = doV1('react-dom/client');
 const { PesquisaTese } = await import('../v1/src/componentes/PesquisaTese.tsx');
 
 const FILTROS = { uf: 'SP', busca: '', cnae: '', incluirPossiveis: false };
@@ -30,31 +20,11 @@ const det = (id, tese, o = {}) => ({
 });
 const resumo = (d) => ({ id: d.pesquisa.id, conversa_id: 'conv', tese: d.pesquisa.tese, estado: d.pesquisa.estado, motivo_estado: null, funil: {}, meta: 20, atualizado_em: '2026-10-07T12:00:00Z', titulo: 't', boas: 0 });
 
-/** fetch em que cada pedido espera a decisão do teste (ou responde na hora, por regra). */
-function servidor(regras) {
-  const pedidos = [];
-  globalThis.fetch = (url, o = {}) => new Promise((resolve) => {
-    const p = { url: String(url), metodo: o.method ?? 'GET', corpo: o.body ? JSON.parse(o.body) : undefined,
-      responder: (dados, status = 200) => resolve(new Response(JSON.stringify(dados), { status, headers: { 'content-type': 'application/json' } })) };
-    pedidos.push(p);
-    const regra = regras.find((r) => r.metodo === p.metodo && r.url.test(p.url));
-    if (regra && !regra.segurar) p.responder(regra.dados(p));
-  });
-  return pedidos;
-}
-
 async function montar(inicial) {
-  const raiz = document.getElementById('raiz');
-  const root = createRoot(raiz);
-  await React.act(async () => {
-    root.render(React.createElement(PesquisaTese, { usuario: { id: 'u', nome: 'Ana', papel: 'analista' }, inicial,
-      aoConsumirInicial: () => {}, aoAbrirTrabalho: () => {}, aoExpirar: () => {} }));
-  });
-  return { raiz, desmontar: () => React.act(async () => root.unmount()) };
+  const t = await montarDom(React.createElement(PesquisaTese, { usuario: { id: 'u', nome: 'Ana', papel: 'analista' }, inicial,
+    aoConsumirInicial: () => {}, aoAbrirTrabalho: () => {}, aoExpirar: () => {} }));
+  return t;
 }
-const botao = (re) => [...document.querySelectorAll('button')].find((b) => re.test(b.textContent));
-const clicar = (b) => React.act(async () => { b.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
-const esperar = () => React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 
 test('componente: abrir B pendente desabilita "Revisar até a meta" de A e nenhum clique inicia A', async () => {
   const A = det('a0000000-0000-4000-8000-000000000001', 'Tese A distribuidoras antigas');
