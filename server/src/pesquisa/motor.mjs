@@ -68,8 +68,10 @@ const PropostaIA = z.object({
   notas: z.array(z.string().max(400)).max(10).optional(),
 }).passthrough();
 
-// Regras numéricas cujo valor precisa aparecer no próprio trecho citado ("mais de 20 anos" → 20).
-const NUMERO_NO_TRECHO = new Set(['idade_min', 'estabelecimentos_min', 'ufs_atuacao_min', 'socios_max', 'filial_recente_anos']);
+// Regras numéricas de contagem e anos cujo valor precisa aparecer no próprio trecho citado
+// ("mais de 20 anos" → 20). Só confere a presença do número: unidade, operador e sentido da frase
+// continuam por conta de quem confirma a proposta. Capital fica de fora (valores escritos de muitas formas).
+const NUMERO_NO_TRECHO = new Set(['idade_min', 'idade_max', 'estabelecimentos_min', 'ufs_atuacao_min', 'socios_max', 'filial_recente_anos']);
 
 /**
  * Proposta da IA validada critério a critério; o que não confere é descartado com nota.

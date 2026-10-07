@@ -566,6 +566,13 @@ test('IA: sem trecho ou com valor que o trecho não diz, o critério é descarta
   ], notas: [] }, tese);
   assert.deepEqual(r.criterios.map((c) => c.regra?.valor), [20]);
   assert.ok(r.notas.some((n) => /3 critério/.test(n)));
+  // Idade máxima tem a mesma conferência que a mínima.
+  const ate = validarPropostaIA({ frente: null, criterios: [
+    { texto: 'Até 90 anos', obrigatorio: true, tipo: 'cadastro', regra: { campo: 'idade_max', valor: 90 }, trecho: 'ate 20 anos' },
+    { texto: 'Até 20 anos', obrigatorio: true, tipo: 'cadastro', regra: { campo: 'idade_max', valor: 20 }, trecho: 'ate 20 anos' },
+  ], notas: [] }, 'Distribuidoras com ate 20 anos');
+  assert.deepEqual(ate.criterios.map((c) => [c.regra?.campo, c.regra?.valor]), [['idade_max', 20]]);
+  assert.ok(ate.notas.some((n) => /1 critério/.test(n)), ate.notas.join(' | '));
   const muitas = interpretarTese('Distribuidoras que representem fabricantes alemães; que atendam o agronegócio paulista; que tenham laboratório próprio certificado; que exportem solventes industriais; que façam mistura de resinas; que possuam frota própria refrigerada');
   assert.ok(muitas.notas.some((n) => /limite de \d+ critérios de pesquisa/.test(n)), muitas.notas.join(' | '));
 });
