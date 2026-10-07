@@ -1,10 +1,32 @@
 # Retomada da implementação do agente GHT4
 
-Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch: `main`, publicada. A instalação usa Vercel e Supabase; todo push na `main` publica em produção, e o build de produção (`ferramentas/build-vercel.mjs`) roda `preparar-banco.mjs`: migrações, reimportação do catálogo e dos eventos.
+Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch de trabalho: `feat/agente-rodada-4` (não publicada; ver abaixo). A instalação usa Vercel e Supabase; todo push na `main` publica em produção, e o build de produção (`ferramentas/build-vercel.mjs`) roda `preparar-banco.mjs`: migrações, reimportação do catálogo e dos eventos.
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — pesquisa por tese, gratuita (07/10/2026)
+## COMECE AQUI — correções das revisões, ainda fora da `main` (07/10/2026, noite)
+
+**Estado:** branch `feat/agente-rodada-4`, 17 commits sobre `origin/main` (`9be9d51`), **sem push**. Na `main`, o push publica em produção. O Codex ainda não aceitou as Rodadas 4–7; o registro ponto a ponto é a **Rodada 8** em [AI_COLLAB.md](../AI_COLLAB.md), e o de interface/arquivamento é a Rodada 7.
+
+**O que entrou:**
+- Bloqueadores das Rodadas 4/5 (comparação × situação, relação com as duas pontas ativas, evento visível, rótulo de sócios, Meu dia com falha/atualização/fora da rede, continuidade da busca por sinais).
+- Pesquisa por tese: os dois P1 (replay de criação após revogação; SSRF com resolução fixada e resposta hostil tratada), reserva com ficha e geração, pausa preservada, IBAMA no hash, desconhecido × vazio, origem/robots/URL final, corte de 300 com paginação, lastro da proposta e da entrega, prazos de ponta a ponta, localização e "familiar", resposta tardia na tela, política de provedor que retém dados.
+- "Remover da lista" em "Continue de onde parou" (arquivamento lógico).
+
+**Migrações novas:** `0020_arquivar_conversas.sql`, `0021_pesquisa_execucao.sql`, `0022_paginas_origem_final.sql`. No primeiro deploy, o catálogo é republicado uma vez (o hash agora inclui IBAMA e o extrator de atributos).
+
+**Validação:** 71 raiz + 245 servidor (1 pulado: ensaio PostgreSQL opcional), `tsc -b`, build, taxonomia/paleta offline, ensaio com catálogo real (725 → 93) e interface conferida no navegador. `npm run lint` não roda nesta máquina (Controle de Aplicativos do Windows).
+
+### Próximos passos, em ordem
+
+1. **Pedir ao Codex a revisão da Rodada 8** no `AI_COLLAB.md`.
+2. **Rodar o ensaio de concorrência em Postgres real:** `GHT4_TESTE_PG_URL=postgres://...` apontando para um banco descartável, depois `npm test --prefix server`.
+3. **Rodar `npm run lint`** em outra máquina ou liberar o oxlint.
+4. **Com o aceite, levar à `main`** (fast-forward a partir desta branch) e conferir o deploy: as migrações 0020–0022 e um `catalogo` com snapshot novo no log da Vercel.
+5. **Depois do deploy:** testar a pesquisa em produção e ligar a IA gratuita (passos 2 e 3 do checkpoint abaixo, ainda válidos).
+6. **Pendências conhecidas:** teste de interface do Meu dia (não há infraestrutura de teste React), ensaio de teclado/leitor de tela, monitoramento semanal de tese, base CNPJ nacional (todos os setores; ver a conversa de 07/10: importar a base RFB enxuta e trocar o subsetor fixo por taxonomia por CNAE).
+
+## Checkpoint anterior — pesquisa por tese, gratuita (07/10/2026)
 
 Pedido: estudar o Lessie AI (engenharia reversa com o REA) e trazer para o GHT4 o que fizer sentido, inclusive interface, sem custo agora. Estudo em [PESQUISA-LESSIE-AI.md](../PESQUISA-LESSIE-AI.md). Registro para revisão do Codex: Rodada 6 em [AI_COLLAB.md](../AI_COLLAB.md).
 

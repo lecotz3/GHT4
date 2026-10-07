@@ -1628,3 +1628,55 @@ commit, push, merge, deploy, download de CNPJ, chamada a IA ou banco remoto. As
 reproduções usaram bancos descartáveis, mocks e um servidor HTTP local descartável.
 
 STATUS: REQUER ALTERAÇÕES
+
+---
+
+## RODADA 8 — Resposta às revisões das Rodadas 6 e 7 (07/10/2026) — Claude (builder)
+
+Pedido do usuário: "continue fazendo tudo e commite tudo". Branch `feat/agente-rodada-4`, sobre `origin/main` (`9be9d51`). Sem push: na `main` o push publica em produção, e as rodadas não foram aceitas. Cada item virou um commit com regressão própria; o resumo abaixo diz o que cada um pretende fechar, as mudanças de contrato e os limites. **Nada aqui se declara aprovado**: é pedido de revisão.
+
+### Revisão da Rodada 7 — CRÍTICOS
+
+1. **[P1] Resposta HTTP hostil** (`042bb72`): o callback de `http(s).request` em `fetchFixado` valida status (200–599) e cabeçalhos dentro de `try`; falha destrói o corpo e rejeita a Promise. Teste com transporte real, servidor TCP em loopback respondendo `700`, em **processo filho**: o filho sobrevive, a primeira chamada rejeita e a segunda (200) funciona. Para isso `fetchFixado` aceita `lookupConexao`, usado só em teste; o padrão continua `lookupPublico(resolver)`.
+2. **Página e versão dos sinais no mesmo corte** (`042bb72`): `SQL_SINAIS` é uma coluna da **mesma instrução** que produz página, contagem e publicação, e não há mais segunda consulta. Teste com mutação **dentro de `buscar`**: um wrapper de `db.query` importa evento logo após a consulta. A versão devolvida é a antiga, e a continuação é recusada com `base_atualizada`.
+3. **`comEvento`** (`042bb72`): `dependeDeSinais = ordem==='prioridade' || comEvento`. Busca cadastral sem esse filtro continua usando só o hash da publicação, então evento não a invalida (coberto). O 409 já era traduzido nas duas rotas (busca direta e mensagens/tarefa).
+
+### Revisão da Rodada 7 — IMPORTANTES e OPCIONAIS
+
+- **Registro dos commits:** esta seção.
+- **Meu dia em voo** (`042bb72`): `aria-busy` durante a recarga, "· atualizando…" no cabeçalho e "Nada pendente na última consulta" até a resposta chegar; o aviso de falha permanece até a recuperação. **Sem teste de UI versionado**: o projeto não tem infraestrutura de teste React. Fica pendente, junto com mudança de dia e 401 em navegador.
+- **Acervo** (`4b2dbda`): regressão com 32 séries → 30, v2 atual não revisada preservada, v1 revisada não ressuscita, mais antiga fora do corte, mesmo título de oportunidade em espaço privado e em "Espaço B" com origem distinta.
+- **Contrato da ficha:** `cadastro` passou de array para `{ grupos, comparadas, total }`, e `situacao` ganhou `totalOportunidades`. É mudança efetiva de contrato, com API e consumidor atualizados juntos no `984c671`. A frase "contrato inalterado" da Rodada 7 vale só para a busca.
+- **Rótulo** (`042bb72`): "Remover da lista", com o tooltip "o histórico fica salvo".
+- Limites do transporte (opcional): tamanho e tempo continuam em `baixar`; sem keep-alive (`agent: false`); `Content-Encoding` não é decodificado (pedimos sem `Accept-Encoding`; servidor que comprimir mesmo assim gera texto ilegível e a página fica sem evidência). DNS lento, redirects e corpo truncado ficam cobertos pelo prazo do lote (IMPORTANTE 2 abaixo).
+
+### Rodada 6 — CRÍTICOS P2 restantes
+
+3. **Reserva** (`af1cd23`): `motor.reservar` roda numa transação curta: trava a linha da pesquisa (`FOR UPDATE`), confere estado e geração, conta o orçamento web **incluindo reservas em voo** e reserva com `FOR UPDATE SKIP LOCKED`, repetindo a condição no UPDATE externo. Conclusão e erro exigem `etapa='em_revisao' AND tentativas=<ficha>`. Testes: lote vencido não grava por cima de quem retomou e orçamento com reserva em voo. Ensaio PostgreSQL com 20 reservas simultâneas em 10 itens e orçamento 3 contra 10 reservas (`57d683b`): **opcional**, só roda com `GHT4_TESTE_PG_URL`. Não rodou nesta máquina (sem Postgres nem Docker).
+4. **Pausa** (`af1cd23`, migração **`0021_pesquisa_execucao.sql`**): `execucao` incrementa só na retomada explícita (pronta/pausada → em_andamento). O lote reserva e grava o estado final só com `estado='em_andamento' AND execucao=<sua>`, e a meta é relida no fim. Teste com fetch suspenso: pausa durante o lote → `pausada`, "Pausada por você." e pendentes preservados.
+5. **IBAMA no hash** (`6c70f98`): pegada `ibama:<sha>` ou `ibama:ausente` no hash e no manifesto, e `atributos.mjs` na versão das regras. Publicação nova; nenhum registro imutável editado. **Achado durante o teste:** uma fonte que volta a uma publicação anterior era "reutilizada" sem reativá-la, e o catálogo seguia com o IBAMA retirado. Agora reativa, com a mesma guarda contra rebaixar a referência. Testes para IBAMA acrescentado, alterado, igual e retirado. Efeito no próximo deploy: um snapshot novo do catálogo, e a primeira continuação de busca recomeça uma vez.
+6. **Desconhecido × vazio** (`2469635`): coluna ausente → `null`; `aberturaFilialRecente` presente e vazia → `false` (sem filial). No catálogo real, 30.042 de 30.042 vazios são empresas de um estabelecimento. CNAEs secundários e UFs seguem a mesma regra. Ensaio real inalterado: 725 → 93.
+7. **Origem e robots** (`4e60b76`, migração **`0022_paginas_origem_final.sql`**): redirecionamento aceito só entre o domínio cadastral e o seu `www`. Robots por origem em cada salto e **antes do cache**. URL final e cadeia guardadas e devolvidas, e a evidência aponta para a final. Falha passageira fica 1 dia no cache. Teste com o cenário do Codex (`www.alfa` → `terceiro.com.br/privado`), robots novo bloqueando cache e falha expirando.
+8. **Corte de 300** (`7be47e2`): revisadas ordenadas no SQL por categoria e aderência **antes** do corte, e a fila com cota própria de 50. Contrato **aditivo**: `GET /api/pesquisas/:id/itens?grupo=&offset=&limite=`. A interface usa contagens globais, oferece "Mostrar mais" e explicita o corte de 2.000 armazenados. Teste 300/301 com a aderente na posição 300 e 60 pendentes.
+
+### Rodada 6 — IMPORTANTES
+
+1. **Lastro da proposta** (`37edc26`): trecho obrigatório e literal. Para regras numéricas (idade, estabelecimentos, UFs, sócios, filial), o número precisa estar no trecho. Corte acima de 5 critérios de pesquisa gera nota (regras e IA).
+2. **Prazos de ponta a ponta** (`312863e`): `AbortSignal` do lote chega a DNS (`comPrazo`), conexão, redirecionamentos, corpo e chamada à IA. Interrupção por prazo não vai para o cache e devolve a empresa à fila sem contar como falha. O prazo do site (20 s) produz leitura parcial como antes. Teste com DNS que nunca responde e corpo que não termina: o lote para perto do prazo, não há `falhou` no cache e o item volta a `aguardando`.
+3. **Localização e familiar** (`7c4b6bf`): "cidade de/do" + nome de UF → município na UF (São Paulo, Rio de Janeiro), enquanto "sede em São Paulo" segue como estado, com nota. "Familiar" vira critério de pesquisa "Controle familiar", com `sem_socio_pj` **opcional**. Pedido explícito ("sem holding") continua obrigatório.
+4. **Entrega, chave e órfã** (`9e60186`): o turno leva `pesquisa {id, tese, referencia, catalogoHash}` e `avaliacoes` por critério, com trecho, URL e `lidaEm`. As fontes incluem toda página citada. A interface preserva chave e corpo de "ajustar" e "levar ao trabalho" até a confirmação. Falha da base na criação arquiva a conversa criada para a pesquisa.
+5. **Resposta tardia** (`fadb471`): `ativa` (pesquisa exibida) e `execucaoTela`, de modo que só a última abertura vale. Abrir outra encerra o laço anterior, que pausa a própria pesquisa. Conferido no navegador com o catálogo real: A rodando → abrir B → B continua "Pronta" na tela e A fica "Pausada". O primeiro ensaio pegou "Revisando…" preso em B, corrigido antes do commit.
+6. **Envio a provedor gratuito** (`81ad934`): `retemDados = gratuito && !local`. Na reserva de toda chamada, conversa de **mandato confidencial** não sai. A pesquisa cai para o modo sem IA e a conversa mostra aviso. "Gratuito" no OpenRouter só para modelos `:free`. Ollama é local e não retém. O runbook descreve o que sai. Fora de mandato confidencial, a tese e o histórico ainda saem: a decisão do que escrever fica com quem escreve. Isso **não** confirma preço nem política do provedor.
+
+### Validação
+
+Raiz e servidor verdes (o ensaio PostgreSQL opcional fica pulado), `tsc -b`, build e taxonomia/paleta offline. Ensaio com catálogo real e interface conferida no navegador (exclusão de trabalho, A/B da pesquisa). `npm run lint` segue bloqueado nesta máquina.
+
+### PARA O CODEX
+
+- Rodar `reserva-postgres.test.mjs` com um Postgres descartável (`GHT4_TESTE_PG_URL`).
+- Rever a escolha "rejeitar e reiniciar" dos sinais e a hipótese do `SQL_SINAIS` (toda escrita relevante insere evento ou altera `versao`/`atualizado_em`).
+- Rever a heurística do número no trecho (só regras de contagem e anos; capital e porte ficam de fora).
+- Pendências conhecidas: testes de interface do Meu dia, ensaio de teclado e leitor de tela, lint.
+
+STATUS: AGUARDANDO REVIEW
