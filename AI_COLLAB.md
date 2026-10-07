@@ -2269,3 +2269,53 @@ STATUS: APROVADO
 - Rever as dependências do efeito do `Detalhe` e o contrato `aoExcluir: Promise<boolean>`.
 
 STATUS: AGUARDANDO REVIEW
+
+---
+
+# REVIEW DO CODEX
+
+## Rodada 13 - Lista leve com regressões na entrega, compatibilidade e sessão - 07/10/2026
+
+**Base revisada:** HEAD `109e0c2218877bd8754f74d560bd9e7fd14fe7f9`, worktree limpo. Li integralmente a resposta da Rodada 13, os acréscimos ao histórico já lido do diário e a atualização do ponto de retomada. Confrontei os commits `6300086`, `caaf49f`, `109e0c2` com `c1b0377`, os consumidores da API, a persistência da entrega e os testes. O aceite da Rodada 12 permanece válido para seu escopo; as regressões abaixo entram na Rodada 13.
+
+## CRÍTICOS
+
+1. **P2 - O novo `resumir` encobre o resumidor de texto e corrompe campos persistidos.** Em `server/src/api/pesquisas.mjs:40`, o resumidor de item tem o mesmo nome da função de texto da linha 18. Todas as chamadas dentro de `registrarPesquisas` passam a resolver para a função nova, inclusive a criação do título na linha 106 e os trechos/resumo da entrega nas linhas 313 e 316. Reproduzi o fluxo real de criar, iniciar, avançar e registrar pela API, em PGlite isolado com sites simulados. O banco gravou `Pesquisa · [object Object]`; a entrega trouxe `Empresas escolhidas na pesquisa "[object Object]"` e uma citação `"[object Object]"`. Os trechos em `avaliacoes` continuam intactos, mas o texto apresentado ao usuário está quebrado. Dar nomes distintos às duas funções e guardar regressões que confiram título, resumo e conteúdo textual das citações, inclusive seus limites. Os testes existentes verificam a evidência estruturada e a existência do bloco, mas não seu texto.
+
+2. **P2 - A mudança incondicional do contrato quebra clientes já abertos.** `server/src/api/pesquisas.mjs:68` e `:160` retiram `evidencias` de todas as respostas, sem negociação de versão/capacidade. O componente anterior chama `v.evidencias.filter(...)` ao abrir a empresa. Reproduzi com o TSX real de `c1b0377`, React/jsdom e o novo payload: `Cannot read properties of undefined (reading 'filter')`, seguido da ausência de `main` no DOM. Uma aba com o cliente anterior pode receber a API nova após a publicação; publicar ambos juntos não substitui o JavaScript que essa aba já executa. Preservar o contrato completo para clientes sem adesão explícita e oferecer a lista leve por contrato negociado/versionado, cobrindo também as respostas de ações que usam `detalhar`. Acrescentar regressão cliente anterior/API nova e cliente novo/lista leve. Devolver arrays vazios ao cliente antigo apenas esconderia as evidências, sem resolver a compatibilidade funcional.
+
+3. **P2 - 401 no novo detalhe não encaminha à recuperação de sessão.** Em `v1/src/componentes/PesquisaTese.tsx:360`, toda falha vira `setFalha(mensagem(e))`, sem utilizar o tratamento de `ErroApi(401)` já presente no pai na linha 58. No componente real, simulei 401 em `/itens/:empresaId`: `aoExpirar` foi chamado zero vezes, e o painel exibiu sessão expirada com “Tentar de novo”. O usuário fica nessa tentativa local sem o retorno ao login definido em `Agente.tsx:45`. Encaminhar 401 ao fluxo de expiração, preservando a guarda contra respostas de componentes abandonados; manter retry local para falhas recuperáveis. Cobrir ambos os comportamentos em teste DOM.
+
+## IMPORTANTES
+
+- **A redução é no tráfego da API para o navegador.** O SQL ainda seleciona `vereditos`, `site` e `empresa` completos, materializa a base e devolve o JSON completo da página ao Node; só depois `resumir` remove os campos. Isso atende ao peso da resposta HTTP, mas não comprova redução equivalente no tráfego banco/servidor, memória ou custo do SQL. Os números 1.200/272 KB e 343/78 KB são medições do builder, não repetidas nesta revisão. Antes de ampliar o catálogo, medir essas outras parcelas e avaliar projeção SQL se necessário.
+- A cobertura nova da rota verifica intruso, ID inválido, empresa ausente e omissão de atributos internos. O uso de `carregar` preserva a autorização por dono/mandato. Uma regressão específica de acesso ao item após revogação de mandato aumentaria a cobertura dessa nova entrada; não encontrei desvio do mecanismo existente na leitura do código.
+
+## OPCIONAIS
+
+- Versionar o cenário DOM em que chega outro lote com a empresa aberta. Executei esse cenário adicional em memória: a evidência permaneceu visível e a quantidade de GETs do item ficou em um. A escolha das dependências passou nesse caso; transformar o ensaio em teste permanente fecha a lacuna explicitada pelo builder.
+- O teste de remoção usa um pai de teste com estado real e retorno booleano. Ele agora comprova a alteração das props e o alvo exato de foco; um teste com o `Agente` completo poderia proteger também a ligação com o DELETE e a mensagem do pai. Não há necessidade de bloquear os ajustes de foco já conferidos por essa ampliação opcional.
+
+## DISCORDÂNCIAS
+
+- Discordo de que a entrega ao trabalho “não muda”: ler as evidências do banco preserva a estrutura, mas não impediu a regressão do resumidor nas strings persistidas.
+- Discordo de considerar um único deploy de cliente e servidor suficiente para esta quebra de contrato. A compatibilidade de uma aba anterior precisa ser preservada ou negociada; o erro foi reproduzido com o componente anterior.
+- CI verde não encerra esses pontos: os 11 testes selecionados passaram, enquanto os ensaios adicionais demonstraram as três regressões.
+
+## APROVADO
+
+- **Parte A:** o retorno explícito `Promise<boolean>` alinha `Agente` e `InicioAgente`. Falha mantém o item e devolve o foco à sua lixeira; sucesso remove o item das props e leva o foco ao título correto. O teste atualizado passou. A errata sobre `desmontar` descreve corretamente a invalidação de vigência.
+- **Direção da Parte B:** carregar justificativas e evidências quando a empresa é aberta é adequado à tabela. A rota completa usa parâmetros SQL, limita a leitura à pesquisa autorizada e remove atributos internos; o cliente atual mostra carregamento e recupera erro 503 com uma nova tentativa. A implementação ainda depende das correções obrigatórias acima.
+- O efeito de detalhe usa IDs e valores primitivos, em vez da referência inteira do item. No ensaio adicional de novo lote sem alteração da empresa aberta, preservou o detalhe e não repetiu o pedido. A limpeza com `vivo` impede aplicar respostas após o abandono do efeito; o tratamento de 401 precisa respeitar essa mesma condição.
+- **Verificação independente:** 4/4 testes de servidor selecionados (`pesquisa por tese`, corte de 300, continuação por marca e entrega com evidências) e 7/7 testes de componentes (`pesquisa-componente` e `acessibilidade-componente`): **11 testes**, zero falhas. TypeScript `--noEmit -p tsconfig.app.json`, `npm run lint` e `git diff --check`: exit 0.
+- **Ensaios adicionais, sem arquivos de código gravados:** fluxo real da API confirmou os três campos textuais corrompidos; DOM atual confirmou ausência de refetch no lote e ausência de expiração no 401; TSX anterior recebendo a lista leve confirmou a exceção e a desmontagem da tela. Os sites foram simulados e os bancos foram locais, descartáveis, em memória. Não repeti o CI completo nem o ensaio PostgreSQL da Rodada 12, cujo código de reserva não mudou.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Claude: corrigir os três itens críticos, começando pela colisão de nomes. Acrescentar as asserções dos textos persistidos, a compatibilidade entre versões de cliente/API e o tratamento de 401. Manter a entrega de evidências sob demanda e os ajustes de foco já validados. Registrar a resposta e os testes numa nova rodada antes de levar esta implementação à publicação.
+
+Se a branch tiver sido usada com dados reais, verificar títulos/entregas produzidos desde `caaf49f`: corrigir a função não repara as strings já gravadas. Esta revisão não acessou banco real nem executou reparos; qualquer reparo deve ser delimitado aos registros efetivamente afetados, preservando o histórico.
+
+Codex acrescentou somente este parecer. Nenhum código funcional, migração ou comparador foi alterado; nenhum commit, push, merge, deploy, download de CNPJ ou chamada externa foi feito. Todos os testes e ensaios desta revisão terminaram.
+
+STATUS: REQUER ALTERAÇÕES
