@@ -6,11 +6,17 @@ import { atributosDe, contarDominios, lerPegadaIbama } from './atributos.mjs';
 
 const sha = texto => createHash('sha256').update(texto).digest('hex');
 export async function lerRegrasCatalogo() {
-  const arquivos = await Promise.all(['classificacao', 'taxonomia'].map(nome =>
-    readFile(new URL(`../../../packages/domain/${nome}.mjs`, import.meta.url), 'utf8')));
+  const arquivos = await Promise.all([
+    ...['classificacao', 'taxonomia'].map(nome => new URL(`../../../packages/domain/${nome}.mjs`, import.meta.url)),
+    // O extrator de atributos também decide o que é publicado: mudou, é outra publicação.
+    new URL('./atributos.mjs', import.meta.url),
+  ].map(u => readFile(u, 'utf8')));
   // v2: registros publicados levam os atributos públicos usados pela pesquisa por tese.
   return sha(['importador-catalogo-v2', ...arquivos.map(t => t.replaceAll('\r\n', '\n'))].join('\n'));
 }
+
+/** Impressão digital da fonte IBAMA, incluindo a ausência: ela altera os atributos gravados. */
+export const pegadaIbama = (textoIbama) => textoIbama ? `ibama:${sha(textoIbama.replaceAll('\r\n', '\n'))}` : 'ibama:ausente';
 
 function registrosDaFonte(fonte, textoIbama = null) {
   const vistos = new Set();
@@ -55,13 +61,22 @@ const TIPO_LOTE = `raiz text, nome text, razao text, cidade text, uf text, cnae 
 export async function importarCatalogo(db, { texto, textoIbama = null, versaoRegras, ativar = true } = {}) {
   const fonte = lerFonteCatalogo(texto);
   const versao = versaoRegras ?? await lerRegrasCatalogo();
-  const hash = sha(`${fonte.hash}\n${versao}`);
+  const ibama = pegadaIbama(textoIbama);
+  const hash = sha(`${fonte.hash}\n${versao}\n${ibama}`);
   const registros = registrosDaFonte(fonte, textoIbama);
   return db.transaction(async tx => {
     // Serializa publicações, inclusive a primeira; uma falha preserva o catálogo anterior.
     await tx.query('SELECT id FROM catalogo_controle WHERE id=true FOR UPDATE');
     const existente = (await tx.query('SELECT snapshot_id,total_origem FROM catalogo_publicacoes WHERE hash=$1', [hash])).rows[0];
-    if (existente) return { hash, snapshotId: existente.snapshot_id, total: existente.total_origem, reutilizado: true };
+    if (existente) {
+      // Fonte que volta a uma publicação anterior (ex.: IBAMA retirado) reativa aquela publicação.
+      if (ativar) {
+        const ativa = (await tx.query(`SELECT s.referencia FROM catalogo_controle c JOIN snapshots_universo s ON s.id=c.snapshot_id`)).rows[0];
+        if (ativa && ativa.referencia > fonte.referencia) throw new Error('Referência mais antiga que o catálogo ativo. Não rebaixar a base automaticamente.');
+        await tx.query('UPDATE catalogo_controle SET snapshot_id=$1 WHERE id=true AND snapshot_id IS DISTINCT FROM $1', [existente.snapshot_id]);
+      }
+      return { hash, snapshotId: existente.snapshot_id, total: existente.total_origem, reutilizado: true };
+    }
     const atual = (await tx.query(`SELECT s.referencia FROM catalogo_controle c JOIN snapshots_universo s ON s.id=c.snapshot_id`)).rows[0];
     if (ativar && atual && atual.referencia > fonte.referencia) throw new Error('Referência mais antiga que o catálogo ativo. Não rebaixar a base automaticamente.');
     const schema = (await tx.query('SELECT COALESCE(max(versao_schema),0)+1 AS n FROM snapshots_universo WHERE referencia=$1', [fonte.referencia])).rows[0].n;
@@ -74,7 +89,7 @@ export async function importarCatalogo(db, { texto, textoIbama = null, versaoReg
       (rotulo,referencia,data_corte,versao_schema,manifesto,cobertura)
       VALUES ('Catálogo químico importado',$1,$2,$3,$4,$5) RETURNING id`,
     [fonte.referencia, `${fonte.referencia}-01`, schema,
-      JSON.stringify([{ ativoId: ativo.id, sha256: fonte.hash, regras: versao }]),
+      JSON.stringify([{ ativoId: ativo.id, sha256: fonte.hash, regras: versao, ibama }]),
       JSON.stringify({ fonte: 'rfb_cnpj', tipo: 'recorte_importado', financeiros: false, contatos: false, estabelecimentosIndividuais: false })])).rows[0];
     const sid = snapshot.id;
     await tx.query(`INSERT INTO catalogo_publicacoes(snapshot_id,hash,hash_origem,versao_regras,total_origem) VALUES ($1,$2,$3,$4,$5)`,

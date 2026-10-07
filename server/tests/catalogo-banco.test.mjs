@@ -213,3 +213,26 @@ test('eventos: raiz numérica é rejeitada e o rótulo do quadro não afirma mud
   const { eventos } = lerFonteEventos(arquivo([{ base: '12345678', tipo: 'mudanca_quadro_societario', rotulo: 'Número de sócios mudou', detalhe: 'Sócios: 2 → 2 · sócios PJ: 1 → 0', ambiguidade: 'y' }]));
   assert.equal(eventos[0].rotulo, 'Contagem de sócios mudou (total ou pessoa jurídica)');
 });
+
+test('mudar, acrescentar ou retirar a fonte IBAMA publica um snapshot novo com o dado atual', async (t) => {
+  const db = await bancoDeTeste(); t.after(() => db.close());
+  const ibama = (grau, ano) => `const COLUNAS_IBAMA = ["raiz","grau","viva","ano"];\nconst LINHAS_IBAMA = [\n${JSON.stringify(['12345678', grau, true, ano])}\n];\n`;
+  const atributo = async () => (await db.query(`SELECT r.atributos->'ibama' AS i FROM catalogo_controle c JOIN catalogo_registros r ON r.snapshot_id=c.snapshot_id
+    JOIN entidades_juridicas e ON e.id=r.entidade_id WHERE e.cnpj_raiz='12345678'`)).rows[0].i;
+  const sem = await importarCatalogo(db, { texto: fonte() });
+  assert.equal(await atributo(), null);
+  const comercio = await importarCatalogo(db, { texto: fonte(), textoIbama: ibama('comercio', 2024) });
+  assert.equal(comercio.reutilizado, false, 'IBAMA acrescentado');
+  assert.deepEqual(await atributo(), { grau: 'comercio', viva: true, ano: 2024 });
+  const industria = await importarCatalogo(db, { texto: fonte(), textoIbama: ibama('industria', 2026) });
+  assert.equal(industria.reutilizado, false, 'IBAMA alterado');
+  assert.notEqual(industria.hash, comercio.hash);
+  assert.deepEqual(await atributo(), { grau: 'industria', viva: true, ano: 2026 });
+  assert.equal((await importarCatalogo(db, { texto: fonte(), textoIbama: ibama('industria', 2026) })).reutilizado, true);
+  const retirado = await importarCatalogo(db, { texto: fonte() });
+  assert.equal(retirado.hash, sem.hash, 'sem IBAMA volta à publicação sem IBAMA');
+  assert.equal(retirado.reutilizado, true);
+  assert.equal(await atributo(), null, 'a publicação sem IBAMA volta a ser a ativa');
+  const manifesto = (await db.query('SELECT manifesto FROM snapshots_universo WHERE id=$1', [industria.snapshotId])).rows[0].manifesto;
+  assert.match(manifesto[0].ibama, /^ibama:[0-9a-f]{64}$/);
+});
