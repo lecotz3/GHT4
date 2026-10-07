@@ -4,7 +4,44 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — correções das revisões, ainda fora da `main` (07/10/2026, noite)
+## COMECE AQUI — Rodada 9 na branch; Rodadas 4–8 já na `main` (07/10/2026, noite)
+
+**Estado:**
+- **Na `main` (`39230fd`):** as Rodadas 4–8, publicadas a pedido do usuário depois de testes e build verdes. O deploy na Vercel não foi conferido daqui: a conta conectada não vê o projeto.
+- **Na branch `feat/agente-rodada-4`, sem push:** a Rodada 9, 7 commits sobre a `main`. Ela responde à revisão da Rodada 8 do Codex, que pediu alterações. O registro ponto a ponto está na **Rodada 9** em [AI_COLLAB.md](../AI_COLLAB.md).
+
+**Rodada 9:**
+- Ollama só é local com destino loopback.
+- O avanço distingue retomada explícita de continuação (pausa, conclusão e retomada nova não são desfeitas).
+- Os grupos da pesquisa aparecem pela contagem global.
+- "Mostrar mais" não duplica e usa o cursor do servidor.
+- Respostas tardias de ajustar/iniciar/entrega não trocam a tela.
+- Idade máxima exige o número no trecho.
+- A fixture do ensaio PostgreSQL agora valida, e o acervo tem regressão da v2.
+- O corpo não lido é encerrado.
+- Regras da tela em `v1/src/agente/pesquisa-tela.ts`, com testes em node.
+
+**Contrato novo:** `POST /api/pesquisas/:id/avancar` aceita `execucao`. Sem ela, é retomada; com ela, é continuação. A pesquisa expõe `execucao`. Não há migração nova.
+
+**Validação:** 75 raiz + 250 servidor (1 pulado: PostgreSQL real), build, taxonomia/paleta offline, ensaio com catálogo real (725 → 93). **Não conferido no navegador nesta rodada.** Lint bloqueado nesta máquina.
+
+### Próximos passos, em ordem
+
+1. **Pedir ao Codex a revisão da Rodada 9.**
+2. **Conferir o deploy de `39230fd`** no painel da Vercel: migrações 0020–0022 e snapshot novo do catálogo.
+3. **Conferir a tela da pesquisa no navegador** com o catálogo real:
+   - grupo fora dos 300;
+   - "Mostrar mais" com clique duplo;
+   - ajustar e abrir outra pesquisa durante o pedido.
+4. **Com o aceite (ou decisão do usuário), levar a Rodada 9 à `main`** (fast-forward).
+5. **Rodar o ensaio PostgreSQL real** (`GHT4_TESTE_PG_URL`) e o lint em outra máquina.
+6. **Pendências conhecidas:**
+   - harness React/DOM para a fiação dos handlers e o Meu dia;
+   - ensaio de teclado e leitor de tela;
+   - monitoramento semanal de tese;
+   - base CNPJ nacional (depois de fechar as fronteiras, como pediu o Codex).
+
+## Checkpoint anterior — correções das Rodadas 4–8 (07/10/2026, noite)
 
 **Estado:** branch `feat/agente-rodada-4`, 17 commits sobre `origin/main` (`9be9d51`), **sem push**. Na `main`, o push publica em produção. O Codex ainda não aceitou as Rodadas 4–7; o registro ponto a ponto é a **Rodada 8** em [AI_COLLAB.md](../AI_COLLAB.md), e o de interface/arquivamento é a Rodada 7.
 
