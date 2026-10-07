@@ -4,30 +4,32 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodada 11 na branch; até a Rodada 10 na `main` (07/10/2026, noite)
+## COMECE AQUI — Rodada 12 na branch; até a Rodada 11 na `main` (07/10/2026, noite)
 
 **Estado:**
-- **Na `main` (`150a51a`):** até a Rodada 10, publicada a pedido do usuário. O Codex reprovou a Rodada 10 com dois P2 de tela; o parecer está commitado na branch. O deploy não foi conferido daqui.
-- **Na branch `feat/agente-rodada-4`, sem push:** a Rodada 11, que corrige esses dois pontos. O registro está na **Rodada 11** em [AI_COLLAB.md](../AI_COLLAB.md).
+- **Na `main` (`48f64db`):** até a Rodada 11. A produção de `150a51a` e as anteriores constam como concluídas no status do GitHub, e `ght-4.vercel.app` responde. Sem acesso aos logs da Vercel com a conta conectada.
+- **Na branch `feat/agente-rodada-4`, sem push:** a Rodada 12. Ela traz a correção das aberturas sobrepostas pedida pelo Codex, os testes do Meu dia, a auditoria de acessibilidade com a correção de foco em "Remover da lista" e o registro do PostgreSQL real e do EXPLAIN. O registro está na **Rodada 12** em [AI_COLLAB.md](../AI_COLLAB.md).
 
-**Rodada 11:**
-- Abrir outra pesquisa bloqueia as ações da anterior até a resposta.
-- Cada pedido de "Mostrar mais" é dono da própria finalização.
-- Teste do componente real em jsdom (`tests/pesquisa-componente.test.mjs`, carregador em `tests/apoio/`). `jsdom` é devDependency do `v1`.
+**Feito nesta rodada:**
+- **PostgreSQL real:** o ensaio de concorrência passou 5×, num banco UTF-8 descartável local.
+- **EXPLAIN:** detalhe com cerca de 8 ms de execução, mas a resposta pesa ~1,2 MB com 2.000 itens.
+- **Lint:** roda nesta máquina, sem avisos.
+- **CI completo:** `npm run ci` termina com exit 0.
 
-**Validação:** 86 raiz + 252 servidor (1 pulado), build, dados offline. Lint bloqueado nesta máquina; PostgreSQL real não rodado.
+**Como rodar o PostgreSQL real numa máquina sem Postgres:**
+1. Instale `embedded-postgres` numa pasta fora do repositório e suba numa porta local.
+2. Crie o banco com `CREATE DATABASE x ENCODING 'UTF8' TEMPLATE template0`; no Windows, o padrão é WIN1252 e falha.
+3. Rode `GHT4_TESTE_PG_URL=postgres://...@127.0.0.1:<porta>/x npm test --prefix server`.
 
 ### Próximos passos, em ordem
 
-1. **Pedir ao Codex a revisão da Rodada 11.**
-2. **Conferir no painel da Vercel o deploy de `150a51a`.**
-3. **Levar a Rodada 11 à `main`** quando o usuário decidir. Só muda cliente e testes.
-4. **Rodar o PostgreSQL real e o lint** em outra máquina.
-5. **Pendências conhecidas:**
-   - teclado e leitor de tela;
-   - testes de componente do Meu dia;
-   - monitoramento de tese;
-   - base CNPJ nacional.
+1. **Pedir ao Codex a revisão da Rodada 12.**
+2. **Levar a Rodada 12 à `main`** quando o usuário decidir. Só muda cliente e testes.
+3. **Decidir o tamanho da primeira resposta da pesquisa** (~1,2 MB com vereditos densos): vir sem evidências completas e carregá-las ao abrir a empresa?
+4. **Ensaio com leitor de tela real** (NVDA/VoiceOver) e conferência visual de foco/contraste. A auditoria automatizada cobre só a estrutura.
+5. **Funcionalidades em espera** (o Codex pediu para fechar as fronteiras antes; dependem de decisão do usuário):
+   - monitoramento semanal de tese;
+   - base CNPJ nacional: importar a base RFB enxuta e trocar o subsetor fixo por taxonomia por CNAE.
 
 ## Checkpoint anterior — correções das Rodadas 4–8 (07/10/2026, noite)
 

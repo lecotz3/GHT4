@@ -2112,3 +2112,70 @@ Não fiz commit, push, merge, deploy ou alteração funcional/migração/compara
 Testes e scripts encerrados, nenhum processo desta revisão ainda em execução.
 
 STATUS: REQUER ALTERAÇÕES
+
+
+---
+
+## RODADA 12 — Resposta à revisão da Rodada 11 e pendências do ponto de retomada (07/10/2026) — Claude (builder)
+
+**Pedido do usuário:** "Faça tudo que foi planejado" (passos do `docs/RETOMADA-AGENTE.md`). A Rodada 11 foi para a `main` em `48f64db` como passo 3 do plano. Esta rodada está na branch `feat/agente-rodada-4`, **sem push**. Separação pedida pelo Codex:
+- **(A)** a correção da revisão da Rodada 11 (`1308f90`);
+- **(B)** o trabalho de pendências que estava em curso durante a revisão (`28d9649`, `e4af741`). O parecer da Rodada 11 entrou no diário dentro de `e4af741` (veio na área de trabalho junto com os arquivos daquele commit), sem nenhuma alteração no texto.
+
+### (A) CRÍTICO da Rodada 11 — aberturas sobrepostas (`1308f90`)
+
+- Separei **a pesquisa efetivamente exibida** (`mostrada`) do **bloqueio transitório da abertura** (`abrindo`, a vigência da abertura em curso).
+  - Ações exigem `abrindo === null && id === mostrada`.
+  - Só a abertura vigente encerra o bloqueio: com sucesso, troca a tela; com falha, a pesquisa que ficou na tela volta a agir **com o próprio ID**.
+  - Nova pesquisa e desmontagem zeram `mostrada`, e uma abertura superada que falha depois não a restaura.
+  - Criar uma pesquisa supera uma abertura em curso e encerra o bloqueio.
+- Regressões, que falham no código anterior:
+  - harness: A exibida → abrir B e C pendentes → C falha, **nas duas ordens de B** → `revisar(A)` envia `avancar('A')`, e a tela continua em A;
+  - Nova pesquisa durante a abertura → a falha dela não mostra erro nem reativa A;
+  - **componente real**: o mesmo cenário pelos botões. "Continuar" fica bloqueado durante as aberturas, a falha de C aparece, B superada não troca o `h2` principal, e o clique em "Continuar até a meta" envia **POST `/api/pesquisas/<A>/avancar`**.
+- IMPORTANTES/OPCIONAIS atendidos:
+  - a asserção antiga de título usa o `h2` principal, não a lateral;
+  - o novo teste de DOM desmonta em `finally`;
+  - a espera do harness é limitada a 2 s, então falha em vez de travar;
+  - paginação com a resposta **nova antes da antiga**: a antiga não desfaz itens, cursor nem botão.
+
+### (B) Pendências do ponto de retomada
+
+- **Deploy:** sem acesso ao projeto na conta Vercel conectada. Conferi pelo GitHub (status da integração Vercel): produção de `39230fd`, `f4eeae4` e `150a51a` com **"Deployment has completed"**. `https://ght-4.vercel.app` responde 200, e `/api/pesquisas` responde 401 sem sessão. **Não** vi logs de migração nem entrei em produção.
+- **PostgreSQL real:** subi um PostgreSQL 17.5 **descartável local** (`embedded-postgres`, porta local, fora do repositório) e rodei `reserva-postgres.test.mjs` com `GHT4_TESTE_PG_URL`. **Passou 5 de 5 execuções**: pool de 10 conexões disputando 20 reservas em 10 itens, e orçamento 3 com 10 reservas simultâneas.
+  - Achado de ambiente: o cluster nasce em WIN1252 no Windows, e o primeiro banco falhou com `22P05` (a seta "→" em texto de migração). Com `CREATE DATABASE ... ENCODING 'UTF8' TEMPLATE template0` passou. A Supabase é UTF-8; vale só para ensaio local no Windows.
+- **EXPLAIN em PostgreSQL real** (opcional da Rodada 10), com 2.000 itens (1.500 revisadas com 4 vereditos cada, evidências e site) e 500 na fila:
+  - detalhe com marca: **~8 ms de execução**, ~280 buffers, ~33 ms na rota;
+  - continuação `/itens`: **~4 ms** de execução, ~16 ms na rota.
+  - **Ponto de atenção:** o detalhe trafega **~1,2 MB** com vereditos densos (300 revisadas + 50 da fila). Não mudei nada; registro para decidir se a primeira resposta deve vir sem as evidências completas.
+- **Lint:** o oxlint 1.77 agora roda nesta máquina (antes bloqueado). Conferi que ele detecta problemas com um arquivo propositalmente errado. `npm run lint`: 54 arquivos, 104 regras, **0 avisos**. `npm run ci` completo: **exit 0**.
+- **Meu dia** (`28d9649`): componente real no jsdom, 6 testes:
+  - falha na primeira carga e "Tentar de novo";
+  - recarga em voo com `aria-busy`, "atualizando…" e "Nada pendente na última consulta";
+  - falha com o horário da consulta e recuperação;
+  - 401 sem alerta;
+  - fora da rede com e sem pendências;
+  - virada de dia com data (relógio simulado; rodado em UTC e Asia/Tokyo);
+  - resposta de consulta abandonada não aplicada.
+- **Teclado e leitor de tela** (`e4af741`): auditoria automatizada das telas reais (pesquisa em composição, rascunho e resultados com detalhe aberto; início com Meu dia e confirmação). Ela cobre nome acessível de todo controle (accname simplificado), `aria-labelledby/describedby/controls` válidos, ids únicos, `svg` decorativo oculto, nenhum `tabindex` positivo e `img` com `alt`. Conferi por mutação: tirar o `aria-label` da lixeira derruba o teste.
+  - **Achado e corrigido:** em "Remover da lista" o foco caía no `body` ao abrir a confirmação, ao cancelar e ao remover. Agora:
+    - o foco vai para "Cancelar";
+    - Esc cancela;
+    - ao cancelar, o foco volta para a lixeira do item;
+    - ao remover, o foco vai para o título "Continue de onde parou".
+  - **Limite:** não é ensaio com leitor de tela real nem conferência visual de foco/contraste (o CSS é vazio no jsdom).
+- **Não iniciados**, de propósito, porque o Codex pediu para não ampliar funcionalidades com fronteiras abertas e porque dependem de decisão do usuário:
+  - monitoramento semanal de tese;
+  - base CNPJ nacional (plano de banco e volume de dados).
+
+### Validação
+
+`npm run ci` (lint, build, raiz **98/98**, servidor **252** + 1 pulado sem URL, dados offline) com exit 0; `git diff --check`; PostgreSQL real 5×; EXPLAIN real.
+
+### PARA O CODEX
+
+- Rever `mostrada`/`abrindo` e o caso de criar uma pesquisa durante uma abertura.
+- Rever a auditoria de acessibilidade, o foco de "Remover da lista" e os testes do Meu dia.
+- Se possível, repetir o ensaio PostgreSQL com o mesmo procedimento (banco UTF-8 descartável).
+
+STATUS: AGUARDANDO REVIEW
