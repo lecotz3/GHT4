@@ -13,7 +13,8 @@ export const CATEGORIAS: Categoria[] = ['aderente', 'provavel', 'a_confirmar', '
 export interface Continuacao { itens: ItemPesquisa[]; proximo?: number | null; carregando: boolean }
 export interface Paginas { chave: string; grupos: Partial<Record<Categoria, Continuacao>> }
 
-export const chavePaginas = (d: DetalhePesquisa | null | undefined) => d ? `${d.pesquisa.id}:${d.contagens.revisadas}` : ''
+// A marca vem do servidor, calculada no mesmo snapshot da página; sem ela, o número de revisadas.
+export const chavePaginas = (d: DetalhePesquisa | null | undefined) => d ? `${d.pesquisa.id}:${d.marca ?? d.contagens.revisadas}` : ''
 export const paginasVazias = (chave = ''): Paginas => ({ chave, grupos: {} })
 
 export interface Grupo { categoria: Categoria; itens: ItemPesquisa[]; total: number; restantes: number; offset: number; carregando: boolean }

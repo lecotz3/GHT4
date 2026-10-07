@@ -5,7 +5,8 @@ import {
   pesquisaApi, ATALHOS_CADASTRO, DESCRICAO_CATEGORIA, EXEMPLOS_TESE, ROTULO_CATEGORIA, ROTULO_VEREDITO,
   type Categoria, type Criterio, type DetalhePesquisa, type Filtros, type Funil, type IAInfo, type ItemPesquisa, type Previa, type ResumoPesquisa, type Veredito,
 } from '../agente/pesquisa'
-import { chavePaginas, criarVigencia, montarGrupos, paginasVazias, pedirMais, receberMais, type Paginas } from '../agente/pesquisa-tela'
+import { montarGrupos, paginasVazias, type Paginas } from '../agente/pesquisa-tela'
+import { criarFluxos, type Rascunho } from '../agente/pesquisa-fluxos'
 import '../agente/pesquisa.css'
 
 const UFS = ['', 'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO']
@@ -43,12 +44,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
   const [novoCriterio, setNovoCriterio] = useState('')
   const [atalho, setAtalho] = useState('')
   const [parametro, setParametro] = useState(0)
-  const parar = useRef(false)
-  // Pesquisa exibida e vigência das operações: cada uma guarda a geração ao começar, e a
-  // resposta de uma operação superada (outra pesquisa aberta, nova rodada) não mexe na tela.
-  const ativa = useRef<string | null>(null)
-  const tela = useRef(criarVigencia()).current
-  const envio = useRef<{ id: string; tese: string } | null>(null)
+  const [paginas, setPaginas] = useState<Paginas>(paginasVazias())
   // A tese escrita no Início já é um pedido: monta os critérios sem exigir outro clique.
   const autoEnviar = useRef<string | null>(null)
   const podeUsar = usuario.papel !== 'leitura'
@@ -62,29 +58,31 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
   const recarregarLista = useCallback(async () => {
     try { const r = await pesquisaApi.listar(); setLista(r.pesquisas); setIa(r.ia) } catch (e) { falhou(e) }
   }, [falhou])
-  /** Mostra `d` se for a pesquisa aberta; `trocar` é para quem escolhe abrir outra. Devolve se aplicou. */
-  const aplicar = useCallback((d: DetalhePesquisa, trocar = false) => {
-    if (!trocar && d.pesquisa.id !== ativa.current) return false
-    ativa.current = d.pesquisa.id
-    setDetalhe(d); setCriterios(d.pesquisa.criterios); setFiltros(d.pesquisa.filtros); setMeta(d.pesquisa.meta); setLimiteWeb(d.pesquisa.limite_web)
-    if (d.ia !== undefined) setIa(d.ia)
-    return true
-  }, [])
-  const abrir = useCallback(async (id: string) => {
-    const minha = tela.tomar()
-    // O laço da pesquisa anterior deixa de ser desta tela: ele pausa a pesquisa dele sozinho.
-    parar.current = true; setRodando(false); setOcupado(false); setErro(''); setAviso(''); setEntregue(null); setSelecionadas(new Set()); setAberto(null); setPrevia(null)
-    try { const d = await pesquisaApi.obter(id); if (tela.vigente(minha)) aplicar(d, true) } catch (e) { if (tela.vigente(minha)) falhou(e) }
-  }, [aplicar, falhou, tela])
+  // Fluxos assíncronos (vigência, chaves de retry, ficha do laço) ficam em pesquisa-fluxos.ts;
+  // aqui só ligamos os efeitos ao estado. Refs mantêm os efeitos estáveis entre renderizações.
+  const efeitosVivos = useRef({ falhou, recarregarLista })
+  efeitosVivos.current = { falhou, recarregarLista }
+  const fluxos = useRef<ReturnType<typeof criarFluxos> | null>(null)
+  fluxos.current ??= criarFluxos(pesquisaApi, {
+    mostrar: (d) => { setDetalhe(d); setCriterios(d.pesquisa.criterios); setFiltros(d.pesquisa.filtros); setMeta(d.pesquisa.meta); setLimiteWeb(d.pesquisa.limite_web); if (d.ia !== undefined) setIa(d.ia) },
+    limparTela: () => { setErro(''); setAviso(''); setEntregue(null); setSelecionadas(new Set()); setAberto(null); setPrevia(null) },
+    rodando: setRodando, ocupado: setOcupado, aviso: setAviso,
+    erro: (e) => efeitosVivos.current.falhou(e),
+    limparPrevia: () => setPrevia(null), limparSelecao: () => setSelecionadas(new Set()),
+    entregue: setEntregue, paginas: setPaginas,
+    recarregarLista: () => { void efeitosVivos.current.recarregarLista() },
+  })
+  const f = fluxos.current
+  const abrir = useCallback((id: string) => f.abrir(id), [f])
 
   useEffect(() => { void recarregarLista() }, [recarregarLista])
   useEffect(() => {
     if (!inicial) return
     if (inicial.pesquisaId) void abrir(inicial.pesquisaId)
-    else if (inicial.tese) { ativa.current = null; tela.tomar(); setRodando(false); setOcupado(false); setDetalhe(null); setTese(inicial.tese); autoEnviar.current = inicial.tese }
+    else if (inicial.tese) { f.esvaziar(); setDetalhe(null); setTese(inicial.tese); autoEnviar.current = inicial.tese }
     aoConsumirInicial()
-  }, [inicial, abrir, aoConsumirInicial, tela])
-  useEffect(() => () => { parar.current = true }, [])
+  }, [inicial, abrir, aoConsumirInicial, f])
+  useEffect(() => () => f.desmontar(), [f])
   useEffect(() => {
     if (!autoEnviar.current || autoEnviar.current !== tese) return
     autoEnviar.current = null
@@ -108,109 +106,20 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
     e?.preventDefault()
     const texto = pedido.trim()
     if (texto.length < 10 || ocupado) { setErro('Descreva a tese com pelo menos 10 caracteres.'); return }
-    setOcupado(true); setErro(''); setAviso('')
-    const minha = tela.tomar()
-    try {
-      if (!envio.current || envio.current.tese !== texto) envio.current = { id: crypto.randomUUID(), tese: texto }
-      const d = await pesquisaApi.criar({ id: envio.current.id, tese: texto, frente })
-      envio.current = null
-      if (tela.vigente(minha)) { aplicar(d, true); setPrevia(null) }
-      void recarregarLista()
-    } catch (falha) { if (tela.vigente(minha)) falhou(falha) } finally { if (tela.vigente(minha)) setOcupado(false) }
+    setErro('')
+    await f.montar(texto, frente)
   }
-
-  async function salvarRascunho() {
-    if (!p) return null
-    const mudou = JSON.stringify(criterios) !== JSON.stringify(p.criterios) || JSON.stringify(filtros) !== JSON.stringify(p.filtros)
-      || meta !== p.meta || limiteWeb !== p.limite_web
-    if (!mudou) return detalhe
-    const d = await pesquisaApi.editar(p.id, { versao: p.versao, criterios, filtros, meta, limiteWeb })
-    aplicar(d); return d
-  }
-
-  async function revisar(ate: 'amostra' | 'meta', base?: DetalhePesquisa) {
-    let d = base ?? detalhe
-    if (!d) return
-    const minha = tela.tomar()
-    const vigente = () => tela.vigente(minha)
-    parar.current = false; setRodando(true); setErro(''); setAviso('')
-    const alvo = Math.min(AMOSTRA, d.contagens.total)
-    // O primeiro pedido é a retomada explícita; os seguintes continuam a geração que ela abriu.
-    let geracao: number | undefined
-    try {
-      while (!parar.current && vigente()) {
-        d = await pesquisaApi.avancar(d.pesquisa.id, 2, geracao)
-        if (!vigente() || !aplicar(d)) break
-        if (d.pesquisa.estado !== 'em_andamento') break
-        // Outra aba retomou por cima: a geração dela vale, este laço só para.
-        if (geracao !== undefined && d.pesquisa.execucao !== geracao) return
-        geracao = d.pesquisa.execucao
-        if (ate === 'amostra' && d.contagens.revisadas >= alvo) {
-          d = await pesquisaApi.pausar(d.pesquisa.id); aplicar(d)
-          setAviso(`Amostra de ${d.contagens.revisadas} empresas revisada. Confira os vereditos; se estiverem bons, continue até a meta.`)
-          break
-        }
-      }
-      // Parou por pedido ou porque outra pesquisa foi aberta: pausa ESTA pesquisa, sem mexer na tela da outra.
-      if ((parar.current || !vigente()) && d.pesquisa.estado === 'em_andamento') { d = await pesquisaApi.pausar(d.pesquisa.id); if (vigente()) aplicar(d) }
-    } catch (e) { if (vigente()) falhou(e) } finally { if (vigente()) setRodando(false); void recarregarLista() }
-  }
-
+  const rascunhoAtual = (): Rascunho | null => detalhe ? { detalhe, criterios, filtros, meta, limiteWeb } : null
   async function iniciar(ate: 'amostra' | 'meta') {
-    if (!p || ocupado) return
-    setOcupado(true); setErro('')
-    const minha = tela.observar()
-    try {
-      const salvo = await salvarRascunho()
-      if (!salvo || !tela.vigente(minha)) return
-      const d = await pesquisaApi.iniciar(salvo.pesquisa.id, salvo.pesquisa.versao)
-      // Outra pesquisa foi aberta enquanto esta calculava: ela fica "pronta" no histórico, sem laço.
-      if (!tela.vigente(minha)) return
-      aplicar(d); setOcupado(false)
-      if (d.pesquisa.estado === 'pronta') await revisar(ate, d)
-    } catch (e) { if (tela.vigente(minha)) falhou(e) } finally { if (tela.vigente(minha)) setOcupado(false) }
+    const r = rascunhoAtual()
+    if (!r || ocupado) return
+    setErro('')
+    await f.iniciar(ate, r)
   }
-
-  async function ajustarLimites(campos: { meta?: number; limiteWeb?: number }) {
-    if (!p) return
-    const minha = tela.observar()
-    try { const d = await pesquisaApi.editar(p.id, { versao: p.versao, ...campos }); if (tela.vigente(minha)) aplicar(d) } catch (e) { if (tela.vigente(minha)) falhou(e) }
-  }
-
-  // Chave e corpo de cada envio ficam guardados até a confirmação: uma resposta perdida,
-  // repetida, devolve o mesmo resultado em vez de criar outra rodada ou outro turno.
-  const envioAjuste = useRef<{ origem: string; id: string } | null>(null)
-  const envioRegistro = useRef<{ corpo: string; chave: string } | null>(null)
-  async function ajustar() {
-    if (!p || ocupado) return
-    setOcupado(true); setErro('')
-    if (envioAjuste.current?.origem !== p.id) envioAjuste.current = { origem: p.id, id: crypto.randomUUID() }
-    // A geração é tomada ao pedir: se outra pesquisa for aberta durante o pedido, a nova rodada
-    // fica só no histórico (lateral) e a tela continua na que foi aberta.
-    const minha = tela.tomar()
-    try {
-      const d = await pesquisaApi.ajustar(p.id, envioAjuste.current.id)
-      envioAjuste.current = null
-      void recarregarLista()
-      if (!tela.vigente(minha)) return
-      aplicar(d, true); setPrevia(null); setSelecionadas(new Set()); setAviso('Nova rodada criada a partir dos critérios anteriores. Ajuste e rode de novo; a rodada anterior continua no histórico.')
-    } catch (e) { if (tela.vigente(minha)) falhou(e) } finally { if (tela.vigente(minha)) setOcupado(false) }
-  }
-
-  async function registrar() {
-    if (!p || !selecionadas.size || ocupado) return
-    setOcupado(true); setErro('')
-    const empresas = [...selecionadas].sort()
-    const corpo = JSON.stringify([p.id, empresas])
-    if (envioRegistro.current?.corpo !== corpo) envioRegistro.current = { corpo, chave: crypto.randomUUID() }
-    const minha = tela.observar()
-    try {
-      const r = await pesquisaApi.registrar(p.id, envioRegistro.current.chave, empresas)
-      envioRegistro.current = null
-      // Entregue mesmo se a tela mudou; o aviso e a seleção só valem para a pesquisa em que foi pedido.
-      if (tela.vigente(minha)) { setEntregue({ conversaId: r.conversa.id, n: empresas.length }); setSelecionadas(new Set()) }
-    } catch (e) { if (tela.vigente(minha)) falhou(e) } finally { if (tela.vigente(minha)) setOcupado(false) }
-  }
+  function revisar(ate: 'amostra' | 'meta') { if (detalhe) { setErro(''); void f.revisar(ate, detalhe) } }
+  function ajustarLimites(campos: { meta?: number; limiteWeb?: number }) { if (detalhe) void f.ajustarLimites(detalhe, campos) }
+  function ajustar() { if (detalhe && !ocupado) { setErro(''); void f.ajustar(detalhe) } }
+  function registrar() { if (detalhe && selecionadas.size && !ocupado) { setErro(''); void f.registrar(detalhe, selecionadas) } }
 
   function alternar(id: string, campo: 'obrigatorio') { setCriterios((cs) => cs.map((c) => c.id === id ? { ...c, [campo]: !c[campo] } : c)) }
   function remover(id: string) { setCriterios((cs) => cs.length > 1 ? cs.filter((c) => c.id !== id) : cs) }
@@ -230,22 +139,9 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
   }
 
   // Continuação por grupo além da primeira resposta: um pedido por vez, cursor do servidor,
-  // sem repetir empresa, e descartada quando a pesquisa muda ou um lote revisa mais empresas.
-  const [paginas, setPaginas] = useState<Paginas>(paginasVazias())
-  const paginasAtual = useRef(paginas)
-  paginasAtual.current = paginas
+  // sem repetir empresa, e recusada pelo servidor quando a lista mudou desde a página de origem.
   const grupos = useMemo(() => montarGrupos(detalhe, paginas), [detalhe, paginas])
-  async function mostrarMais(grupo: Categoria, offset: number) {
-    if (!detalhe) return
-    const chave = chavePaginas(detalhe)
-    const marcado = pedirMais(paginasAtual.current, chave, grupo)
-    if (!marcado) return
-    paginasAtual.current = marcado; setPaginas(marcado)
-    let r: Awaited<ReturnType<typeof pesquisaApi.itens>> | null = null
-    try { r = await pesquisaApi.itens(detalhe.pesquisa.id, grupo, offset) }
-    catch (e) { if (ativa.current === detalhe.pesquisa.id) setErro(e instanceof Error ? e.message : 'Não foi possível carregar mais empresas.') }
-    setPaginas((atual) => { const n = receberMais(atual, chave, grupo, r); paginasAtual.current = n; return n })
-  }
+  function mostrarMais(grupo: Categoria, offset: number) { if (detalhe) void f.mostrarMais(detalhe, grupo, offset) }
   const funil = rascunho ? previa?.funil : p && funilValido(p.funil) ? p.funil : undefined
   const temPesquisa = criterios.some((c) => c.tipo === 'pesquisa')
 
@@ -296,7 +192,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
             <h2>{p.tese}</h2>
             <p><EstadoPill estado={p.estado} rodando={rodando} /> {p.motivo_estado && !rodando && <span className="text-suave">{p.motivo_estado}</span>}</p>
           </div>
-          <button className="agente-btn-secundario" onClick={() => { parar.current = true; ativa.current = null; tela.tomar(); setOcupado(false); setDetalhe(null); setTese(''); setPrevia(null); setErro(''); setAviso('') }} disabled={rodando}><IconeRede nome="mais" />Nova pesquisa</button>
+          <button className="agente-btn-secundario" onClick={() => { f.esvaziar(); setDetalhe(null); setTese(''); setPrevia(null); setErro(''); setAviso('') }} disabled={rodando}><IconeRede nome="mais" />Nova pesquisa</button>
         </header>
         {erro && <p role="alert" className="pesquisa-erro">{erro}</p>}
         {aviso && <p role="status" className="pesquisa-aviso">{aviso}</p>}
@@ -358,7 +254,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
             <div className="pesquisa-progresso"><div><strong>{numero(revisadas)}</strong> de {numero(total)} revisadas · <strong>{numero(boas)}</strong> aderentes ou prováveis · meta {p.meta}</div>
               <div className="pesquisa-barra" aria-hidden="true"><span style={{ width: `${total ? Math.round((100 * revisadas) / total) : 0}%` }} /></div></div>
             <div className="pesquisa-controle-botoes">
-              {rodando ? <button className="agente-btn-secundario" onClick={() => { parar.current = true }}><IconeRede nome="pausa" />Pausar</button>
+              {rodando ? <button className="agente-btn-secundario" onClick={() => f.pausar()}><IconeRede nome="pausa" />Pausar</button>
                 : ['pronta', 'pausada', 'em_andamento'].includes(p.estado) && <button className="agente-btn-primario" onClick={() => void revisar('meta')} disabled={!podeUsar}><IconeRede nome="continuar" />Continuar até a meta</button>}
               {p.estado === 'concluida' && (detalhe?.contagens.pendentes ?? 0) > 0 && <button className="agente-btn-secundario" onClick={() => void ajustarLimites({ meta: p.meta + 10 })} disabled={rodando}>Ampliar meta (+10)</button>}
               {p.estado === 'pausada' && /Limite de/.test(p.motivo_estado || '') && <button className="agente-btn-secundario" onClick={() => void ajustarLimites({ limiteWeb: p.limite_web + 40 })} disabled={rodando}>Ler mais 40 sites</button>}

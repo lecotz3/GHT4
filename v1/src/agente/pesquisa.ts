@@ -34,7 +34,8 @@ export interface ItemPesquisa {
 }
 export interface Contagens { total: number; revisadas: number; pendentes: number; aderente: number; provavel: number; a_confirmar: number; nao_aderente: number }
 export interface IAInfo { provedor: string; modelo: string; gratuito: boolean }
-export interface DetalhePesquisa { pesquisa: Pesquisa; contagens: Contagens; itens: ItemPesquisa[]; ia: IAInfo | null; atualizados?: string[] }
+/** `marca`: identifica o conjunto revisado da página; `execucaoLote`: geração em que o avanço rodou (null: não rodou). */
+export interface DetalhePesquisa { pesquisa: Pesquisa; contagens: Contagens; itens: ItemPesquisa[]; ia: IAInfo | null; atualizados?: string[]; marca?: string; execucaoLote?: number | null }
 export interface ResumoPesquisa { id: string; conversa_id: string; tese: string; estado: EstadoPesquisa; motivo_estado: string | null; funil: Partial<Funil>; meta: number; atualizado_em: string; titulo: string; boas: number }
 export interface Previa { funil: Funil; referencia: string; amostra: { id: string; nome: string; cidade: string; uf: string; aderencia: number }[] }
 
@@ -42,13 +43,14 @@ export const pesquisaApi = {
   listar: () => api<{ pesquisas: ResumoPesquisa[]; ia: IAInfo | null }>('/api/pesquisas'),
   criar: (corpo: { id: string; tese: string; frente: 'compra' | 'venda' | null; mandatoId?: string | null }) => api<DetalhePesquisa>('/api/pesquisas', 'POST', corpo),
   obter: (id: string) => api<DetalhePesquisa>(`/api/pesquisas/${id}`),
-  itens: (id: string, grupo: Categoria | 'fila', offset: number) => api<{ itens: ItemPesquisa[]; total: number; proximoOffset: number | null }>(`/api/pesquisas/${id}/itens?grupo=${grupo}&offset=${offset}`),
+  itens: (id: string, grupo: Categoria | 'fila', offset: number, marca?: string) => api<{ itens: ItemPesquisa[]; total: number; proximoOffset: number | null; marca?: string }>(`/api/pesquisas/${id}/itens?grupo=${grupo}&offset=${offset}${marca ? `&marca=${marca}` : ''}`),
   editar: (id: string, corpo: { versao: number; criterios?: Criterio[]; filtros?: Filtros; frente?: 'compra' | 'venda'; meta?: number; limiteWeb?: number }) => api<DetalhePesquisa>(`/api/pesquisas/${id}`, 'PATCH', corpo),
   previa: (id: string, criterios: Criterio[], filtros: Filtros) => api<Previa>(`/api/pesquisas/${id}/previa`, 'POST', { criterios, filtros }),
   iniciar: (id: string, versao: number) => api<DetalhePesquisa>(`/api/pesquisas/${id}/iniciar`, 'POST', { versao }),
   /** Sem `execucao`: retomada explícita. Com ela: continuação do laço, só na mesma geração. */
   avancar: (id: string, quantidade = 2, execucao?: number) => api<DetalhePesquisa>(`/api/pesquisas/${id}/avancar`, 'POST', execucao === undefined ? { quantidade } : { quantidade, execucao }),
-  pausar: (id: string) => api<DetalhePesquisa>(`/api/pesquisas/${id}/pausar`, 'POST', {}),
+  /** Sem `execucao`: pausa humana. Com ela: pausa automática que só vale para essa geração. */
+  pausar: (id: string, execucao?: number) => api<DetalhePesquisa>(`/api/pesquisas/${id}/pausar`, 'POST', execucao === undefined ? {} : { execucao }),
   ajustar: (id: string, novo: string) => api<DetalhePesquisa>(`/api/pesquisas/${id}/ajustar`, 'POST', { id: novo }),
   registrar: (id: string, chave: string, empresas: string[]) => api<{ turno: { id: string }; conversa: { id: string } }>(`/api/pesquisas/${id}/registrar`, 'POST', { chave, empresas }),
 }
