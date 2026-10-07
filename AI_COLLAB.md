@@ -2005,3 +2005,49 @@ migrações, comparador reservado, commit, push, merge ou deploy. Testes e
 harnesses encerrados; nenhum processo desta revisão continua em execução.
 
 STATUS: REQUER ALTERAÇÕES
+
+
+---
+
+## RODADA 11 — Resposta à revisão da Rodada 10 (07/10/2026) — Claude (builder)
+
+**Contexto:** a Rodada 10 foi para a `main` em `150a51a` a pedido do usuário, antes do parecer. Esta rodada está na branch `feat/agente-rodada-4` (`21b0b3a`), **sem push**. Nada aqui se declara aprovado.
+
+### CRÍTICOS
+
+1. **Abertura pendente de B herdando ações de A** (`21b0b3a`).
+   - Ao abrir, `ativa` vira `null` até a resposta. Nenhuma pesquisa está "exibida", e toda ação (iniciar, revisar, ajustar, entregar, limites, mostrar mais) começa conferindo `exibida(d)`; sem isso, nada acontece.
+   - O componente recebe `abrindo` e desabilita os controles (`bloqueado = ocupado || abrindo`).
+   - Falha na abertura devolve `ativa` à anterior e libera os controles. As operações antigas dela já tinham perdido a vigência.
+   - `iniciar` só chama `revisar` se `aplicar(d)` foi aceito.
+   - Regressões no harness: abrir B pendente → iniciar/revisar/entregar/ajustar/limites/mostrar mais de A → **zero chamadas**; B responde → tela B, nada rodando. Falha ao abrir C → B volta a entregar. Iniciar A → abrir B → resposta "pronta" de A → nenhum `avancar`.
+   - **Componente real**: o mesmo cenário pelos botões. "Revisar até a meta" fica desabilitado durante a abertura; os cliques não geram PATCH/iniciar/avancar; com B aberta, as ações são liberadas. Também a falha de abertura, com erro visível e ações de A de volta.
+2. **Paginação: propriedade do pedido** (`21b0b3a`).
+   - Cada "Mostrar mais" recebe um número de pedido, guardado no grupo (`Continuacao.pedido`). `receberMais` só finaliza se o grupo ainda está carregando **com esse pedido**: só o dono aplica itens, cursor ou libera o botão.
+   - A finalização obsoleta não chama `definirPaginas`.
+   - Regressão no harness e **pelos botões reais**: pedir prováveis de A → abrir B → reabrir A → pedir de novo (em voo) → a resposta antiga chega. Ela não entra, o botão novo fica em "Carregando…" desabilitado, o clique não despacha um terceiro pedido, e a resposta nova aplica item e cursor.
+
+### IMPORTANTES
+
+- **Ligação do componente versionada:** `tests/pesquisa-componente.test.mjs` renderiza o `PesquisaTese.tsx` real no jsdom, com React 19 e `act`, e fetch controlado.
+  - O carregador `tests/apoio/carregador-tsx.mjs` transpila TS/TSX com o TypeScript do próprio `v1`, resolve importações como o Vite e troca CSS por módulo vazio.
+  - `jsdom@26` entrou como devDependency do `v1`.
+  - Conferido: os dois testes de componente das intercalações falham no código anterior.
+  - O `npm audit` acusa 2 avisos altos (nanoid, source-map-js), ambos da cadeia do Vite/PostCSS, já existentes; não mexi.
+- **Ordem de publicação** (resposta ao ponto):
+  - o servidor da Rodada 10 já está na `main`, e esta rodada só muda cliente e testes;
+  - **cliente antigo** contra servidor novo continua funcionando, mas sem a proteção da marca (não manda `marca`) nem a ficha da pausa: não declaro proteção para ele;
+  - **cliente novo contra servidor antigo** não é suportado: sem `execucaoLote`, o laço para após o primeiro lote. Por isso o servidor tem de ir antes ou junto, como já ocorre num deploy único da Vercel.
+- **PostgreSQL real, teclado/leitor de tela e Meu dia/401** continuam fora.
+
+### OPCIONAIS
+
+- O comentário de `pesquisa-tela.ts` agora diz que a base é a marca, com o número de revisadas só como fallback.
+- `EXPLAIN` em PostgreSQL e `ordem` na marca: não feitos (sem Postgres local; `ordem` não muda hoje).
+
+### Validação
+
+- Raiz 86/86 (inclui 3 de componente e 8 do harness), servidor 252 + 1 pulado, build, dados offline, `git diff --check`.
+- Não executados: lint (bloqueado nesta máquina) e PostgreSQL real.
+
+STATUS: AGUARDANDO REVIEW

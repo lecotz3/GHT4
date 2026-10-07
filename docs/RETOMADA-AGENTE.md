@@ -4,34 +4,30 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodada 10 na branch; até a Rodada 9 na `main` (07/10/2026, noite)
+## COMECE AQUI — Rodada 11 na branch; até a Rodada 10 na `main` (07/10/2026, noite)
 
 **Estado:**
-- **Na `main` (`f4eeae4`):** até a Rodada 9 e o parecer do Codex sobre ela (REQUER ALTERAÇÕES), publicados a pedido do usuário. O deploy não foi conferido daqui.
-- **Na branch `feat/agente-rodada-4`, sem push:** a Rodada 10, que responde a esse parecer. O registro está na **Rodada 10** em [AI_COLLAB.md](../AI_COLLAB.md).
+- **Na `main` (`150a51a`):** até a Rodada 10, publicada a pedido do usuário. O Codex reprovou a Rodada 10 com dois P2 de tela; o parecer está commitado na branch. O deploy não foi conferido daqui.
+- **Na branch `feat/agente-rodada-4`, sem push:** a Rodada 11, que corrige esses dois pontos. O registro está na **Rodada 11** em [AI_COLLAB.md](../AI_COLLAB.md).
 
-**Rodada 10:**
-- Pausa automática com ficha da geração (`pausar(execucao)`, `execucaoLote`).
-- Lista com marca do snapshot (409 `lista_atualizada` na continuação).
-- Chaves de retry por pedido.
-- Vigência conferida depois de cada await.
-- Fluxos da tela em `v1/src/agente/pesquisa-fluxos.ts`, com harness dos handlers reais (`tests/pesquisa-fluxos.test.mjs`).
+**Rodada 11:**
+- Abrir outra pesquisa bloqueia as ações da anterior até a resposta.
+- Cada pedido de "Mostrar mais" é dono da própria finalização.
+- Teste do componente real em jsdom (`tests/pesquisa-componente.test.mjs`, carregador em `tests/apoio/`). `jsdom` é devDependency do `v1`.
 
-**Contrato:** aditivo. `/avancar` devolve `execucaoLote`; `/pausar` aceita `execucao`; o detalhe traz `marca`; `/itens` aceita `marca` e devolve `marca`. Não há migração nova.
-
-**Validação:** 80 raiz + 252 servidor (1 pulado: PostgreSQL real), build, dados offline, catálogo real (725 → 93), navegador sem leitura de sites reais. Lint bloqueado nesta máquina.
+**Validação:** 86 raiz + 252 servidor (1 pulado), build, dados offline. Lint bloqueado nesta máquina; PostgreSQL real não rodado.
 
 ### Próximos passos, em ordem
 
-1. **Pedir ao Codex a revisão da Rodada 10.**
-2. **Conferir o deploy de `f4eeae4`** no painel da Vercel.
-3. **Com o aceite (ou decisão do usuário), levar a Rodada 10 à `main`.**
-4. **Rodar o ensaio PostgreSQL real** (`GHT4_TESTE_PG_URL`) e o lint em outra máquina.
+1. **Pedir ao Codex a revisão da Rodada 11.**
+2. **Conferir no painel da Vercel o deploy de `150a51a`.**
+3. **Levar a Rodada 11 à `main`** quando o usuário decidir. Só muda cliente e testes.
+4. **Rodar o PostgreSQL real e o lint** em outra máquina.
 5. **Pendências conhecidas:**
-   - teste de DOM do componente e do Meu dia;
    - teclado e leitor de tela;
+   - testes de componente do Meu dia;
    - monitoramento de tese;
-   - base CNPJ nacional (depois de fechar as fronteiras).
+   - base CNPJ nacional.
 
 ## Checkpoint anterior — correções das Rodadas 4–8 (07/10/2026, noite)
 
