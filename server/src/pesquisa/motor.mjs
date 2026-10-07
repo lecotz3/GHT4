@@ -26,6 +26,8 @@ import { frasesDoSite, lerSite, trechosRelevantes, termosDoCriterio } from './fo
 import { normalizar } from '../agente/catalogo.mjs';
 
 export const MAX_ITENS = 2000;
+/** Reserva sem conclusão depois deste tempo volta para a fila (o lote que a fez venceu). */
+const RESERVA = "interval '3 minutes'";
 const ORDEM_CATEGORIA = { aderente: 0, provavel: 1, a_confirmar: 2, nao_aderente: 3 };
 const hash = (v) => createHash('sha256').update(typeof v === 'string' ? v : JSON.stringify(v)).digest('hex');
 /** UUID determinístico: repetir a mesma revisão reaproveita a execução já paga. */
@@ -244,19 +246,40 @@ export function criarMotorPesquisa({ db, catalogo, servicoIA = null, web = {} })
       }
     },
 
-    /** Revisa até `quantidade` empresas, uma por vez, dentro do prazo. */
-    async avancar(pesquisa, usuario, { quantidade = 3, prazoMs = 25000 } = {}) {
+    /**
+     * Reserva a próxima empresa, numa transação curta com a pesquisa travada: só
+     * enquanto ela segue em andamento na geração `execucao` (pausa ou retomada em
+     * outra aba param novas reservas), dentro do orçamento web contando também as
+     * reservas em voo, e pulando linhas que outra conexão está reservando.
+     * `tentativas` volta como ficha: só quem tem a ficha atual grava o resultado.
+     */
+    async reservar(pesquisaId, execucao) {
+      return db.transaction(async (tx) => {
+        const p = (await tx.query('SELECT estado, execucao, limite_web FROM pesquisas_tese WHERE id=$1 FOR UPDATE', [pesquisaId])).rows[0];
+        if (!p || p.estado !== 'em_andamento' || p.execucao !== execucao) return { interrompida: true };
+        const usados = (await tx.query(`SELECT count(*)::int n FROM pesquisa_itens WHERE pesquisa_id=$1
+          AND (site IS NOT NULL OR (etapa='em_revisao' AND reservado_em >= now() - ${RESERVA}))`, [pesquisaId])).rows[0].n;
+        if (usados >= p.limite_web) return { limite: p.limite_web };
+        const item = (await tx.query(`UPDATE pesquisa_itens SET etapa='em_revisao', reservado_em=now(), tentativas=tentativas+1
+          WHERE pesquisa_id=$1 AND (etapa='aguardando' OR (etapa='em_revisao' AND reservado_em < now() - ${RESERVA}))
+            AND empresa_id=(SELECT empresa_id FROM pesquisa_itens WHERE pesquisa_id=$1
+              AND (etapa='aguardando' OR (etapa='em_revisao' AND reservado_em < now() - ${RESERVA}))
+              ORDER BY ordem LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING *`, [pesquisaId])).rows[0];
+        return { item };
+      });
+    },
+
+    /** Revisa até `quantidade` empresas, uma por vez, dentro do prazo, na geração `execucao`. */
+    async avancar(pesquisa, usuario, { quantidade = 3, prazoMs = 25000, execucao = pesquisa.execucao ?? 0 } = {}) {
       const inicio = Date.now();
       const pesquisaveis = pesquisa.criterios.map((c, i) => ({ c, i })).filter(({ c }) => c.tipo === 'pesquisa');
       const atualizados = [];
       let parada = null;
       for (let n = 0; n < quantidade && Date.now() - inicio < prazoMs; n++) {
-        const revisadasWeb = (await db.query("SELECT count(*)::int n FROM pesquisa_itens WHERE pesquisa_id=$1 AND site IS NOT NULL", [pesquisa.id])).rows[0].n;
-        if (revisadasWeb >= pesquisa.limite_web) { parada = { estado: 'pausada', motivo: `Limite de ${pesquisa.limite_web} empresas pesquisadas nesta rodada. Amplie o limite para continuar.` }; break; }
-        const item = (await db.query(`UPDATE pesquisa_itens SET etapa='em_revisao', reservado_em=now(), tentativas=tentativas+1
-          WHERE pesquisa_id=$1 AND empresa_id=(SELECT empresa_id FROM pesquisa_itens WHERE pesquisa_id=$1
-            AND (etapa='aguardando' OR (etapa='em_revisao' AND reservado_em < now() - interval '3 minutes'))
-            ORDER BY ordem LIMIT 1) RETURNING *`, [pesquisa.id])).rows[0];
+        const reserva = await this.reservar(pesquisa.id, execucao);
+        if (reserva.interrompida) return { atualizados, interrompida: true };
+        if (reserva.limite !== undefined) { parada = { estado: 'pausada', motivo: `Limite de ${reserva.limite} empresas pesquisadas nesta rodada. Amplie o limite para continuar.` }; break; }
+        const item = reserva.item;
         if (!item) break;
         try {
           const site = await lerSite(db, item.empresa, web);
@@ -274,11 +297,14 @@ export function criarMotorPesquisa({ db, catalogo, servicoIA = null, web = {} })
           const { aderencia, categoria } = consolidar(pesquisa.criterios, vereditos);
           const resumoSite = { dominio: site.dominio, estado: site.estado, identidade: site.identidade ?? null, motivo: site.motivo ?? null,
             paginas: (site.paginas || []).map((p) => ({ url: p.url, titulo: p.titulo })) };
+          // Ficha: reserva vencida e retomada por outro lote não aceita a gravação deste.
           const r = (await db.query(`UPDATE pesquisa_itens SET etapa='revisada', vereditos=$3, aderencia=$4, categoria=$5, site=$6, revisado_em=now(), reservado_em=NULL
-            WHERE pesquisa_id=$1 AND empresa_id=$2 RETURNING *`, [pesquisa.id, item.empresa_id, JSON.stringify(vereditos), aderencia, categoria, JSON.stringify(resumoSite)])).rows[0];
-          atualizados.push(r);
+            WHERE pesquisa_id=$1 AND empresa_id=$2 AND etapa='em_revisao' AND tentativas=$7 RETURNING *`,
+          [pesquisa.id, item.empresa_id, JSON.stringify(vereditos), aderencia, categoria, JSON.stringify(resumoSite), item.tentativas])).rows[0];
+          if (r) atualizados.push(r);
         } catch (erro) {
-          await db.query("UPDATE pesquisa_itens SET etapa='aguardando', reservado_em=NULL WHERE pesquisa_id=$1 AND empresa_id=$2", [pesquisa.id, item.empresa_id]);
+          await db.query("UPDATE pesquisa_itens SET etapa='aguardando', reservado_em=NULL WHERE pesquisa_id=$1 AND empresa_id=$2 AND etapa='em_revisao' AND tentativas=$3",
+            [pesquisa.id, item.empresa_id, item.tentativas]);
           const motivo = erro.message === 'limite_provedor' ? 'O provedor gratuito pediu uma pausa. Continue em um minuto.'
             : erro.message === 'limite_diario' ? 'A cota diária de revisões com IA foi atingida. Continue amanhã ou siga sem IA.'
               : 'A revisão de uma empresa falhou. Tente continuar; se repetir, siga sem IA.';
@@ -286,9 +312,11 @@ export function criarMotorPesquisa({ db, catalogo, servicoIA = null, web = {} })
           break;
         }
       }
+      // Meta lida agora: pode ter mudado em outra aba durante o lote.
       const c = (await db.query(`SELECT count(*) FILTER (WHERE etapa<>'revisada')::int pendentes,
-        count(*) FILTER (WHERE categoria IN ('aderente','provavel') AND etapa='revisada')::int boas FROM pesquisa_itens WHERE pesquisa_id=$1`, [pesquisa.id])).rows[0];
-      const final = parada ?? (c.boas >= pesquisa.meta ? { estado: 'concluida', motivo: `Meta de ${pesquisa.meta} empresas aderentes atingida.` }
+        count(*) FILTER (WHERE categoria IN ('aderente','provavel') AND etapa='revisada')::int boas,
+        (SELECT meta FROM pesquisas_tese WHERE id=$1) AS meta FROM pesquisa_itens WHERE pesquisa_id=$1`, [pesquisa.id])).rows[0];
+      const final = parada ?? (c.boas >= c.meta ? { estado: 'concluida', motivo: `Meta de ${c.meta} empresas aderentes atingida.` }
         : !c.pendentes ? { estado: 'concluida', motivo: 'Todas as empresas aprovadas no cadastro foram pesquisadas.' }
           : { estado: 'em_andamento', motivo: null });
       return { atualizados, ...final };

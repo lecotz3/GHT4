@@ -158,10 +158,10 @@ const fetchSites = async (url) => {
   return new Response('nao', { status: 404 });
 };
 
-async function preparar(t, { servicoIA = null, papel = 'analista' } = {}) {
+async function preparar(t, { servicoIA = null, papel = 'analista', fetchImpl = fetchSites } = {}) {
   const db = await bancoDeTeste();
   const catalogo = await catalogoDeTeste(t);
-  const app = await criarApp(db, { catalogo, servicoIA, web: { fetchImpl: fetchSites, resolver: async () => [{ address: '200.1.2.3' }] } });
+  const app = await criarApp(db, { catalogo, servicoIA, web: { fetchImpl, resolver: async () => [{ address: '200.1.2.3' }] } });
   t.after(async () => { await app.close(); await db.close(); });
   const entrar = async (email, p) => {
     await criarUsuario(db, { email, senha: 'senha-de-teste', papel: p });
@@ -338,4 +338,71 @@ test('conexão usa o endereço aprovado: DNS trocado para rede interna depois da
   const r = await obterPagina(db, 'https://rebind.com.br/', { resolver });
   assert.equal(r.estado, 'bloqueada');
   assert.ok(consultas >= 2, 'a conexão resolveu de novo pelo lookup fixado');
+});
+
+/** Fetch que segura a página inicial da Alfa até `soltar()`; as demais respostas seguem normais. */
+function fetchComPortao({ vezes = 1 } = {}) {
+  let soltar; const portao = new Promise((r) => { soltar = r; });
+  let restantes = vezes, chegou; const chegada = new Promise((r) => { chegou = r; });
+  const fetchImpl = async (url, o) => {
+    if (url === 'https://www.alfa.com.br/' && restantes > 0) { restantes--; chegou(); await portao; }
+    return fetchSites(url, o);
+  };
+  return { fetchImpl, soltar: () => soltar(), chegada };
+}
+async function pesquisaPronta(chamar, meta = 5) {
+  const id = randomUUID();
+  const { pesquisa } = (await chamar('POST', '/api/pesquisas', { id, tese: 'Distribuidoras com mais de 20 anos, sem holding no quadro, que representem fabricantes multinacionais' })).json();
+  const editada = (await chamar('PATCH', `/api/pesquisas/${id}`, { versao: pesquisa.versao, meta })).json();
+  const iniciada = (await chamar('POST', `/api/pesquisas/${id}/iniciar`, { versao: editada.pesquisa.versao })).json();
+  assert.equal(iniciada.pesquisa.estado, 'pronta');
+  return id;
+}
+
+test('pausa pedida durante o lote não é desfeita quando ele termina', async (t) => {
+  const g = fetchComPortao();
+  const { chamar } = await preparar(t, { fetchImpl: g.fetchImpl });
+  const id = await pesquisaPronta(chamar);
+  const lote = chamar('POST', `/api/pesquisas/${id}/avancar`, { quantidade: 5 });
+  await g.chegada;
+  assert.equal((await chamar('POST', `/api/pesquisas/${id}/pausar`)).json().pesquisa.estado, 'pausada');
+  g.soltar();
+  const fim = (await lote).json();
+  assert.equal(fim.pesquisa.estado, 'pausada');
+  assert.equal(fim.pesquisa.motivo_estado, 'Pausada por você.');
+  const depois = (await chamar('GET', `/api/pesquisas/${id}`)).json();
+  assert.equal(depois.pesquisa.estado, 'pausada');
+  assert.ok(depois.contagens.pendentes >= 1, 'a pausa impediu novas reservas');
+});
+
+test('lote vencido não grava por cima de quem retomou a reserva', async (t) => {
+  const g = fetchComPortao();
+  const { chamar, db } = await preparar(t, { fetchImpl: g.fetchImpl });
+  const id = await pesquisaPronta(chamar);
+  const antigo = chamar('POST', `/api/pesquisas/${id}/avancar`, { quantidade: 1 });
+  await g.chegada;
+  // A reserva do lote antigo vence; outro lote a retoma e conclui.
+  await db.query(`UPDATE pesquisa_itens SET reservado_em=now()-interval '10 minutes' WHERE pesquisa_id=$1 AND etapa='em_revisao'`, [id]);
+  const novo = (await chamar('POST', `/api/pesquisas/${id}/avancar`, { quantidade: 1 })).json();
+  assert.deepEqual(novo.atualizados, ['cnpj11111111']);
+  g.soltar();
+  const velho = (await antigo).json();
+  assert.deepEqual(velho.atualizados, [], 'a ficha do lote vencido não vale mais');
+  const item = (await db.query(`SELECT tentativas, etapa FROM pesquisa_itens WHERE pesquisa_id=$1 AND empresa_id='cnpj11111111'`, [id])).rows[0];
+  assert.deepEqual(item, { tentativas: 2, etapa: 'revisada' });
+});
+
+test('orçamento web conta reservas em voo', async (t) => {
+  const g = fetchComPortao();
+  const { chamar, db } = await preparar(t, { fetchImpl: g.fetchImpl });
+  const id = await pesquisaPronta(chamar);
+  await db.query('UPDATE pesquisas_tese SET limite_web=1 WHERE id=$1', [id]);
+  const primeiro = chamar('POST', `/api/pesquisas/${id}/avancar`, { quantidade: 5 });
+  await g.chegada;
+  const segundo = (await chamar('POST', `/api/pesquisas/${id}/avancar`, { quantidade: 5 })).json();
+  assert.deepEqual(segundo.atualizados, [], 'a reserva em voo já usa o orçamento');
+  g.soltar();
+  await primeiro;
+  const usados = (await db.query('SELECT count(*)::int n FROM pesquisa_itens WHERE pesquisa_id=$1 AND site IS NOT NULL', [id])).rows[0].n;
+  assert.equal(usados, 1);
 });

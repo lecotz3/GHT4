@@ -167,13 +167,17 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     const { quantidade } = z.object({ quantidade: z.number().int().min(1).max(5).default(3) }).strict().parse(req.body ?? {});
     const { pesquisa, usuario } = await carregar(req, req.params.id, 'agente.usar');
     if (!['pronta', 'em_andamento', 'pausada'].includes(pesquisa.estado)) return { ...(await detalhar(pesquisa)), atualizados: [] };
-    await db.query("UPDATE pesquisas_tese SET estado='em_andamento', motivo_estado=NULL WHERE id=$1 AND estado IN ('pronta','pausada')", [pesquisa.id]);
-    const r = await motor.avancar(pesquisa, usuario, { quantidade });
+    // Retomar explicitamente abre uma nova geração; chamadas seguidas em andamento continuam nela.
+    const { execucao } = (await db.query(`UPDATE pesquisas_tese SET estado='em_andamento', motivo_estado=NULL,
+        execucao=CASE WHEN estado IN ('pronta','pausada') THEN execucao+1 ELSE execucao END
+      WHERE id=$1 RETURNING execucao`, [pesquisa.id])).rows[0];
+    const r = await motor.avancar(pesquisa, usuario, { quantidade, execucao });
     // Revalida o escopo antes de gravar o estado: a sessão pode ter caído durante a leitura dos sites.
     await req.revalidarSessao();
     const { pesquisa: depois } = await carregar(req, pesquisa.id, 'agente.usar');
-    const salva = (await db.query(`UPDATE pesquisas_tese SET estado=$2, motivo_estado=$3, atualizado_em=now(), versao=versao+1
-      WHERE id=$1 AND estado IN ('em_andamento','pronta','pausada') RETURNING ${CAMPOS}`, [depois.id, r.estado, r.motivo])).rows[0] ?? depois;
+    // Só grava se ninguém pausou nem retomou em outra aba durante o lote: a decisão mais recente vale.
+    const salva = r.interrompida ? depois : (await db.query(`UPDATE pesquisas_tese SET estado=$2, motivo_estado=$3, atualizado_em=now(), versao=versao+1
+      WHERE id=$1 AND estado='em_andamento' AND execucao=$4 RETURNING ${CAMPOS}`, [depois.id, r.estado, r.motivo, execucao])).rows[0] ?? depois;
     return { ...(await detalhar(salva)), atualizados: r.atualizados.map((i) => i.empresa_id) };
   });
 
