@@ -130,7 +130,7 @@ export function julgarPorTexto(criterio, frases, site) {
     justificativa: trechos.length ? 'Há trechos relacionados, mas sem todos os termos do critério.' : `Foram lidas ${site.paginas.length} página(s) do site; nenhuma trata deste critério.` };
 }
 
-async function julgarComIA({ servicoIA, criterios, frases, site, empresa, execucao }) {
+async function julgarComIA({ servicoIA, criterios, frases, site, empresa, execucao, sinal = null }) {
   const escolhidas = new Map();
   for (const c of criterios) for (const t of trechosRelevantes(frases, c.texto, 6)) escolhidas.set(t.texto, t);
   // Contexto geral da empresa (primeiras frases das páginas), para sinônimos fora do dicionário.
@@ -141,7 +141,7 @@ async function julgarComIA({ servicoIA, criterios, frases, site, empresa, execuc
   const dados = { empresa: { nome: empresa.nome, razaoSocial: empresa.razaoSocial, cidade: empresa.cidade, uf: empresa.uf },
     criterios: criterios.map((c) => ({ id: c.id, texto: c.texto })), trechos };
   const r = await servicoIA.estruturar({ instrucoes: INSTRUCOES_JULGAMENTO, dados,
-    execucao: { ...execucao, corpoHash: hash(dados) } });
+    execucao: { ...execucao, corpoHash: hash(dados) }, sinal });
   const avaliacoes = Avaliacoes.parse(r.objeto).avaliacoes;
   return criterios.map((c) => {
     const a = avaliacoes.find((x) => x.id === c.id);
@@ -283,6 +283,8 @@ export function criarMotorPesquisa({ db, catalogo, servicoIA = null, web = {} })
     /** Revisa até `quantidade` empresas, uma por vez, dentro do prazo, na geração `execucao`. */
     async avancar(pesquisa, usuario, { quantidade = 3, prazoMs = 25000, execucao = pesquisa.execucao ?? 0 } = {}) {
       const inicio = Date.now();
+      // Prazo do lote como sinal: chega ao DNS, à conexão, ao corpo e à IA, não só entre empresas.
+      const sinal = AbortSignal.timeout(prazoMs);
       const pesquisaveis = pesquisa.criterios.map((c, i) => ({ c, i })).filter(({ c }) => c.tipo === 'pesquisa');
       const atualizados = [];
       let parada = null;
@@ -293,13 +295,13 @@ export function criarMotorPesquisa({ db, catalogo, servicoIA = null, web = {} })
         const item = reserva.item;
         if (!item) break;
         try {
-          const site = await lerSite(db, item.empresa, web);
+          const site = await lerSite(db, item.empresa, { ...web, sinal });
           const frases = site.estado === 'lido' ? frasesDoSite(site) : [];
           const criterios = pesquisaveis.map(({ c }) => c);
           let julgados;
           if (site.estado !== 'lido') julgados = criterios.map(() => semSite(site));
           else if (servicoIA) {
-            julgados = await julgarComIA({ servicoIA, criterios, frases, site, empresa: item.empresa,
+            julgados = await julgarComIA({ servicoIA, criterios, frases, site, empresa: item.empresa, sinal,
               execucao: { usuarioId: usuario.id, conversaId: pesquisa.conversa_id,
                 chave: uuidDe(`${pesquisa.id}:${item.empresa_id}:${item.tentativas}:${hash(criterios)}`) } });
           } else julgados = criterios.map((c) => julgarPorTexto(c, frases, site));
@@ -317,6 +319,8 @@ export function criarMotorPesquisa({ db, catalogo, servicoIA = null, web = {} })
         } catch (erro) {
           await db.query("UPDATE pesquisa_itens SET etapa='aguardando', reservado_em=NULL WHERE pesquisa_id=$1 AND empresa_id=$2 AND etapa='em_revisao' AND tentativas=$3",
             [pesquisa.id, item.empresa_id, item.tentativas]);
+          // Prazo do lote: a empresa volta à fila sem contar como falha; o cliente chama o próximo lote.
+          if (erro?.code === 'PRAZO' || sinal.aborted) break;
           const motivo = erro.message === 'limite_provedor' ? 'O provedor gratuito pediu uma pausa. Continue em um minuto.'
             : erro.message === 'limite_diario' ? 'A cota diária de revisões com IA foi atingida. Continue amanhã ou siga sem IA.'
               : 'A revisão de uma empresa falhou. Tente continuar; se repetir, siga sem IA.';

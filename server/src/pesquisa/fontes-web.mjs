@@ -111,11 +111,22 @@ export function urlLegivel(valor) {
   } catch { return null; }
 }
 
-async function hostPublico(hostname, resolver) {
+/** Rejeita quando `sinal` aborta: um DNS lento não segura o lote além do prazo. */
+export function comPrazo(promessa, sinal) {
+  if (!sinal) return promessa;
+  if (sinal.aborted) return Promise.reject(Object.assign(new Error('prazo'), { code: 'PRAZO' }));
+  return new Promise((resolve, reject) => {
+    const abortar = () => reject(Object.assign(new Error('prazo'), { code: 'PRAZO' }));
+    sinal.addEventListener('abort', abortar, { once: true });
+    Promise.resolve(promessa).then(resolve, reject).finally(() => sinal.removeEventListener('abort', abortar));
+  });
+}
+
+async function hostPublico(hostname, resolver, sinal) {
   try {
-    const enderecos = await resolver(hostname);
+    const enderecos = await comPrazo(resolver(hostname), sinal);
     return enderecos.length > 0 && enderecos.every((e) => !ipPrivado(e.address));
-  } catch { return false; }
+  } catch (e) { if (e?.code === 'PRAZO') throw e; return false; }
 }
 
 const ENTIDADES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', ndash: '–', mdash: '—', ordm: 'º', ordf: 'ª', copy: '©', reg: '®', trade: '™',
@@ -157,21 +168,32 @@ function charsetDe(tipo, bytes) {
 }
 
 /** `seguir(url)` devolve o motivo para não seguir um redirecionamento (robots, outra origem) ou null. */
-async function baixar(url, { fetchImpl, resolver, redirecionamentos = 3, seguir = null }) {
+/** `sinal` é o prazo do lote: interrompe DNS, conexão, redirecionamentos e corpo, e vira estado 'interrompida'. */
+async function baixar(url, { fetchImpl, resolver, redirecionamentos = 3, seguir = null, sinal = null }) {
+  try { return await baixarSemPrazo(url, { fetchImpl, resolver, redirecionamentos, seguir, sinal }); }
+  catch (e) { if (e?.code === 'PRAZO' || sinal?.aborted) return { estado: 'interrompida', motivo: 'prazo do lote' }; throw e; }
+}
+
+async function baixarSemPrazo(url, { fetchImpl, resolver, redirecionamentos, seguir, sinal }) {
   let atual = urlLegivel(url);
   const cadeia = [];
   for (let i = 0; i <= redirecionamentos && atual; i++) {
+    if (sinal?.aborted) throw Object.assign(new Error('prazo'), { code: 'PRAZO' });
     if (i > 0) {
       const motivo = seguir ? await seguir(atual) : null;
       if (motivo) return { estado: 'bloqueada', motivo, url: atual.href, cadeia };
     }
     cadeia.push(atual.href);
-    if (!await hostPublico(atual.hostname, resolver)) return { estado: 'bloqueada', motivo: 'endereço não público' };
+    if (!await hostPublico(atual.hostname, resolver, sinal)) return { estado: 'bloqueada', motivo: 'endereço não público' };
     let r;
     try {
-      r = await fetchImpl(atual.href, { redirect: 'manual', signal: AbortSignal.timeout(6000), resolver,
+      const limite = AbortSignal.timeout(6000);
+      r = await fetchImpl(atual.href, { redirect: 'manual', signal: sinal ? AbortSignal.any([limite, sinal]) : limite, resolver,
         headers: { 'User-Agent': AGENTE_USUARIO, Accept: 'text/html,application/xhtml+xml;q=0.9,text/plain;q=0.5' } });
-    } catch (e) { return e?.code === 'ENDERECO_NAO_PUBLICO' ? { estado: 'bloqueada', motivo: 'endereço não público' } : { estado: 'falhou', motivo: 'sem resposta' }; }
+    } catch (e) {
+      if (sinal?.aborted) throw Object.assign(new Error('prazo'), { code: 'PRAZO' });
+      return e?.code === 'ENDERECO_NAO_PUBLICO' ? { estado: 'bloqueada', motivo: 'endereço não público' } : { estado: 'falhou', motivo: 'sem resposta' };
+    }
     if ([301, 302, 303, 307, 308].includes(r.status)) {
       const destino = r.headers.get('location');
       atual = destino ? urlLegivel(new URL(destino, atual).href) : null;
@@ -187,7 +209,10 @@ async function baixar(url, { fetchImpl, resolver, redirecionamentos = 3, seguir 
         if (bytes > MAX_BYTES) break;
         partes.push(parte);
       }
-    } catch { return { estado: 'falhou', motivo: 'leitura interrompida', url: atual.href, cadeia }; }
+    } catch {
+      if (sinal?.aborted) throw Object.assign(new Error('prazo'), { code: 'PRAZO' });
+      return { estado: 'falhou', motivo: 'leitura interrompida', url: atual.href, cadeia };
+    }
     const buf = Buffer.concat(partes);
     return { estado: 'ok', url: atual.href, cadeia, tipo, corpo: new TextDecoder(charsetDe(tipo, buf)).decode(buf) };
   }
@@ -225,7 +250,7 @@ export function permitidoPeloRobots(robots, caminho) {
  * pedida, para cada redirecionamento e para a URL final de um cache.
  * Devolve { url (final), pedida, cadeia, estado, titulo, texto, links, obtidaEm }.
  */
-export async function obterPagina(db, url, { fetchImpl = fetchFixado, resolver = (h) => lookup(h, { all: true }), agora = Date.now(), robots = null, regras = null } = {}) {
+export async function obterPagina(db, url, { fetchImpl = fetchFixado, resolver = (h) => lookup(h, { all: true }), agora = Date.now(), robots = null, regras = null, sinal = null } = {}) {
   const u = urlLegivel(url);
   if (!u) return { url, estado: 'bloqueada', texto: '', links: [] };
   const bloqueio = async (x) => (x.origin === u.origin && !permitidoPeloRobots(robots, x.pathname) ? 'robots.txt' : null) ?? (regras ? await regras(x) : null);
@@ -241,7 +266,9 @@ export async function obterPagina(db, url, { fetchImpl = fetchFixado, resolver =
     if (motivoFinal) return bloqueada(motivoFinal, { cadeia: cache.cadeia || [] });
     return { url: final?.href ?? u.href, pedida: u.href, cadeia: cache.cadeia || [], estado: cache.estado, titulo: cache.titulo, texto: cache.texto || '', links: cache.links || [], obtidaEm: cache.obtida_em };
   }
-  const r = await baixar(u.href, { fetchImpl, resolver, seguir: bloqueio });
+  const r = await baixar(u.href, { fetchImpl, resolver, seguir: bloqueio, sinal });
+  // Interrompida pelo prazo do lote não é falha do site: não entra no cache.
+  if (r.estado === 'interrompida') return { url: u.href, pedida: u.href, cadeia: [], estado: 'interrompida', titulo: null, texto: '', links: [], motivo: r.motivo };
   const pagina = r.estado === 'ok' ? { ...extrairPagina(r.corpo, r.url), estado: 'ok' } : { estado: r.estado, titulo: null, texto: '', links: [] };
   const hash = pagina.texto ? createHash('sha256').update(pagina.texto).digest('hex') : null;
   const obtidaEm = new Date(agora).toISOString();
@@ -275,7 +302,13 @@ export async function lerSite(db, empresa, opcoes = {}) {
   const dominio = empresa.atributos?.dominio;
   if (!dominio) return { dominio: null, estado: 'sem_site', paginas: [], motivo: 'Sem domínio corporativo no cadastro.' };
   // Orçamento por site: a revisão roda dentro de funções com limite de 60 s.
-  const prazo = Date.now() + (opcoes.prazoSiteMs ?? 20000);
+  // Prazo do site somado ao prazo do lote (`opcoes.sinal`): o menor vence, e vale dentro de cada leitura.
+  // Prazo do site esgotado: lê o que deu. Prazo do LOTE esgotado: a empresa volta à fila (erro 'prazo').
+  const lote = opcoes.sinal ?? null;
+  const prazoSite = AbortSignal.timeout(opcoes.prazoSiteMs ?? 20000);
+  const sinal = lote ? AbortSignal.any([prazoSite, lote]) : prazoSite;
+  opcoes = { ...opcoes, sinal };
+  const conferirLote = () => { if (lote?.aborted) throw Object.assign(new Error('prazo'), { code: 'PRAZO' }); };
   // Robots por origem (https://www.x e https://x podem ter regras diferentes), lido uma vez por leitura.
   const robotsPorOrigem = new Map();
   const robotsDe = (origem) => {
@@ -290,11 +323,12 @@ export async function lerSite(db, empresa, opcoes = {}) {
   };
   let inicial = null, motivoBloqueio = null;
   for (const url of [`https://www.${dominio}/`, `https://${dominio}/`, `http://www.${dominio}/`]) {
-    if (Date.now() > prazo) break;
+    if (sinal.aborted) break;
     const p = await obterPagina(db, url, { ...opcoes, robots: null, regras });
     if (p.estado === 'ok' && p.texto.length > 20) { inicial = p; break; }
     if (p.motivo === 'robots.txt' || p.motivo === 'outra origem') motivoBloqueio ??= p.motivo;
   }
+  conferirLote();
   if (!inicial && motivoBloqueio) return { dominio, estado: 'bloqueada', paginas: [], motivo: motivoBloqueio === 'robots.txt'
     ? 'O robots.txt do site não permite a leitura.' : 'O endereço do cadastro redireciona para outro domínio; o conteúdo não foi atribuído à empresa.' };
   if (!inicial) return { dominio, estado: 'indisponivel', paginas: [], motivo: 'O site não respondeu com uma página legível.' };
@@ -303,10 +337,11 @@ export async function lerSite(db, empresa, opcoes = {}) {
     .slice(0, 3);
   const paginas = [inicial];
   for (const l of internas) {
-    if (Date.now() > prazo) break;
+    if (sinal.aborted) break;
     const p = await obterPagina(db, l.url, { ...opcoes, robots: null, regras });
     if (p.estado === 'ok' && p.texto.length > 20) paginas.push(p);
   }
+  conferirLote();
   const identidade = identidadeDoSite(paginas.map((p) => p.texto).join('\n'), empresa);
   return { dominio, estado: 'lido', identidade, paginas: paginas.map(({ url, pedida, cadeia, titulo, texto, obtidaEm }) => ({ url, pedida, cadeia, titulo, texto, obtidaEm })) };
 }

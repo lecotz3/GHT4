@@ -130,7 +130,7 @@ async function lerCorpo(r) {
 }
 
 /** Uma chamada ao provedor configurado. Sem repetição automática. */
-async function chamar(config, fetchImpl, { instrucoes, input, formato = null, web = false }) {
+async function chamar(config, fetchImpl, { instrucoes, input, formato = null, web = false, sinal = null }) {
   const responses = config.api === 'responses';
   const body = responses
     ? { model: config.modelo, instructions: instrucoes, input, store: false,
@@ -143,7 +143,7 @@ async function chamar(config, fetchImpl, { instrucoes, input, formato = null, we
       ...(config.raciocinio ? { reasoning_effort: config.raciocinio } : {}) };
   const r = await fetchImpl(config.url, {
     method: 'POST', headers: { 'Content-Type': 'application/json', ...(config.chave ? { Authorization: `Bearer ${config.chave}` } : {}) },
-    body: JSON.stringify(body), signal: AbortSignal.timeout(config.timeout), redirect: 'error',
+    body: JSON.stringify(body), signal: sinal ? AbortSignal.any([AbortSignal.timeout(config.timeout), sinal]) : AbortSignal.timeout(config.timeout), redirect: 'error',
   });
   if (r.status === 429) throw new Error('limite_provedor');
   if (!r.ok) throw new Error('provedor_indisponivel');
@@ -229,13 +229,13 @@ export function criarServicoIA(db, config, { fetchImpl = fetch } = {}) {
      * evidências). Recebe só dados públicos e o texto da tese; a resposta é
      * validada por quem chama: o modelo propõe, o código confere.
      */
-    async estruturar({ instrucoes, dados, execucao }) {
+    async estruturar({ instrucoes, dados, execucao, sinal = null }) {
       const input = JSON.stringify(dados);
       if (input.length > 48000) throw new Error('contexto_excessivo');
       const reserva = await reservar(db, config, execucao, 'revisao');
       return executarReservado(db, reserva, async () => {
         const r = await chamar(config, fetchImpl, { instrucoes: `${instrucoes}\nResponda somente com um objeto JSON válido, sem texto fora dele.`,
-          input, formato: config.api === 'responses' ? { type: 'json_object' } : 'json' });
+          input, formato: config.api === 'responses' ? { type: 'json_object' } : 'json', sinal });
         return { objeto: jsonDaResposta(r.texto), uso: r.uso, modelo: r.modelo };
       });
     },

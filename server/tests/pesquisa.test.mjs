@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { interpretarTese, verificarCadastro, consolidar, ListaCriterios } from '../src/pesquisa/criterios.mjs';
 import { urlLegivel, permitidoPeloRobots, obterPagina, lerSite, identidadeDoSite, ipPrivado, lookupPublico } from '../src/pesquisa/fontes-web.mjs';
-import { validarPropostaIA, julgarPorTexto } from '../src/pesquisa/motor.mjs';
+import { validarPropostaIA, julgarPorTexto, criarMotorPesquisa } from '../src/pesquisa/motor.mjs';
 import { atributosDe } from '../src/agente/atributos.mjs';
 import { criarCatalogo } from '../src/agente/catalogo.mjs';
 import { configurarIA, criarServicoIA } from '../src/agente/provedor.mjs';
@@ -526,4 +526,34 @@ test('IA: sem trecho ou com valor que o trecho não diz, o critério é descarta
   assert.ok(r.notas.some((n) => /3 critério/.test(n)));
   const muitas = interpretarTese('Distribuidoras que representem fabricantes alemães; que atendam o agronegócio paulista; que tenham laboratório próprio certificado; que exportem solventes industriais; que façam mistura de resinas; que possuam frota própria refrigerada');
   assert.ok(muitas.notas.some((n) => /limite de \d+ critérios de pesquisa/.test(n)), muitas.notas.join(' | '));
+});
+
+test('prazo do lote chega ao DNS e ao corpo: o lote para no prazo e a empresa volta à fila sem falha em cache', async (t) => {
+  const { chamar, db } = await preparar(t);
+  const id = await pesquisaPronta(chamar);
+  await db.query(`UPDATE pesquisas_tese SET estado='em_andamento', execucao=1 WHERE id=$1`, [id]);
+  const pesquisa = (await db.query('SELECT * FROM pesquisas_tese WHERE id=$1', [id])).rows[0];
+  const usuario = { id: pesquisa.usuario_id };
+  const medir = async (web) => {
+    const motor = criarMotorPesquisa({ db, catalogo: null, servicoIA: null, web });
+    const inicio = Date.now();
+    const r = await motor.avancar(pesquisa, usuario, { quantidade: 3, prazoMs: 400, execucao: 1 });
+    return { r, ms: Date.now() - inicio };
+  };
+  // DNS que nunca responde.
+  const dnsPreso = await medir({ fetchImpl: fetchSites, resolver: () => new Promise(() => {}) });
+  assert.ok(dnsPreso.ms < 3000, `parou em ${dnsPreso.ms} ms`);
+  assert.deepEqual(dnsPreso.r.atualizados, []);
+  // Corpo que começa e não termina.
+  const corpoPreso = async (url, o) => {
+    if (url.endsWith('/robots.txt')) return fetchSites(url, o);
+    const corpo = new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode('<html><body>')); o.signal.addEventListener('abort', () => c.error(new Error('abortado'))); } });
+    return new Response(corpo, { headers: { 'content-type': 'text/html' } });
+  };
+  const corpo = await medir({ fetchImpl: corpoPreso, resolver: async () => [{ address: '200.1.2.3' }] });
+  assert.ok(corpo.ms < 3000, `parou em ${corpo.ms} ms`);
+  const itens = (await db.query(`SELECT etapa FROM pesquisa_itens WHERE pesquisa_id=$1 AND empresa_id='cnpj11111111'`, [id])).rows[0];
+  assert.equal(itens.etapa, 'aguardando');
+  const falhas = (await db.query(`SELECT count(*)::int n FROM paginas_publicas WHERE estado='falhou'`)).rows[0].n;
+  assert.equal(falhas, 0, 'interrupção por prazo não vira "site indisponível" no cache');
 });
