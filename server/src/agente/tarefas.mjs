@@ -51,7 +51,7 @@ export async function executarTarefa({ tarefa, texto, contexto, catalogo, acoes,
     return { ...resposta, titulo: 'Empresas para investigar',
       resumo: `${r.total} ${r.total === 1 ? 'empresa corresponde' : 'empresas correspondem'} aos filtros; exibindo ${r.empresas.length} a partir da posição ${(r.offset || 0) + 1}. ${contexto.ordem === 'prioridade' ? 'Ordem por onde começar: evento societário recente, depois relação confirmada na rede, depois pessoas mapeadas e, por fim, enquadramento e nome.' : 'Ordem por evidência de enquadramento e nome.'}`,
       empresas: r.empresas, fontes: [fonte(r.referencia)],
-      catalogoHash: r.hash,
+      catalogoHash: r.hashPaginacao ?? r.hash,
       paginacao: { total: r.total, offset: r.offset || 0, proximoOffset: r.proximoOffset ?? null }, cobertura: r.cobertura,
       blocos: [{ titulo: 'Antes de priorizar', itens: [
         'Confirme produtos, fornecedores representados e atividade predominante.',

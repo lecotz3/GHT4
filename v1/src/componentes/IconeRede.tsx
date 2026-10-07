@@ -7,6 +7,7 @@ const desenhos = {
   sair: <><path d="M9 4H4v16h5m4-8h8m-4-4 4 4-4 4"/></>,
   menu: <path d="M4 6h16M4 12h16M4 18h16"/>,
   fechar: <path d="m6 6 12 12M6 18 18 6"/>,
+  lixeira: <><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3"/></>,
   brilho: <><path d="m12 3 2.3 6.7L21 12l-6.7 2.3L12 21l-2.3-6.7L3 12l6.7-2.3Z"/></>,
   agenda: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 11h18m-14 4h3m4 0h3"/></>,
   painel: <><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></>,

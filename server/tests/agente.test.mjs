@@ -130,3 +130,22 @@ test('adaptador de IA é opcional e falha sem apagar evidência ou fingir sucess
   assert.ok(falha.avisoIA);
   assert.ok(!JSON.stringify(falha).includes('segredo-interno'));
 });
+
+test('excluir trabalho tira da lista do dono, preserva o histórico e registra auditoria', async (t) => {
+  const { db, usuario, trabalho } = await montar(t);
+  const a = await usuario('dono@teste.local');
+  const b = await usuario('outro@teste.local');
+  const leitor = await usuario('leitor@teste.local', 'leitura');
+  const fica = await trabalho(a, { titulo: 'Fica' });
+  const sai = await trabalho(a, { titulo: 'Sai' });
+  assert.equal((await b.chamar('DELETE', `/api/agente/conversas/${sai.id}`)).statusCode, 404);
+  assert.equal((await leitor.chamar('DELETE', `/api/agente/conversas/${sai.id}`)).statusCode, 403);
+  const r = await a.chamar('DELETE', `/api/agente/conversas/${sai.id}`);
+  assert.equal(r.statusCode, 200, r.body);
+  assert.equal((await a.chamar('DELETE', `/api/agente/conversas/${sai.id}`)).statusCode, 200);
+  const lista = (await a.chamar('GET', '/api/agente/conversas')).json().conversas.map((c) => c.id);
+  assert.deepEqual(lista, [fica.id]);
+  assert.equal((await a.chamar('GET', `/api/agente/conversas/${sai.id}`)).statusCode, 200);
+  const auditoria = (await db.query(`SELECT count(*)::int AS n FROM auditoria WHERE entidade='agente_conversa' AND acao='arquivar' AND entidade_id=$1`, [sai.id])).rows[0].n;
+  assert.equal(auditoria, 1);
+});

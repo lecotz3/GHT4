@@ -332,7 +332,7 @@ test('situação da empresa mostra só oportunidades e restrições alcançávei
   assert.equal(deA.restricoes.length,1); assert.equal(deA.restricoes[0].espaco,'Mandato de teste');
   // b não participa do mandato confidencial nem é autor da privada: nada, nem contagem.
   const deB = (await b.chamar('GET',url));
-  assert.equal(deB.statusCode,200); assert.deepEqual(deB.json(),{ empresaId: empresa.id, oportunidades: [], restricoes: [] });
+  assert.equal(deB.statusCode,200); assert.deepEqual(deB.json(),{ empresaId: empresa.id, oportunidades: [], totalOportunidades: 0, restricoes: [] });
   assert.doesNotMatch(deB.body,/SIGILO|Conflito|Mandato/);
   // admin alcança o mandato confidencial, mas não a privada de outro usuário.
   assert.deepEqual((await admin.chamar('GET',url)).json().oportunidades.map((o) => o.id),[confidencial.o.id]);
@@ -399,15 +399,63 @@ test('ficha compara o cadastro salvo em cada oportunidade acessível com o atual
   await db.query(`UPDATE crm_oportunidades SET empresa=empresa || '{"cidade":"Jundiaí","referencia":"2026-07"}'::jsonb WHERE id=$1`,[antiga.id]);
   await db.query(`UPDATE crm_oportunidades SET empresa=empresa || '{"uf":"sp"}'::jsonb WHERE id=$1`,[legado.id]);
   const f = (await a.chamar('GET',`/api/empresas/${empresa.id}/ficha`)).json();
-  const porEstado = Object.fromEntries(f.cadastro.map((g) => [g.mudancas?.length ? 'mudou' : g.estado, g]));
+  assert.equal(f.cadastro.comparadas,3); assert.equal(f.cadastro.total,3);
+  const porEstado = Object.fromEntries(f.cadastro.grupos.map((g) => [g.mudancas?.length ? 'mudou' : g.estado, g]));
   assert.deepEqual(porEstado.comparado.oportunidades.map((x) => x.id),[igual.id]);
   assert.deepEqual(porEstado.comparado.mudancas,[]);
   assert.deepEqual(porEstado.mudou.mudancas,[{ campo: 'cidade', grupo: 'cadastro', anterior: 'Jundiaí', atual: 'Campinas', tipo: 'alterado' }]);
   assert.deepEqual(porEstado.mudou.referencias,{ anterior: '2026-07', atual: '2026-08' });
   assert.equal(porEstado.historico_invalido.mudancas,null);
-  assert.deepEqual(porEstado.historico_invalido.oportunidades.map((x) => x.id),[legado.id]);
+  assert.deepEqual(porEstado.historico_invalido.oportunidades.map((x) => [x.id,x.espaco]),[[legado.id,null]]);
   assert.equal((await db.query('SELECT count(*)::int n FROM eventos_corporativos')).rows[0].n,0);
-  assert.deepEqual((await b.chamar('GET',`/api/empresas/${empresa.id}/ficha`)).json().cadastro,[]);
+  assert.deepEqual((await b.chamar('GET',`/api/empresas/${empresa.id}/ficha`)).json().cadastro,{ grupos: [], comparadas: 0, total: 0 });
+});
+
+test('ficha: situação e comparação usam o mesmo corte de 20, com total; diferença na mais recente não some', async (t) => {
+  const { db, usuario, selecionar, criar } = await montar(t);
+  const a = await usuario('a@teste.local');
+  const criadas = [];
+  for (let i = 0; i < 21; i++) criadas.push((await criar(a,(await selecionar(a,null,i % 2 ? 'venda' : 'compra')).s)).o);
+  // A mais recente (e só ela) guardou uma cidade diferente.
+  const ultima = criadas.at(-1);
+  await db.query(`UPDATE crm_oportunidades SET empresa=empresa || '{"cidade":"Jundiaí","referencia":"2026-07"}'::jsonb, atualizado_em=now()+interval '1 minute' WHERE id=$1`,[ultima.id]);
+  const f = (await a.chamar('GET',`/api/empresas/${empresa.id}/ficha`)).json();
+  assert.equal(f.situacao.oportunidades.length,20); assert.equal(f.situacao.totalOportunidades,21);
+  assert.equal(f.cadastro.comparadas,20); assert.equal(f.cadastro.total,21);
+  const listadas = new Set(f.situacao.oportunidades.map((o) => o.id));
+  const comparadas = f.cadastro.grupos.flatMap((g) => g.oportunidades.map((o) => o.id));
+  assert.deepEqual(new Set(comparadas),listadas,'as duas seções descrevem o mesmo subconjunto');
+  assert.ok(f.cadastro.grupos.some((g) => g.mudancas?.length && g.oportunidades.some((o) => o.id === ultima.id)));
+  assert.ok(!('cadastro_salvo' in f.situacao.oportunidades[0]) && !('total' in f.situacao.oportunidades[0]));
+});
+
+test('ficha não revela título, espaço, cadastro salvo nem contagem de mandato confidencial inacessível', async (t) => {
+  const { db, usuario, selecionar, criar } = await montar(t);
+  const a = await usuario('a@teste.local'); const b = await usuario('b@teste.local'); const adm = await usuario('adm@teste.local','admin');
+  const m = await criarMandato(db,{ codigo: 'OCULTO', rotulo: 'Projeto Sigiloso X' }); await darAcesso(db,m.id,a.id);
+  const { o } = await criar(a,(await selecionar(a,m.id)).s);
+  await db.query(`UPDATE crm_oportunidades SET empresa=empresa || '{"cidade":"Cidade Secreta"}'::jsonb WHERE id=$1`,[o.id]);
+  await db.query(`INSERT INTO crm_registros (id,serie_id,oportunidade_id,tipo,versao,dados,revisado,usuario_id) VALUES ($1,$1,$2,'tese',1,'{"titulo":"Tese reservada"}',true,$3)`,[randomUUID(),o.id,a.id]);
+  const deB = (await b.chamar('GET',`/api/empresas/${empresa.id}/ficha`)).json();
+  assert.equal(deB.situacao.totalOportunidades,0); assert.deepEqual(deB.cadastro,{ grupos: [], comparadas: 0, total: 0 });
+  assert.doesNotMatch(JSON.stringify(deB),/Projeto Sigiloso|Cidade Secreta|Tese reservada|Distribuição SP/);
+  // Participante vê com a origem; admin também.
+  for (const quem of [a, adm]) {
+    const f = (await quem.chamar('GET',`/api/empresas/${empresa.id}/ficha`)).json();
+    assert.deepEqual(f.cadastro.grupos.flatMap((g) => g.oportunidades.map((x) => x.espaco)),['Projeto Sigiloso X']);
+    assert.equal(f.acervo.registros[0].espaco,'Projeto Sigiloso X');
+  }
+});
+
+test('ficha: cadastro atual fora do formato oculta a comparação, sem afetar o resto', async (t) => {
+  const db = await bancoDeTeste();
+  const invalida = { ...empresa, uf: 'sp' };
+  const app = await criarApp(db, { catalogo: { buscar: async () => ({ empresas: [empresa], total: 1, referencia: '2026-08' }), obter: async (id) => id === empresa.id ? invalida : null } });
+  t.after(async () => { await app.close(); await db.close(); });
+  await criarUsuario(db, { email: 'c@teste.local', papel: 'analista', senha: 'Senha para testes somente!' });
+  const r = await app.inject({ method: 'POST', url: '/api/sessao', payload: { email: 'c@teste.local', senha: 'Senha para testes somente!' } });
+  const f = (await app.inject({ method: 'GET', url: `/api/empresas/${empresa.id}/ficha`, headers: { cookie: r.headers['set-cookie'].split(';')[0] } })).json();
+  assert.equal(f.cadastro,null); assert.equal(f.empresa.uf,'sp'); assert.deepEqual(f.situacao.oportunidades,[]);
 });
 
 test('ficha: só queda do catálogo vira 503; defeito vira 500', async (t) => {

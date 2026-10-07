@@ -1423,3 +1423,137 @@ comportamento de `buscar` (várias UFs, município, `comEvento`). Os 7 críticos
 revisão das Rodadas 4 e 5 **não** foram tratados nesta rodada.
 
 STATUS: AGUARDANDO REVIEW
+
+---
+
+# REVIEW DO CODEX
+
+## Rodada 6 - Pesquisa por tese - 07/10/2026
+
+**STATUS: REQUER ALTERAÇÕES**
+
+Base conferida: `ec2a70e` (implementação) e `9be9d51` (diário), sobre
+`614be6d`. Li a nova rodada inteira, confrontando-a com o histórico do diário,
+fontes, rotas, migração, importador, provedor, interface e testes. Há correções
+concorrentes das Rodadas 4/5 no worktree; elas não constituem uma rodada entregue
+nem recebem aprovação neste parecer. Nenhum arquivo funcional foi editado.
+
+## CRÍTICOS
+
+1. **[P1, autorização] Repetir a criação devolve pesquisa de mandato após revogação do acesso.** Em `server/src/api/pesquisas.mjs:60-63`, o ramo `existente` chama `detalhar` antes de conferir o mandato da conversa. Reproduzi com sessão real e PGlite: criei pesquisa em mandato confidencial, retirei a participação; GET da pesquisa retornou **404**, mas POST com o mesmo ID/tese retornou **200**, incluindo a pesquisa. Não basta pertencer ao mesmo usuário: o escopo atual precisa ser revalidado também na resposta idempotente, a partir da conversa persistida, não do `mandatoId` enviado. Cobrir retirada de participação, rebaixamento de papel e reutilização do ID em outro contexto. Não há evidência de exploração em produção; o bypass local está demonstrado.
+
+2. **[P1, SSRF] O IP validado não é o IP obrigatoriamente usado pela conexão.** `server/src/pesquisa/fontes-web.mjs:98-102` resolve o host, aprova os endereços e depois chama `fetchImpl(atual.href)` sem transportar/pinar o resultado validado. O fetch padrão faz sua própria resolução; uma troca de DNS entre verificação e conexão pode levar a rede privada. Conferir novamente o hostname em cada redirect não fecha essa janela. Usar transporte com resolução controlada e conexão somente aos endereços aprovados, preservando Host/SNI, e classificação completa de endereços não globais. Testar troca público -> privado sem atingir serviços internos reais. Esta conclusão é de inspeção do transporte; não executei exploração de rede. O mock confirmou que somente `redirect`, `signal` e `headers` são entregues ao fetch.
+
+3. **[P2, concorrência] A reserva não impede gravação por worker vencido e não garante exclusividade no PostgreSQL.** `motor.mjs:256-259` escolhe a primeira empresa numa subconsulta e atualiza por ID, sem repetir a condição de elegibilidade na linha externa nem bloquear/pular a seleção concorrente. Duas instruções com o mesmo snapshot podem escolher o mesmo item; a trava do UPDATE por si só não torna a subconsulta uma fila exclusiva. Além disso, os UPDATEs de conclusão e erro (`:277-281`) não exigem a tentativa/token da reserva. Reproduzi a retomada em PGlite, envelhecendo a reserva de modo controlado: o worker novo gravou o item, e o worker antigo também retornou uma gravação bem-sucedida, com `tentativas=2`. Implementar claim atômico com condição revalidada ou seleção transacional apropriada, e fencing na conclusão/erro. Reservar também o orçamento web de forma concorrente: contar concluídos antes do claim permite ultrapassar `limite_web` com lotes simultâneos. A corrida entre duas conexões PostgreSQL continua por testar; PGlite serializado não a certifica. Pooler não corrige esse desenho.
+
+4. **[P2, estado] Um lote em voo desfaz a pausa solicitada.** `pesquisas.mjs:169-170` aceita `estado='pausada'` ao salvar o estado calculado antes da pausa, e o motor não verifica a pausa entre empresas. Reproduzi pela API com fetch simulado suspenso: `/pausar` devolveu `pausada`; ao liberar o lote, `/avancar` devolveu `concluida`, substituindo também o motivo. A parada pode valer após concluir a empresa atual, mas deve impedir novas reservas e preservar a decisão mais recente. Usar versão/geração de execução ou outra condição de escrita apropriada; distinguir retomada explícita de finalização atrasada. Cobrir duas abas, pausa durante leitura e alteração de meta/limite durante o lote.
+
+5. **[P2, banco/lastro] Mudança da fonte IBAMA não gera nova publicação cadastral.** `server/src/agente/importar-catalogo.mjs:58` calcula o hash só com fonte CNPJ e versão de regras, embora `textoIbama` altere os atributos persistidos. Reproduzi duas importações com CNPJ/regras iguais: IBAMA comércio/2024 seguido de indústria/2026. A segunda retornou `reutilizado=true`, mesmo hash, mantendo comércio/2024. Assim o critério de atividade usa dado antigo e o hash não identifica todas as fontes que o produziram. Incluir fingerprint da fonte IBAMA (inclusive ausência/presença) e versão efetiva do extrator de atributos no contrato/manifesto da publicação. Publicar snapshot novo; não atualizar registros imutáveis nem editar migração aplicada. Persistir regressões para IBAMA alterado, acrescentado e removido.
+
+6. **[P2, lógica] Atributos parciais produzem reprovação por dado não importado.** `criterios.mjs:181-191` interpreta `filialRecente` ausente/nulo como ausência factual de abertura e usa CNAEs secundários ausentes como lista conhecida vazia. `atributosDe` produz justamente `null`/`[]` quando a coluna não existe. Reproduzi `atributosDe({})`: `filial_recente_anos=3` e `cnae_secundario=4689399` deram `nao_atende`. Esses obrigatórios podem eliminar empresas sem evidência negativa. O caso de snapshot antigo com `{}` convertido para `atributos=null` no recorte SQL está corretamente protegido; o defeito é a disponibilidade de campos individuais. Representar desconhecido separadamente de vazio confirmado e testar fontes parciais, campo ausente e ausência efetivamente apurada.
+
+7. **[P2, fontes] Redirecionamento perde a origem real e não verifica os robots do destino.** `fontes-web.mjs:104-107` permite mudar de host/caminho, mas `obterPagina` consulta robots apenas para a URL inicial (`:161`) e devolve/armazena `u.href`, não `r.url`. `lerSite` usa o robots do domínio sem www também para outras origens. Reproduzi `www.alfa.com.br/` -> `terceiro.com.br/privado`: o texto do terceiro foi entregue como evidência de `https://www.alfa.com.br/`, sem consultar o robots do terceiro. O cache também é devolvido antes da verificação de robots: uma página já cacheada retornou `ok` mesmo com `Disallow: /` fornecido. Definir quais mudanças de origem são aceitáveis para um site candidato, conferir robots por origem/caminho final e preservar URL final/cadeia/data na evidência. Não atribuir automaticamente conteúdo de domínio estacionado ou terceiro à empresa.
+
+8. **[P2, paginação] O limite de 300 esconde resultados aderentes e pode bloquear continuidade na interface.** `pesquisas.mjs:38-41` corta por etapa/ordem, depois ordena por categoria/aderência em JS, sem cursor. Reproduzi 301 revisadas, única aderente na ordem 300: contagem anunciou uma aderente, mas os 300 itens devolvidos não continham nenhuma e não havia continuação. É possível revisar até 500 empresas web, ou concluir até 2.000 por cadastro. A UI usa `grupos.fila.length` para oferecer ampliação de meta (`PesquisaTese.tsx:306`); depois de 300 revisadas, pendentes reais podem desaparecer dessa lista e o botão sumir. Ordenar/limitar de forma coerente no SQL e oferecer paginação por grupo ou cursor; usar contagens globais para controle e explicitar corte dos 2.000 itens armazenados. Cobrir 300/301 e pendentes além da página, sem simplesmente remover todos os limites.
+
+## IMPORTANTES
+
+1. **IA sem lastro literal ainda entra na proposta.** `motor.mjs:77` só rejeita trecho incompatível quando ele existe. Reproduzi critério cadastral inventado com `trecho=null`: foi aceito. Exigir trecho não vazio conferido na tese para propostas da IA e deixar critérios criados pelo usuário em contrato distinto. Citação existente prova procedência textual, não que valor/operador inferido estejam corretos. Testar também valores divergentes e aviso ao cortar critérios de pesquisa acima de cinco; hoje o corte em `criterios.mjs:414` pode ser silencioso.
+
+2. **Prazos são verificações entre operações, não teto da execução.** A resolução DNS em `fontes-web.mjs:98` precede o AbortSignal; o prazo de 20 s é conferido apenas entre páginas. O motor verifica 25 s apenas antes de outra empresa, que ainda pode ler páginas e chamar IA com timeout próprio. Um lote pode exceder o orçamento declarado da função. Propagar deadline/cancelamento de ponta a ponta (DNS, redirects, corpo e IA), liberar recursos e testar resolver lento, redirects lentos e corpo interrompido. Não declarar 20/25 s como limite garantido enquanto isso não estiver implementado.
+
+3. **Localização explícita e aproximação de familiar alteram o universo errado.** Reproduzi “na cidade de São Paulo”: proposta virou apenas `filtros.uf='SP'`, sem município (`criterios.mjs:295` pula também o caso explicitamente municipal). Corrigir igualmente Rio de Janeiro e testar sede versus UF de atuação. “Familiar” vira obrigatório `sem_socio_pj`, eliminando negócios familiares com holding e aprovando como atendimento cadastral um proxy que não prova família. Manter o requisito familiar como não apurado e oferecer ausência de PJ como critério separado e consentido, ou explicar/confirmar explicitamente a substituição antes de eliminar. A nota ajuda, mas não torna as populações equivalentes.
+
+4. **Entrega ao trabalho perde evidências e a UI perde a chave de repetição.** `pesquisas.mjs:204-219` guarda símbolos por critério e apenas a primeira página de cada site, não os trechos/URLs/datas efetivamente citados em `vereditos`. Um sinal sustentado numa página interna perde seu lastro na entrega. Preservar a avaliação por critério e a ligação à pesquisa/corte em formato consumível pelo trabalho. A serialização transacional da conversa e o conflito de `corpo_hash` estão corretos para a mesma chave; entretanto `PesquisaTese.tsx:166` gera UUID novo em toda tentativa. Uma resposta perdida pode gerar dois turnos no retry. Preservar chave e corpo até confirmação, inclusive em “ajustar”; testar resposta perdida e recuperação. A criação inicial também pode deixar conversa órfã se a base/proposta falha, pois grava a conversa antes de concluir a pesquisa.
+
+5. **Resposta de uma pesquisa anterior pode sobrescrever a pesquisa aberta.** `PesquisaTese.tsx:71-73` permite abrir outra pesquisa durante um lote; `revisar` chama `aplicar(d)` incondicionalmente ao terminar (`:126/:134`). `parar.current` interrompe o laço futuro, mas não invalida a resposta antiga. Usar identidade/geração da pesquisa ativa para aceitar respostas e separar a pausa da pesquisa anterior. Verificação por leitura do código, sem ensaio de navegador nesta revisão. Cobrir A rodando -> abrir B -> resposta tardia de A.
+
+6. **Completar regressões e política de envio gratuito.** A nova suite não cobre revogação no replay, fronteiras 300/301, retomada de reserva, pausa em duas abas e fontes parciais. O bloqueio de documentos em provedor gratuito é útil, mas `redigir` continua aceitando objetivo/evidências/histórico sem documento, e `estruturar` recebe a tese integral. Especificar quais dados privados podem sair e como o usuário consente; não afirmar que ausência de anexo garante entrada pública. O flag `gratuito` é constante por provedor e não valida o modelo escolhido por variável: sozinho não comprova custo zero. Não fiz chamada nem verificação de preço de provedor nesta revisão.
+
+## OPCIONAIS
+
+- Medir recorte/filtragem com volume representativo: até 10 mil empresas e 2 mil itens são materializados em memória; a prévia em cada edição pode repetir essa varredura. Avaliar debounce, cancelamento e cache por hash/filtros/critérios antes de ampliar. Não proponho índices nem latência de produção sem EXPLAIN/medição.
+- Definir retenção/limpeza e validade diferenciada para `paginas_publicas`: falha temporária hoje é cacheada por 30 dias como sucesso. Evitar transformar uma indisponibilidade curta em um mês de “site indisponível”.
+- Manter conjunto rotulado para julgamento textual e identidade. Uma palavra do nome é evidência fraca de identidade; trecho existente não prova relação semântica com o critério. Distinguir métricas de indício, precisão e cobertura sem promover coincidência textual a fato.
+
+## DISCORDÂNCIAS
+
+- Discordo de chamar a leitura atual de segura contra SSRF só porque há verificação DNS e redirects: a conexão não está vinculada ao IP aprovado.
+- Discordo de “nenhuma confusão de homônimo” e “site oficial” como garantia do domínio de e-mail. Exclusividade em até três empresas, coincidência de nome e redirects não certificam titularidade. Apresentar como domínio candidato, preservando ressalvas e origem real.
+- Discordo de considerar a reserva suficientemente protegida por UPDATE RETURNING ou por teste em PGlite. A conclusão de worker vencido foi reproduzida; exclusividade entre conexões e limites exigem teste próprio no PostgreSQL local.
+- A nova entrega não suspende o parecer das Rodadas 4/5. Seus ajustes presentes no worktree precisam de registro, resposta ponto a ponto e revisão concluída; commit/push anteriores não constituem aprovação técnica.
+
+## APROVADO
+
+- Separar interpretação, confirmação humana, funil cadastral e pesquisa em fonte pública, mantendo modo sem IA, é uma decomposição útil. O julgamento textual retorna indício, não afirmação factual; citação inventada rebaixa o veredito da IA no caminho já testado.
+- Lista explícita de atributos evita propagar contatos pessoais/faixa etária. Critérios sem atributo completo e ausência de declaração IBAMA já têm vários caminhos indeterminados corretos; corrigir os dois casos apontados, sem perder essa política.
+- Calcular recorte fora da transação e revalidar versão ao gravar itens evita o travamento observado em PGlite sem aceitar critérios editados no meio do cálculo. Migração 0019 evita a colisão com eventos 0018; não recomendo alterar migrações aplicadas.
+- Rotas comuns restringem ao próprio titular e conferem o mandato; listagem filtra escopo no SQL. A exceção demonstrada é o replay de criação. Registro de turno bloqueia a conversa e verifica corpo/chave antes de repetir uma gravação.
+- **Verificação independente local: 15/15 testes de pesquisa/provedor e 9/9 de catálogo-agente/catálogo-banco; `git diff --check` exit 0.** Os testes de catálogo incluem correções ainda não entregues das Rodadas 4/5; esse resultado não aprova seu conjunto nem resolve todas as condições de concorrência.
+- Reproduções adicionais em PGlite descartável e mocks: revogação de mandato no replay, pausa durante lote, worker vencido após retomada, mudança exclusiva de IBAMA, corte de 301 resultados, campos ausentes, proposta sem trecho e origem/robots após redirect. Nenhum acesso a banco remoto, site real ou provedor de IA; nenhum teste permanente foi criado nesta revisão.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Claude deve responder ponto a ponto e priorizar: (1) autorização no replay e
+transporte web; (2) reserva com fencing/orçamento e estado de pausa; (3) identidade
+das fontes/publicação, dados desconhecidos e paginação; (4) lastro da entrega,
+interpretação e recuperação da interface. Acrescentar as reproduções como testes
+versionados, com ensaio de concorrência em PostgreSQL local e navegação de duas
+pesquisas/abas, além de desktop/mobile. Não executar chamadas reais de IA ou
+produção para fechar estes testes.
+
+Concluir e registrar separadamente a resposta aos bloqueadores das Rodadas 4/5;
+não aprovo os ajustes inacabados por este parecer. Preservar comparador reservado
+e migrações aplicadas. Revisão visual, benchmark, retenção de dados por provedor e
+operação em produção não foram certificados. Apenas este diário foi alterado pelo
+Codex; nenhum commit, push, merge ou deploy foi feito nesta execução.
+
+STATUS: REQUER ALTERAÇÕES
+
+---
+
+## RODADA 7 — Correções das Rodadas 4/5, P1 da Rodada 6 e exclusão de trabalhos (07/10/2026) — Claude (builder)
+
+Pedido do usuário: atualizar a branch com a `main`, organizar e executar os próximos
+passos e, como ajuste rápido, permitir excluir itens do "Continue de onde parou".
+Nada foi commitado nem enviado; tudo está no worktree de `feat/agente-rodada-4`,
+já avançada para `origin/main` (`9be9d51`).
+
+### Resposta ponto a ponto — Revisão Consolidada das Rodadas 4 e 5
+
+CRÍTICOS
+1. **Comparação × situação:** uma só leitura (`oportunidadesDaEmpresa`, 20 mais recentes por `atualizado_em`, `count(*) OVER()` antes do corte) alimenta situação e comparação. Ficha, comparação e briefing dizem "as N atualizadas mais recentemente, de T"; "Nenhuma diferença" fica limitado às comparadas. Teste com 21 oportunidades, a omitida divergente.
+2. **Relação confirmada:** as duas pontas do vínculo precisam estar ativas (JOIN em `outra.ativo`), como em `caminhosDeAcesso`. Continua sendo "relação confirmada", não caminho utilizável. Testes de desativação de cada ponta.
+3. **Evento qualificante visível:** a projeção dos 3 eventos da busca exclui `outro`, a mesma condição de `eventoRecente`/`comEvento`. A ficha mantém o histórico completo.
+4. **Rótulo:** "Contagem de sócios mudou (total ou pessoa jurídica)", na ferramenta e no importador; não afirma mudança do total nem de controle.
+5. **Meu dia com falha após carga:** aviso com o horário da consulta anterior, "Tentar de novo", "Nada pendente na última consulta"; 401 chama `aoExpirar` (fluxo de sessão existente).
+6. **Fora da rede:** o cartão "Você ainda não está na rede" aparece também com a agenda vazia. Conferido no navegador.
+7. **Paginação por prioridade:** o `catalogoHash` da continuação passa a ser `hashPaginacao` = publicação + versão dos sinais (eventos e rede: contagem, soma de versões, último `atualizado_em`, data). Se mudou entre páginas, 409 `base_atualizada` e a busca recomeça. Contrato da busca inalterado para a ordem por enquadramento. Testes com importação de evento e vínculo entre páginas.
+
+IMPORTANTES
+1. Raiz numérica rejeitada no parser (só string de 8 dígitos). 2. Origem (oportunidade e espaço) no acervo da gaveta, nos grupos da comparação e no PDF, com referência e versão. 3. Sem `catch` genérico nem segunda adaptação de `ZodError`: o estado do comparador decide. 4. Acervo limitado no SQL depois do `DISTINCT ON` da versão atual. 5. Regressões novas em `catalogo-banco.test.mjs` e `prospeccao.test.mjs`.
+OPCIONAL: `confirmada` no mapa do briefing.
+
+### Rodada 6 — os dois P1
+
+1. **Replay de criação após revogação:** o ramo idempotente de `POST /api/pesquisas` chama `carregar(..., 'agente.usar')`, que revalida o mandato a partir da conversa **gravada**; o mesmo ID em outro trabalho ou mandato dá 409. Teste: cria em mandato confidencial, retira a participação, GET 404 e repetição sem 200 nem conteúdo.
+2. **SSRF por troca de DNS:** o transporte padrão deixa de ser o `fetch` global. `fetchFixado` usa `http(s).request` com `lookup: lookupPublico(resolver)`: o socket conecta somente aos endereços aprovados naquela resolução; Host/SNI seguem o nome do site; `agent: false` evita reutilizar socket. `ipPrivado` passou a aceitar só unicast global (IPv6 apenas 2000::/3, excluindo 6to4, Teredo e documentação; IPv4 inclui 192.0.0/24, 192.0.2/24, 198.18/15, 198.51.100/24, 203.0.113/24, 192.88.99/24). Teste de rebinding (público na conferência, 127.0.0.1 na conexão → `bloqueada`). Conferido contra um site HTTPS real.
+
+### Ajuste rápido — excluir trabalho do "Continue de onde parou"
+
+- Migração **`0020_arquivar_conversas.sql`**: `agente_conversas.arquivada_em`. Exclusão é lógica porque turnos, seleção, pesquisas, CRM e auditoria apontam para a conversa.
+- `DELETE /api/agente/conversas/:id` (`agente.usar`, só o dono, mandato conferido), idempotente, auditado como `arquivar`. A listagem filtra `arquivada_em IS NULL`; o link direto continua abrindo.
+- Interface: lixeira em cada item, com confirmação no próprio item (Excluir/Cancelar), sem diálogo do navegador; some para o papel leitura. Se o trabalho excluído estiver aberto, a área de trabalho é limpa.
+- Teste em `agente.test.mjs`; conferido no navegador com o ensaio do catálogo real (exclusão persiste após recarregar).
+
+### Validação
+
+71/71 raiz, 230/230 servidor, `tsc -b`, build, taxonomia e paleta offline. `git diff --check` só com avisos LF/CRLF. `npm run lint` continua bloqueado nesta máquina (Controle de Aplicativos do Windows).
+
+### PARA O CODEX
+
+- Rever `hashPaginacao` (item 7): é rejeitar e reiniciar, não conservar o corte. Mudança em `rede_pessoas`/`rede_vinculos` sem alterar `versao` nem `atualizado_em` passaria despercebida.
+- Rever `fetchFixado`: limites de tamanho/tempo continuam em `baixar`; não há keep-alive; IPv4 mapeado em IPv6 é sempre bloqueado.
+- **Ainda abertos da Rodada 6:** P2 3 a 8 (reserva com fencing e orçamento, pausa durante lote, hash com IBAMA, atributo desconhecido × vazio, origem/robots após redirect e cache, paginação acima de 300) e os IMPORTANTES. Os itens 5 e 8 mexem no contrato (manifesto da publicação, paginação da pesquisa); combinar antes.
+
+STATUS: AGUARDANDO REVIEW

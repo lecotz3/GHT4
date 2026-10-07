@@ -104,6 +104,15 @@
 .agente-recentes small { color: var(--color-suave); font-size: 10px; margin-top: 5px; }
 .agente-icone-menor { background: var(--color-papel-2); color: var(--color-suave); padding: 9px; border-radius: 9px; }
 .agente-recentes button > svg { width: 15px; color: var(--color-suave); }
+.agente-recentes li { display: flex; align-items: center; gap: 4px; }
+.agente-recentes li > button:first-child { flex: 1; min-width: 0; }
+.agente-recentes .agente-recentes-excluir { width: 36px; height: 36px; flex: none; justify-content: center; padding: 0; color: var(--color-suave); opacity: .55; }
+.agente-recentes li:hover .agente-recentes-excluir, .agente-recentes .agente-recentes-excluir:focus-visible { opacity: 1; }
+.agente-recentes .agente-recentes-excluir:hover { color: var(--color-alerta); }
+.agente-recentes-confirmar { display: inline-flex; gap: 4px; flex: none; }
+.agente-recentes .agente-recentes-confirmar button { width: auto; padding: 6px 10px; font-size: 11px; font-weight: 600; border: 1px solid var(--color-fio); }
+.agente-recentes .agente-recentes-confirmar button.is-perigo { color: white; background: var(--color-alerta); border-color: var(--color-alerta); }
+@media (hover: none) { .agente-recentes .agente-recentes-excluir { opacity: 1; } }
 .agente-btn-primario, .agente-btn-secundario { display: inline-flex; align-items: center; justify-content: center; gap: 10px; border-radius: 9px; min-height: 44px; padding: 11px 18px; font-size: 13px; font-weight: 600; }
 .agente-btn-primario { background: var(--color-tinta); color: white; border: 1px solid var(--color-tinta); }
 .agente-btn-primario:hover:not(:disabled) { background: var(--color-comprador); border-color: var(--color-comprador); box-shadow: 0 4px 12px rgb(15 76 129 / .15); }
@@ -439,3 +448,7 @@
   .agente-acoes-iniciais.compactas .agente-acao-rodape { display: none; }
   .agente-acoes-iniciais.compactas .agente-acao-inicial { display: flex; padding: 16px; }
 }
+.agente-meu-dia-aviso { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 12px; padding: 8px 12px; border-radius: 8px; background: var(--color-papel-2); border: 1px solid var(--color-fio-forte); font-size: 12px; }
+.agente-meu-dia-aviso svg { width: 14px; height: 14px; flex: none; }
+.agente-meu-dia-aviso span { flex: 1 1 220px; min-width: 0; }
+.agente-meu-dia-livre + .agente-meu-dia-cartao { margin-top: 12px; }

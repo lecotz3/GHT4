@@ -14,7 +14,7 @@ const LIMITE_QUADRO = 'A comparação usa a quantidade de sócios, não quem sã
 /** Tipo da ferramenta → categoria em `eventos_corporativos.tipo`, confiança e rótulo do que foi medido. */
 export const TIPOS_EVENTO = Object.freeze({
   aquisicao_provavel: { tipo: 'mudanca_controle', confianca: 0.4, rotulo: 'Entrou sócio pessoa jurídica no quadro', limite: LIMITE_QUADRO },
-  mudanca_quadro_societario: { tipo: 'mudanca_controle', confianca: 0.4, rotulo: 'Número de sócios mudou', limite: LIMITE_QUADRO },
+  mudanca_quadro_societario: { tipo: 'mudanca_controle', confianca: 0.4, rotulo: 'Contagem de sócios mudou (total ou pessoa jurídica)', limite: LIMITE_QUADRO },
   entrada_capital_estrangeiro: { tipo: 'mudanca_controle', confianca: 0.6, rotulo: 'Passou a constar sócio no exterior' },
   aumento_de_capital: { tipo: 'mudanca_capital', confianca: 0.6, rotulo: 'Capital social aumentou de forma relevante' },
   expansao_geografica: { tipo: 'expansao_geografica', confianca: 0.6, rotulo: 'Passou a ter estabelecimento em UF nova' },
@@ -41,7 +41,8 @@ export function lerFonteEventos(conteudo) {
   const dados = JSON.parse(fim < 0 ? corpo.trim().replace(/;$/, '') : corpo.slice(0, fim));
   if (!MES.test(dados?.de) || !MES.test(dados?.ate) || dados.de >= dados.ate || !Array.isArray(dados.eventos)) throw new Error('Período ou lista de eventos inválidos.');
   const eventos = dados.eventos.map((e, i) => {
-    if (!/^\d{8}$/.test(String(e?.base ?? ''))) throw new Error(`Evento ${i + 1}: raiz de CNPJ inválida.`);
+    // Só texto: número perderia zeros à esquerda e não casaria com cnpj_raiz nas contagens.
+    if (typeof e?.base !== 'string' || !/^\d{8}$/.test(e.base)) throw new Error(`Evento ${i + 1}: raiz de CNPJ inválida.`);
     if (!TIPOS_EVENTO[e.tipo]) throw new Error(`Evento ${i + 1}: tipo desconhecido.`);
     texto(e.rotulo, 200);
     const t = TIPOS_EVENTO[e.tipo];

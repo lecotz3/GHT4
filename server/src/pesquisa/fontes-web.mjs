@@ -7,6 +7,8 @@
  *
  *    - só http(s) para host público: nada de IP privado, localhost ou porta
  *      estranha, conferido também depois da resolução DNS e a cada redirecionamento;
+ *      a conexão usa o endereço aprovado (resolução fixada no `lookup` do socket),
+ *      então trocar o DNS entre a conferência e a conexão não leva à rede interna;
  *    - respeita o robots.txt do site;
  *    - lê no máximo a página inicial e três internas, com tempo e tamanho limitados;
  *    - guarda o texto em cache por 30 dias: a mesma página não é baixada de novo.
@@ -18,6 +20,9 @@
 import { createHash } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import http from 'node:http';
+import https from 'node:https';
+import { Readable } from 'node:stream';
 import { normalizar } from '../agente/catalogo.mjs';
 
 export const AGENTE_USUARIO = 'GHT4-Pesquisa/1.0 (pesquisa de mercado; respeita robots.txt)';
@@ -26,14 +31,59 @@ const MAX_BYTES = 1_500_000;
 const MAX_TEXTO = 60_000;
 const PALAVRAS_INTERNAS = /(sobre|quem-somos|quemsomos|empresa|institucional|historia|produtos|linhas|portfolio|representa|parceir|fornecedor|marcas|segmentos|mercados|servicos|solucoes|certifica|qualidade|unidades|distribui|about|products)/;
 
-function ipPrivado(ip) {
-  if (isIP(ip) === 4) {
-    const [a, b] = ip.split('.').map(Number);
-    return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31)
-      || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
+/** Endereço que não é unicast global: privado, local, reservado, documentação ou de tradução. Na dúvida, bloqueia. */
+export function ipPrivado(ip) {
+  const v = isIP(ip);
+  if (v === 4) {
+    const [a, b, c] = ip.split('.').map(Number);
+    return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254)
+      || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 192 && b === 0 && (c === 0 || c === 2))
+      || (a === 198 && (b === 18 || b === 19)) || (a === 198 && b === 51 && c === 100) || (a === 203 && b === 0 && c === 113)
+      || (a === 192 && b === 88 && c === 99);
   }
+  if (v !== 6) return true;
+  // Só 2000::/3 é unicast global; fora dele (::1, ::ffff:, fc00::/7, fe80::/10, 64:ff9b::…) bloqueia.
   const x = ip.toLowerCase();
-  return x === '::1' || x === '::' || x.startsWith('fc') || x.startsWith('fd') || x.startsWith('fe80') || x.startsWith('::ffff:');
+  if (x.startsWith(':')) return true;
+  const primeiro = parseInt(x.split(':')[0], 16);
+  if (!(primeiro >= 0x2000 && primeiro <= 0x3fff)) return true;
+  const segundo = parseInt(x.split(':')[1] || '0', 16);
+  return primeiro === 0x2002 || (primeiro === 0x2001 && (segundo === 0 || segundo === 0xdb8)); // 6to4, Teredo, documentação
+}
+
+/** `lookup` de socket que só entrega endereços públicos: a conexão usa exatamente o que foi aprovado. */
+export function lookupPublico(resolver) {
+  return (hostname, opcoes, callback) => {
+    if (typeof opcoes === 'function') { callback = opcoes; opcoes = {}; }
+    Promise.resolve().then(() => resolver(hostname)).then((enderecos) => {
+      const lista = (enderecos ?? []).map((e) => ({ address: e.address, family: e.family || isIP(e.address) }));
+      if (!lista.length || lista.some((e) => ipPrivado(e.address))) {
+        throw Object.assign(new Error('Endereço não público.'), { code: 'ENDERECO_NAO_PUBLICO' });
+      }
+      if (opcoes?.all) callback(null, lista);
+      else callback(null, lista[0].address, lista[0].family);
+    }).catch((e) => callback(e));
+  };
+}
+
+/**
+ * GET sem seguir redirecionamento, com a resolução DNS fixada em `lookupPublico`.
+ * Host e SNI continuam sendo o nome do site. Devolve um `Response` como o fetch.
+ */
+export function fetchFixado(url, { signal, headers = {}, resolver = (h) => lookup(h, { all: true }) } = {}) {
+  const u = new URL(url);
+  const modulo = u.protocol === 'https:' ? https : http;
+  return new Promise((resolve, reject) => {
+    const req = modulo.request(u, { method: 'GET', headers, signal, lookup: lookupPublico(resolver), agent: false }, (res) => {
+      const cabecalhos = new Headers();
+      for (const [k, v] of Object.entries(res.headers)) if (v !== undefined) cabecalhos.set(k, Array.isArray(v) ? v.join(', ') : String(v));
+      const semCorpo = res.statusCode === 204 || res.statusCode === 304;
+      if (semCorpo) res.resume();
+      resolve(new Response(semCorpo ? null : Readable.toWeb(res), { status: res.statusCode, headers: cabecalhos }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
 }
 
 /** URL aceitável para leitura: http(s), host com ponto, sem credencial, porta padrão. */
@@ -98,9 +148,9 @@ async function baixar(url, { fetchImpl, resolver, redirecionamentos = 3 }) {
     if (!await hostPublico(atual.hostname, resolver)) return { estado: 'bloqueada', motivo: 'endereço não público' };
     let r;
     try {
-      r = await fetchImpl(atual.href, { redirect: 'manual', signal: AbortSignal.timeout(6000),
+      r = await fetchImpl(atual.href, { redirect: 'manual', signal: AbortSignal.timeout(6000), resolver,
         headers: { 'User-Agent': AGENTE_USUARIO, Accept: 'text/html,application/xhtml+xml;q=0.9,text/plain;q=0.5' } });
-    } catch { return { estado: 'falhou', motivo: 'sem resposta' }; }
+    } catch (e) { return e?.code === 'ENDERECO_NAO_PUBLICO' ? { estado: 'bloqueada', motivo: 'endereço não público' } : { estado: 'falhou', motivo: 'sem resposta' }; }
     if ([301, 302, 303, 307, 308].includes(r.status)) {
       const destino = r.headers.get('location');
       atual = destino ? urlLegivel(new URL(destino, atual).href) : null;
@@ -151,7 +201,7 @@ export function permitidoPeloRobots(robots, caminho) {
  * Página com cache. `db` guarda o texto extraído, nunca o HTML bruto.
  * Devolve { url, estado, titulo, texto, links, obtidaEm }.
  */
-export async function obterPagina(db, url, { fetchImpl = fetch, resolver = (h) => lookup(h, { all: true }), agora = Date.now(), robots = null } = {}) {
+export async function obterPagina(db, url, { fetchImpl = fetchFixado, resolver = (h) => lookup(h, { all: true }), agora = Date.now(), robots = null } = {}) {
   const u = urlLegivel(url);
   if (!u) return { url, estado: 'bloqueada', texto: '', links: [] };
   const cache = (await db.query('SELECT * FROM paginas_publicas WHERE url=$1', [u.href])).rows[0];

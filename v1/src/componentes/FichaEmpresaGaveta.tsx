@@ -58,11 +58,12 @@ export function FichaEmpresaGaveta({ empresaId, aoFechar, aoAbrirCrm, podeExport
         {ficha.situacao && <section><h3>Na casa</h3>
           {!ficha.situacao.oportunidades.length && !ficha.situacao.restricoes.length && <p className="agente-gaveta-vazio">Nenhuma oportunidade ou restrição que você possa ver.</p>}
           {ficha.situacao.restricoes.map((r, i) => <p key={i} className="agente-aviso-conflito"><IconeRede nome="atencao" /><span><b>Não contatar</b> · {r.espaco ? `Espaço ${r.espaco}` : 'restrição pessoal'} · {r.motivo}</span></p>)}
+          {ficha.situacao.totalOportunidades > ficha.situacao.oportunidades.length && <p className="mb-2 text-xs text-suave">Mostrando as {ficha.situacao.oportunidades.length} atualizadas mais recentemente, de {ficha.situacao.totalOportunidades}. As demais estão em Oportunidades.</p>}
           <ul className="agente-gaveta-lista">{ficha.situacao.oportunidades.map((o) => <li key={o.id}><button onClick={() => abrirOportunidade(o.id)}>
             <span className={`agente-etiqueta ${o.frente}`}>{o.frente === 'compra' ? 'Compra' : 'Venda'}</span>
             <span className="min-w-0 flex-1"><strong>{NOMES_ETAPA[o.etapa] || o.etapa}</strong><small>{o.responsavel_nome} · {o.espaco || 'privada'} · próximo passo {dataCurta(o.prazo)}</small></span><IconeRede nome="seta" /></button></li>)}</ul>
         </section>}
-        {!!ficha.cadastro?.length && <CadastroDesdeOportunidades grupos={ficha.cadastro} aoAbrir={abrirOportunidade} />}
+        {!!ficha.cadastro?.grupos.length && <CadastroDesdeOportunidades {...ficha.cadastro} aoAbrir={abrirOportunidade} />}
         {ficha.acesso && <section><h3>Acesso pela rede</h3>
           {ficha.acesso.melhor ? <div className="agente-cartao-acao"><span>{ficha.acesso.melhor.categoria} · {ficha.acesso.melhor.saltos === 1 ? 'direto' : `${ficha.acesso.melhor.saltos} saltos`}</span><p>{ficha.acesso.melhor.de} → {ficha.acesso.melhor.ate}{ficha.acesso.melhor.cargo ? `, ${ficha.acesso.melhor.cargo}` : ''}</p></div>
             : <p className="agente-gaveta-vazio">{ficha.acesso.descartados ? 'Há caminhos registrados, mas o titular não quer intermediar ou a informação está desatualizada.' : 'Nenhum caminho utilizável hoje.'}</p>}
@@ -76,7 +77,7 @@ export function FichaEmpresaGaveta({ empresaId, aoFechar, aoAbrirCrm, podeExport
           {!ficha.acervo.registros.length && !ficha.acervo.documentos.length ? <p className="agente-gaveta-vazio">Sem teses, evidências, comparáveis, notícias ou documentos acessíveis.</p> : <>
             <ul className="agente-gaveta-lista">{ficha.acervo.registros.map((r, i) => <li key={i}><button onClick={() => abrirOportunidade(r.oportunidadeId)}>
               <span className="agente-etiqueta">{TIPOS_ACERVO[r.tipo] || r.tipo}</span>
-              <span className="min-w-0 flex-1"><strong>{r.titulo}</strong><small>{r.revisado ? 'Revisado' : 'Aguardando revisão'} · versão {r.versao}{r.fonte ? ` · ${r.fonte}` : ''}</small></span><IconeRede nome="seta" /></button></li>)}</ul>
+              <span className="min-w-0 flex-1"><strong>{r.titulo}</strong><small>{r.revisado ? 'Revisado' : 'Aguardando revisão'} · versão {r.versao}{r.fonte ? ` · ${r.fonte}` : ''} · {r.oportunidade} ({r.espaco ? `espaço ${r.espaco}` : 'privada'})</small></span><IconeRede nome="seta" /></button></li>)}</ul>
             {!!ficha.acervo.documentos.length && <p className="mt-2 text-xs text-suave">{ficha.acervo.documentos.length} {ficha.acervo.documentos.length === 1 ? 'documento' : 'documentos'}: {ficha.acervo.documentos.slice(0, 3).map((d) => d.nome).join(', ')}{ficha.acervo.documentos.length > 3 ? '…' : ''}</p>}
           </>}
         </section>}

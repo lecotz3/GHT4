@@ -34,7 +34,7 @@ export async function briefingPdf(ficha, { frente, roteiro, autor, data = new Da
   doc.moveDown(.5).font('Helvetica-Bold').fontSize(22).fillColor(COR.tinta).text(limpo(e.nome), { width: largura });
   doc.moveDown(.2).font('Helvetica').fontSize(10).fillColor(COR.suave)
     .text(`${limpo(e.razaoSocial)} · ${limpo(e.cidade)}/${limpo(e.uf)} · CNPJ raiz ${limpo(e.cnpjRaiz)} · CNAE ${limpo(e.cnaePrincipal) || 'não informado'}`, { width: largura });
-  const enquadramento = { confirmado: 'confirmado', provavel: 'provável', possivel: 'possível' }[e.estado] || e.estado;
+  const enquadramento = { confirmada: 'confirmado', provavel: 'provável', possivel: 'possível' }[e.estado] || e.estado;
   doc.moveDown(.2).text(`Enquadramento ${enquadramento} em distribuição e trading químico · cadastro Receita Federal, referência ${limpo(e.referencia)}`, { width: largura });
 
   const restricoes = ficha.situacao?.restricoes ?? [];
@@ -55,6 +55,7 @@ export async function briefingPdf(ficha, { frente, roteiro, autor, data = new Da
   if (ficha.situacao) {
     secao('Na casa');
     if (!ficha.situacao.oportunidades.length) item('Nenhuma oportunidade registrada que você possa acessar.', COR.suave);
+    if (ficha.situacao.totalOportunidades > ficha.situacao.oportunidades.length) item(`Mostrando as ${ficha.situacao.oportunidades.length} atualizadas mais recentemente, de ${ficha.situacao.totalOportunidades}.`, COR.suave);
     for (const o of ficha.situacao.oportunidades) item(`${o.frente === 'compra' ? 'Compra' : 'Venda'} · ${ETAPAS[o.etapa] || o.etapa} · responsável ${o.responsavel_nome} · ${o.espaco || 'privada'} · próximo passo em ${o.prazo.split('-').reverse().join('/')}: ${o.proxima_acao}`);
   }
   if (ficha.acesso) {
@@ -72,7 +73,8 @@ export async function briefingPdf(ficha, { frente, roteiro, autor, data = new Da
   const revisados = (ficha.acervo?.registros ?? []).filter((r) => r.revisado);
   if (revisados.length) {
     secao('Acervo revisado');
-    for (const r of revisados.slice(0, 6)) item(`${{ evidencia: 'Evidência', tese: 'Tese', comparavel: 'Comparável', noticia: 'Notícia' }[r.tipo] || r.tipo}: ${r.titulo}${r.fonte ? ` (${r.fonte})` : ''}`);
+    // Cada registro leva sua origem: teses de oportunidades diferentes não são uma conclusão única da empresa.
+    for (const r of revisados.slice(0, 6)) item(`${{ evidencia: 'Evidência', tese: 'Tese', comparavel: 'Comparável', noticia: 'Notícia' }[r.tipo] || r.tipo}: ${r.titulo}${r.fonte ? ` (${r.fonte}${r.referencia ? `, ${r.referencia}` : ''})` : ''} · versão ${r.versao} · ${r.oportunidade}, ${r.espaco ? `espaço ${r.espaco}` : 'privada'}`);
   }
   for (const b of roteiro) { secao(b.titulo); for (const i of b.itens) item(i); }
 

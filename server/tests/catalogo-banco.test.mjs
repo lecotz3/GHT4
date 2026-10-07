@@ -101,14 +101,15 @@ test('eventos societários: importação idempotente, ligação ao cadastro, fil
   const comEvento = await catalogo.buscar({ comEvento: true });
   assert.equal(comEvento.total, 1); assert.equal(comEvento.empresas[0].id, 'cnpj12345678');
   const ev = comEvento.empresas[0].eventos;
-  assert.equal(ev.length, 2); assert.ok(ev.every((e) => e.ambiguidade && e.de === mes(-2) && e.ate === mes(-1)));
+  // A projeção do cartão traz só eventos que qualificam (não "outro"); a ficha lista todos.
+  assert.equal(ev.length, 1); assert.ok(ev.every((e) => e.ambiguidade && e.de === mes(-2) && e.ate === mes(-1)));
   assert.ok(!('entidade_id' in comEvento.empresas[0]));
   // Evento só do tipo "outro" (sair de ATIVA) não conta como sinal recente; evento antigo também não.
   await db.query("DELETE FROM eventos_corporativos WHERE detalhes->>'tipoOrigem'='entrada_capital_estrangeiro'");
   assert.equal((await catalogo.buscar({ comEvento: true })).total, 0);
   await importarEventos(db, { texto: arquivo(mes(-30), mes(-24), [recentes[0]]) });
   assert.equal((await catalogo.buscar({ comEvento: true })).total, 0);
-  assert.equal((await catalogo.buscar({})).empresas[0].eventos.length, 2);
+  assert.equal((await catalogo.buscar({})).empresas[0].eventos.length, 1);
   for (const ruim of [arquivo(mes(-1), mes(-2), []), arquivo(mes(-2), mes(-1), [{ ...recentes[0], base: '123' }]),
     arquivo(mes(-2), mes(-1), [{ ...recentes[0], tipo: 'vende_amanha' }]), 'window.X = 1;'])
     assert.throws(() => lerFonteEventos(ruim));
@@ -155,4 +156,60 @@ test('rótulo do evento vem do que o detector mede, não do texto do arquivo', a
     { base: '12345678', tipo: 'aquisicao_provavel', rotulo: 'Pessoa jurídica assumiu o quadro societário', detalhe: 'Sócios: 2 → 2 · sócios PJ: 0 → 1', ambiguidade: 'Pode ser reorganização.' }] })};\n`);
   assert.equal(eventos[0].rotulo, 'Entrou sócio pessoa jurídica no quadro');
   assert.match(eventos[0].ambiguidade, /Pode ser reorganização\. A comparação usa a quantidade de sócios/);
+});
+
+test('regressões da revisão: relação exige as duas pontas ativas, evento qualificante não some, continuação recomeça se os sinais mudam', async t => {
+  const { randomUUID } = await import('node:crypto');
+  const { importarEventos } = await import('../src/agente/eventos.mjs');
+  const db = await bancoDeTeste(); t.after(() => db.close());
+  await importarCatalogo(db, { texto: fonte() });
+  const catalogo = criarCatalogoBanco(db);
+  const u = await criarUsuario(db, { email: 'revisao@example.test' });
+  const mes = (d) => { const x = new Date(); x.setUTCDate(1); x.setUTCMonth(x.getUTCMonth() + d); return x.toISOString().slice(0, 7); };
+  const arquivo = (de, ate, eventos) => `const EVENTOS_CNPJ = ${JSON.stringify({ de, ate, eventos })};
+`;
+  const daPossivel = async () => (await catalogo.buscar({ incluirPossiveis: true })).empresas.find((e) => e.id === 'cnpj87654321');
+  // Relação confirmada: cada ponta inativa derruba o selo.
+  const [ght4, alvo] = [randomUUID(), randomUUID()];
+  await db.query(`INSERT INTO rede_pessoas (id,lado,nome,empresa_id,criado_por) VALUES ($1,'ght4','Sócia',NULL,$3),($2,'mercado','Diretor','cnpj87654321',$3)`, [ght4, alvo, u.id]);
+  const [a, b] = [ght4, alvo].sort();
+  await db.query(`INSERT INTO rede_vinculos (id,pessoa_a_id,pessoa_b_id,tipo,forca,evidencia,disposicao,criado_por) VALUES ($1,$2,$3,'trabalharam_juntos','direta','Trabalharam juntos','posso_apresentar',$4)`, [randomUUID(), a, b, u.id]);
+  assert.equal((await daPossivel()).relacaoConfirmada, true);
+  await db.query('UPDATE rede_pessoas SET ativo=false WHERE id=$1', [ght4]);
+  assert.equal((await daPossivel()).relacaoConfirmada, false, 'pessoa da GHT4 inativa');
+  await db.query('UPDATE rede_pessoas SET ativo=(id=$1) WHERE id IN ($1,$2)', [ght4, alvo]);
+  assert.equal((await daPossivel()).relacaoConfirmada, false, 'pessoa da empresa inativa');
+  await db.query('UPDATE rede_pessoas SET ativo=true'); await db.query('UPDATE rede_vinculos SET ativo=false');
+  assert.equal((await daPossivel()).relacaoConfirmada, false, 'vínculo inativo');
+  // Evento qualificante seguido de três "outro" mais novos continua no cartão.
+  await importarEventos(db, { texto: arquivo(mes(-3), mes(-2), [{ base: '12345678', tipo: 'aumento_de_capital', rotulo: 'x', detalhe: '1 → 3', ambiguidade: 'y' }]) });
+  await importarEventos(db, { texto: arquivo(mes(-2), mes(-1), ['saiu_de_ativa', 'entrada_no_escopo', 'saida_do_escopo'].map((tipo) => ({ base: '12345678', tipo, rotulo: 'x', detalhe: 'd', ambiguidade: 'y' }))) });
+  const comEvento = await catalogo.buscar({ comEvento: true });
+  assert.equal(comEvento.empresas[0].eventoRecente, true);
+  assert.deepEqual(comEvento.empresas[0].eventos.map((e) => e.tipo), ['aumento_de_capital']);
+  // Continuação da prioridade: evento novo entre as páginas força recomeço; sem mudança, continua.
+  const p1 = await catalogo.buscar({ incluirPossiveis: true, ordem: 'prioridade', limite: 1 });
+  assert.match(p1.hashPaginacao, /^[a-f0-9]{64}$/); assert.notEqual(p1.hashPaginacao, p1.hash);
+  const continuar = () => catalogo.buscar({ incluirPossiveis: true, ordem: 'prioridade', limite: 1, offset: 1, catalogoHash: p1.hashPaginacao });
+  assert.equal((await continuar()).empresas.length, 1);
+  await importarEventos(db, { texto: arquivo(mes(-2), mes(-1), [{ base: '87654321', tipo: 'aumento_de_capital', rotulo: 'x', detalhe: '1 → 3', ambiguidade: 'y' }]) });
+  await assert.rejects(continuar, (e) => e.codigo === 'base_atualizada');
+  // Mudança na rede também.
+  const p1b = await catalogo.buscar({ incluirPossiveis: true, ordem: 'prioridade', limite: 1 });
+  await db.query('UPDATE rede_vinculos SET ativo=true, versao=versao+1, atualizado_em=now()');
+  await assert.rejects(catalogo.buscar({ incluirPossiveis: true, ordem: 'prioridade', limite: 1, offset: 1, catalogoHash: p1b.hashPaginacao }), (e) => e.codigo === 'base_atualizada');
+  // Ordem por enquadramento segue usando só o hash da publicação.
+  const e1 = await catalogo.buscar({ incluirPossiveis: true, limite: 1 });
+  assert.equal(e1.hashPaginacao, e1.hash);
+});
+
+test('eventos: raiz numérica é rejeitada e o rótulo do quadro não afirma mudança no total', async () => {
+  const { lerFonteEventos } = await import('../src/agente/eventos.mjs');
+  const arquivo = (eventos) => `const EVENTOS_CNPJ = ${JSON.stringify({ de: '2026-06', ate: '2026-08', eventos })};
+`;
+  assert.throws(() => lerFonteEventos(arquivo([{ base: 12345678, tipo: 'aumento_de_capital', detalhe: 'x', ambiguidade: 'y' }])), /raiz de CNPJ/);
+  assert.equal(lerFonteEventos(arquivo([{ base: '01234567', tipo: 'aumento_de_capital', detalhe: 'x', ambiguidade: 'y' }])).eventos[0].base, '01234567');
+  // Total igual e PJ diferente: o rótulo cobre os dois casos sem afirmar mudança no total.
+  const { eventos } = lerFonteEventos(arquivo([{ base: '12345678', tipo: 'mudanca_quadro_societario', rotulo: 'Número de sócios mudou', detalhe: 'Sócios: 2 → 2 · sócios PJ: 1 → 0', ambiguidade: 'y' }]));
+  assert.equal(eventos[0].rotulo, 'Contagem de sócios mudou (total ou pessoa jurídica)');
 });

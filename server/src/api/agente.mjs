@@ -80,7 +80,7 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
     const conversas = (await db.query(
       `SELECT c.id, c.titulo, c.contexto, c.mandato_id, c.versao, c.atualizado_em
        FROM agente_conversas c LEFT JOIN mandatos m ON m.id = c.mandato_id
-       WHERE c.usuario_id = $1 AND (c.mandato_id IS NULL OR $2 OR m.confidencial = FALSE
+       WHERE c.usuario_id = $1 AND c.arquivada_em IS NULL AND (c.mandato_id IS NULL OR $2 OR m.confidencial = FALSE
          OR c.mandato_id = ANY($3::uuid[]))
        ORDER BY c.atualizado_em DESC, c.id LIMIT 100`,
       [u.id, u.papel === 'admin', (u.mandatos ?? []).map((m) => m.id)])).rows;
@@ -118,6 +118,18 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
       'SELECT id, numero, pedido, resultado, criado_em FROM agente_turnos WHERE conversa_id = $1 ORDER BY numero DESC LIMIT 50',
       [conversa.id])).rows.reverse();
     return { conversa, turnos, acoes: await acoesDe(conversa.id) };
+  });
+
+  /* Tira o trabalho da lista do dono. Não apaga: turnos, seleção, pesquisa e CRM
+     continuam apontando para ele, e quem tiver o link ainda consegue abrir. */
+  app.delete('/api/agente/conversas/:id', async (req) => {
+    const conversa = await autorizar(req, req.params.id, 'agente.usar');
+    await db.transaction(async (tx) => {
+      const r = await tx.query('UPDATE agente_conversas SET arquivada_em = now() WHERE id = $1 AND arquivada_em IS NULL RETURNING id', [conversa.id]);
+      if (r.rows.length) await registrar(tx, { usuarioId: req.usuario.id, mandatoId: conversa.mandato_id, entidade: 'agente_conversa',
+        entidadeId: conversa.id, acao: 'arquivar', antes: { titulo: conversa.titulo } });
+    });
+    return { excluido: true };
   });
 
   app.post('/api/agente/conversas/:id/mensagens', async (req) => {

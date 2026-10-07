@@ -5,12 +5,12 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { interpretarTese, verificarCadastro, consolidar, ListaCriterios } from '../src/pesquisa/criterios.mjs';
-import { urlLegivel, permitidoPeloRobots, obterPagina, lerSite, identidadeDoSite } from '../src/pesquisa/fontes-web.mjs';
+import { urlLegivel, permitidoPeloRobots, obterPagina, lerSite, identidadeDoSite, ipPrivado, lookupPublico } from '../src/pesquisa/fontes-web.mjs';
 import { validarPropostaIA, julgarPorTexto } from '../src/pesquisa/motor.mjs';
 import { criarCatalogo } from '../src/agente/catalogo.mjs';
 import { configurarIA, criarServicoIA } from '../src/agente/provedor.mjs';
 import { criarApp } from '../src/app.mjs';
-import { bancoDeTeste, criarUsuario } from './ajuda.mjs';
+import { bancoDeTeste, criarUsuario, criarMandato, darAcesso } from './ajuda.mjs';
 
 const REF = '2026-08';
 const empresa = (atributos, extra = {}) => ({ id: 'cnpj12345678', nome: 'Química Alfa', razaoSocial: 'Química Alfa Comércio Ltda', cnpjRaiz: '12345678',
@@ -303,4 +303,39 @@ test('com o catálogo no banco, iniciar não prende a transação e usa os atrib
   assert.equal(r.statusCode, 200, r.body);
   assert.equal(r.json().pesquisa.funil.aprovadasCadastro, 1);
   assert.equal(r.json().itens[0].empresa_id, 'cnpj11111111');
+});
+
+test('repetir a criação revalida o mandato da conversa gravada e recusa outro contexto', async (t) => {
+  const { db, chamar } = await preparar(t);
+  const analista = (await db.query(`SELECT id FROM usuarios WHERE email='analista@teste.local'`)).rows[0].id;
+  const mandato = await criarMandato(db, { codigo: 'M-PESQ-1', confidencial: true });
+  await darAcesso(db, mandato.id, analista);
+  const id = randomUUID();
+  const corpo = { id, tese: 'Distribuidoras com mais de 20 anos que representem fabricantes multinacionais', mandatoId: mandato.id };
+  assert.equal((await chamar('POST', '/api/pesquisas', corpo)).statusCode, 201);
+  assert.equal((await chamar('POST', '/api/pesquisas', corpo)).statusCode, 200, 'repetição idempotente com acesso');
+  assert.equal((await chamar('POST', '/api/pesquisas', { ...corpo, mandatoId: null })).statusCode, 409, 'mesmo ID em outro contexto');
+  await db.query('DELETE FROM mandato_membros WHERE mandato_id=$1 AND usuario_id=$2', [mandato.id, analista]);
+  assert.equal((await chamar('GET', `/api/pesquisas/${id}`)).statusCode, 404);
+  const repetida = await chamar('POST', '/api/pesquisas', corpo);
+  assert.notEqual(repetida.statusCode, 200);
+  assert.doesNotMatch(repetida.body, /fabricantes multinacionais/);
+});
+
+test('conexão usa o endereço aprovado: DNS trocado para rede interna depois da conferência é bloqueado', async (t) => {
+  for (const ip of ['10.1.2.3', '127.0.0.1', '169.254.169.254', '100.64.0.1', '192.0.2.1', '198.18.0.1', '0.0.0.0', '::1', '::ffff:10.0.0.1',
+    'fd00::1', 'fe80::1', '64:ff9b::a00:1', '2002:a00::1', '2001:db8::1', 'não é ip']) assert.equal(ipPrivado(ip), true, ip);
+  for (const ip of ['200.1.2.3', '8.8.8.8', '2804:14c::1']) assert.equal(ipPrivado(ip), false, ip);
+  const entregue = await new Promise((resolve) => lookupPublico(async () => [{ address: '200.1.2.3', family: 4 }])('alfa.com.br', { all: true }, (e, l) => resolve(e ?? l)));
+  assert.deepEqual(entregue, [{ address: '200.1.2.3', family: 4 }]);
+  const misto = await new Promise((resolve) => lookupPublico(async () => [{ address: '200.1.2.3' }, { address: '10.0.0.1' }])('alfa.com.br', {}, (e) => resolve(e)));
+  assert.equal(misto.code, 'ENDERECO_NAO_PUBLICO');
+  // Rebinding: a conferência vê IP público; a resolução da conexão, IP interno. Sem fetchImpl, vale o transporte fixado.
+  const db = await bancoDeTeste();
+  t.after(() => db.close());
+  let consultas = 0;
+  const resolver = async () => (++consultas === 1 ? [{ address: '200.1.2.3' }] : [{ address: '127.0.0.1' }]);
+  const r = await obterPagina(db, 'https://rebind.com.br/', { resolver });
+  assert.equal(r.estado, 'bloqueada');
+  assert.ok(consultas >= 2, 'a conexão resolveu de novo pelo lookup fixado');
 });

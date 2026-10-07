@@ -60,6 +60,12 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     const existente = (await db.query(`SELECT ${CAMPOS} FROM pesquisas_tese WHERE id=$1`, [p.id])).rows[0];
     if (existente) {
       if (existente.usuario_id !== u.id || existente.tese !== p.tese) throw new ErroHttp(409, 'pesquisa_ja_existe', 'Este envio já foi usado. Atualize a página.');
+      // A repetição devolve a pesquisa só com o escopo de hoje, lido da conversa gravada
+      // (não do mandato enviado): acesso retirado depois da criação também vale aqui.
+      const { conversa } = await carregar(req, existente.id, 'agente.usar');
+      if ((p.conversaId && p.conversaId !== conversa.id) || (!p.conversaId && p.mandatoId !== conversa.mandato_id)) {
+        throw new ErroHttp(409, 'pesquisa_ja_existe', 'Este envio já foi usado em outro trabalho. Atualize a página.');
+      }
       return detalhar(existente);
     }
     if (p.mandatoId) await req.exigirNoMandato(p.mandatoId, 'agente.usar');

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { SUBSETOR, normalizar, LIMITE_RECORTE } from './catalogo.mjs';
 import { normalizarMunicipio } from './filtros.mjs';
 import { MESES_EVENTO_RECENTE, SQL_EVENTO_PUBLICO } from './eventos.mjs';
@@ -30,8 +31,11 @@ export function criarCatalogoBanco(db) {
           a.referencia, r.ordem, r.entidade_id,
           EXISTS (SELECT 1 FROM eventos_corporativos ev WHERE ev.entidade_id=r.entidade_id AND ev.tipo<>'outro'
             AND ev.detectado_em >= (current_date - make_interval(months => $10::int))) AS "eventoRecente",
+          -- As duas pontas precisam estar ativas, como em caminhosDeAcesso. Relação confirmada
+          -- não é caminho utilizável: o caminho ainda avalia recomendação e atualidade.
           EXISTS (SELECT 1 FROM rede_pessoas rp JOIN rede_vinculos v ON v.ativo AND rp.id IN (v.pessoa_a_id,v.pessoa_b_id)
             AND v.disposicao IN ('conheco','posso_apresentar')
+            JOIN rede_pessoas outra ON outra.ativo AND outra.id=CASE WHEN v.pessoa_a_id=rp.id THEN v.pessoa_b_id ELSE v.pessoa_a_id END
             WHERE rp.lado='mercado' AND rp.ativo AND rp.empresa_id='cnpj'||trim(e.cnpj_raiz)) AS "relacaoConfirmada",
           (SELECT count(*)::int FROM rede_pessoas rp WHERE rp.lado='mercado' AND rp.ativo AND rp.empresa_id='cnpj'||trim(e.cnpj_raiz)) AS "pessoasMapeadas"
         FROM atual a JOIN catalogo_registros r ON r.snapshot_id=a.snapshot_id
@@ -44,20 +48,34 @@ export function criarCatalogoBanco(db) {
           AND (NOT $9::boolean OR EXISTS (SELECT 1 FROM eventos_corporativos ev WHERE ev.entidade_id=r.entidade_id
             AND ev.tipo<>'outro' AND ev.detectado_em >= (current_date - make_interval(months => $10::int))))
       ), pagina AS (SELECT f.*, COALESCE((SELECT jsonb_agg(${SQL_EVENTO_PUBLICO} ORDER BY ev.detectado_em DESC, ev.id)
-          FROM (SELECT * FROM eventos_corporativos ev WHERE ev.entidade_id=f.entidade_id ORDER BY ev.detectado_em DESC, ev.id LIMIT 3) ev),'[]'::jsonb) AS eventos
+          FROM (SELECT * FROM eventos_corporativos ev WHERE ev.entidade_id=f.entidade_id AND ev.tipo<>'outro' ORDER BY ev.detectado_em DESC, ev.id LIMIT 3) ev),'[]'::jsonb) AS eventos
         FROM filtradas f ORDER BY ${ORDENS[ordem] ?? ORDENS.enquadramento} LIMIT $6 OFFSET $7)
       SELECT a.hash, a.referencia, a.total_origem, (SELECT count(*)::int FROM filtradas) AS total,
         COALESCE((SELECT jsonb_agg(to_jsonb(p)-'ordem'-'entidade_id' ORDER BY ${ORDENS[ordem] ?? ORDENS.enquadramento}) FROM pagina p),'[]'::jsonb) AS empresas
       FROM atual a`, [SUBSETOR, incluirPossiveis, uf, cnae, termos, limite, offset, normalizarMunicipio(municipio), Boolean(comEvento), MESES_EVENTO_RECENTE]);
       const r = rows[0];
       if (!r) throw new Error('O catálogo ainda não foi importado no banco.');
-      if (catalogoHash && catalogoHash !== r.hash) {
+      if (catalogoHash && catalogoHash !== r.hash && ordem !== 'prioridade') {
         const e = new Error('O catálogo foi atualizado. Inicie uma nova busca.'); e.codigo = 'base_atualizada'; throw e;
+      }
+      /* A prioridade depende de eventos e rede, que mudam sem nova publicação. A continuação
+         carrega também a versão desses sinais; se mudaram, a página seguinte poderia pular ou
+         repetir empresas, então a busca recomeça em vez de continuar. */
+      let hashPaginacao = r.hash;
+      if (ordem === 'prioridade') {
+        const sinais = (await db.query(`SELECT current_date::text
+          ||'|'||(SELECT count(*)||'.'||coalesce(max(id),0) FROM eventos_corporativos)
+          ||'|'||(SELECT count(*)||'.'||coalesce(sum(versao),0)||'.'||coalesce(max(atualizado_em)::text,'') FROM rede_vinculos)
+          ||'|'||(SELECT count(*)||'.'||coalesce(sum(versao),0)||'.'||coalesce(max(atualizado_em)::text,'') FROM rede_pessoas) AS v`)).rows[0].v;
+        hashPaginacao = createHash('sha256').update(`${r.hash}|${sinais}`).digest('hex');
+        if (catalogoHash && catalogoHash !== hashPaginacao) {
+          const e = new Error('Eventos ou relações mudaram desde a primeira página e alteram a ordem. Inicie uma nova busca para não pular empresas.'); e.codigo = 'base_atualizada'; throw e;
+        }
       }
       return { empresas: r.empresas, total: r.total, offset, limite,
         proximoOffset: offset + limite < r.total ? offset + limite : null,
         cobertura: { receitaApurada: 0, intencaoApurada: 0, classificacao: r.total, universo: r.total },
-        referencia: r.referencia, hash: r.hash, totalOrigem: r.total_origem,
+        referencia: r.referencia, hash: r.hash, hashPaginacao, totalOrigem: r.total_origem,
         fonte: 'Receita Federal · CNPJ', subsetor: SUBSETOR };
     },
     /** Universo de uma pesquisa por tese, com os atributos públicos gravados na importação. */

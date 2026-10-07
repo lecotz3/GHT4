@@ -117,7 +117,7 @@ function comparar(DE, ATE) {
         // Mede quantidades, não identidades: entrada de PJ não prova que ela assumiu o controle.
         rotulo: trocaTotal
           ? 'Entrou sócio pessoa jurídica no quadro'
-          : 'Número de sócios mudou',
+          : 'Contagem de sócios mudou (total ou pessoa jurídica)',
         detalhe: `Sócios: ${a.qtdSocios} → ${b.qtdSocios}`
                + (a.qtdSociosPj !== b.qtdSociosPj ? ` · sócios PJ: ${a.qtdSociosPj} → ${b.qtdSociosPj}` : ''),
         sinal: 'mudancaControle',

@@ -22,31 +22,43 @@ import { compararCadastro } from '../empresas/comparar-cadastro.mjs';
 export const ESCOPO_OPORTUNIDADE = `((o.mandato_id IS NULL AND o.criado_por=$1) OR (o.mandato_id IS NOT NULL AND ($2 OR m.confidencial=false OR o.mandato_id=ANY($3::uuid[]))))`;
 export const valoresDeEscopo = (u) => [u.id, u.papel === 'admin', (u.mandatos || []).map((m) => m.id)];
 
-export async function situacaoDaEmpresa(db, u, empresaId) {
-  const v = valoresDeEscopo(u);
-  const oportunidades = (await db.query(`SELECT o.id,o.titulo,o.frente,o.etapa,o.prazo::text,o.proxima_acao,o.acao_concluida,
-      u.nome AS responsavel_nome,m.rotulo AS espaco
+/* Uma só leitura das oportunidades acessíveis, usada pela situação e pela comparação de
+   cadastro: as duas seções mostram o mesmo subconjunto (as 20 atualizadas mais recentemente)
+   e o total vem de antes do corte, para que nenhuma conclusão valha por oportunidades omitidas. */
+const LIMITE_OPORTUNIDADES = 20;
+async function oportunidadesDaEmpresa(db, u, empresaId) {
+  return (await db.query(`SELECT o.id,o.titulo,o.frente,o.etapa,o.prazo::text,o.proxima_acao,o.acao_concluida,
+      u.nome AS responsavel_nome,m.rotulo AS espaco,o.empresa AS cadastro_salvo,count(*) OVER()::int AS total
     FROM crm_oportunidades o JOIN usuarios u ON u.id=o.responsavel_id LEFT JOIN mandatos m ON m.id=o.mandato_id
-    WHERE o.empresa->>'id'=$4 AND ${ESCOPO_OPORTUNIDADE} ORDER BY o.atualizado_em DESC,o.id LIMIT 20`, [...v, empresaId])).rows;
+    WHERE o.empresa->>'id'=$4 AND ${ESCOPO_OPORTUNIDADE} ORDER BY o.atualizado_em DESC,o.id LIMIT ${LIMITE_OPORTUNIDADES}`, [...valoresDeEscopo(u), empresaId])).rows;
+}
+
+export async function situacaoDaEmpresa(db, u, empresaId, linhas) {
+  linhas ??= await oportunidadesDaEmpresa(db, u, empresaId);
+  // O cadastro salvo fica no servidor: a situação devolve só o resumo da oportunidade.
+  const oportunidades = linhas.map(({ cadastro_salvo, total, ...o }) => o);
+  const v = valoresDeEscopo(u);
   // Restrição vale por escopo (`usuario:<id>` ou `mandato:<id>`); só os escopos visíveis entram.
   const restricoes = (await db.query(`SELECT r.categoria,r.motivo,r.atualizado_em,m.rotulo AS espaco
     FROM crm_restricoes_contato r LEFT JOIN mandatos m ON r.escopo='mandato:'||m.id::text
     WHERE r.empresa_id=$4 AND r.ativa AND (r.escopo='usuario:'||$1::text
       OR (m.id IS NOT NULL AND ($2 OR m.confidencial=false OR m.id=ANY($3::uuid[]))))
     ORDER BY r.atualizado_em DESC`, [...v, empresaId])).rows;
-  return { empresaId, oportunidades, restricoes };
+  return { empresaId, oportunidades, totalOportunidades: linhas[0]?.total ?? 0, restricoes };
 }
 
-/** Acervo das oportunidades acessíveis: última versão de cada série. Relações e passagens ficam de fora (podem conter contato). */
+/** Acervo das oportunidades acessíveis: última versão de cada série, cortada no SQL depois de escolher a versão. Relações e passagens ficam de fora (podem conter contato). */
 async function acervoDaEmpresa(db, u, empresaId) {
   const v = valoresDeEscopo(u);
-  const registros = (await db.query(`SELECT DISTINCT ON (r.serie_id) r.tipo,r.dados,r.revisado,r.versao,r.criado_em,o.id AS oportunidade_id,o.titulo AS oportunidade
-    FROM crm_registros r JOIN crm_oportunidades o ON o.id=r.oportunidade_id LEFT JOIN mandatos m ON m.id=o.mandato_id
-    WHERE o.empresa->>'id'=$4 AND r.tipo IN ('evidencia','tese','comparavel','noticia') AND ${ESCOPO_OPORTUNIDADE}
-    ORDER BY r.serie_id,r.versao DESC`, [...v, empresaId])).rows
-    .sort((a, b) => b.criado_em - a.criado_em).slice(0, 30)
-    .map((r) => ({ tipo: r.tipo, titulo: r.dados.titulo || r.dados.campo || r.dados.evento || 'Registro', revisado: r.revisado,
-      versao: r.versao, fonte: r.dados.fonte || '', referencia: r.dados.referencia || r.dados.periodo || '', oportunidadeId: r.oportunidade_id, oportunidade: r.oportunidade }));
+  const registros = (await db.query(`SELECT tipo,titulo,revisado,versao,fonte,referencia,"oportunidadeId",oportunidade,espaco FROM (
+      SELECT DISTINCT ON (r.serie_id) r.tipo,r.revisado,r.versao,r.criado_em,
+        COALESCE(NULLIF(r.dados->>'titulo',''),NULLIF(r.dados->>'campo',''),NULLIF(r.dados->>'evento',''),'Registro') AS titulo,
+        COALESCE(r.dados->>'fonte','') AS fonte,COALESCE(NULLIF(r.dados->>'referencia',''),r.dados->>'periodo','') AS referencia,
+        o.id AS "oportunidadeId",o.titulo AS oportunidade,m.rotulo AS espaco
+      FROM crm_registros r JOIN crm_oportunidades o ON o.id=r.oportunidade_id LEFT JOIN mandatos m ON m.id=o.mandato_id
+      WHERE o.empresa->>'id'=$4 AND r.tipo IN ('evidencia','tese','comparavel','noticia') AND ${ESCOPO_OPORTUNIDADE}
+      ORDER BY r.serie_id,r.versao DESC) atuais
+    ORDER BY criado_em DESC,"oportunidadeId",titulo LIMIT 30`, [...v, empresaId])).rows;
   const documentos = (await db.query(`SELECT d.id,d.nome,d.estado,d.criado_em,o.id AS oportunidade_id
     FROM crm_documentos d JOIN crm_oportunidades o ON o.id=d.oportunidade_id LEFT JOIN mandatos m ON m.id=o.mandato_id
     WHERE o.empresa->>'id'=$4 AND ${ESCOPO_OPORTUNIDADE} ORDER BY d.criado_em DESC LIMIT 20`, [...v, empresaId])).rows;
@@ -54,31 +66,23 @@ async function acervoDaEmpresa(db, u, empresaId) {
 }
 
 /**
- * Cadastro guardado em cada oportunidade acessível, comparado ao cadastro atual.
- * Oportunidades com o mesmo cadastro salvo e o mesmo resultado viram um só grupo.
+ * Cadastro guardado em cada oportunidade da situação, comparado ao cadastro atual.
+ * Oportunidades com o mesmo resultado viram um só grupo, com a origem (espaço) de cada uma.
  * Mostra diferença de campo com as duas referências; não vira evento, não entra em
  * `comEvento` nem na prioridade e não afirma encerramento, aquisição ou intenção.
+ * Os estados vêm do comparador; erro inesperado segue para o tratador global.
  */
-async function cadastroDesdeOportunidades(db, u, empresaId, atual) {
-  // Cadastro atual fora do formato: não compara (vale para o módulo que lança ou que devolve estado).
-  try { if (compararCadastro(atual, atual).estado !== 'comparado') return null; } catch { return null; }
-  const linhas = (await db.query(`SELECT o.id,o.titulo,o.empresa FROM crm_oportunidades o LEFT JOIN mandatos m ON m.id=o.mandato_id
-    WHERE o.empresa->>'id'=$4 AND ${ESCOPO_OPORTUNIDADE} ORDER BY o.criado_em,o.id LIMIT 20`, [...valoresDeEscopo(u), empresaId])).rows;
+function cadastroDesdeOportunidades(linhas, atual) {
+  if (compararCadastro(atual, atual).estado !== 'comparado') return null; // cadastro atual fora do formato: não compara
   const grupos = new Map();
   for (const o of linhas) {
-    let r;
-    try { r = compararCadastro(o.empresa, atual); }
-    catch (erro) {
-      if (!(erro instanceof z.ZodError)) throw erro;
-      // Registro antigo fora do formato: diz que não dá para comparar, nunca "sem mudanças".
-      r = { estado: 'historico_invalido', referencias: { anterior: null, atual: atual.referencia || null }, mudancas: null };
-    }
+    const r = compararCadastro(o.cadastro_salvo, atual);
     const grupo = { estado: r.estado, referencias: r.referencias, mudancas: r.mudancas };
     const chave = JSON.stringify(grupo);
     if (!grupos.has(chave)) grupos.set(chave, { ...grupo, oportunidades: [] });
-    grupos.get(chave).oportunidades.push({ id: o.id, titulo: o.titulo });
+    grupos.get(chave).oportunidades.push({ id: o.id, titulo: o.titulo, espaco: o.espaco ?? null });
   }
-  return [...grupos.values()];
+  return { grupos: [...grupos.values()], comparadas: linhas.length, total: linhas[0]?.total ?? 0 };
 }
 
 export async function registrarEmpresas(app, { catalogo = criarCatalogo() } = {}) {
@@ -100,9 +104,10 @@ export async function registrarEmpresas(app, { catalogo = criarCatalogo() } = {}
       JOIN entidades_juridicas j ON j.id=ev.entidade_id WHERE j.cnpj_raiz=$1 ORDER BY ev.detectado_em DESC, ev.id LIMIT 20`, [empresaId.slice(4)])).rows.map((r) => r.e);
     const ficha = { empresa, eventos, situacao: null, cadastro: null, pessoas: null, acesso: null, acervo: null };
     if (pode(u.papel, 'crm.ler')) {
-      ficha.situacao = await situacaoDaEmpresa(db, u, empresaId);
+      const linhas = await oportunidadesDaEmpresa(db, u, empresaId);
+      ficha.situacao = await situacaoDaEmpresa(db, u, empresaId, linhas);
       ficha.acervo = await acervoDaEmpresa(db, u, empresaId);
-      ficha.cadastro = await cadastroDesdeOportunidades(db, u, empresaId, empresa);
+      ficha.cadastro = cadastroDesdeOportunidades(linhas, empresa);
     }
     if (pode(u.papel, 'rede.ler')) {
       ficha.pessoas = (await pessoasDaEmpresa(db, { empresaId, nomeEmpresa: empresa.nome }))

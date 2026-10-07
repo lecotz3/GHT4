@@ -17,13 +17,17 @@ function Resumo({ g }: { g: ComparacaoCadastro }) {
 }
 
 /** Cadastro salvo quando cada oportunidade foi criada × publicação atual. Seção separada dos sinais societários: mostra diferença de campo, não evento. */
-export function CadastroDesdeOportunidades({ grupos, aoAbrir }: { grupos: ComparacaoCadastro[]; aoAbrir: (id: string) => void }) {
+export function CadastroDesdeOportunidades({ grupos, comparadas, total, aoAbrir }: { grupos: ComparacaoCadastro[]; comparadas: number; total: number; aoAbrir: (id: string) => void }) {
   const mudou = grupos.some((g) => g.mudancas?.length)
+  const todasComparadas = grupos.every((g) => g.mudancas)
+  // A conclusão vale só para as oportunidades comparadas; com corte, o texto diz isso.
+  const alcance = total > comparadas ? `nas ${comparadas} oportunidades atualizadas mais recentemente (de ${total})` : comparadas === 1 ? 'no cadastro salvo na oportunidade' : `nas ${comparadas} oportunidades`
   return <section aria-labelledby="titulo-cadastro-desde"><h3 id="titulo-cadastro-desde">Cadastro desde a oportunidade</h3>
-    {!mudou && grupos.every((g) => g.mudancas) && <p className="agente-gaveta-vazio">Nenhuma diferença entre o cadastro salvo nas oportunidades e a publicação atual.</p>}
+    {!mudou && todasComparadas && <p className="agente-gaveta-vazio">Nenhuma diferença {alcance} em relação à publicação atual.</p>}
+    {(mudou || !todasComparadas) && total > comparadas && <p className="mb-2 text-xs text-suave">Comparadas as {comparadas} oportunidades atualizadas mais recentemente, de {total}.</p>}
     <ul className="agente-cadastro">{grupos.filter((g) => mudou || !g.mudancas).map((g, i) => <li key={i} className={g.mudancas?.length ? 'is-mudou' : ''}>
       <div className="agente-cadastro-topo"><span>{mes(g.referencias.anterior)} → {mes(g.referencias.atual)}</span>
-        <span>{g.oportunidades.map((o, n) => <button key={o.id} className="agente-link" onClick={() => aoAbrir(o.id)}>{n ? ', ' : ''}{o.titulo}</button>)}</span></div>
+        <span>{g.oportunidades.map((o, n) => <span key={o.id}>{n ? ', ' : ''}<button className="agente-link" onClick={() => aoAbrir(o.id)}>{o.titulo}</button> <small>({o.espaco ? `espaço ${o.espaco}` : 'privada'})</small></span>)}</span></div>
       <Resumo g={g} />
     </li>)}</ul>
     <p className="mt-2 text-xs text-suave">Diferença entre publicações do cadastro CNPJ. Não indica encerramento, venda, aquisição nem intenção de transação.</p>
