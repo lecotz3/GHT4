@@ -2,7 +2,7 @@
    cliques nos botões de verdade, estado React de verdade. Complementa o harness dos fluxos. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { React, montar as montarDom, servidor, botao, clicar, esperar } from './apoio/dom.mjs';
+import { React, montar as montarDom, servidor, botao, clicar, esperar, responder } from './apoio/dom.mjs';
 
 const { PesquisaTese } = await import('../v1/src/componentes/PesquisaTese.tsx');
 
@@ -50,7 +50,7 @@ test('componente: abrir B pendente desabilita "Revisar até a meta" de A e nenhu
   assert.deepEqual(pedidos.filter((p) => /PATCH|POST/.test(p.metodo) && /iniciar|avancar|pesquisas\/[\w-]+$/.test(p.url)).map((p) => p.metodo + ' ' + p.url), []);
   await React.act(async () => { getB.responder(B); });
   await esperar();
-  assert.match(document.body.textContent, /Tese B laboratórios/);
+  assert.equal(document.querySelector('main h2')?.textContent, 'Tese B laboratórios próprios', 'o título principal, não a lateral');
   assert.equal(document.querySelector('.pesquisa-estado.rodando'), null, 'nada rodando');
   assert.equal(botao(/Revisar até a meta/).disabled, false, 'B aberta, ações liberadas');
   await t.desmontar();
@@ -112,4 +112,40 @@ test('componente: resposta antiga de "Mostrar empresas" não libera o botão do 
   assert.match(document.body.textContent, /Empresa cnpj00000002/);
   assert.match(botao(/Mostrar mais/)?.textContent ?? '', /1 restantes/);
   await t.desmontar();
+});
+
+test('componente: B e C abrindo, C falha; "Continuar até a meta" de A envia A e a tela fica em A', async () => {
+  const FUNIL = { recorte: 3, avaliadas: 3, truncado: false, semAtributos: 0, eliminadas: 0, eliminadasPor: {}, exclusivas: {}, aprovadasCadastro: 3, comSite: 3, armazenadas: 3 };
+  const A = det('a0000000-0000-4000-8000-000000000007', 'Tese A pausada', { estado: 'pausada', funil: FUNIL });
+  const B = det('b0000000-0000-4000-8000-000000000008', 'Tese B lenta', { estado: 'pausada', funil: FUNIL });
+  const C = det('c0000000-0000-4000-8000-000000000009', 'Tese C quebrada', { estado: 'pausada', funil: FUNIL });
+  const pedidos = servidor([
+    { metodo: 'GET', url: /\/api\/pesquisas$/, dados: () => ({ pesquisas: [resumo(A), resumo(B), resumo(C)], ia: null }) },
+    { metodo: 'GET', url: new RegExp(`${A.pesquisa.id}$`), dados: () => A },
+    { metodo: 'GET', url: new RegExp(`(${B.pesquisa.id}|${C.pesquisa.id})$`), segurar: true },
+    { metodo: 'POST', url: /\/avancar$/, segurar: true },
+  ]);
+  const t = await montar({ pesquisaId: A.pesquisa.id });
+  try {
+    await esperar();
+    const titulo = () => document.querySelector('main h2')?.textContent;
+    assert.equal(titulo(), 'Tese A pausada');
+    await clicar(botao(/Tese B lenta/));
+    await clicar(botao(/Tese C quebrada/));
+    const getB = pedidos.find((p) => p.url.endsWith(B.pesquisa.id));
+    const getC = pedidos.find((p) => p.url.endsWith(C.pesquisa.id));
+    assert.equal(botao(/Continuar até a meta/).disabled, true, 'bloqueado durante as aberturas');
+    await responder(getC, { mensagem: 'Indisponível.' }, 503);
+    assert.match(document.querySelector('[role="alert"]')?.textContent ?? '', /Indisponível/);
+    assert.equal(titulo(), 'Tese A pausada');
+    // B (superada) responde depois: não troca a tela.
+    await responder(getB, B);
+    assert.equal(titulo(), 'Tese A pausada');
+    // Ação real depois da falha: o POST sai com o ID de A.
+    await clicar(botao(/Continuar até a meta/));
+    const avancos = pedidos.filter((p) => p.url.endsWith('/avancar'));
+    assert.equal(avancos.length, 1);
+    assert.match(avancos[0].url, new RegExp(`${A.pesquisa.id}/avancar$`));
+    await responder(avancos[0], { ...A, pesquisa: { ...A.pesquisa, estado: 'concluida' }, execucaoLote: 1 });
+  } finally { await t.desmontar(); }
 });

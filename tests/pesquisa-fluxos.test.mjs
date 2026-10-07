@@ -16,11 +16,14 @@ function harness() {
     }),
   });
   /** Próxima chamada ainda não atendida do método (espera ela acontecer). */
-  async function chamada(metodo) {
+  async function chamada(metodo, limiteMs = 2000) {
+    const prazo = Date.now() + limiteMs;
     for (;;) {
       const c = chamadas.find((x) => x.metodo === metodo && !x.atendida);
       if (c) { c.atendida = true; return c; }
-      await new Promise((r) => esperando.push(r));
+      // Espera limitada: um fluxo que não chama o que o teste espera falha em vez de travar.
+      if (Date.now() > prazo) throw new Error(`nenhuma chamada a ${metodo} em ${limiteMs} ms`);
+      await new Promise((r) => { esperando.push(r); setTimeout(r, 50); });
     }
   }
   const tela = { mostrado: null, aviso: '', erros: [], ocupado: false, rodando: false, paginas: null, entregue: null };
@@ -296,4 +299,56 @@ test('pedido de paginação superado não libera o botão nem aplica cursor do p
   p2.resolve({ itens: [{ empresa_id: 'nova', categoria: 'provavel', etapa: 'revisada', vereditos: [] }], total: 3, proximoOffset: 1, marca: 'm1' });
   await novo;
   assert.deepEqual([grupo().itens.map((i) => i.empresa_id), grupo().offset, grupo().carregando], [['nova'], 1, false]);
+});
+
+test('aberturas sobrepostas: a mais recente falha e a pesquisa exibida volta a agir, nas duas ordens de B', async () => {
+  for (const ordem of ['B depois da falha', 'B antes da falha']) {
+    const h = harness();
+    await abrir(h, 'A', { estado: 'pausada' });
+    const a = h.tela.mostrado;
+    const pb = h.f.abrir('B'); const getB = await h.chamada('obter');
+    const pc = h.f.abrir('C'); const getC = await h.chamada('obter');
+    if (ordem === 'B antes da falha') { getB.resolve(det('B')); await pb; }
+    getC.reject(Object.assign(new Error('fora do ar'), { status: 503 }));
+    await pc;
+    if (ordem === 'B depois da falha') { getB.resolve(det('B')); await pb; }
+    assert.equal(h.tela.mostrado.pesquisa.id, 'A', `${ordem}: a tela continua em A`);
+    assert.equal(h.tela.abrindo, false);
+    // Ação real: o pedido sai com o ID de A.
+    const laco = h.f.revisar('meta', a);
+    const av = await h.chamada('avancar');
+    assert.equal(av.args[0], 'A', `${ordem}: continuar envia A`);
+    av.resolve(det('A', { estado: 'concluida', execucaoLote: 1 }));
+    await laco;
+  }
+});
+
+test('nova pesquisa durante uma abertura: a falha dela não reativa a anterior', async () => {
+  const h = harness();
+  await abrir(h, 'A', { estado: 'pausada' });
+  const a = h.tela.mostrado;
+  const pb = h.f.abrir('B'); const getB = await h.chamada('obter');
+  h.f.esvaziar();
+  getB.reject(new Error('fora do ar'));
+  await pb;
+  assert.deepEqual(h.tela.erros, [], 'erro de abertura superada não aparece');
+  await h.f.revisar('meta', a);
+  assert.ok(!h.chamadas.some((c) => c.metodo === 'avancar'), 'A não volta a agir depois de Nova pesquisa');
+});
+
+test('paginação: resposta nova antes da antiga; a antiga não desfaz nada', async () => {
+  const h = harness();
+  await abrir(h, 'A', { provavel: 3, revisadas: 3 });
+  const velho = h.f.mostrarMais(h.tela.mostrado, 'provavel', 0);
+  const p1 = await h.chamada('itens');
+  await abrir(h, 'B');
+  await abrir(h, 'A', { provavel: 3, revisadas: 3 });
+  const novo = h.f.mostrarMais(h.tela.mostrado, 'provavel', 0);
+  const p2 = await h.chamada('itens');
+  p2.resolve({ itens: [{ empresa_id: 'nova', categoria: 'provavel', etapa: 'revisada', vereditos: [] }], total: 3, proximoOffset: 1, marca: 'm1' });
+  await novo;
+  p1.resolve({ itens: [{ empresa_id: 'velha', categoria: 'provavel', etapa: 'revisada', vereditos: [] }], total: 3, proximoOffset: 2, marca: 'm1' });
+  await velho;
+  const g = montarGrupos(h.tela.mostrado, h.tela.paginas).find((x) => x.categoria === 'provavel');
+  assert.deepEqual([g.itens.map((i) => i.empresa_id), g.offset, g.carregando], [['nova'], 1, false]);
 });
