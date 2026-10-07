@@ -7,7 +7,7 @@ import { MeuDia } from './MeuDia'
 export function InicioAgente({ usuario, estado, conversas, aoComecar, aoRetomar, aoRede, aoAjuda, aoPesquisar, bloqueado, visivel, aoAbrirCrm, aoOportunidades, aoExpirar, aoExcluir }: {
   usuario: Usuario; estado: EstadoAgente; conversas: Conversa[]; aoComecar: (t: Tarefa) => void; aoRetomar: (id: string) => void; aoRede: () => void; aoAjuda: () => void
   aoPesquisar: (tese: string) => void; bloqueado: boolean
-  visivel: boolean; aoAbrirCrm: (id: string) => void; aoOportunidades: () => void; aoExpirar: () => void; aoExcluir: (id: string) => Promise<void>
+  visivel: boolean; aoAbrirCrm: (id: string) => void; aoOportunidades: () => void; aoExpirar: () => void; aoExcluir: (id: string) => Promise<boolean>
 }) {
   const [tese, setTese] = useState('')
   // Excluir pede confirmação no próprio item: um clique solto não some com o trabalho.
@@ -27,9 +27,11 @@ export function InicioAgente({ usuario, estado, conversas, aoComecar, aoRetomar,
   const cancelar = (id: string) => { voltarFoco.current = id; setConfirmando('') }
   const excluir = async (id: string) => {
     setExcluindo(id)
-    try { await aoExcluir(id); voltarFoco.current = '' }
-    catch { voltarFoco.current = id }
-    finally { setExcluindo(''); setConfirmando('') }
+    // Removido: o item sai e o foco vai ao título. Falhou (o pai mostra o erro): fica na lixeira.
+    let removido = false
+    try { removido = await aoExcluir(id) } catch { removido = false }
+    voltarFoco.current = removido ? '' : id
+    setExcluindo(''); setConfirmando('')
   }
   const podeUsar = usuario.papel !== 'leitura'
   const enviar = (e?: FormEvent) => { e?.preventDefault(); if (tese.trim().length >= 10) aoPesquisar(tese.trim()) }

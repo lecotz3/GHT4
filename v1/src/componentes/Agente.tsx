@@ -231,14 +231,15 @@ function EspacoDoAgente({ usuario, inicio, aoOportunidades, aoTrabalhar, aoRede,
     } catch (falha) { falhou(falha) }
     finally { setEnviando(false) }
   }
-  /** Tira o trabalho da lista; o servidor guarda o histórico. */
+  /** Tira o trabalho da lista; o servidor guarda o histórico. Devolve se removeu (a falha já aparece aqui). */
   async function excluir(id: string) {
     setErro('')
     try {
       await api<{ excluido: boolean }>(`/api/agente/conversas/${id}`, 'DELETE')
       setConversas((cs) => cs.filter((c) => c.id !== id))
       if (ativa?.id === id) { setAtiva(null); setTurnos([]); setAcoes([]) }
-    } catch (e) { falhou(e) }
+      return true
+    } catch (e) { falhou(e); return false }
   }
   async function marcar(a: Acao) {
     if (!ativa || salvandoAcao) return

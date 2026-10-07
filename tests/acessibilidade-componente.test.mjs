@@ -95,10 +95,18 @@ test('acessibilidade: pesquisa por tese (composição, rascunho, resultados com 
 test('acessibilidade: início com "Continue de onde parou" e confirmação de remoção', async () => {
   servidor([{ metodo: 'GET', url: /\/api\/inicio$/, dados: () => ({ hoje: '2026-10-07', compromissos: { atrasados: 0, hoje: 1, semana: 1, itens: [{ oportunidade_id: 'o1', titulo: 'Op', descricao: 'Ligar', prazo: '2026-10-07', tipo: 'contato', empresa: 'Alfa' }] }, semProximoPasso: { total: 1, itens: [{ id: 'o2', titulo: 'Op 2', etapa: 'contato', empresa: 'Beta' }] }, rede: { naRede: false, perguntasPendentes: 1, vinculosParaConfirmar: 0 } }) }]);
   const conversas = [1, 2].map((n) => ({ id: `c${n}`, titulo: `Trabalho ${n}`, mandato_id: null, contexto: { frente: 'venda' }, versao: 1, atualizado_em: '2026-10-07T12:00:00Z' }));
-  let removido = null;
-  const t = await montar(React.createElement(InicioAgente, { usuario: { id: 'u', nome: 'Ana Souza', papel: 'analista' }, estado: { tarefas: [{ id: 'conversar', titulo: 'Conversar com o agente', descricao: 'Pergunte' }], iaConfigurada: false, ia: null, base: { disponivel: true, total: 1613, referencia: '2026-08', fonte: 'Receita Federal', subsetor: 'Distribuição química' } }, conversas,
-    aoComecar: () => {}, aoRetomar: () => {}, aoRede: () => {}, aoAjuda: () => {}, aoPesquisar: () => {}, bloqueado: false, visivel: true,
-    aoAbrirCrm: () => {}, aoOportunidades: () => {}, aoExpirar: () => {}, aoExcluir: async (id) => { removido = id; } }));
+  // Pai com estado real, como o Agente: remove das props quando o servidor confirma; na falha,
+  // mostra o erro (aqui, registra) e devolve false.
+  const tentativas = [];
+  let falhar = false;
+  function Pai() {
+    const [lista, setLista] = React.useState(conversas);
+    return React.createElement(InicioAgente, { usuario: { id: 'u', nome: 'Ana Souza', papel: 'analista' }, estado: { tarefas: [{ id: 'conversar', titulo: 'Conversar com o agente', descricao: 'Pergunte' }], iaConfigurada: false, ia: null, base: { disponivel: true, total: 1613, referencia: '2026-08', fonte: 'Receita Federal', subsetor: 'Distribuição química' } }, conversas: lista,
+      aoComecar: () => {}, aoRetomar: () => {}, aoRede: () => {}, aoAjuda: () => {}, aoPesquisar: () => {}, bloqueado: false, visivel: true,
+      aoAbrirCrm: () => {}, aoOportunidades: () => {}, aoExpirar: () => {},
+      aoExcluir: async (id) => { tentativas.push(id); if (falhar) return false; setLista((l) => l.filter((c) => c.id !== id)); return true; } });
+  }
+  const t = await montar(React.createElement(Pai));
   await esperar();
   assert.deepEqual(auditar('início'), []);
   // Teclado: a lixeira focada abre a confirmação; o foco vai para a confirmação, não para o body.
@@ -116,11 +124,23 @@ test('acessibilidade: início com "Continue de onde parou" e confirmação de re
   await clicar(document.activeElement);
   await clicar(botao(/^Cancelar$/));
   assert.equal(document.activeElement?.getAttribute('aria-label'), 'Remover Trabalho 1 da lista');
-  // Confirmar: o item sai e o foco vai para o título da seção, não para o body.
+  // Falha na remoção: o item fica e o foco volta exatamente à lixeira dele.
+  falhar = true;
   await clicar(document.activeElement);
   await clicar(botao(/^Remover da lista$/));
   await esperar();
-  assert.equal(removido, 'c1');
-  assert.notEqual(document.activeElement, document.body, 'foco não se perde depois de remover');
+  assert.deepEqual(tentativas, ['c1']);
+  assert.ok(document.querySelector('button[aria-label="Remover Trabalho 1 da lista"]'), 'o item continua na lista');
+  assert.equal(document.activeElement?.getAttribute('aria-label'), 'Remover Trabalho 1 da lista');
+  // Sucesso: o pai tira o item das props e o foco vai exatamente ao título da seção.
+  falhar = false;
+  await clicar(document.activeElement);
+  await clicar(botao(/^Remover da lista$/));
+  await esperar();
+  assert.deepEqual(tentativas, ['c1', 'c1']);
+  assert.equal(document.querySelector('button[aria-label="Remover Trabalho 1 da lista"]'), null, 'o item saiu');
+  assert.ok(document.querySelector('button[aria-label="Remover Trabalho 2 da lista"]'), 'o outro continua');
+  assert.equal(document.activeElement?.tagName, 'H3');
+  assert.equal(document.activeElement?.textContent, 'Continue de onde parou');
   await t.desmontar();
 });
