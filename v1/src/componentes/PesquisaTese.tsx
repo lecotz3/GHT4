@@ -44,6 +44,10 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
   const [atalho, setAtalho] = useState('')
   const [parametro, setParametro] = useState(0)
   const parar = useRef(false)
+  // Pesquisa exibida e geração da execução na tela: resposta de outra pesquisa ou de um laço
+  // antigo não sobrescreve a que está aberta, e só a última abertura vale.
+  const ativa = useRef<string | null>(null)
+  const execucaoTela = useRef(0)
   const envio = useRef<{ id: string; tese: string } | null>(null)
   // A tese escrita no Início já é um pedido: monta os critérios sem exigir outro clique.
   const autoEnviar = useRef<string | null>(null)
@@ -58,20 +62,26 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
   const recarregarLista = useCallback(async () => {
     try { const r = await pesquisaApi.listar(); setLista(r.pesquisas); setIa(r.ia) } catch (e) { falhou(e) }
   }, [falhou])
-  const aplicar = useCallback((d: DetalhePesquisa) => {
+  /** Mostra `d` se for a pesquisa aberta; `trocar` é para quem escolhe abrir outra. Devolve se aplicou. */
+  const aplicar = useCallback((d: DetalhePesquisa, trocar = false) => {
+    if (!trocar && d.pesquisa.id !== ativa.current) return false
+    ativa.current = d.pesquisa.id
     setDetalhe(d); setCriterios(d.pesquisa.criterios); setFiltros(d.pesquisa.filtros); setMeta(d.pesquisa.meta); setLimiteWeb(d.pesquisa.limite_web)
     if (d.ia !== undefined) setIa(d.ia)
+    return true
   }, [])
   const abrir = useCallback(async (id: string) => {
-    parar.current = true; setErro(''); setAviso(''); setEntregue(null); setSelecionadas(new Set()); setAberto(null); setPrevia(null)
-    try { aplicar(await pesquisaApi.obter(id)) } catch (e) { falhou(e) }
+    const minha = ++execucaoTela.current
+    // O laço da pesquisa anterior deixa de ser desta tela: ele pausa a pesquisa dele sozinho.
+    parar.current = true; setRodando(false); setErro(''); setAviso(''); setEntregue(null); setSelecionadas(new Set()); setAberto(null); setPrevia(null)
+    try { const d = await pesquisaApi.obter(id); if (execucaoTela.current === minha) aplicar(d, true) } catch (e) { falhou(e) }
   }, [aplicar, falhou])
 
   useEffect(() => { void recarregarLista() }, [recarregarLista])
   useEffect(() => {
     if (!inicial) return
     if (inicial.pesquisaId) void abrir(inicial.pesquisaId)
-    else if (inicial.tese) { setDetalhe(null); setTese(inicial.tese); autoEnviar.current = inicial.tese }
+    else if (inicial.tese) { ativa.current = null; ++execucaoTela.current; setRodando(false); setDetalhe(null); setTese(inicial.tese); autoEnviar.current = inicial.tese }
     aoConsumirInicial()
   }, [inicial, abrir, aoConsumirInicial])
   useEffect(() => () => { parar.current = true }, [])
@@ -101,8 +111,11 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
     setOcupado(true); setErro(''); setAviso('')
     try {
       if (!envio.current || envio.current.tese !== texto) envio.current = { id: crypto.randomUUID(), tese: texto }
+      const minha = ++execucaoTela.current
       const d = await pesquisaApi.criar({ id: envio.current.id, tese: texto, frente })
-      envio.current = null; aplicar(d); setPrevia(null); void recarregarLista()
+      envio.current = null
+      if (execucaoTela.current === minha) { aplicar(d, true); setPrevia(null) }
+      void recarregarLista()
     } catch (falha) { falhou(falha) } finally { setOcupado(false) }
   }
 
@@ -118,12 +131,14 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
   async function revisar(ate: 'amostra' | 'meta', base?: DetalhePesquisa) {
     let d = base ?? detalhe
     if (!d) return
+    const minha = ++execucaoTela.current
+    const vigente = () => execucaoTela.current === minha
     parar.current = false; setRodando(true); setErro(''); setAviso('')
     const alvo = Math.min(AMOSTRA, d.contagens.total)
     try {
-      while (!parar.current) {
+      while (!parar.current && vigente()) {
         d = await pesquisaApi.avancar(d.pesquisa.id, 2)
-        aplicar(d)
+        if (!vigente() || !aplicar(d)) break
         if (d.pesquisa.estado !== 'em_andamento') break
         if (ate === 'amostra' && d.contagens.revisadas >= alvo) {
           d = await pesquisaApi.pausar(d.pesquisa.id); aplicar(d)
@@ -131,8 +146,9 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
           break
         }
       }
-      if (parar.current && d.pesquisa.estado === 'em_andamento') { d = await pesquisaApi.pausar(d.pesquisa.id); aplicar(d) }
-    } catch (e) { falhou(e) } finally { setRodando(false); void recarregarLista() }
+      // Parou por pedido ou porque outra pesquisa foi aberta: pausa ESTA pesquisa, sem mexer na tela da outra.
+      if ((parar.current || !vigente()) && d.pesquisa.estado === 'em_andamento') { d = await pesquisaApi.pausar(d.pesquisa.id); if (vigente()) aplicar(d) }
+    } catch (e) { if (vigente()) falhou(e) } finally { if (vigente()) setRodando(false); void recarregarLista() }
   }
 
   async function iniciar(ate: 'amostra' | 'meta') {
@@ -160,7 +176,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
     if (!p || ocupado) return
     setOcupado(true); setErro('')
     if (envioAjuste.current?.origem !== p.id) envioAjuste.current = { origem: p.id, id: crypto.randomUUID() }
-    try { const d = await pesquisaApi.ajustar(p.id, envioAjuste.current.id); envioAjuste.current = null; aplicar(d); setPrevia(null); setSelecionadas(new Set()); setAviso('Nova rodada criada a partir dos critérios anteriores. Ajuste e rode de novo; a rodada anterior continua no histórico.'); void recarregarLista() }
+    try { const d = await pesquisaApi.ajustar(p.id, envioAjuste.current.id); envioAjuste.current = null; ++execucaoTela.current; aplicar(d, true); setPrevia(null); setSelecionadas(new Set()); setAviso('Nova rodada criada a partir dos critérios anteriores. Ajuste e rode de novo; a rodada anterior continua no histórico.'); void recarregarLista() }
     catch (e) { falhou(e) } finally { setOcupado(false) }
   }
 
@@ -261,7 +277,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
             <h2>{p.tese}</h2>
             <p><EstadoPill estado={p.estado} rodando={rodando} /> {p.motivo_estado && !rodando && <span className="text-suave">{p.motivo_estado}</span>}</p>
           </div>
-          <button className="agente-btn-secundario" onClick={() => { parar.current = true; setDetalhe(null); setTese(''); setPrevia(null); setErro(''); setAviso('') }} disabled={rodando}><IconeRede nome="mais" />Nova pesquisa</button>
+          <button className="agente-btn-secundario" onClick={() => { parar.current = true; ativa.current = null; ++execucaoTela.current; setDetalhe(null); setTese(''); setPrevia(null); setErro(''); setAviso('') }} disabled={rodando}><IconeRede nome="mais" />Nova pesquisa</button>
         </header>
         {erro && <p role="alert" className="pesquisa-erro">{erro}</p>}
         {aviso && <p role="status" className="pesquisa-aviso">{aviso}</p>}
