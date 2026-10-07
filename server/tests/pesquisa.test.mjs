@@ -611,14 +611,28 @@ test('provedor que retém dados não recebe nada de mandato confidencial; gratui
   assert.equal(ollama.gratuito, true); assert.equal(ollama.retemDados, false);
   const gemini = configurarIA({ GHT4_IA_PROVEDOR: 'gemini', GEMINI_API_KEY: 'chave-gratuita-teste' });
   assert.equal(gemini.retemDados, true);
+  // "Local" é o destino, não o nome: Ollama em outra máquina é externo e retém.
+  for (const url of ['http://localhost:11434/v1/chat/completions', 'http://127.0.0.2:11434/v1/chat/completions', 'http://[::1]:11434/v1/chat/completions']) {
+    assert.equal(configurarIA({ GHT4_IA_PROVEDOR: 'ollama', GHT4_IA_MODELO: 'llama3', GHT4_IA_URL: url }).retemDados, false, url);
+  }
+  const ollamaRemoto = configurarIA({ GHT4_IA_PROVEDOR: 'ollama', GHT4_IA_MODELO: 'llama3', GHT4_IA_URL: 'https://ollama.exemplo.test/v1/chat/completions' });
+  assert.equal(ollamaRemoto.local, false); assert.equal(ollamaRemoto.retemDados, true);
+  for (const [n, config] of [['gemini', gemini], ['ollama-remoto', ollamaRemoto]]) await t.test(n, async (t) => {
   let chamadas = 0;
   const fetchIA = async () => { chamadas++; return Response.json({ choices: [{ message: { content: '{}' } }] }); };
   const db = await bancoDeTeste();
   const catalogo = await catalogoDeTeste(t);
-  const app = await criarApp(db, { catalogo, servicoIA: criarServicoIA(db, gemini, { fetchImpl: fetchIA }), web: { fetchImpl: fetchSites, resolver: async () => [{ address: '200.1.2.3' }] } });
+  const app = await criarApp(db, { catalogo, servicoIA: criarServicoIA(db, config, { fetchImpl: fetchIA }), web: { fetchImpl: fetchSites, resolver: async () => [{ address: '200.1.2.3' }] } });
   t.after(async () => { await app.close(); await db.close(); });
   const u = await criarUsuario(db, { email: 'conf@teste.local', senha: 'senha-de-teste' });
   const mandato = await criarMandato(db, { codigo: 'M-CONF-IA', confidencial: true });
+  // Documento de mandato confidencial também não sai.
+  const servico = criarServicoIA(db, config, { fetchImpl: fetchIA });
+  const conversa = (await db.query(`INSERT INTO agente_conversas (usuario_id, mandato_id, titulo) VALUES ($1,$2,'conf') RETURNING id`, [u.id, mandato.id])).rows[0];
+  const execucao = { conversaId: conversa.id, usuarioId: u.id, chave: randomUUID(), corpoHash: 'h' };
+  await assert.rejects(servico.estruturar({ instrucoes: 'x', dados: { tese: 'SEGREDO_DO_MANDATO' }, execucao }), /mandato_confidencial_em_provedor_gratuito/);
+  await assert.rejects(servico.redigir({ tarefa: 'conversar', pedido: 'SEGREDO_DO_MANDATO', execucao: { ...execucao, chave: randomUUID() },
+    documentos: [{ id: 'd', nome: 'memorando.pdf', hash: 'h', trechos: ['SEGREDO_DO_MANDATO'] }] }), /documentos_em_provedor_gratuito/);
   await darAcesso(db, mandato.id, u.id);
   const login = await app.inject({ method: 'POST', url: '/api/sessao', payload: { email: 'conf@teste.local', senha: 'senha-de-teste' } });
   const cookie = login.headers['set-cookie'].split(';')[0];
@@ -632,4 +646,5 @@ test('provedor que retém dados não recebe nada de mandato confidencial; gratui
   const lote = (await chamar('POST', `/api/pesquisas/${id}/avancar`, { quantidade: 5 })).json();
   assert.ok(lote.atualizados.length >= 1, 'a revisão segue sem IA');
   assert.equal(chamadas, 0, 'nada saiu para o provedor');
+  });
 });

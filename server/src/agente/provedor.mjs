@@ -37,9 +37,19 @@ export function configurarIA(env = {}) {
     web: p.web && env.GHT4_IA_WEB === '1' });
   // "Gratuito" depende do modelo: no OpenRouter só os modelos ":free" são da camada gratuita.
   const gratuito = p.gratuito && (nome !== 'openrouter' || /:free$/.test(config.modelo));
-  // Camada gratuita EXTERNA pode reter e usar o conteúdo para treino; o Ollama roda na máquina e não retém.
-  const retemDados = gratuito && !p.local;
-  return { ...config, api: p.api, gratuito, local: Boolean(p.local), retemDados, raciocinio: p.raciocinio ?? null };
+  // Camada gratuita EXTERNA pode reter e usar o conteúdo para treino. "Local" se decide pelo DESTINO,
+  // não pelo nome do adaptador: Ollama apontado para outra máquina é tratado como externo.
+  const local = Boolean(p.local) && destinoLocal(config.url);
+  const retemDados = gratuito && !local;
+  return { ...config, api: p.api, gratuito, local, retemDados, raciocinio: p.raciocinio ?? null };
+}
+
+/** Só a própria máquina (loopback) conta como destino local. */
+export function destinoLocal(url) {
+  try {
+    const h = new URL(url).hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    return h === 'localhost' || h === '::1' || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h);
+  } catch { return false; }
 }
 
 const INSTRUCOES = `Você auxilia a boutique GHT4 em M&A, no piloto de distribuição e trading químico.
