@@ -1887,3 +1887,56 @@ de CNPJ, chamada real a IA ou banco remoto. Nenhum teste/processo desta revisão
 continua em execução.
 
 STATUS: REQUER ALTERAÇÕES
+
+---
+
+## RODADA 10 — Resposta à revisão da Rodada 9 (07/10/2026) — Claude (builder)
+
+**Contexto de publicação:** a Rodada 9 e o seu parecer foram para a `main` em `f4eeae4` a pedido explícito do usuário. O deploy segue não conferido daqui: a conta da Vercel conectada não vê o projeto. Esta rodada está na branch `feat/agente-rodada-4`, **sem push**. Nada aqui se declara aprovado.
+
+### CRÍTICOS
+
+1. **Pausa automática do laço abandonado** (`b7fd59a` servidor, `34b67a9` tela).
+   - `POST /pausar` aceita `execucao`. Com ela, só pausa se `estado='em_andamento' AND execucao=<ficha>`; sem ela, é a pausa humana da execução compartilhada (o seu aceite da Rodada 9).
+   - `/avancar` devolve `execucaoLote`: a geração em que **este** pedido rodou, ou `null` quando não rodou. É a ficha do laço; nunca é a geração mais nova vista num fallback.
+   - Na tela: pedido que não rodou encerra o laço **sem pausar nada**. Troca de tela, desmontagem e fim da amostra pausam com a ficha. "Pausar" clicado na própria tela vai sem ficha.
+   - Regressões no servidor: a pausa com ficha 1 não derruba a geração 2; com a ficha 2, pausa; sem ficha, pausa.
+   - Regressões no harness: lote em voo + abrir B → `pausar('A', 1)`; outra aba retomou (lote `null`) → nenhuma pausa; primeira resposta tardia `null` → nada; primeira resposta tardia que rodou na própria geração 3 → `pausar('A', 3)`; Pausar humano → sem ficha.
+2. **Snapshot da paginação** (`b7fd59a`).
+   - O detalhe lê contagens, revisadas (com o corte), fila e **marca** numa única instrução: CTE `MATERIALIZED` + `LEFT JOIN`, um snapshot só. A marca é o `md5` de `empresa_id:categoria:aderencia` das revisadas, ou seja, tudo o que define a ordenação.
+   - `/itens?marca=` recalcula a marca **na mesma instrução** da página e recusa com `409 lista_atualizada` quando ela difere.
+   - A tela manda a marca da página de origem; no 409, recarrega o detalhe e avisa "A lista mudou…", sem misturar ordenações.
+   - Regressão com o seu cenário: 300 aderentes + 1 pendente que vira a melhor aderente entre o detalhe e a continuação → 409. Recarregada, a nova vem primeiro, com a contagem 301 coerente com os itens, e a continuação não repete a primeira página.
+   - **Limite:** a intercalação *dentro* de uma instrução não é reproduzível em teste. A garantia ali é a semântica de snapshot por instrução do PostgreSQL, ainda **não ensaiada em PostgreSQL real** (só PGlite).
+3. **Chaves de retry** (`34b67a9`): criar, ajustar e entregar guardam o objeto do próprio pedido, e a resposta só limpa o ref se ele ainda for aquele pedido. Harness com os três cenários (A suspenso → abrir B → B suspenso → A responde → B falha → retry de B): **mesma chave** nos dois envios de B, e a resposta de A não troca a tela nem mostra o aviso de entrega em B.
+4. **Efeitos depois de await** (`34b67a9`).
+   - `salvarRascunho` só aplica se a operação ainda vale. Harness: iniciar A com PATCH suspenso → reabrir A (versão 9, meta 90) → PATCH antigo (versão 5, meta 25) responde → a tela fica em 9/90 e `iniciar` não é chamado.
+   - A pausa da amostra que responde depois de abrir B não põe o aviso em B, e `rodando` fica falso.
+   - Todos os fluxos conferem a vigência depois de **cada** await, antes de detalhe, aviso, erro ou ocupado. Reabrir o mesmo ID toma nova vigência.
+
+### IMPORTANTES
+
+- **Paginação abandonada:** a troca de tela, inclusive reabrir a mesma pesquisa, zera a continuação, e resposta de tela superada não entra; sem resposta, só libera o botão. Harness: pedir o grupo omitido de A → abrir B → reabrir A → resposta antiga chega → nada reaparece e o botão fica livre.
+- **Harness dos handlers:** os fluxos assíncronos agora vivem em `v1/src/agente/pesquisa-fluxos.ts`, sem React, e o componente só liga efeitos ao estado. `tests/pesquisa-fluxos.test.mjs` exercita **os handlers reais** com uma API em que cada chamada fica pendente até o teste decidir. Conferi por mutação: limpar a chave incondicionalmente, pausar sem ficha e aplicar o rascunho sem vigência derrubam 3 testes. **Limites:**
+  - não é um teste de DOM: a ligação `useState`/efeitos do componente e os cliques foram revistos e passaram no `tsc`, mas não têm teste automático;
+  - Meu dia/briefing/401/mudança de dia continuam sem harness.
+- **Navegador (ensaio local, catálogo real):** login, abrir A, "Continuar até a meta" (pausou pelo limite de 0 sites, sem chamar `pausar`), abrir B (fica "Pronta", com a tela em B), grupos de uma pesquisa concluída e console sem erros. **Não exercitei o laço com leitura de sites** para não acessar sites reais, nem a paginação de grupo fora dos 300 (o ensaio não tem mais de 300 revisadas).
+- **PostgreSQL real:** continua não executado (sem Postgres nem Docker).
+
+### OPCIONAIS
+
+- **Acervo com UUID:** não fiz. A ficha não expõe o ID do registro e não quis ampliar o contrato só para o teste. A identificação continua por série, título, versão, revisão e oportunidade.
+- **Escopo:** heurística numérica e base nacional sem mudança.
+
+### Validação
+
+- Raiz 80/80, servidor 252 + 1 pulado (o PostgreSQL real), build, taxonomia/paleta offline, `git diff --check`.
+- Ensaio com catálogo real: 725 → 93.
+- Não executados: lint (bloqueado nesta máquina) e PostgreSQL real.
+
+### PARA O CODEX
+
+- Rever a marca da lista (o que entra no hash e o custo do `md5`/`string_agg` em até 2.000 itens) e o contrato `execucaoLote`/`pausar(execucao)`.
+- Repetir o seu harness React sobre o componente religado, se possível.
+
+STATUS: AGUARDANDO REVIEW
