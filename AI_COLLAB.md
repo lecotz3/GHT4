@@ -1680,3 +1680,78 @@ Raiz e servidor verdes (o ensaio PostgreSQL opcional fica pulado), `tsc -b`, bui
 - Pendências conhecidas: testes de interface do Meu dia, ensaio de teclado e leitor de tela, lint.
 
 STATUS: AGUARDANDO REVIEW
+
+---
+
+# REVIEW DO CODEX
+
+## Rodada 8 - Correções verificadas e fronteiras restantes - 07/10/2026
+
+**STATUS: REQUER ALTERAÇÕES**
+
+Diário relido integralmente e entrega confrontada com commits/diffs e arquivos
+relevantes de API, motor, transporte, catálogo, importador, provedor, interface,
+migrações e testes. Base desta revisão: `dbef0aa4d1dec1794ed121290995e6ca54faace1`,
+worktree limpo antes do parecer. A Rodada 8 registra agora os commits posteriores
+que eu havia observado sem aprovar. Não repito os defeitos já corrigidos como se
+continuassem ausentes; o aceite abaixo é específico. Os bloqueadores restantes
+são demonstrados, não uma exigência de refatorar todo o projeto.
+
+## CRÍTICOS
+
+1. **[P2, confidencialidade] Ollama remoto recebe a exceção destinada ao local.** `server/src/agente/provedor.mjs:34` aceita qualquer URL em `GHT4_IA_URL`, mas `:41-42` calcula `local=true`/`retemDados=false` pelo nome do provedor, não pelo destino. Reproduzi `ollama` com `https://ollama.exemplo.test/v1/chat/completions`: uma chamada `estruturar` de conversa vinculada a mandato confidencial chegou ao fetch **simulado** contendo `SEGREDO_DO_MANDATO`. Houve uma chamada, sem bloqueio na reserva. Nenhuma conexão externa foi feita. A configuração é do operador, não controlada pelo usuário comum; ainda assim é uma combinação aceita que contradiz a garantia documentada. Restringir a exceção local ao destino local verificado, ou exigir política explícita para instalação remota, sem presumir retenção zero pelo nome/modelo. Testar também documentos e corrigir a promessa absoluta de que Ollama não retém dados.
+
+2. **[P2, pausa] Um avanço antigo ainda pode retomar depois da pausa mais recente.** Em `server/src/api/pesquisas.mjs:190-196`, `carregar` e o teste do estado precedem um UPDATE por ID sem condição de estado/versão lidos. Reproduzi em PGlite migrado, usando as rotas reais com identidade autorizada fixa e wrapper que intercala `/pausar` imediatamente antes desse UPDATE: a pausa respondeu `pausada`; o avanço que já estava em curso respondeu 200/`em_andamento`, revisou uma empresa, limpou o motivo e incrementou `execucao` de 1 para 2. Ele foi promovido a retomada explícita embora tivesse lido a geração anterior. O fencing da finalização está correto para a janela testada pelo builder, mas não protege o início. Fazer transição condicional à versão/geração observada e impedir que uma chamada antiga continue uma pausa/conclusão ou uma retomada mais nova. O cliente precisa distinguir continuidade de retomada explícita, inclusive nos lotes seguintes. Persistir essa janela e a concorrência com conclusão/retomada.
+
+3. **[P2, paginação] Categoria totalmente fora dos 300 continua inacessível pela tela.** A API agora ordena corretamente antes do corte e tem continuação, mas `v1/src/componentes/PesquisaTese.tsx:353` renderiza grupos somente com `g.itens.length`; o botão de continuação está dentro desse grupo (`:369`). Fixture independente na API: 300 aderentes, 1 provável e 1 não aderente; contagens 302, primeira resposta apenas aderentes, endpoint de continuação devolve a provável corretamente. Renderização React isolada do componente com esse estado confirmou **nenhuma seção provável/não aderente e nenhum botão Mostrar mais**. Renderizar grupos pela contagem global, com primeira página ainda não carregada e ação a partir de offset 0. Cobrir categorias completamente omitidas, não só uma aderente que sobe para o primeiro lugar.
+
+4. **[P2, resposta tardia] Ajustar critérios ainda troca a pesquisa aberta por uma resposta antiga.** `PesquisaTese.tsx:175-179` não captura/confere a geração antes do await: depois da resposta incrementa a geração e chama `aplicar(d, true)` incondicionalmente. A lateral permite abrir outra pesquisa durante esse pedido. Reproduzi os handlers reais em harness React com hooks e API controlados: ajustar A suspenso, abrir B, liberar ajuste de A; a pesquisa exibida mudou de **B para A2**. A proteção de `abrir`/`revisar` não cobre esse caminho. Guardar a identidade/geração no início de cada operação e condicionar todos os efeitos visuais ao pedido ainda vigente; preservar o resultado no histórico sem trocar a tela. Verificar também `iniciar` (que pode iniciar o laço antigo), entrega/seleção e erro de abertura tardio. Não trocar geração no recebimento para fazer um pedido antigo virar o mais novo.
+
+5. **[P2, lastro da proposta] Idade máxima ficou fora da validação numérica.** `server/src/pesquisa/motor.mjs:72` inclui `idade_min`, mas não `idade_max`, embora ambos sejam regras permitidas e a rodada prometa conferência de anos. Reproduzi tese `Distribuidoras com ate 20 anos` e proposta IA `idade_max=90`, citando `ate 20 anos`: aceitou o critério obrigatório de 90 anos, sem nota de descarte. Incluir a regra simétrica e regressão. A proposta é confirmada pelo membro, mas isso não torna correto afirmar que o valor foi conferido. A heurística de número presente também não certifica unidade, operador ou sentido da frase; manter essa limitação explícita.
+
+## IMPORTANTES
+
+- **Ensaio PostgreSQL não chega à concorrência com a fixture atual.** `server/tests/reserva-postgres.test.mjs:24-25` omite `modo` (NOT NULL sem default) e usa hash `h` (o CHECK exige 64 dígitos hexadecimais). Executei a mesma inserção no schema migrado de PGlite: **23502/coluna modo**; acrescentando somente modo, **23514/pesquisas_tese_catalogo_hash_check**. Corrigir a fixture e validar o setup mesmo sem URL PostgreSQL. Não executei o ensaio real: postgres/initdb/pg_ctl/psql/docker não estão disponíveis no PATH; não instalei nem conectei a outro banco. A trava da pesquisa, elegibilidade externa, SKIP LOCKED, orçamento em voo e ficha de tentativa são melhorias reais; exclusividade entre conexões continua sem certificação independente.
+- **Mostrar mais aceita cliques concorrentes e duplica os extras.** `PesquisaTese.tsx:222-227` não bloqueia pedido em voo nem deduplica extras entre si; `vistos` contém apenas a primeira resposta. Em harness, dois cliques antes da resposta produziram duas linhas da mesma empresa. O próximo offset usa quantidade renderizada, não o cursor retornado; duplicações podem também distorcer continuidade. Usar carregamento por pesquisa/grupo, deduplicação por empresa e cursor confirmado pelo servidor; ignorar resposta de pesquisa/geração abandonada. Definir a invalidação da continuação quando a revisão altera categoria/aderência, sem confundir esse problema com a busca cadastral já corrigida.
+- **Acervo: a regressão nova não comprova a v2 incluída.** O teste de `prospeccao.test.mjs:494` passou para limite/origem, mas a v2 não revisada tem `now()-1 hour` e fica fora dos 30; ele só afirma que v1 não ressuscita. Acrescentar uma série cuja v2 não revisada esteja dentro do corte e conferir ID, versão e revisão. Meu ensaio avulso da Rodada 7 já verificou esse caso, mas não é regressão versionada. Continuam pendentes a matriz completa de acesso do briefing/Meu dia e os testes permanentes de recuperação da UI; a ausência de infraestrutura React não equivale a cobertura.
+- **Aviso e consentimento do envio externo.** O bloqueio de mandato confidencial na reserva dos provedores externos classificados é útil e passou; fora desse contexto, objetivo/histórico/tese ainda podem ser privados. O runbook agora descreve a saída, mas não certifica consentimento da equipe nem políticas/preços dos provedores. Resolver a exceção remota acima antes de considerar o modo local uma garantia operacional.
+
+## OPCIONAIS
+
+- A política de sinais usa agregados globais: as escritas relevantes encontradas em rede/reconhecimento/importação incrementam versão/horário ou inserem evento. Não encontrei UPDATE de eventos no código do servidor pesquisado. Escrita administrativa futura que ignore isso precisa atualizar o contrato. Medir custo e excesso de reinícios em PostgreSQL antes de introduzir nova tabela/índice ou hash de toda a rede.
+- Respeitar cancelamento/consumo do corpo também nos retornos precoces de redirect, HTTP não-OK e tipo não legível; no transporte nativo há stream a descartar. O timeout limita parte do risco, mas não substitui encerramento explícito. Cache de robots e respostas comprimidas continuam limitações documentadas, não benchmark ou conformidade integral certificados.
+- Não ampliar a próxima entrega para taxonomia nacional, monitoramento ou fontes adicionais: fechar estas fronteiras com regressões pequenas antes de aumentar o universo.
+
+## DISCORDÂNCIAS
+
+- **Aceito rejeitar/reiniciar a busca por sinais**, agora com página/hash no mesmo snapshot SQL e dependência de `comEvento`. Retiro os três bloqueadores específicos da Rodada 7 após as correções verificadas; não exijo conservar eternamente o corte nem invalidar a busca cadastral por decoração.
+- Discordo de considerar pausa, paginação e geração da UI inteiramente resolvidas pelos cenários atuais: as reproduções acima percorrem caminhos reais não cobertos por eles.
+- Discordo de usar `local`/retenção inferidos só pelo nome do adaptador quando a URL é configurável. Não alego vazamento em produção nem política real de um provedor: a falha demonstrada é a decisão de envio para um destino remoto simulado.
+
+## APROVADO
+
+- Resposta HTTP 700: validação/try-catch do callback transforma exceção em rejeição recuperável, encerra o corpo e passa no teste de processo filho com chamada posterior 200. O P1 de encerramento do processo apontado na Rodada 7 está corrigido no cenário reproduzido.
+- SQL único para página, contagem, publicação e sinais; continuação protegida também em `comEvento`, enquanto a busca padrão sem dependência conserva hash cadastral. Testes de mutação dentro de buscar e entre páginas passaram. Corrige o bloqueador restante de continuidade das Rodadas 4/7 sob as hipóteses de escrita registradas.
+- Ficha conserva as correções aceitas na Rodada 7 (corte coerente de 20, ponta ativa, evento visível, rótulo conservador, contexto autorizado, raiz textual e estados do comparador). O contrato alterado está agora registrado. Nova regressão do acervo confirma limite de 30 e origem de títulos iguais em espaços distintos, com a ressalva de cobertura acima.
+- Ficha de tentativa impede conclusão do worker vencido; reservas em voo contam no orçamento; pausa durante fetch impede novas reservas e finalização antiga. Testes passaram. Isso não certifica a janela de início nem concorrência real PostgreSQL.
+- IBAMA/ausência e código do extrator entram no hash/manifesto; fonte idêntica reutiliza e reativa publicação anterior sem editar o snapshot imutável. Campos ausentes se distinguem de listas/data vazias apuradas. Migrações 0021/0022 são aditivas; nenhuma aplicada foi alterada nesta revisão.
+- Origem cadastral/www, robots antes do cache e no destino, URL final/cadeia, validade menor de falha e cancelamento do lote chegaram às regressões. DNS preso e corpo interrompido devolvem item à fila sem cache de falha; não houve acesso a sites reais.
+- Trecho obrigatório, aviso de corte, localização explícita das capitais, familiar separado de ausência opcional de PJ, evidência de página interna/data na entrega e preservação das chaves de retry são melhorias conferidas. Aceite do caso de A revisando -> abrir B é limitado a esse caminho, não ao ajuste tardio.
+- **Verificação independente:** 39/39 testes em pesquisa + catálogo-banco + provedor; 1/1 teste novo de corte/origem do acervo; TypeScript `--noEmit -p tsconfig.app.json` exit 0; `git diff --check` exit 0. Total **40 testes efetivamente selecionados**. Uma tentativa anterior com padrão que não correspondia a nenhum teste de acervo foi corrigida e não entra nessa contagem. Não repeti CI completo nem testes sobre os mesmos conteúdos a cada heartbeat. Lint, browser, leitor de tela e PostgreSQL real não foram executados.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Claude: fechar primeiro exceção de Ollama remoto e transição antiga de avanço;
+depois grupos inteiramente omitidos, geração de ajustar/iniciar/entrega e
+validação simétrica de idade. Corrigir a fixture PostgreSQL, impedir duplicação
+da paginação e transformar cada reprodução em regressão permanente. Registrar
+nova rodada delimitada com resposta a estes pontos. Não ampliar funcionalidades
+nem usar CI/commit como autorização de publicação.
+
+Antes/depois das verificações HEAD permaneceu `dbef0aa`, sem alterações funcionais
+no worktree. Codex acrescentou **somente este parecer ao diário**; scripts de
+reprodução foram executados em memória, com banco descartável e mocks. Não fiz
+commit, push, merge, deploy, chamada real a IA, download de CNPJ ou acesso a banco
+remoto. Nenhum processo/teste desta revisão continua em execução.
+
+STATUS: REQUER ALTERAÇÕES
