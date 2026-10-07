@@ -17,7 +17,7 @@ const Versao = z.number().int().min(1);
 /** Corta no fim de uma palavra, com reticências, para títulos e resumos. */
 const resumir = (t, max) => { const limpo = t.replace(/\s+/g, ' ').trim(); if (limpo.length <= max) return limpo; const corte = limpo.slice(0, max - 1); return `${corte.slice(0, corte.lastIndexOf(' ') > max * 0.6 ? corte.lastIndexOf(' ') : corte.length).replace(/[\s,;.:]+$/, '')}…`; };
 const CAMPOS = `id,conversa_id,usuario_id,anterior_id,tese,frente,filtros,criterios,meta,limite_web,catalogo_hash,referencia,funil,
-  estado,motivo_estado,modo,notas,turno_id,versao,criado_em,atualizado_em`;
+  estado,motivo_estado,modo,notas,turno_id,versao,execucao,criado_em,atualizado_em`;
 
 export async function registrarPesquisas(app, { catalogo, servicoIA = null, web = {} } = {}) {
   const { db } = app;
@@ -185,15 +185,24 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     return detalhar(nova);
   });
 
-  /* Um lote de revisão. O cliente chama de novo enquanto o estado for "em_andamento". */
+  /* Um lote de revisão. Sem `execucao`, é o clique de quem retoma (abre uma geração nova se estava
+     pronta/pausada); com `execucao`, é a continuação de um laço, que só segue na MESMA geração ainda
+     em andamento. Assim um lote antigo não desfaz uma pausa, conclusão ou retomada mais recente. */
   app.post('/api/pesquisas/:id/avancar', async (req) => {
-    const { quantidade } = z.object({ quantidade: z.number().int().min(1).max(5).default(3) }).strict().parse(req.body ?? {});
+    const { quantidade, execucao: continuacao } = z.object({ quantidade: z.number().int().min(1).max(5).default(3),
+      execucao: z.number().int().min(0).optional() }).strict().parse(req.body ?? {});
     const { pesquisa, usuario } = await carregar(req, req.params.id, 'agente.usar');
-    if (!['pronta', 'em_andamento', 'pausada'].includes(pesquisa.estado)) return { ...(await detalhar(pesquisa)), atualizados: [] };
-    // Retomar explicitamente abre uma nova geração; chamadas seguidas em andamento continuam nela.
-    const { execucao } = (await db.query(`UPDATE pesquisas_tese SET estado='em_andamento', motivo_estado=NULL,
-        execucao=CASE WHEN estado IN ('pronta','pausada') THEN execucao+1 ELSE execucao END
-      WHERE id=$1 RETURNING execucao`, [pesquisa.id])).rows[0];
+    const parado = async () => ({ ...(await detalhar((await db.query(`SELECT ${CAMPOS} FROM pesquisas_tese WHERE id=$1`, [pesquisa.id])).rows[0])), atualizados: [] });
+    if (!['pronta', 'em_andamento', 'pausada'].includes(pesquisa.estado)) return parado();
+    // Transição condicional ao que esta chamada leu: versão (retomada) ou geração (continuação).
+    const vigente = (continuacao === undefined
+      ? await db.query(`UPDATE pesquisas_tese SET estado='em_andamento', motivo_estado=NULL,
+            execucao=CASE WHEN estado IN ('pronta','pausada') THEN execucao+1 ELSE execucao END,
+            versao=CASE WHEN estado IN ('pronta','pausada') THEN versao+1 ELSE versao END
+          WHERE id=$1 AND versao=$2 AND estado IN ('pronta','em_andamento','pausada') RETURNING execucao`, [pesquisa.id, pesquisa.versao])
+      : await db.query(`SELECT execucao FROM pesquisas_tese WHERE id=$1 AND estado='em_andamento' AND execucao=$2`, [pesquisa.id, continuacao])).rows[0];
+    if (!vigente) return parado();
+    const { execucao } = vigente;
     const r = await motor.avancar(pesquisa, usuario, { quantidade, execucao });
     // Revalida o escopo antes de gravar o estado: a sessão pode ter caído durante a leitura dos sites.
     await req.revalidarSessao();

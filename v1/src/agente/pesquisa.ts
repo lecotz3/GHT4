@@ -24,7 +24,7 @@ export interface Pesquisa {
   id: string; conversa_id: string; anterior_id: string | null; tese: string; frente: 'compra' | 'venda'
   filtros: Filtros; criterios: Criterio[]; meta: number; limite_web: number; referencia: string
   funil: Funil | Record<string, never>; estado: EstadoPesquisa; motivo_estado: string | null
-  modo: string; notas: string[]; turno_id: string | null; versao: number; atualizado_em: string
+  modo: string; notas: string[]; turno_id: string | null; versao: number; execucao: number; atualizado_em: string
 }
 export interface ItemPesquisa {
   empresa_id: string; ordem: number; etapa: 'aguardando' | 'em_revisao' | 'revisada'
@@ -46,7 +46,8 @@ export const pesquisaApi = {
   editar: (id: string, corpo: { versao: number; criterios?: Criterio[]; filtros?: Filtros; frente?: 'compra' | 'venda'; meta?: number; limiteWeb?: number }) => api<DetalhePesquisa>(`/api/pesquisas/${id}`, 'PATCH', corpo),
   previa: (id: string, criterios: Criterio[], filtros: Filtros) => api<Previa>(`/api/pesquisas/${id}/previa`, 'POST', { criterios, filtros }),
   iniciar: (id: string, versao: number) => api<DetalhePesquisa>(`/api/pesquisas/${id}/iniciar`, 'POST', { versao }),
-  avancar: (id: string, quantidade = 2) => api<DetalhePesquisa>(`/api/pesquisas/${id}/avancar`, 'POST', { quantidade }),
+  /** Sem `execucao`: retomada explícita. Com ela: continuação do laço, só na mesma geração. */
+  avancar: (id: string, quantidade = 2, execucao?: number) => api<DetalhePesquisa>(`/api/pesquisas/${id}/avancar`, 'POST', execucao === undefined ? { quantidade } : { quantidade, execucao }),
   pausar: (id: string) => api<DetalhePesquisa>(`/api/pesquisas/${id}/pausar`, 'POST', {}),
   ajustar: (id: string, novo: string) => api<DetalhePesquisa>(`/api/pesquisas/${id}/ajustar`, 'POST', { id: novo }),
   registrar: (id: string, chave: string, empresas: string[]) => api<{ turno: { id: string }; conversa: { id: string } }>(`/api/pesquisas/${id}/registrar`, 'POST', { chave, empresas }),

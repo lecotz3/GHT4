@@ -376,6 +376,48 @@ test('pausa pedida durante o lote não é desfeita quando ele termina', async (t
   assert.ok(depois.contagens.pendentes >= 1, 'a pausa impediu novas reservas');
 });
 
+test('avanço antigo não desfaz pausa, conclusão nem retomada mais nova', async (t) => {
+  const { chamar, db } = await preparar(t);
+  // Intercala uma ação exatamente antes da transição do avanço (a janela entre ler e gravar).
+  const original = db.query.bind(db);
+  let antes = null;
+  db.query = async (sql, ...resto) => {
+    if (antes && /estado='em_andamento', motivo_estado=NULL|AND estado='em_andamento' AND execucao=\$2/.test(sql)) { const f = antes; antes = null; await f(); }
+    return original(sql, ...resto);
+  };
+  t.after(() => { db.query = original; });
+  const estado = async (id) => (await original('SELECT estado, execucao, motivo_estado FROM pesquisas_tese WHERE id=$1', [id])).rows[0];
+
+  // Retomada explícita que leu "pronta", com pausa entre a leitura e a transição: não vira retomada.
+  const a = await pesquisaPronta(chamar, 4);
+  antes = () => chamar('POST', `/api/pesquisas/${a}/pausar`);
+  const r1 = (await chamar('POST', `/api/pesquisas/${a}/avancar`, { quantidade: 1 })).json();
+  assert.deepEqual(r1.atualizados, []);
+  assert.deepEqual(await estado(a), { estado: 'pausada', execucao: 0, motivo_estado: 'Pausada por você.' });
+
+  // Continuação da geração 1 com pausa intercalada: não revisa, não limpa o motivo, não abre geração.
+  const b = await pesquisaPronta(chamar, 4);
+  const g1 = (await chamar('POST', `/api/pesquisas/${b}/avancar`, { quantidade: 1 })).json();
+  assert.equal(g1.pesquisa.execucao, 1); assert.equal(g1.pesquisa.estado, 'em_andamento');
+  antes = () => chamar('POST', `/api/pesquisas/${b}/pausar`);
+  const r2 = (await chamar('POST', `/api/pesquisas/${b}/avancar`, { quantidade: 1, execucao: 1 })).json();
+  assert.deepEqual(r2.atualizados, []);
+  assert.deepEqual(await estado(b), { estado: 'pausada', execucao: 1, motivo_estado: 'Pausada por você.' });
+
+  // Retomada mais nova (geração 2): continuação atrasada da geração 1 não entra nela.
+  const g2 = (await chamar('POST', `/api/pesquisas/${b}/avancar`, { quantidade: 1 })).json();
+  assert.equal(g2.pesquisa.execucao, 2);
+  const r3 = (await chamar('POST', `/api/pesquisas/${b}/avancar`, { quantidade: 1, execucao: 1 })).json();
+  assert.deepEqual(r3.atualizados, []);
+  assert.equal(r3.pesquisa.execucao, 2);
+
+  // Conclusão intercalada: o avanço não reabre a pesquisa.
+  antes = () => original(`UPDATE pesquisas_tese SET estado='concluida', motivo_estado='Meta atingida.' WHERE id=$1`, [b]);
+  const r4 = (await chamar('POST', `/api/pesquisas/${b}/avancar`, { quantidade: 1, execucao: 2 })).json();
+  assert.deepEqual(r4.atualizados, []);
+  assert.equal((await estado(b)).estado, 'concluida');
+});
+
 test('lote vencido não grava por cima de quem retomou a reserva', async (t) => {
   const g = fetchComPortao();
   const { chamar, db } = await preparar(t, { fetchImpl: g.fetchImpl });

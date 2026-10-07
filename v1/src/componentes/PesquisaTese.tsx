@@ -135,11 +135,16 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
     const vigente = () => execucaoTela.current === minha
     parar.current = false; setRodando(true); setErro(''); setAviso('')
     const alvo = Math.min(AMOSTRA, d.contagens.total)
+    // O primeiro pedido é a retomada explícita; os seguintes continuam a geração que ela abriu.
+    let geracao: number | undefined
     try {
       while (!parar.current && vigente()) {
-        d = await pesquisaApi.avancar(d.pesquisa.id, 2)
+        d = await pesquisaApi.avancar(d.pesquisa.id, 2, geracao)
         if (!vigente() || !aplicar(d)) break
         if (d.pesquisa.estado !== 'em_andamento') break
+        // Outra aba retomou por cima: a geração dela vale, este laço só para.
+        if (geracao !== undefined && d.pesquisa.execucao !== geracao) return
+        geracao = d.pesquisa.execucao
         if (ate === 'amostra' && d.contagens.revisadas >= alvo) {
           d = await pesquisaApi.pausar(d.pesquisa.id); aplicar(d)
           setAviso(`Amostra de ${d.contagens.revisadas} empresas revisada. Confira os vereditos; se estiverem bons, continue até a meta.`)
