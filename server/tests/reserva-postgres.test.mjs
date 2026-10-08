@@ -69,13 +69,14 @@ async function ensaioMonitor(db) {
     await db.query(`INSERT INTO monitoramentos_tese (pesquisa_id,usuario_id,proxima_em) VALUES ($1,$2,now()-interval '1 minute')`, [id, u.id]);
   }
   const vistos = [];
-  const motor = { calcular: async (p) => { vistos.push(p.id); await new Promise((r) => setTimeout(r, 50)); return { itens: [] }; } };
+  const motor = { aprovadasCadastro: async (p) => { vistos.push(p.id); await new Promise((r) => setTimeout(r, 50)); return { funil: { recorte: 0, avaliadas: 0, truncado: false }, empresas: [] }; } };
   const r = await Promise.all(Array.from({ length: 6 }, () => verificarVencidos(db, motor, u.id, { limite: 1 })));
   assert.equal(r.flat().length, 3, 'três vencidos, três verificações');
   assert.ok(r.flat().every((x) => !x.falhou), 'nenhuma falhou');
   assert.deepEqual([...vistos].sort(), [...ids].sort(), 'cada pesquisa uma vez só');
   const adiante = (await db.query(`SELECT count(*) FILTER (WHERE proxima_em > now() + interval '6 days')::int AS n FROM monitoramentos_tese WHERE usuario_id=$1`, [u.id])).rows[0].n;
-  assert.equal(adiante, 3);
+  assert.equal(adiante, 3, 'concluídas: próxima semana');
+  assert.ok(r.flat().every((x) => !x.descartada), 'nenhum resultado descartado entre abas');
 }
 
 test('ensaio do monitoramento: fixture válida e lógica em série (PGlite)', async (t) => {

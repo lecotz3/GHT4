@@ -1,4 +1,4 @@
-import { SUBSETORES_ALVO } from '../agente/pesquisa'
+import { SUBSETORES_ALVO, type InicialPesquisa } from '../agente/pesquisa'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { MarcaGHT4 } from './MarcaGHT4'
 import { Equipe } from './Equipe'
@@ -40,7 +40,7 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
   const [versaoEquipe, setVersaoEquipe] = useState(0)
   const [crm, setCrm] = useState<{ id: string | null } | null>(null)
   const [trabalhoExterno, setTrabalhoExterno] = useState<string | null>(null)
-  const [pesquisaInicial, setPesquisaInicial] = useState<{ tese?: string; pesquisaId?: string } | null>(null)
+  const [pesquisaInicial, setPesquisaInicial] = useState<InicialPesquisa | null>(null)
   const consumirPesquisa = useCallback(() => setPesquisaInicial(null), [])
   const conviteInicial = useRef(convite)
   const aoExpirar = useCallback(() => { setUsuario(null); setSecao('inicio'); setCrm(null); setFase('login'); setErro('Sua sessão expirou. Faça login para retomar seus trabalhos.') }, [])
@@ -85,7 +85,7 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
     window.scrollTo({ top: 0, behavior: 'instant' })
   }
   function abrirCrm(id: string) { setCrm({ id }); setSecao('crm'); window.scrollTo({ top: 0, behavior: 'instant' }) }
-  function pesquisar(inicial: { tese?: string; pesquisaId?: string }) { setPesquisaInicial(inicial); navegar('pesquisa') }
+  function pesquisar(inicial: InicialPesquisa) { setPesquisaInicial(inicial); navegar('pesquisa') }
 
   if (usuario && !convite) return <FichaContexto.Provider value={setFicha}><EstruturaAgente usuario={usuario} secao={secao} aoNavegar={navegar} aoSair={() => void sair()} saindo={ocupado}>
     {erro && <p role="alert" className="mx-5 mt-3 text-sm text-alerta">{erro}</p>}
@@ -123,7 +123,7 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
   </div>
 }
 
-function EspacoDoAgente({ usuario, inicio, aoOportunidades, aoTrabalhar, aoRede, aoAjuda, aoExpirar, versaoEquipe, aoAbrirCrm, trabalhoExterno, aoPesquisar }: { usuario: Usuario; inicio: boolean; aoOportunidades: () => void; aoTrabalhar: () => void; aoRede: () => void; aoAjuda: () => void; aoExpirar: () => void; versaoEquipe: number; aoAbrirCrm: (id: string) => void; trabalhoExterno: string | null; aoPesquisar: (inicial: { tese?: string; pesquisaId?: string }) => void }) {
+function EspacoDoAgente({ usuario, inicio, aoOportunidades, aoTrabalhar, aoRede, aoAjuda, aoExpirar, versaoEquipe, aoAbrirCrm, trabalhoExterno, aoPesquisar }: { usuario: Usuario; inicio: boolean; aoOportunidades: () => void; aoTrabalhar: () => void; aoRede: () => void; aoAjuda: () => void; aoExpirar: () => void; versaoEquipe: number; aoAbrirCrm: (id: string) => void; trabalhoExterno: string | null; aoPesquisar: (inicial: InicialPesquisa) => void }) {
   const [estado, setEstado] = useState<EstadoAgente | null>(null)
   const [conversas, setConversas] = useState<Conversa[]>([])
   const [mandatos, setMandatos] = useState<{ id: string; rotulo: string }[]>([])
@@ -260,7 +260,7 @@ function EspacoDoAgente({ usuario, inicio, aoOportunidades, aoTrabalhar, aoRede,
 
   if (inicio) return <main className="agente-pagina">
     {erro && <p role="alert" className="mb-5 text-sm text-alerta">{erro} <button className="underline" onClick={() => void carregar()}>Tentar novamente</button></p>}
-    {estado ? <InicioAgente usuario={usuario} estado={estado} conversas={conversas} aoComecar={comecar} aoRetomar={(id) => { aoTrabalhar(); void abrir(id) }} aoRede={aoRede} aoAjuda={aoAjuda} aoPesquisar={(tese) => aoPesquisar({ tese })} aoAbrirPesquisa={(id) => aoPesquisar({ pesquisaId: id })} bloqueado={bloqueado} visivel={inicio} aoAbrirCrm={aoAbrirCrm} aoOportunidades={aoOportunidades} aoExpirar={aoExpirar} aoExcluir={excluir} /> : <p role="status">Preparando seu espaço…</p>}
+    {estado ? <InicioAgente usuario={usuario} estado={estado} conversas={conversas} aoComecar={comecar} aoRetomar={(id) => { aoTrabalhar(); void abrir(id) }} aoRede={aoRede} aoAjuda={aoAjuda} aoPesquisar={(tese) => aoPesquisar({ tese })} aoAbrirPesquisa={(id, ateId) => aoPesquisar({ pesquisaId: id, novidadesAte: ateId })} bloqueado={bloqueado} visivel={inicio} aoAbrirCrm={aoAbrirCrm} aoOportunidades={aoOportunidades} aoExpirar={aoExpirar} aoExcluir={excluir} /> : <p role="status">Preparando seu espaço…</p>}
   </main>
 
   return <main className="agente-pagina space-y-6">

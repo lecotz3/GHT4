@@ -3,7 +3,7 @@ import { IconeRede } from './IconeRede'
 import { ErroApi, type Usuario } from '../agente/api'
 import {
   pesquisaApi, ATALHOS_CADASTRO, DESCRICAO_CATEGORIA, EXEMPLOS_TESE, ROTULO_CATEGORIA, ROTULO_VEREDITO,
-  type Categoria, type Criterio, type DetalhePesquisa, type Filtros, type Funil, type IAInfo, type ItemPesquisa, type Previa, type ResumoPesquisa, type Veredito, type Monitoramento, SUBSETORES_ALVO, SUBSETOR_ORIGINAL, rotuloSubsetor,
+  type Categoria, type Criterio, type DetalhePesquisa, type Filtros, type Funil, type IAInfo, type ItemPesquisa, type Previa, type ResumoPesquisa, type Veredito, type Monitoramento, type InicialPesquisa, SUBSETORES_ALVO, SUBSETOR_ORIGINAL, rotuloSubsetor,
 } from '../agente/pesquisa'
 import { montarGrupos, paginasVazias, type Paginas } from '../agente/pesquisa-tela'
 import { criarFluxos, type Rascunho } from '../agente/pesquisa-fluxos'
@@ -18,7 +18,7 @@ const funilValido = (f: DetalhePesquisa['pesquisa']['funil']): f is Funil => typ
 
 export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTrabalho, aoExpirar }: {
   usuario: Usuario
-  inicial: { tese?: string; pesquisaId?: string } | null
+  inicial: InicialPesquisa | null
   aoConsumirInicial: () => void
   aoAbrirTrabalho: (conversaId: string) => void
   aoExpirar: () => void
@@ -50,6 +50,9 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
   const [paginas, setPaginas] = useState<Paginas>(paginasVazias())
   // A tese escrita no Início já é um pedido: monta os critérios sem exigir outro clique.
   const autoEnviar = useRef<string | null>(null)
+  // Aberta por um aviso do Meu dia: as novidades só contam como vistas depois que a pesquisa
+  // carregou, e só até a última que o aviso mostrou. Falhou ao abrir, o aviso continua lá.
+  const vistaPendente = useRef<{ id: string; ateId: number } | null>(null)
   const podeUsar = usuario.papel !== 'leitura'
   const p = detalhe?.pesquisa
   const rascunho = p?.estado === 'rascunho'
@@ -81,11 +84,18 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
   useEffect(() => { void recarregarLista() }, [recarregarLista])
   useEffect(() => {
     if (!inicial) return
+    if (inicial.pesquisaId && inicial.novidadesAte) vistaPendente.current = { id: inicial.pesquisaId, ateId: inicial.novidadesAte }
     if (inicial.pesquisaId) void abrir(inicial.pesquisaId)
     else if (inicial.tese) { f.esvaziar(); setDetalhe(null); setTese(inicial.tese); autoEnviar.current = inicial.tese }
     aoConsumirInicial()
   }, [inicial, abrir, aoConsumirInicial, f])
   useEffect(() => () => f.desmontar(), [f])
+  useEffect(() => {
+    const v = vistaPendente.current
+    if (!v || detalhe?.pesquisa.id !== v.id) return
+    vistaPendente.current = null
+    void pesquisaApi.marcarNovidadesVistas(v.id, v.ateId).catch(() => {})
+  }, [detalhe])
   useEffect(() => {
     if (!autoEnviar.current || autoEnviar.current !== tese) return
     autoEnviar.current = null
@@ -378,7 +388,8 @@ function MonitorarTese({ pesquisaId, monitoramento: m, podeUsar, aoMudar, aoFalh
       <p className="text-sm text-suave">{ativo && m
         ? `Próxima verificação a partir de ${dataBr(m.proximaEm)}, ao abrir o Meu dia. O funil cadastral é refeito no catálogo vigente (sem ler sites) e o Meu dia avisa sobre empresas novas e eventos societários.`
         : 'Toda semana, o Meu dia avisa sobre empresas que passarem a atender aos critérios cadastrais e sobre eventos societários das empresas desta pesquisa.'}</p>
-      {u && <p className="text-xs text-suave">Última verificação em {dataBr(u.verificadoEm)}: {plural(u.totalNovas, 'empresa nova', 'empresas novas')}{u.novas.length ? ` (${u.novas.map((x) => x.nome).join(', ')}${u.totalNovas > u.novas.length ? '…' : ''})` : ''} · {plural(u.totalEventos, 'com evento societário', 'com evento societário')}{u.eventos.length ? ` (${u.eventos.map((x) => x.nome).join(', ')})` : ''}.{u.totalNovas ? ' Para revisar as novas no site, use "Ajustar critérios" (nova rodada).' : ''}</p>}
+      {m?.cobertura && !m.cobertura.completa && <p className="pesquisa-alerta text-xs">Cobertura parcial: a verificação avalia {m.cobertura.avaliadas.toLocaleString('pt-BR')} de {m.cobertura.recorte.toLocaleString('pt-BR')} empresas do recorte (limite por recorte). Empresas fora dessa parte não geram aviso. Para cobrir tudo, restrinja o recorte (subsetor ou UF) com "Ajustar critérios".</p>}
+      {u && <p className="text-xs text-suave">Última verificação em {dataBr(u.verificadoEm)}{u.cobertura && !u.cobertura.completa ? ' (parcial)' : ''}: {plural(u.totalNovas, 'empresa nova', 'empresas novas')}{u.novas.length ? ` (${u.novas.map((x) => x.nome).join(', ')}${u.totalNovas > u.novas.length ? '…' : ''})` : ''} · {plural(u.totalEventos, 'com evento societário', 'com evento societário')}{u.eventos.length ? ` (${u.eventos.map((x) => x.nome).join(', ')})` : ''}.{u.totalNovas ? ' Para revisar as novas no site, use "Ajustar critérios" (nova rodada).' : ''}</p>}
     </div>
     <button className="agente-btn-secundario" onClick={() => void alternar()} disabled={salvando || !podeUsar}>{salvando ? 'Salvando…' : ativo ? 'Parar de monitorar' : 'Monitorar toda semana'}</button>
     <p role="status" className="sr-only">{anuncio}</p>

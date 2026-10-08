@@ -255,6 +255,14 @@ export function criarMotorPesquisa({ db, catalogo, servicoIA = null, web = {} })
       return { funil, itens, estado, motivo, hash: recorte.hash, referencia: recorte.referencia };
     },
 
+    /** Todas as aprovadas no cadastro, sem o corte de itens da pesquisa (para o monitoramento).
+     *  O recorte continua limitado pelo catálogo; `funil.truncado` diz se a varredura foi parcial. */
+    async aprovadasCadastro(pesquisa) {
+      const recorte = await recorteAtual(pesquisa.filtros);
+      const { funil, aprovadas } = funilDe(recorte, pesquisa.criterios);
+      return { funil, empresas: aprovadas.map((a) => ({ id: a.e.id, nome: a.e.nome, cidade: a.e.cidade, uf: a.e.uf, aderencia: a.aderencia })) };
+    },
+
     async gravarItens(tx, pesquisaId, itens) {
       for (let i = 0; i < itens.length; i += 400) {
         await tx.query(`INSERT INTO pesquisa_itens (pesquisa_id,empresa_id,ordem,empresa,etapa,vereditos,aderencia,categoria,revisado_em)

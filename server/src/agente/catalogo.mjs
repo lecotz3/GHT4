@@ -17,7 +17,9 @@ export function escopoSubsetores(subsetor) {
 export const rotuloEscopo = (escopo) => escopo.length === 1 ? escopo[0] : `Químicos · ${escopo.length} subsetores`;
 const ARQUIVO = fileURLToPath(new URL('../../../data-quimicos.js', import.meta.url));
 const ARQUIVO_IBAMA = fileURLToPath(new URL('../../../data-ibama.js', import.meta.url));
-/** Teto do recorte entregue à revisão: o subsetor inteiro, com possíveis, cabe com folga. */
+/** Teto do recorte entregue à revisão e ao monitoramento. Com os 9 setores-alvo o escopo amplo
+ *  passa disso (12 mil sem possíveis, 36 mil com): o funil marca `truncado` e o monitoramento
+ *  grava cobertura parcial. Restringir subsetor ou UF traz o recorte para dentro do teto. */
 export const LIMITE_RECORTE = 10000;
 export const normalizar = (s) => String(s ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 

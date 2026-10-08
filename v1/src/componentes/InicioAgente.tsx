@@ -8,7 +8,7 @@ export function InicioAgente({ usuario, estado, conversas, aoComecar, aoRetomar,
   usuario: Usuario; estado: EstadoAgente; conversas: Conversa[]; aoComecar: (t: Tarefa) => void; aoRetomar: (id: string) => void; aoRede: () => void; aoAjuda: () => void
   aoPesquisar: (tese: string) => void; bloqueado: boolean
   visivel: boolean; aoAbrirCrm: (id: string) => void; aoOportunidades: () => void; aoExpirar: () => void; aoExcluir: (id: string) => Promise<boolean>
-  aoAbrirPesquisa?: (id: string) => void
+  aoAbrirPesquisa?: (id: string, ateId?: number) => void
 }) {
   const [tese, setTese] = useState('')
   // Excluir pede confirmação no próprio item: um clique solto não some com o trabalho.

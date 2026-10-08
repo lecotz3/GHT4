@@ -1,93 +1,141 @@
 /* Monitoramento semanal de tese. Não há agendador: a verificação vencida roda quando a
    pessoa abre o Meu dia (POST /api/monitoramentos/verificar), que é onde as novidades
    aparecem. Refaz só o funil cadastral sobre o catálogo vigente: nenhum site é lido e
-   nenhuma IA é chamada. O que muda vira novidade até a pessoa abrir a pesquisa. */
+   nenhuma IA é chamada. O que muda vira novidade até a pessoa abrir a pesquisa.
+
+   Garantias:
+   - nada detectado é descartado: toda novidade é gravada (em lotes) antes de a linha de
+     base e o cursor de eventos avançarem;
+   - o conjunto monitorado é a linha de base inteira (`conhecidas`), inclusive empresas
+     descobertas em semanas anteriores, que continuam recebendo eventos;
+   - acesso conferido na seleção e de novo, com a sessão relida, logo antes de gravar;
+   - reserva curta com ficha: processo interrompido não empurra a semana, e desligar ou
+     religar durante o cálculo invalida o resultado em voo;
+   - cobertura explícita: com o limite de empresas por recorte, a verificação pode ser
+     parcial, e isso fica gravado e visível. */
 
 export const SEMANA = "interval '7 days'";
+/** Reserva enquanto calcula: se o processo cair, a verificação volta a vencer depois disso. */
+const RESERVA = "interval '10 minutes'";
 /** Falha ao verificar: tenta de novo em uma hora, em vez de perder a semana. */
 const NOVA_TENTATIVA = "interval '1 hour'";
-/** Teto de novidades gravadas por verificação; o total vai no resultado. */
-const MAX_NOVIDADES = 200;
+const LOTE = 500;
 const NOMES_NO_RESULTADO = 10;
 
 const MAIOR_EVENTO = 'SELECT COALESCE(max(id),0)::bigint AS n FROM eventos_corporativos';
 
-/** Liga ou desliga. Ligar grava a linha de base: as empresas que a pessoa já viu na pesquisa. */
-export async function definirMonitoramento(db, { pesquisaId, usuarioId, ativo }) {
+/** Cobertura de uma varredura: quantas empresas do recorte foram de fato avaliadas. */
+export const coberturaDe = (funil) => ({ recorte: funil.recorte, avaliadas: funil.avaliadas, completa: !funil.truncado && funil.avaliadas >= funil.recorte });
+
+/**
+ * Liga ou desliga. Ligar grava a linha de base: todas as empresas que atendem ao cadastro
+ * agora (`aprovadas`, calculadas fora da transação) mais as que já estão na pesquisa.
+ * Ligar o que já está ligado não muda nada; desligar ou religar invalida verificação em voo.
+ */
+export async function definirMonitoramento(db, { pesquisaId, usuarioId, ativo, aprovadas = [], cobertura = null }) {
   return db.transaction(async (tx) => {
+    const atual = (await tx.query('SELECT * FROM monitoramentos_tese WHERE pesquisa_id=$1 FOR UPDATE', [pesquisaId])).rows[0];
     if (!ativo) {
-      return (await tx.query('UPDATE monitoramentos_tese SET ativo=FALSE WHERE pesquisa_id=$1 RETURNING *', [pesquisaId])).rows[0] ?? null;
+      if (!atual) return null;
+      return (await tx.query('UPDATE monitoramentos_tese SET ativo=FALSE, execucao=execucao+1 WHERE pesquisa_id=$1 RETURNING *', [pesquisaId])).rows[0];
     }
-    const conhecidas = (await tx.query('SELECT array_agg(empresa_id ORDER BY empresa_id) AS ids FROM pesquisa_itens WHERE pesquisa_id=$1', [pesquisaId])).rows[0].ids ?? [];
+    if (atual?.ativo) return atual;
+    const itens = (await tx.query('SELECT empresa_id FROM pesquisa_itens WHERE pesquisa_id=$1', [pesquisaId])).rows.map((r) => r.empresa_id);
+    const conhecidas = [...new Set([...itens, ...aprovadas])].sort();
     const ultimo = (await tx.query(MAIOR_EVENTO)).rows[0].n;
-    // Religar refaz a linha de base: o que estava na pesquisa até agora é conhecido.
-    return (await tx.query(`INSERT INTO monitoramentos_tese (pesquisa_id,usuario_id,ativo,conhecidas,ultimo_evento,proxima_em)
-        VALUES ($1,$2,TRUE,$3,$4,now()+${SEMANA})
-      ON CONFLICT (pesquisa_id) DO UPDATE SET ativo=TRUE, conhecidas=CASE WHEN monitoramentos_tese.ativo THEN monitoramentos_tese.conhecidas ELSE EXCLUDED.conhecidas END,
-        ultimo_evento=CASE WHEN monitoramentos_tese.ativo THEN monitoramentos_tese.ultimo_evento ELSE EXCLUDED.ultimo_evento END,
-        proxima_em=CASE WHEN monitoramentos_tese.ativo THEN monitoramentos_tese.proxima_em ELSE EXCLUDED.proxima_em END
-      RETURNING *`, [pesquisaId, usuarioId, conhecidas, ultimo])).rows[0];
+    return (await tx.query(`INSERT INTO monitoramentos_tese (pesquisa_id,usuario_id,ativo,conhecidas,ultimo_evento,proxima_em,cobertura)
+        VALUES ($1,$2,TRUE,$3,$4,now()+${SEMANA},$5)
+      ON CONFLICT (pesquisa_id) DO UPDATE SET ativo=TRUE, conhecidas=EXCLUDED.conhecidas, ultimo_evento=EXCLUDED.ultimo_evento,
+        proxima_em=EXCLUDED.proxima_em, cobertura=EXCLUDED.cobertura, execucao=monitoramentos_tese.execucao+1
+      RETURNING *`, [pesquisaId, usuarioId, conhecidas, ultimo, cobertura && JSON.stringify(cobertura)])).rows[0];
   });
 }
 
 /** O estado público do monitoramento, para o detalhe da pesquisa. */
-export const publico = (m) => m ? { ativo: m.ativo, verificadoEm: m.verificado_em, proximaEm: m.proxima_em, ultimoResultado: m.ultimo_resultado ?? null } : null;
+export const publico = (m) => m ? { ativo: m.ativo, verificadoEm: m.verificado_em, proximaEm: m.proxima_em,
+  cobertura: m.cobertura ?? null, ultimoResultado: m.ultimo_resultado ?? null } : null;
 
 /**
- * Verifica até `limite` monitoramentos vencidos da pessoa. Cada um é reivindicado com
- * `FOR UPDATE SKIP LOCKED` e já recebe a próxima data: duas abas abrindo o Meu dia ao
- * mesmo tempo não verificam a mesma pesquisa duas vezes.
+ * Verifica até `limite` monitoramentos vencidos da pessoa.
+ * - `escopo` ({ admin, mandatos }): mesma regra da lista de pesquisas, aplicada na seleção;
+ * - `podeAcessar(pesquisaId)`: a política completa (`carregar`, com a sessão relida),
+ *   conferida antes de reivindicar e de novo logo antes de gravar.
+ * Cada candidata é reivindicada com UPDATE condicional (vencida e ativa): entre abas
+ * concorrentes, só uma reserva cada pesquisa.
  */
-export async function verificarVencidos(db, motor, usuarioId, { limite = 2 } = {}) {
+export async function verificarVencidos(db, motor, usuarioId, { limite = 2, escopo = { admin: false, mandatos: [] }, podeAcessar = async () => true } = {}) {
+  const candidatas = (await db.query(`SELECT t.pesquisa_id FROM monitoramentos_tese t
+      JOIN pesquisas_tese p ON p.id=t.pesquisa_id JOIN agente_conversas c ON c.id=p.conversa_id LEFT JOIN mandatos m ON m.id=c.mandato_id
+      WHERE t.usuario_id=$1 AND p.usuario_id=$1 AND t.ativo AND t.proxima_em<=now()
+        AND (c.mandato_id IS NULL OR $2 OR m.confidencial=FALSE OR c.mandato_id=ANY($3::uuid[]))
+      ORDER BY t.proxima_em, t.pesquisa_id LIMIT 20`, [usuarioId, escopo.admin, escopo.mandatos])).rows.map((r) => r.pesquisa_id);
   const feitos = [];
-  for (let i = 0; i < limite; i++) {
-    const m = (await db.query(`UPDATE monitoramentos_tese SET proxima_em=now()+${SEMANA}
-      WHERE pesquisa_id=(SELECT pesquisa_id FROM monitoramentos_tese WHERE usuario_id=$1 AND ativo AND proxima_em<=now()
-        ORDER BY proxima_em LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING *`, [usuarioId])).rows[0];
-    if (!m) break;
-    try { feitos.push(await verificar(db, motor, m)); }
+  for (const pesquisaId of candidatas) {
+    if (feitos.length >= limite) break;
+    if (!(await podeAcessar(pesquisaId))) continue; // fora do escopo: não reserva nem consome nada
+    const m = (await db.query(`UPDATE monitoramentos_tese SET proxima_em=now()+${RESERVA}, execucao=execucao+1
+      WHERE pesquisa_id=$1 AND ativo AND proxima_em<=now() RETURNING *`, [pesquisaId])).rows[0];
+    if (!m) continue; // outra aba reservou antes
+    try { feitos.push(await verificar(db, motor, m, podeAcessar)); }
     catch {
-      await db.query(`UPDATE monitoramentos_tese SET proxima_em=now()+${NOVA_TENTATIVA} WHERE pesquisa_id=$1`, [m.pesquisa_id]);
+      await db.query(`UPDATE monitoramentos_tese SET proxima_em=now()+${NOVA_TENTATIVA} WHERE pesquisa_id=$1 AND execucao=$2`, [m.pesquisa_id, m.execucao]);
       feitos.push({ pesquisaId: m.pesquisa_id, falhou: true });
     }
   }
   return feitos;
 }
 
-async function verificar(db, motor, m) {
+async function verificar(db, motor, m, podeAcessar) {
   const pesquisa = (await db.query('SELECT * FROM pesquisas_tese WHERE id=$1', [m.pesquisa_id])).rows[0];
   // Fora de qualquer transação: o recorte é uma consulta grande (ver motor.calcular).
-  const { itens } = await motor.calcular(pesquisa);
+  // Todas as aprovadas, sem o corte de itens da pesquisa; o limite do recorte vira cobertura.
+  const { funil, empresas } = await motor.aprovadasCadastro(pesquisa);
+  const cobertura = coberturaDe(funil);
   const conhecidas = new Set(m.conhecidas);
-  const novas = itens.filter((i) => !conhecidas.has(i.empresa_id));
+  // Ligado antes da cobertura (Rodada 15), a linha de base tinha só os itens da pesquisa (até 2.000):
+  // a primeira verificação completa a linha de base com todas as aprovadas, sem avisá-las como novas.
+  const refazerBase = m.cobertura == null;
+  const novas = refazerBase ? [] : empresas.filter((e) => !conhecidas.has(e.id));
+  const incorporar = refazerBase ? empresas.map((e) => e.id) : novas.map((e) => e.id);
   const ultimo = (await db.query(MAIOR_EVENTO)).rows[0].n;
-  // Evento novo em empresa da pesquisa (já vista ou nova agora); só o mais recente de cada uma.
-  const eventos = (await db.query(`SELECT DISTINCT ON (x.empresa_id) x.empresa_id, x.nome, ev.descricao
-      FROM (SELECT empresa_id, empresa->>'nome' AS nome FROM pesquisa_itens WHERE pesquisa_id=$1
-            UNION SELECT u.id, u.nome FROM unnest($4::text[], $5::text[]) AS u(id, nome)) x
-      JOIN entidades_juridicas e ON 'cnpj'||trim(e.cnpj_raiz)=x.empresa_id
+  // Eventos de todo o conjunto monitorado: a linha de base (com as descobertas anteriores),
+  // os itens da pesquisa e as novas de agora. Só o evento mais recente de cada empresa.
+  const monitoradas = [...new Set([...m.conhecidas, ...incorporar])];
+  const eventos = (await db.query(`SELECT DISTINCT ON (a.id) a.id AS empresa_id,
+        COALESCE(r.nome, i.empresa->>'nome', a.id) AS nome, ev.descricao
+      FROM unnest($1::text[]) AS a(id)
+      JOIN entidades_juridicas e ON 'cnpj'||trim(e.cnpj_raiz)=a.id
       JOIN eventos_corporativos ev ON ev.entidade_id=e.id AND ev.tipo<>'outro' AND ev.id>$2 AND ev.id<=$3
-      ORDER BY x.empresa_id, ev.id DESC`,
-  [m.pesquisa_id, m.ultimo_evento, ultimo, novas.map((i) => i.empresa_id), novas.map((i) => i.empresa.nome)])).rows;
+      LEFT JOIN catalogo_registros r ON r.entidade_id=e.id AND r.snapshot_id=(SELECT snapshot_id FROM catalogo_controle WHERE id=TRUE)
+      LEFT JOIN pesquisa_itens i ON i.pesquisa_id=$4 AND i.empresa_id=a.id
+      ORDER BY a.id, ev.id DESC`, [monitoradas, m.ultimo_evento, ultimo, m.pesquisa_id])).rows;
   const resultado = {
-    verificadoEm: new Date().toISOString(), totalNovas: novas.length, totalEventos: eventos.length,
-    novas: novas.slice(0, NOMES_NO_RESULTADO).map((i) => ({ id: i.empresa_id, nome: i.empresa.nome, aderencia: i.aderencia })),
+    verificadoEm: new Date().toISOString(), totalNovas: novas.length, totalEventos: eventos.length, cobertura,
+    ...(refazerBase ? { linhaDeBaseRefeita: true } : {}),
+    novas: novas.slice(0, NOMES_NO_RESULTADO).map((e) => ({ id: e.id, nome: e.nome, aderencia: e.aderencia })),
     eventos: eventos.slice(0, NOMES_NO_RESULTADO).map((e) => ({ id: e.empresa_id, nome: e.nome, rotulo: e.descricao })),
   };
-  await db.transaction(async (tx) => {
+  // Acesso revalidado (sessão relida) logo antes de gravar: revogado durante o cálculo, nada é
+  // gravado e o cursor não avança; a reserva expira sozinha. Fora da transação porque a política
+  // consulta mandatos e sessão pelo banco.
+  if (!(await podeAcessar(m.pesquisa_id))) return { pesquisaId: m.pesquisa_id, descartada: true };
+  return db.transaction(async (tx) => {
+    // Só quem tem a ficha vigente grava, e só com o monitoramento ainda ligado.
+    const atual = (await tx.query('SELECT ativo, execucao FROM monitoramentos_tese WHERE pesquisa_id=$1 FOR UPDATE', [m.pesquisa_id])).rows[0];
+    if (!atual?.ativo || atual.execucao !== m.execucao) return { pesquisaId: m.pesquisa_id, descartada: true };
     const linhas = [
-      ...novas.slice(0, MAX_NOVIDADES).map((i) => ({ empresa_id: i.empresa_id, tipo: 'nova', empresa: { id: i.empresa_id, nome: i.empresa.nome, cidade: i.empresa.cidade, uf: i.empresa.uf }, detalhe: `Aderência ${i.aderencia}%` })),
-      ...eventos.slice(0, MAX_NOVIDADES).map((e) => ({ empresa_id: e.empresa_id, tipo: 'evento', empresa: { id: e.empresa_id, nome: e.nome }, detalhe: e.descricao })),
+      ...novas.map((e) => ({ empresa_id: e.id, tipo: 'nova', empresa: { id: e.id, nome: e.nome, cidade: e.cidade, uf: e.uf }, detalhe: `Aderência ${e.aderencia}%` })),
+      ...eventos.map((e) => ({ empresa_id: e.empresa_id, tipo: 'evento', empresa: { id: e.empresa_id, nome: e.nome }, detalhe: e.descricao })),
     ];
-    if (linhas.length) {
+    // Tudo é gravado, em lotes: a linha de base nunca passa por cima de algo não avisado.
+    for (let i = 0; i < linhas.length; i += LOTE) {
       await tx.query(`INSERT INTO monitoramento_novidades (pesquisa_id,empresa_id,tipo,empresa,detalhe)
         SELECT $1,x.empresa_id,x.tipo,x.empresa,x.detalhe FROM jsonb_to_recordset($2::jsonb) AS x(empresa_id text, tipo text, empresa jsonb, detalhe text)`,
-      [m.pesquisa_id, JSON.stringify(linhas)]);
+      [m.pesquisa_id, JSON.stringify(linhas.slice(i, i + LOTE))]);
     }
-    // A linha de base avança: o que foi avisado não volta a ser novidade.
     await tx.query(`UPDATE monitoramentos_tese SET conhecidas=ARRAY(SELECT DISTINCT unnest(conhecidas || $2::text[]) ORDER BY 1),
-        ultimo_evento=GREATEST(ultimo_evento,$3), verificado_em=now(), ultimo_resultado=$4 WHERE pesquisa_id=$1`,
-    [m.pesquisa_id, novas.map((i) => i.empresa_id), ultimo, JSON.stringify(resultado)]);
+        ultimo_evento=GREATEST(ultimo_evento,$3), verificado_em=now(), proxima_em=now()+${SEMANA}, ultimo_resultado=$4, cobertura=$5
+      WHERE pesquisa_id=$1`, [m.pesquisa_id, incorporar, ultimo, JSON.stringify(resultado), JSON.stringify(cobertura)]);
+    return { pesquisaId: m.pesquisa_id, ...resultado };
   });
-  return { pesquisaId: m.pesquisa_id, ...resultado };
 }

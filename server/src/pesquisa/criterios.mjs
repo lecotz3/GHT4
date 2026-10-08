@@ -304,14 +304,29 @@ export function interpretarTese(tese, { referencia } = {}) {
     adicionar(m, `Declara o CNAE ${m[1]}-${m[2]}/${m[3]}`, { campo: 'cnae_secundario', valor: [`${m[1]}${m[2]}${m[3]}`] });
   }
 
-  // Subsetor: o primeiro citado na tese é o sujeito ("Distribuidoras ... de resinas" é distribuição).
-  // Não consome o texto; sem citação, o recorte cobre todos os setores-alvo.
-  const citados = SUBSETOR_POR_PALAVRA.map(([rotulo, re]) => { const m = n.match(re); return m ? { rotulo, pos: m.index, palavra: original.slice(m.index, m.index + m[0].length) } : null; })
-    .filter(Boolean).sort((a, b) => a.pos - b.pos);
-  if (citados.length) {
-    filtros.subsetor = citados[0].rotulo;
-    notas.push(`Recorte no subsetor "${citados[0].rotulo}" (pela palavra "${citados[0].palavra}"). Troque em "Recorte" para ver outros subsetores químicos.`);
+  /* Subsetor do recorte, só quando a escolha é inequívoca (um recorte errado elimina empresas
+     antes de qualquer critério; um recorte amplo só custa revisão). Não consome o texto.
+     - Menção negada na própria oração ("não quero tintas", "exceto resinas") nunca vira recorte.
+     - Um único subsetor citado: ele.
+     - Distribuidor citado primeiro e produtos depois ("Distribuidoras ... de resinas"):
+       distribuição; os produtos descrevem o que a distribuidora vende.
+     - Qualquer outra combinação ("resinas ou tintas"): todos os setores-alvo, com nota. */
+  const mencoes = SUBSETOR_POR_PALAVRA.flatMap(([rotulo, re]) => [...n.matchAll(new RegExp(re.source, 'g'))].map((m) => {
+    const oracao = n.slice(Math.max(n.lastIndexOf(',', m.index - 1), n.lastIndexOf(';', m.index - 1), n.lastIndexOf('.', m.index - 1), n.lastIndexOf('\n', m.index - 1)) + 1, m.index);
+    const negada = /\b(nao|sem|exceto|excluindo|menos|nem|fora)\b/.test(oracao.trim().split(/\s+/).slice(-4).join(' '));
+    return { rotulo, pos: m.index, palavra: original.slice(m.index, m.index + m[0].length), negada };
+  })).sort((a, b) => a.pos - b.pos);
+  const positivas = mencoes.filter((x) => !x.negada);
+  const distintos = [...new Set(positivas.map((x) => x.rotulo))];
+  const negados = [...new Set(mencoes.filter((x) => x.negada).map((x) => x.rotulo))].filter((r) => !distintos.includes(r));
+  const DISTRIBUICAO = 'Distribuição e trading químico';
+  if (distintos.length === 1 || (distintos.length > 1 && positivas[0].rotulo === DISTRIBUICAO)) {
+    filtros.subsetor = positivas[0].rotulo;
+    notas.push(`Recorte no subsetor "${filtros.subsetor}" (pela palavra "${positivas[0].palavra}")${distintos.length > 1 ? `; ${distintos.slice(1).map((r) => `"${r}"`).join(', ')} foi lido como produto vendido, não como recorte` : ''}. Troque em "Recorte" para ver outros subsetores químicos.`);
+  } else if (distintos.length > 1) {
+    notas.push(`A tese cita mais de um subsetor (${distintos.map((r) => `"${r}"`).join(', ')}): o recorte cobre todos os setores-alvo. Escolha um em "Recorte" se a tese for só sobre um deles.`);
   } else notas.push('A tese não cita um subsetor: o recorte cobre todos os subsetores químicos acionáveis. Escolha um em "Recorte" para concentrar a revisão.');
+  if (negados.length) notas.push(`${negados.map((r) => `"${r}"`).join(', ')} aparece negado na tese e não define o recorte; o recorte não exclui esse subsetor, confira na revisão.`);
 
   // Localização: cidade explícita, região, nomes de estado e siglas em maiúsculas.
   const ufs = new Set();

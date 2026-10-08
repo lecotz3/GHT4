@@ -52,11 +52,15 @@ export async function registrarInicio(app) {
       // Teses monitoradas com novidade ainda não vista, no mesmo escopo da lista de pesquisas.
       const acesso = `p.usuario_id=$1 AND (c.mandato_id IS NULL OR $2 OR m.confidencial=FALSE OR c.mandato_id=ANY($3::uuid[]))`;
       const va = [u.id, u.papel === 'admin', (u.mandatos ?? []).map((x) => x.id)];
+      // `ateId`: a última novidade mostrada; abrir pelo aviso marca como vistas só até ela.
+      // `parcial`: a verificação não cobriu o recorte inteiro (limite de empresas por recorte).
       const itens = (await db.query(`SELECT p.id AS "pesquisaId", c.titulo, p.tese,
           count(*) FILTER (WHERE n.tipo='nova')::int AS novas, count(*) FILTER (WHERE n.tipo='evento')::int AS eventos,
-          max(n.detectado_em) AS "detectadoEm", (array_agg(n.empresa->>'nome' ORDER BY n.id))[1:3] AS exemplos
+          max(n.detectado_em) AS "detectadoEm", (array_agg(n.empresa->>'nome' ORDER BY n.id))[1:3] AS exemplos,
+          max(n.id)::int AS "ateId", COALESCE(bool_or((t.cobertura->>'completa')::boolean = FALSE), FALSE) AS parcial
         FROM monitoramento_novidades n JOIN pesquisas_tese p ON p.id=n.pesquisa_id
         JOIN agente_conversas c ON c.id=p.conversa_id LEFT JOIN mandatos m ON m.id=c.mandato_id
+        LEFT JOIN monitoramentos_tese t ON t.pesquisa_id=p.id
         WHERE n.vista_em IS NULL AND ${acesso}
         GROUP BY p.id, c.titulo, p.tese ORDER BY max(n.detectado_em) DESC, p.id LIMIT 5`, va)).rows;
       const monitoradas = (await db.query(`SELECT count(*)::int AS n FROM monitoramentos_tese t JOIN pesquisas_tese p ON p.id=t.pesquisa_id

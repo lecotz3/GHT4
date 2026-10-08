@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { ErroHttp } from '../app.mjs';
 import { registrar } from '../auditoria/registrar.mjs';
 import { criarMotorPesquisa, Filtros, ListaCriterios, ordenarItens } from '../pesquisa/motor.mjs';
-import { definirMonitoramento, verificarVencidos, publico as monitoramentoPublico } from '../pesquisa/monitoramento.mjs';
+import { definirMonitoramento, verificarVencidos, coberturaDe, publico as monitoramentoPublico } from '../pesquisa/monitoramento.mjs';
 
 const Id = z.string().uuid();
 const Versao = z.number().int().min(1);
@@ -174,28 +174,46 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     return { itens, total, marca, proximoOffset: q.offset + itens.length < total ? q.offset + itens.length : null };
   });
 
-  /* Monitoramento semanal: ligar grava como linha de base as empresas já vistas na pesquisa. */
+  /* Monitoramento semanal: ligar grava como linha de base todas as empresas que atendem ao
+     cadastro agora (não só as da pesquisa, que tem corte), e a cobertura dessa varredura. */
   app.put('/api/pesquisas/:id/monitoramento', async (req) => {
     const { ativo } = z.object({ ativo: z.boolean() }).strict().parse(req.body);
     const { pesquisa, conversa, usuario } = await carregar(req, req.params.id, 'agente.usar');
     if (pesquisa.estado === 'rascunho') throw new ErroHttp(409, 'pesquisa_rascunho', 'Inicie a pesquisa antes de monitorá-la.');
-    const m = await definirMonitoramento(db, { pesquisaId: pesquisa.id, usuarioId: pesquisa.usuario_id, ativo });
+    let aprovadas = [], cobertura = null;
+    const ligado = (await db.query('SELECT ativo FROM monitoramentos_tese WHERE pesquisa_id=$1', [pesquisa.id])).rows[0]?.ativo;
+    if (ativo && !ligado) {
+      // Fora da transação: o recorte é uma consulta grande.
+      try { const r = await motor.aprovadasCadastro(pesquisa); aprovadas = r.empresas.map((e) => e.id); cobertura = coberturaDe(r.funil); }
+      catch { throw new ErroHttp(503, 'base_indisponivel', 'A base de empresas não está disponível agora. Tente novamente.'); }
+    }
+    const m = await definirMonitoramento(db, { pesquisaId: pesquisa.id, usuarioId: pesquisa.usuario_id, ativo, aprovadas, cobertura });
     await registrar(db, { usuarioId: usuario.id, mandatoId: conversa.mandato_id, entidade: 'pesquisa_tese', entidadeId: pesquisa.id,
       acao: ativo ? 'monitorar' : 'parar_monitoramento', depois: { ativo } });
     return { monitoramento: monitoramentoPublico(m) };
   });
 
-  /* Chamado pelo Meu dia: verifica os monitoramentos vencidos da pessoa (no máximo dois por vez). */
+  /* Chamado pelo Meu dia: verifica os monitoramentos vencidos da pessoa (no máximo dois por vez).
+     A seleção usa o escopo da lista de pesquisas; cada pesquisa passa pela política completa
+     (`carregar`) antes de ser reservada e de novo, com a sessão relida, antes de gravar. */
   app.post('/api/monitoramentos/verificar', async (req) => {
     const u = req.exigir('agente.ler');
-    const feitos = await verificarVencidos(db, motor, u.id);
-    return { verificados: feitos.length, falhas: feitos.filter((f) => f.falhou).length };
+    const podeAcessar = async (id) => {
+      await req.revalidarSessao();
+      try { await carregar(req, id); return true; } catch (e) { if (e instanceof ErroHttp) return false; throw e; }
+    };
+    const feitos = await verificarVencidos(db, motor, u.id, { podeAcessar,
+      escopo: { admin: u.papel === 'admin', mandatos: (u.mandatos ?? []).map((m) => m.id) } });
+    return { verificados: feitos.filter((f) => !f.falhou && !f.descartada).length, falhas: feitos.filter((f) => f.falhou).length };
   });
 
-  /* Abrir a pesquisa a partir do aviso marca as novidades dela como vistas. */
+  /* Chamado depois que a pesquisa abriu pelo aviso: marca como vistas só as novidades até a
+     última que o aviso mostrou (`ateId`); as que chegarem depois continuam no Meu dia. */
   app.post('/api/pesquisas/:id/novidades/vistas', async (req) => {
+    const { ateId } = z.object({ ateId: z.number().int().positive().optional() }).strict().parse(req.body ?? {});
     const { pesquisa } = await carregar(req, req.params.id);
-    const r = await db.query('UPDATE monitoramento_novidades SET vista_em=now() WHERE pesquisa_id=$1 AND vista_em IS NULL RETURNING id', [pesquisa.id]);
+    const r = await db.query(`UPDATE monitoramento_novidades SET vista_em=now() WHERE pesquisa_id=$1 AND vista_em IS NULL
+      AND ($2::bigint IS NULL OR id <= $2::bigint) RETURNING id`, [pesquisa.id, ateId ?? null]);
     return { vistas: r.rows.length };
   });
 
