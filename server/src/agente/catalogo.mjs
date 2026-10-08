@@ -111,9 +111,11 @@ export function criarCatalogo({ arquivo = ARQUIVO, arquivoIbama = ARQUIVO_IBAMA 
       };
     },
     async obter(id) { return (await carregar()).empresas.find((e) => e.id === id) ?? null; },
-    /** Universo de uma pesquisa por tese: cartão + atributos públicos, na ordem do catálogo. */
-    async recorte(filtros = {}) {
+    /** Universo de uma pesquisa por tese: cartão + atributos públicos, na ordem do catálogo.
+     *  O arquivo guarda só a versão atual: `hash` de outra versão devolve `null`. */
+    async recorte(filtros = {}, { hash = null } = {}) {
       const base = await carregar();
+      if (hash && hash !== base.hash) return null;
       const filtradas = filtrar(base.empresas, filtros);
       return { empresas: filtradas.slice(0, LIMITE_RECORTE).map((e) => ({ ...e, atributos: base.atributos.get(e.id) ?? null })),
         total: filtradas.length, truncado: filtradas.length > LIMITE_RECORTE,

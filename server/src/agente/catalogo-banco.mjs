@@ -84,14 +84,16 @@ export function criarCatalogoBanco(db) {
         referencia: r.referencia, hash: r.hash, hashPaginacao, totalOrigem: r.total_origem,
         fonte: 'Receita Federal · CNPJ', subsetor: rotuloEscopo(escopo), subsetores: escopo };
     },
-    /** Universo de uma pesquisa por tese, com os atributos públicos gravados na importação. */
-    async recorte({ busca = '', uf = '', incluirPossiveis = false, cnae = '', subsetor } = {}) {
+    /** Universo de uma pesquisa por tese, com os atributos públicos gravados na importação.
+     *  Com `hash`, o recorte é o da publicação com esse hash (registros publicados são imutáveis
+     *  e não são apagados), e `null` se ela não existir; sem ele, o da publicação vigente. */
+    async recorte({ busca = '', uf = '', incluirPossiveis = false, cnae = '', subsetor } = {}, { hash = null } = {}) {
       const termos = normalizar(busca).trim().split(/\s+/).filter(Boolean);
       const escopo = escopoSubsetores(subsetor);
       const { rows } = await db.query(`WITH atual AS (
-        SELECT p.*, s.referencia FROM catalogo_controle cc
-        JOIN catalogo_publicacoes p ON p.snapshot_id=cc.snapshot_id
+        SELECT p.*, s.referencia FROM catalogo_publicacoes p
         JOIN snapshots_universo s ON s.id=p.snapshot_id AND s.estado='pronto'
+        WHERE CASE WHEN $7::text IS NULL THEN p.snapshot_id=(SELECT snapshot_id FROM catalogo_controle WHERE id=TRUE) ELSE p.hash=$7 END
       ), filtradas AS (
         SELECT 'cnpj'||trim(e.cnpj_raiz) AS id, r.nome, r.razao_social AS "razaoSocial",
           trim(e.cnpj_raiz) AS "cnpjRaiz", r.cidade, r.uf, r.cnae_principal AS "cnaePrincipal", c.subsetor,
@@ -106,8 +108,9 @@ export function criarCatalogoBanco(db) {
       )
       SELECT a.hash, a.referencia, (SELECT count(*)::int FROM filtradas) AS total,
         COALESCE((SELECT jsonb_agg(to_jsonb(f)-'ordem' ORDER BY f.ordem) FROM (SELECT * FROM filtradas ORDER BY ordem LIMIT $6) f),'[]'::jsonb) AS empresas
-      FROM atual a`, [escopo, incluirPossiveis, uf, cnae, termos, LIMITE_RECORTE]);
+      FROM atual a`, [escopo, incluirPossiveis, uf, cnae, termos, LIMITE_RECORTE, hash]);
       const r = rows[0];
+      if (!r && hash) return null;
       if (!r) throw new Error('O catálogo ainda não foi importado no banco.');
       return { empresas: r.empresas, total: r.total, truncado: r.total > LIMITE_RECORTE, referencia: r.referencia,
         hash: r.hash, fonte: 'Receita Federal · CNPJ', subsetor: rotuloEscopo(escopo) };

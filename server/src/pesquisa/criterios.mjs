@@ -271,6 +271,14 @@ const SUBSETOR_POR_PALAVRA = [
   ['Explosivos e pirotecnia', /\b(explosiv\w*|pirotecni\w*|fogos de artificio)\b/],
   ['Resinas, elastômeros e fibras', /\b(resinas?|elastomeros?|fibras? sinteticas?|borrachas? sinteticas?)\b/],
 ];
+/* Marcadores de exclusão. "Não só/apenas/somente" e "pelo/ao menos" não excluem (tratados abaixo). */
+const EXCLUSAO = /\b(?:nao|nem|exceto|excetuando|excluindo|excluir|exclua|sem|salvo|tirando|fora|menos|evitar|evite|com excecao|a excecao)\b/g;
+/* Fim do alcance de uma exclusão: fim da oração ou retomada afirmativa ("mas", ", procuro"). */
+const RETOMADA = /[;.!?\n]|\b(?:mas|porem|contudo|entretanto|todavia|e sim)\b|,\s*(?:e\s+)?(?:procur|busc|prefer|prioriz|foc|quer[oe]|interess)\w*/g;
+/* Tipos de empresa coordenados como alternativas ("distribuidoras ou fabricantes", "fabricantes e
+   importadoras", "indústrias químicas ou fabricantes"): com eles, nenhum subsetor sozinho é seguro. */
+const TIPO_EMPRESA = String.raw`(?:distribuidor\w*|distribuicao|trading\w*|revendedor\w*|atacadist\w*|importador\w*|fabric\w*|produtor\w*|industri\w*|manufatur\w*|formulador\w*|envasador\w*|misturador\w*|empresas?|companhias?)`;
+const TIPOS_COORDENADOS = new RegExp(String.raw`\b${TIPO_EMPRESA}(?:\s+[a-z]+){0,2}?\s*(?:,|\/|\bou\b|\be\b|\bnem\b)\s*(?:(?:as|os|a|o)\s+)?${TIPO_EMPRESA}`);
 
 export function interpretarTese(tese, { referencia } = {}) {
   const original = String(tese || '').slice(0, 2000);
@@ -304,28 +312,40 @@ export function interpretarTese(tese, { referencia } = {}) {
     adicionar(m, `Declara o CNAE ${m[1]}-${m[2]}/${m[3]}`, { campo: 'cnae_secundario', valor: [`${m[1]}${m[2]}${m[3]}`] });
   }
 
-  /* Subsetor do recorte, só quando a escolha é inequívoca (um recorte errado elimina empresas
-     antes de qualquer critério; um recorte amplo só custa revisão). Não consome o texto.
-     - Menção negada na própria oração ("não quero tintas", "exceto resinas") nunca vira recorte.
-     - Um único subsetor citado: ele.
-     - Distribuidor citado primeiro e produtos depois ("Distribuidoras ... de resinas"):
-       distribuição; os produtos descrevem o que a distribuidora vende.
-     - Qualquer outra combinação ("resinas ou tintas"): todos os setores-alvo, com nota. */
-  const mencoes = SUBSETOR_POR_PALAVRA.flatMap(([rotulo, re]) => [...n.matchAll(new RegExp(re.source, 'g'))].map((m) => {
-    const oracao = n.slice(Math.max(n.lastIndexOf(',', m.index - 1), n.lastIndexOf(';', m.index - 1), n.lastIndexOf('.', m.index - 1), n.lastIndexOf('\n', m.index - 1)) + 1, m.index);
-    const negada = /\b(nao|sem|exceto|excluindo|menos|nem|fora)\b/.test(oracao.trim().split(/\s+/).slice(-4).join(' '));
-    return { rotulo, pos: m.index, palavra: original.slice(m.index, m.index + m[0].length), negada };
-  })).sort((a, b) => a.pos - b.pos);
+  /* Subsetor do recorte, só quando a leitura é segura (um recorte errado elimina empresas antes
+     de qualquer critério; um recorte amplo só custa revisão). Na dúvida, todos os setores-alvo,
+     com nota. Não consome o texto.
+     - Exclusão: menção depois de "não", "nem", "exceto", "sem"... fica excluída até o fim da
+       oração ou uma retomada afirmativa ("; procuro", "mas"), qualquer que seja a distância; e
+       menção seguida de "excluídas". Excluída nunca vira recorte (e o recorte não a exclui).
+     - Tipos de empresa coordenados como alternativas ("distribuidoras ou fabricantes"): todos.
+     - Um único subsetor afirmado: ele.
+     - Distribuidor citado primeiro e produtos depois ("Distribuidoras ... de resinas"), sem tipos
+       coordenados: distribuição; os produtos descrevem o que a distribuidora vende.
+     - Qualquer outra combinação ("resinas ou tintas"): todos os setores-alvo. */
+  const marcos = [
+    ...[...n.matchAll(EXCLUSAO)].filter((m) => !(m[0] === 'menos' && /\b(?:pelo|ao|a)\s+$/.test(n.slice(Math.max(0, m.index - 5), m.index)))
+      && !(m[0] === 'nao' && /^\s+(?:so|apenas|somente|necessariamente)\b/.test(n.slice(m.index + 3)))).map((m) => ({ pos: m.index, exclui: true })),
+    ...[...n.matchAll(RETOMADA)].map((m) => ({ pos: m.index, exclui: false })),
+  ].sort((a, b) => a.pos - b.pos);
+  const excluidaEm = (pos, fim) => marcos.filter((k) => k.pos < pos).at(-1)?.exclui === true || /^\s+(?:excluid|excetuad)\w*/.test(n.slice(fim));
+  const mencoes = SUBSETOR_POR_PALAVRA.flatMap(([rotulo, re]) => [...n.matchAll(new RegExp(re.source, 'g'))].map((m) => ({
+    rotulo, pos: m.index, palavra: original.slice(m.index, m.index + m[0].length), negada: excluidaEm(m.index, m.index + m[0].length),
+  }))).sort((a, b) => a.pos - b.pos);
   const positivas = mencoes.filter((x) => !x.negada);
   const distintos = [...new Set(positivas.map((x) => x.rotulo))];
   const negados = [...new Set(mencoes.filter((x) => x.negada).map((x) => x.rotulo))].filter((r) => !distintos.includes(r));
   const DISTRIBUICAO = 'Distribuição e trading químico';
-  if (distintos.length === 1 || (distintos.length > 1 && positivas[0].rotulo === DISTRIBUICAO)) {
+  const coordenados = n.match(TIPOS_COORDENADOS);
+  if (distintos.length && coordenados) {
+    notas.push(`A tese coordena tipos de empresa como alternativas ("${original.slice(coordenados.index, coordenados.index + coordenados[0].length)}"): o recorte cobre todos os setores-alvo. Escolha um em "Recorte" se a tese for só sobre um deles.`);
+  } else if (distintos.length === 1 || (distintos.length > 1 && positivas[0].rotulo === DISTRIBUICAO)) {
     filtros.subsetor = positivas[0].rotulo;
     notas.push(`Recorte no subsetor "${filtros.subsetor}" (pela palavra "${positivas[0].palavra}")${distintos.length > 1 ? `; ${distintos.slice(1).map((r) => `"${r}"`).join(', ')} foi lido como produto vendido, não como recorte` : ''}. Troque em "Recorte" para ver outros subsetores químicos.`);
   } else if (distintos.length > 1) {
     notas.push(`A tese cita mais de um subsetor (${distintos.map((r) => `"${r}"`).join(', ')}): o recorte cobre todos os setores-alvo. Escolha um em "Recorte" se a tese for só sobre um deles.`);
-  } else notas.push('A tese não cita um subsetor: o recorte cobre todos os subsetores químicos acionáveis. Escolha um em "Recorte" para concentrar a revisão.');
+  } else if (negados.length) notas.push('A tese só cita subsetores excluídos: o recorte cobre todos os subsetores químicos acionáveis. Escolha um em "Recorte" para concentrar a revisão.');
+  else notas.push('A tese não cita um subsetor: o recorte cobre todos os subsetores químicos acionáveis. Escolha um em "Recorte" para concentrar a revisão.');
   if (negados.length) notas.push(`${negados.map((r) => `"${r}"`).join(', ')} aparece negado na tese e não define o recorte; o recorte não exclui esse subsetor, confira na revisão.`);
 
   // Localização: cidade explícita, região, nomes de estado e siglas em maiúsculas.

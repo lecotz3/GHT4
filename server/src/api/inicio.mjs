@@ -54,8 +54,10 @@ export async function registrarInicio(app) {
       const va = [u.id, u.papel === 'admin', (u.mandatos ?? []).map((x) => x.id)];
       // `ateId`: a última novidade mostrada; abrir pelo aviso marca como vistas só até ela.
       // `parcial`: a verificação não cobriu o recorte inteiro (limite de empresas por recorte).
+      // `aConferir`: novas da transição de um monitor antigo sem referência histórica (podem ser anteriores).
       const itens = (await db.query(`SELECT p.id AS "pesquisaId", c.titulo, p.tese,
           count(*) FILTER (WHERE n.tipo='nova')::int AS novas, count(*) FILTER (WHERE n.tipo='evento')::int AS eventos,
+          count(*) FILTER (WHERE n.tipo='nova' AND n.empresa->>'aConferir'='true')::int AS "aConferir",
           max(n.detectado_em) AS "detectadoEm", (array_agg(n.empresa->>'nome' ORDER BY n.id))[1:3] AS exemplos,
           max(n.id)::int AS "ateId", COALESCE(bool_or((t.cobertura->>'completa')::boolean = FALSE), FALSE) AS parcial
         FROM monitoramento_novidades n JOIN pesquisas_tese p ON p.id=n.pesquisa_id

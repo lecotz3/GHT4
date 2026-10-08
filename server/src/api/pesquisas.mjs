@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { ErroHttp } from '../app.mjs';
 import { registrar } from '../auditoria/registrar.mjs';
 import { criarMotorPesquisa, Filtros, ListaCriterios, ordenarItens } from '../pesquisa/motor.mjs';
-import { definirMonitoramento, verificarVencidos, coberturaDe, publico as monitoramentoPublico } from '../pesquisa/monitoramento.mjs';
+import { definirMonitoramento, verificarVencidos, situacaoFalhas, coberturaDe, publico as monitoramentoPublico } from '../pesquisa/monitoramento.mjs';
 
 const Id = z.string().uuid();
 const Versao = z.number().int().min(1);
@@ -175,7 +175,9 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
   });
 
   /* Monitoramento semanal: ligar grava como linha de base todas as empresas que atendem ao
-     cadastro agora (não só as da pesquisa, que tem corte), e a cobertura dessa varredura. */
+     cadastro agora (não só as da pesquisa, que tem corte), e a cobertura dessa varredura.
+     O recorte demora: depois dele a sessão é relida e a política conferida de novo, antes de
+     gravar. Sessão encerrada ou mandato revogado durante o cálculo: 401/404, nada gravado. */
   app.put('/api/pesquisas/:id/monitoramento', async (req) => {
     const { ativo } = z.object({ ativo: z.boolean() }).strict().parse(req.body);
     const { pesquisa, conversa, usuario } = await carregar(req, req.params.id, 'agente.usar');
@@ -186,6 +188,8 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
       // Fora da transação: o recorte é uma consulta grande.
       try { const r = await motor.aprovadasCadastro(pesquisa); aprovadas = r.empresas.map((e) => e.id); cobertura = coberturaDe(r.funil); }
       catch { throw new ErroHttp(503, 'base_indisponivel', 'A base de empresas não está disponível agora. Tente novamente.'); }
+      await req.revalidarSessao();
+      await carregar(req, pesquisa.id, 'agente.usar');
     }
     const m = await definirMonitoramento(db, { pesquisaId: pesquisa.id, usuarioId: pesquisa.usuario_id, ativo, aprovadas, cobertura });
     await registrar(db, { usuarioId: usuario.id, mandatoId: conversa.mandato_id, entidade: 'pesquisa_tese', entidadeId: pesquisa.id,
@@ -195,16 +199,25 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
 
   /* Chamado pelo Meu dia: verifica os monitoramentos vencidos da pessoa (no máximo dois por vez).
      A seleção usa o escopo da lista de pesquisas; cada pesquisa passa pela política completa
-     (`carregar`) antes de ser reservada e de novo, com a sessão relida, antes de gravar. */
+     (`carregar`) antes de ser reservada e de novo, com a sessão relida, antes de gravar.
+     - Pesquisa fora do alcance (404, ou 403 do mandato): pulada. Sessão encerrada ou papel sem
+       `agente.ler`: o erro (401/403) chega ao cliente, em vez de "nada verificado".
+     - `repetir`: nova tentativa pedida pela pessoa, também para as que falharam há pouco.
+     - `emFalha`/`proximaTentativa`: o estado gravado, não só o desta chamada; uma chamada que
+       não executou nada não apaga a falha anterior. */
   app.post('/api/monitoramentos/verificar', async (req) => {
+    const { repetir } = z.object({ repetir: z.boolean().default(false) }).strict().parse(req.body ?? {});
     const u = req.exigir('agente.ler');
     const podeAcessar = async (id) => {
       await req.revalidarSessao();
-      try { await carregar(req, id); return true; } catch (e) { if (e instanceof ErroHttp) return false; throw e; }
+      req.exigir('agente.ler');
+      try { await carregar(req, id); return true; }
+      catch (e) { if (e instanceof ErroHttp && e.status !== 401) return false; throw e; }
     };
-    const feitos = await verificarVencidos(db, motor, u.id, { podeAcessar,
-      escopo: { admin: u.papel === 'admin', mandatos: (u.mandatos ?? []).map((m) => m.id) } });
-    return { verificados: feitos.filter((f) => !f.falhou && !f.descartada).length, falhas: feitos.filter((f) => f.falhou).length };
+    const escopo = { admin: u.papel === 'admin', mandatos: (u.mandatos ?? []).map((m) => m.id) };
+    const feitos = await verificarVencidos(db, motor, u.id, { podeAcessar, escopo, repetir });
+    return { verificados: feitos.filter((f) => !f.falhou && !f.descartada).length, falhas: feitos.filter((f) => f.falhou).length,
+      ...(await situacaoFalhas(db, u.id, { escopo })) };
   });
 
   /* Chamado depois que a pesquisa abriu pelo aviso: marca como vistas só as novidades até a

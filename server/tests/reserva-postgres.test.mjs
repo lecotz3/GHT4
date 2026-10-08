@@ -66,7 +66,8 @@ async function ensaioMonitor(db) {
     const id = randomUUID(); ids.push(id);
     await db.query(`INSERT INTO pesquisas_tese (id,conversa_id,usuario_id,tese,frente,filtros,criterios,meta,limite_web,catalogo_hash,referencia,funil,modo,estado)
       VALUES ($1,$2,$3,'Ensaio do monitor','venda','{}','[]',20,40,$4,'2026-08','{}','regras','concluida')`, [id, conversa, u.id, 'a'.repeat(64)]);
-    await db.query(`INSERT INTO monitoramentos_tese (pesquisa_id,usuario_id,proxima_em) VALUES ($1,$2,now()-interval '1 minute')`, [id, u.id]);
+    // Com cobertura: regime atual (sem cobertura seria um monitor da Rodada 15, que reconstrói a linha de base).
+    await db.query(`INSERT INTO monitoramentos_tese (pesquisa_id,usuario_id,proxima_em,cobertura) VALUES ($1,$2,now()-interval '1 minute','{"recorte":0,"avaliadas":0,"completa":true}')`, [id, u.id]);
   }
   const vistos = [];
   const motor = { aprovadasCadastro: async (p) => { vistos.push(p.id); await new Promise((r) => setTimeout(r, 50)); return { funil: { recorte: 0, avaliadas: 0, truncado: false }, empresas: [] }; } };

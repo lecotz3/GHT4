@@ -834,6 +834,22 @@ test('setores-alvo na tese: recorte só quando inequívoco; negação e alternat
   assert.equal(alternativas.filtros.subsetor, 'todos');
   assert.ok(alternativas.notas.some((x) => /mais de um subsetor \("Tintas, vernizes e revestimentos", "Resinas, elastômeros e fibras"\)|mais de um subsetor \("Resinas, elastômeros e fibras", "Tintas, vernizes e revestimentos"\)/.test(x)), alternativas.notas.join(' | '));
   assert.ok(dist.notas.some((x) => /"Resinas, elastômeros e fibras" foi lido como produto vendido/.test(x)));
+  // Revisão da Rodada 16: alternativa entre tipos de empresa e exclusão longe do subsetor.
+  const tipos = sub('Distribuidoras ou fabricantes de tintas no Brasil');
+  assert.equal(tipos.filtros.subsetor, 'todos', 'alternativa entre dois tipos de empresa não vira recorte');
+  assert.ok(tipos.notas.some((x) => /coordena tipos de empresa como alternativas \("Distribuidoras ou fabricantes"\)/.test(x)), tipos.notas.join(' | '));
+  assert.equal(sub('Distribuidoras de solventes ou fabricantes de tintas').filtros.subsetor, 'todos');
+  assert.equal(sub('Indústrias químicas ou fabricantes de tintas').filtros.subsetor, 'todos');
+  const longe = sub('Empresas quimicas, exceto empresas fabricantes nacionais de tintas');
+  assert.equal(longe.filtros.subsetor, 'todos', 'exclusão a mais de quatro palavras ainda exclui');
+  assert.ok(longe.notas.some((x) => /"Tintas, vernizes e revestimentos" aparece negado/.test(x)));
+  assert.ok(longe.notas.some((x) => /só cita subsetores excluídos/.test(x)));
+  assert.equal(sub('Empresas químicas, tintas excluídas').filtros.subsetor, 'todos');
+  assert.equal(sub('Não quero tintas, procuro distribuidoras').filtros.subsetor, 'Distribuição e trading químico', 'retomada afirmativa encerra a exclusão');
+  assert.equal(sub('Não só tintas, mas também resinas').filtros.subsetor, 'todos', '"não só" não exclui');
+  assert.equal(sub('Fabricantes de tintas com pelo menos 20 anos').filtros.subsetor, 'Tintas, vernizes e revestimentos', '"pelo menos" não exclui');
+  assert.equal(sub('Distribuidoras de resinas').filtros.subsetor, 'Distribuição e trading químico');
+  assert.equal(sub('Distribuidoras de resinas para fabricantes de tintas').filtros.subsetor, 'Distribuição e trading químico', 'cliente da distribuidora não é alternativa');
   const geral = sub('Empresas químicas familiares com mais de 30 anos');
   assert.equal(geral.filtros.subsetor, 'todos');
   assert.ok(geral.notas.some((x) => /não cita um subsetor/.test(x)));

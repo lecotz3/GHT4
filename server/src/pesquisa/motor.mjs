@@ -173,9 +173,10 @@ async function julgarComIA({ servicoIA, criterios, frases, site, empresa, execuc
 export function criarMotorPesquisa({ db, catalogo, servicoIA = null, web = {} }) {
   const modo = servicoIA ? `ia:${servicoIA.status.provedor}/${servicoIA.status.modelo}` : 'regras';
 
-  async function recorteAtual(filtros) {
+  /** Recorte da publicação vigente ou, com `hash`, de uma publicação anterior (null se não houver). */
+  async function recorteAtual(filtros, { hash = null } = {}) {
     if (typeof catalogo.recorte !== 'function') throw Object.assign(new Error('Catálogo sem recorte.'), { codigo: 'base_indisponivel' });
-    return catalogo.recorte({ ...filtros, subsetor: filtros.subsetor ?? SUBSETOR });
+    return catalogo.recorte({ ...filtros, subsetor: filtros.subsetor ?? SUBSETOR }, { hash });
   }
 
   /** Funil cadastral sobre o recorte inteiro. Puro: não grava nada. */
@@ -256,9 +257,11 @@ export function criarMotorPesquisa({ db, catalogo, servicoIA = null, web = {} })
     },
 
     /** Todas as aprovadas no cadastro, sem o corte de itens da pesquisa (para o monitoramento).
-     *  O recorte continua limitado pelo catálogo; `funil.truncado` diz se a varredura foi parcial. */
-    async aprovadasCadastro(pesquisa) {
-      const recorte = await recorteAtual(pesquisa.filtros);
+     *  O recorte continua limitado pelo catálogo; `funil.truncado` diz se a varredura foi parcial.
+     *  Com `hash`, na publicação desse hash; `null` se o catálogo não a guardar. */
+    async aprovadasCadastro(pesquisa, { hash = null } = {}) {
+      const recorte = await recorteAtual(pesquisa.filtros, { hash });
+      if (!recorte) return null;
       const { funil, aprovadas } = funilDe(recorte, pesquisa.criterios);
       return { funil, empresas: aprovadas.map((a) => ({ id: a.e.id, nome: a.e.nome, cidade: a.e.cidade, uf: a.e.uf, aderencia: a.aderencia })) };
     },

@@ -54,10 +54,14 @@ export interface IAInfo { provedor: string; modelo: string; gratuito: boolean }
 /** Monitoramento semanal: refaz o funil cadastral e avisa no Meu dia sobre empresas novas e eventos. */
 /** Quanto do recorte a verificação avalia: com o limite por recorte, pode ser parcial. */
 export interface Cobertura { recorte: number; avaliadas: number; completa: boolean }
+/** `falhaEm`: a última tentativa falhou (até o próximo sucesso). `aConferir`: novas de uma transição
+ *  sem referência histórica, que podem ser anteriores ao monitoramento. */
 export interface Monitoramento {
-  ativo: boolean; verificadoEm: string | null; proximaEm: string; cobertura: Cobertura | null
-  ultimoResultado: { verificadoEm: string; totalNovas: number; totalEventos: number; cobertura?: Cobertura; novas: { id: string; nome: string; aderencia: number }[]; eventos: { id: string; nome: string; rotulo: string | null }[] } | null
+  ativo: boolean; verificadoEm: string | null; proximaEm: string; falhaEm?: string | null; cobertura: Cobertura | null
+  ultimoResultado: { verificadoEm: string; totalNovas: number; totalEventos: number; cobertura?: Cobertura; aConferir?: number; novas: { id: string; nome: string; aderencia: number }[]; eventos: { id: string; nome: string; rotulo: string | null }[] } | null
 }
+/** Resposta da verificação: o que esta chamada fez e o estado gravado das falhas (não só desta chamada). */
+export interface VerificacaoMonitores { verificados: number; falhas: number; emFalha?: number; proximaTentativa?: string | null }
 /** Como a tela de pesquisa é aberta: por tese, por id, e, vindo de um aviso do Meu dia, até qual novidade marcar como vista. */
 export interface InicialPesquisa { tese?: string; pesquisaId?: string; novidadesAte?: number }
 export interface DetalhePesquisa { pesquisa: Pesquisa; contagens: Contagens; itens: ItemPesquisa[]; ia: IAInfo | null; atualizados?: string[]; marca?: string; execucaoLote?: number | null; monitoramento?: Monitoramento | null }
@@ -70,7 +74,8 @@ export const pesquisaApi = {
   obter: (id: string) => leve<DetalhePesquisa>(`/api/pesquisas/${id}`),
   itens: (id: string, grupo: Categoria | 'fila', offset: number, marca?: string) => leve<{ itens: ItemPesquisa[]; total: number; proximoOffset: number | null; marca?: string }>(`/api/pesquisas/${id}/itens?grupo=${grupo}&offset=${offset}${marca ? `&marca=${marca}` : ''}`),
   monitorar: (id: string, ativo: boolean) => api<{ monitoramento: Monitoramento | null }>(`/api/pesquisas/${id}/monitoramento`, 'PUT', { ativo }),
-  verificarMonitoramentos: () => api<{ verificados: number; falhas: number }>('/api/monitoramentos/verificar', 'POST', {}),
+  /** `repetir`: nova tentativa pedida pela pessoa, também para as que falharam há pouco. */
+  verificarMonitoramentos: (repetir = false) => api<VerificacaoMonitores>('/api/monitoramentos/verificar', 'POST', repetir ? { repetir } : {}),
   marcarNovidadesVistas: (id: string, ateId?: number) => api<{ vistas: number }>(`/api/pesquisas/${id}/novidades/vistas`, 'POST', ateId ? { ateId } : {}),
   /** Item completo (justificativas, trechos citados, páginas lidas), ao abrir a empresa. */
   item: (id: string, empresaId: string) => api<{ item: ItemPesquisa }>(`/api/pesquisas/${id}/itens/${empresaId}`),

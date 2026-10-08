@@ -41,30 +41,66 @@ test('Meu dia: verificação vencida recarrega e mostra a novidade; abrir leva �
   } finally { await t.desmontar(); }
 });
 
-test('Meu dia: falha na verificação aparece num aviso próprio, sem derrubar a agenda; "Verificar de novo" repete', async () => {
+test('Meu dia: o aviso de falha segue o estado gravado no servidor; zero execuções não é recuperação; "Verificar de novo" pede nova tentativa', async () => {
   const pedidos = servidor([
-    { metodo: 'GET', url: /\/api\/inicio$/, dados: () => inicio({ monitoradas: 1, itens: [] }) },
+    { metodo: 'GET', url: /\/api\/inicio$/, dados: () => inicio({ monitoradas: 2, itens: [] }) },
+    { metodo: 'POST', url: /\/api\/monitoramentos\/verificar$/, segurar: true },
+  ]);
+  const t = await montar(React.createElement(MeuDia, { visivel: true, aoAbrirCrm: () => {}, aoRede: () => {}, aoOportunidades: () => {}, aoExpirar: () => {} }));
+  const quando = new Date(); quando.setHours(15, 30, 0, 0);
+  const proximaTentativa = quando.toISOString();
+  const texto = () => document.querySelector('section.agente-meu-dia').textContent;
+  const inicios = () => pedidos.filter((p) => p.url.endsWith('/api/inicio')).length;
+  try {
+    await esperar();
+    const verificar = () => pedidos.filter((p) => p.url.endsWith('/verificar'));
+    assert.deepEqual(verificar()[0].corpo, {}, 'ao abrir, verificação normal (sem pedido de repetição)');
+    // A chamada falhou: aviso próprio, sem derrubar a agenda.
+    await responder(verificar()[0], { mensagem: 'fora' }, 503);
+    await esperar();
+    assert.equal(inicios(), 1, 'a agenda não recarrega');
+    assert.equal(document.querySelector('[role="alert"]'), null, 'não é erro da agenda');
+    assert.match(texto(), /Não foi possível verificar suas teses monitoradas agora/);
+    // O pedido explícito executou e falhou: informa a tentativa automática agendada.
+    await clicar(botao(/^Verificar de novo$/));
+    assert.deepEqual(verificar()[1].corpo, { repetir: true });
+    await responder(verificar()[1], { verificados: 0, falhas: 1, emFalha: 1, proximaTentativa });
+    assert.match(texto(), /Não foi possível verificar 1 tese monitorada\. Nova tentativa automática a partir de 15:30\./);
+    assert.match(texto(), /Nada pendente na última consulta/);
+    assert.doesNotMatch(texto(), /Nada pendente com você agora/);
+    // Nada executou (falha recente demais), mas o servidor diz que a falha continua: o aviso fica.
+    await clicar(botao(/^Verificar de novo$/));
+    await responder(verificar()[2], { verificados: 0, falhas: 0, emFalha: 1, proximaTentativa });
+    assert.match(texto(), /Não foi possível verificar 1 tese monitorada/);
+    assert.match(texto(), /aguarde alguns segundos/);
+    // Uma tese verificada e outra com falha: recarrega as novidades e mantém o aviso.
+    await clicar(botao(/^Verificar de novo$/));
+    await responder(verificar()[3], { verificados: 1, falhas: 1, emFalha: 1, proximaTentativa });
+    await esperar();
+    assert.equal(inicios(), 2, 'o que foi verificado aparece');
+    assert.match(texto(), /Não foi possível verificar 1 tese monitorada/);
+    assert.doesNotMatch(texto(), /aguarde/);
+    // Recuperação de fato: o servidor não tem mais falha registrada.
+    await clicar(botao(/^Verificar de novo$/));
+    await responder(verificar()[4], { verificados: 1, falhas: 0, emFalha: 0, proximaTentativa: null });
+    await esperar();
+    assert.doesNotMatch(texto(), /Não foi possível verificar/);
+    assert.equal(verificar().length, 5, 'nenhuma verificação extra');
+  } finally { await t.desmontar(); }
+});
+
+test('Meu dia: falha registrada antes aparece ao abrir, mesmo quando esta chamada não executou nada', async () => {
+  const pedidos = servidor([
+    { metodo: 'GET', url: /\/api\/inicio$/, dados: () => inicio({ monitoradas: 3, itens: [] }) },
     { metodo: 'POST', url: /\/api\/monitoramentos\/verificar$/, segurar: true },
   ]);
   const t = await montar(React.createElement(MeuDia, { visivel: true, aoAbrirCrm: () => {}, aoRede: () => {}, aoOportunidades: () => {}, aoExpirar: () => {} }));
   try {
     await esperar();
-    const verificar = () => pedidos.filter((p) => p.url.endsWith('/verificar'));
-    await responder(verificar()[0], { mensagem: 'fora' }, 503);
-    await esperar();
-    assert.equal(pedidos.filter((p) => p.url.endsWith('/api/inicio')).length, 1, 'a agenda não recarrega');
-    assert.equal(document.querySelector('[role="alert"]'), null, 'não é erro da agenda');
-    assert.match(document.querySelector('section.agente-meu-dia').textContent, /Não foi possível verificar suas teses monitoradas agora/);
-    // Todas as verificações falharam no servidor: o aviso continua.
-    await clicar(botao(/^Verificar de novo$/));
-    assert.equal(verificar().length, 2);
-    await responder(verificar()[1], { verificados: 0, falhas: 1 });
-    assert.match(document.querySelector('section.agente-meu-dia').textContent, /Não foi possível verificar suas teses monitoradas agora/);
-    // Nova tentativa sem falha: o aviso some.
-    await clicar(botao(/^Verificar de novo$/));
-    assert.equal(verificar().length, 3);
-    await responder(verificar()[2], { verificados: 0, falhas: 0 });
-    assert.doesNotMatch(document.querySelector('section.agente-meu-dia').textContent, /Não foi possível verificar/);
+    await responder(pedidos.find((p) => p.url.endsWith('/verificar')), { verificados: 0, falhas: 0, emFalha: 2, proximaTentativa: '2030-01-02T10:00:00Z' });
+    const texto = document.querySelector('section.agente-meu-dia').textContent;
+    assert.match(texto, /Não foi possível verificar 2 teses monitoradas\. Nova tentativa automática a partir de \d{2}:\d{2} de 0[12]\/01\/2030\./);
+    assert.doesNotMatch(texto, /aguarde/, 'não foi pedido explícito');
   } finally { await t.desmontar(); }
 });
 
@@ -127,6 +163,36 @@ test('pesquisa: liga o monitoramento, mostra a próxima data e a última verific
     await responder(puts()[1], { monitoramento: { ...ligado, ativo: false } });
     assert.match(secao().textContent, /Monitoramento semanal · desligado/);
     assert.equal(secao().querySelector('[role="status"]').textContent, 'Monitoramento desligado.');
+  } finally { await t.desmontar(); }
+});
+
+test('pesquisa: falha registrada e transição "a conferir" aparecem no monitoramento; Meu dia mostra quantas são a conferir', async () => {
+  const FUNIL = { recorte: 2, avaliadas: 2, truncado: false, semAtributos: 0, eliminadas: 0, eliminadasPor: {}, exclusivas: {}, aprovadasCadastro: 2, comSite: 2, armazenadas: 2 };
+  const pesquisa = { id: ID, conversa_id: 'conv', tese: 'Distribuidoras com mais de 20 anos', frente: 'venda', estado: 'concluida', motivo_estado: null,
+    filtros: { uf: '', busca: '', cnae: '', incluirPossiveis: false, subsetor: 'Distribuição e trading químico' }, criterios: [{ id: 'idade', texto: 'Mais de 20 anos', obrigatorio: true, tipo: 'cadastro', regra: { campo: 'idade_min', valor: 20 } }],
+    meta: 20, limite_web: 40, versao: 3, funil: FUNIL, modo: 'regras', notas: [], referencia: '2026-08', atualizado_em: '2026-10-07T12:00:00Z', execucao: 0 };
+  const monitoramento = { ativo: true, verificadoEm: '2026-10-07T12:00:00Z', proximaEm: '2026-10-08T13:00:00Z', falhaEm: '2026-10-08T12:00:00Z', cobertura: { recorte: 2, avaliadas: 2, completa: true },
+    ultimoResultado: { verificadoEm: '2026-10-07T12:00:00Z', totalNovas: 2, totalEventos: 0, aConferir: 2, transicao: 'incerta', novas: [{ id: 'cnpj33333333', nome: 'Gama', aderencia: 100 }, { id: 'cnpj44444444', nome: 'Delta', aderencia: 100 }], eventos: [] } };
+  servidor([
+    { metodo: 'GET', url: /\/api\/pesquisas$/, dados: () => ({ pesquisas: [], ia: null }) },
+    { metodo: 'GET', url: new RegExp(`${ID}$`), dados: () => ({ pesquisa, contagens: { total: 0, revisadas: 0, pendentes: 0, aderente: 0, provavel: 0, a_confirmar: 0, nao_aderente: 0 }, itens: [], ia: null, monitoramento }) },
+  ]);
+  let t = await montar(React.createElement(PesquisaTese, { usuario: { id: 'u', nome: 'Ana', papel: 'analista' }, inicial: { pesquisaId: ID },
+    aoConsumirInicial: () => {}, aoAbrirTrabalho: () => {}, aoExpirar: () => {} }));
+  try {
+    await esperar();
+    const texto = document.getElementById(`monitor-${ID}`).closest('section').textContent;
+    assert.match(texto, /A última tentativa de verificação falhou \(08\/10\/2026\)\. Nova tentativa automática a partir de 08\/10\/2026/);
+    assert.match(texto, /Verificação de transição: .*As 2 empresas listadas como novas podem já atender à tese desde antes do monitoramento: confira\./);
+  } finally { await t.desmontar(); }
+  servidor([
+    { metodo: 'GET', url: /\/api\/inicio$/, dados: () => inicio({ monitoradas: 1, itens: [{ ...comNovidade.itens[0], novas: 2, eventos: 0, aConferir: 2, parcial: false }] }) },
+    { metodo: 'POST', url: /\/api\/monitoramentos\/verificar$/, dados: () => ({ verificados: 0, falhas: 0, emFalha: 0, proximaTentativa: null }) },
+  ]);
+  t = await montar(React.createElement(MeuDia, { visivel: true, aoAbrirCrm: () => {}, aoRede: () => {}, aoOportunidades: () => {}, aoExpirar: () => {}, aoAbrirPesquisa: () => {} }));
+  try {
+    await esperar();
+    assert.match(document.querySelector('section.agente-meu-dia').textContent, /Distribuidoras com mais de 20 anos · 2 empresas novas \(2 a conferir\)/);
   } finally { await t.desmontar(); }
 });
 

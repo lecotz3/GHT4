@@ -4,25 +4,44 @@
    nenhuma IA é chamada. O que muda vira novidade até a pessoa abrir a pesquisa.
 
    Garantias:
-   - nada detectado é descartado: toda novidade é gravada (em lotes) antes de a linha de
-     base e o cursor de eventos avançarem;
+   - nada detectado é descartado: toda novidade é gravada (em lotes) na mesma transação que
+     avança a linha de base e o cursor de eventos;
    - o conjunto monitorado é a linha de base inteira (`conhecidas`), inclusive empresas
      descobertas em semanas anteriores, que continuam recebendo eventos;
-   - acesso conferido na seleção e de novo, com a sessão relida, logo antes de gravar;
+   - acesso: a seleção usa o escopo da lista de pesquisas, e a política completa (`podeAcessar`,
+     com a sessão relida) é conferida antes de reservar e de novo depois do cálculo, logo antes
+     da transação que grava. Limite: uma revogação que se efetive depois dessa última checagem
+     e antes do commit (uma transação curta) não é detectada. A ficha não cobre essa janela: ela
+     invalida execuções superadas (reserva nova, desligar, religar), não autorizações. As
+     leituras (detalhe, Meu dia) conferem o acesso de novo, então o que for gravado nessa
+     janela não é exibido a quem perdeu o acesso;
+   - erro da política (sessão expirada, papel sem permissão) não vira "nada verificado": a
+     reserva é devolvida e o erro chega à rota;
    - reserva curta com ficha: processo interrompido não empurra a semana, e desligar ou
      religar durante o cálculo invalida o resultado em voo;
+   - falha registrada (`falha_em`) até o próximo sucesso: nova tentativa automática em uma
+     hora, ou pedida (`repetir`) depois de um intervalo mínimo; uma chamada que não executou
+     nada não apaga a falha;
    - cobertura explícita: com o limite de empresas por recorte, a verificação pode ser
-     parcial, e isso fica gravado e visível. */
+     parcial, e isso fica gravado e visível;
+   - monitor ligado antes da cobertura (Rodada 15): linha de base reconstruída pela
+     publicação da pesquisa, sem absorver novidade real (ver `baseLegada`). */
+
+import { MAX_ITENS } from './motor.mjs';
 
 export const SEMANA = "interval '7 days'";
 /** Reserva enquanto calcula: se o processo cair, a verificação volta a vencer depois disso. */
 const RESERVA = "interval '10 minutes'";
 /** Falha ao verificar: tenta de novo em uma hora, em vez de perder a semana. */
 const NOVA_TENTATIVA = "interval '1 hour'";
+/** Nova tentativa pedida pela pessoa: só depois deste intervalo desde a falha. */
+const REPETIR_APOS = "interval '15 seconds'";
 const LOTE = 500;
 const NOMES_NO_RESULTADO = 10;
 
 const MAIOR_EVENTO = 'SELECT COALESCE(max(id),0)::bigint AS n FROM eventos_corporativos';
+/** Vencida, ou em falha há mais que o intervalo mínimo quando a pessoa pede nova tentativa. */
+const vencida = (repetir, t = '') => `(${t}proxima_em<=now() OR (${repetir}::boolean AND ${t}falha_em IS NOT NULL AND ${t}falha_em<=now()-${REPETIR_APOS}))`;
 
 /** Cobertura de uma varredura: quantas empresas do recorte foram de fato avaliadas. */
 export const coberturaDe = (funil) => ({ recorte: funil.recorte, avaliadas: funil.avaliadas, completa: !funil.truncado && funil.avaliadas >= funil.recorte });
@@ -46,61 +65,106 @@ export async function definirMonitoramento(db, { pesquisaId, usuarioId, ativo, a
     return (await tx.query(`INSERT INTO monitoramentos_tese (pesquisa_id,usuario_id,ativo,conhecidas,ultimo_evento,proxima_em,cobertura)
         VALUES ($1,$2,TRUE,$3,$4,now()+${SEMANA},$5)
       ON CONFLICT (pesquisa_id) DO UPDATE SET ativo=TRUE, conhecidas=EXCLUDED.conhecidas, ultimo_evento=EXCLUDED.ultimo_evento,
-        proxima_em=EXCLUDED.proxima_em, cobertura=EXCLUDED.cobertura, execucao=monitoramentos_tese.execucao+1
+        proxima_em=EXCLUDED.proxima_em, cobertura=EXCLUDED.cobertura, falha_em=NULL, execucao=monitoramentos_tese.execucao+1
       RETURNING *`, [pesquisaId, usuarioId, conhecidas, ultimo, cobertura && JSON.stringify(cobertura)])).rows[0];
   });
 }
 
 /** O estado público do monitoramento, para o detalhe da pesquisa. */
 export const publico = (m) => m ? { ativo: m.ativo, verificadoEm: m.verificado_em, proximaEm: m.proxima_em,
-  cobertura: m.cobertura ?? null, ultimoResultado: m.ultimo_resultado ?? null } : null;
+  falhaEm: m.falha_em ?? null, cobertura: m.cobertura ?? null, ultimoResultado: m.ultimo_resultado ?? null } : null;
+
+const ESCOPO = `(c.mandato_id IS NULL OR $2 OR m.confidencial=FALSE OR c.mandato_id=ANY($3::uuid[]))`;
+const DA_PESSOA = `monitoramentos_tese t JOIN pesquisas_tese p ON p.id=t.pesquisa_id JOIN agente_conversas c ON c.id=p.conversa_id
+  LEFT JOIN mandatos m ON m.id=c.mandato_id`;
+
+/** Monitoramentos ligados da pessoa (no escopo dela) cuja última tentativa falhou, e quando
+ *  a próxima tentativa automática acontece. */
+export async function situacaoFalhas(db, usuarioId, { escopo = { admin: false, mandatos: [] } } = {}) {
+  const r = (await db.query(`SELECT count(*)::int AS n, min(t.proxima_em) AS proxima FROM ${DA_PESSOA}
+    WHERE t.usuario_id=$1 AND p.usuario_id=$1 AND t.ativo AND t.falha_em IS NOT NULL AND ${ESCOPO}`, [usuarioId, escopo.admin, escopo.mandatos])).rows[0];
+  return { emFalha: r.n, proximaTentativa: r.proxima ?? null };
+}
 
 /**
  * Verifica até `limite` monitoramentos vencidos da pessoa.
  * - `escopo` ({ admin, mandatos }): mesma regra da lista de pesquisas, aplicada na seleção;
  * - `podeAcessar(pesquisaId)`: a política completa (`carregar`, com a sessão relida),
- *   conferida antes de reivindicar e de novo logo antes de gravar.
- * Cada candidata é reivindicada com UPDATE condicional (vencida e ativa): entre abas
- * concorrentes, só uma reserva cada pesquisa.
+ *   conferida antes de reivindicar e de novo depois do cálculo. Devolve false quando a
+ *   pesquisa saiu do alcance; lança quando a própria sessão ou o papel não valem mais;
+ * - `repetir`: também as que falharam há mais que o intervalo mínimo (pedido explícito).
+ * Cada candidata é reivindicada com UPDATE condicional: entre abas concorrentes, só uma
+ * reserva cada pesquisa. Reivindicar apaga a falha anterior: uma execução em andamento não
+ * é reivindicada de novo por outro pedido de repetição.
  */
-export async function verificarVencidos(db, motor, usuarioId, { limite = 2, escopo = { admin: false, mandatos: [] }, podeAcessar = async () => true } = {}) {
-  const candidatas = (await db.query(`SELECT t.pesquisa_id FROM monitoramentos_tese t
-      JOIN pesquisas_tese p ON p.id=t.pesquisa_id JOIN agente_conversas c ON c.id=p.conversa_id LEFT JOIN mandatos m ON m.id=c.mandato_id
-      WHERE t.usuario_id=$1 AND p.usuario_id=$1 AND t.ativo AND t.proxima_em<=now()
-        AND (c.mandato_id IS NULL OR $2 OR m.confidencial=FALSE OR c.mandato_id=ANY($3::uuid[]))
-      ORDER BY t.proxima_em, t.pesquisa_id LIMIT 20`, [usuarioId, escopo.admin, escopo.mandatos])).rows.map((r) => r.pesquisa_id);
+export async function verificarVencidos(db, motor, usuarioId, { limite = 2, escopo = { admin: false, mandatos: [] }, podeAcessar = async () => true, repetir = false } = {}) {
+  const candidatas = (await db.query(`SELECT t.pesquisa_id FROM ${DA_PESSOA}
+      WHERE t.usuario_id=$1 AND p.usuario_id=$1 AND t.ativo AND ${vencida('$4', 't.')} AND ${ESCOPO}
+      ORDER BY t.proxima_em, t.pesquisa_id LIMIT 20`, [usuarioId, escopo.admin, escopo.mandatos, repetir])).rows.map((r) => r.pesquisa_id);
   const feitos = [];
   for (const pesquisaId of candidatas) {
     if (feitos.length >= limite) break;
     if (!(await podeAcessar(pesquisaId))) continue; // fora do escopo: não reserva nem consome nada
-    const m = (await db.query(`UPDATE monitoramentos_tese SET proxima_em=now()+${RESERVA}, execucao=execucao+1
-      WHERE pesquisa_id=$1 AND ativo AND proxima_em<=now() RETURNING *`, [pesquisaId])).rows[0];
+    const m = (await db.query(`UPDATE monitoramentos_tese SET proxima_em=now()+${RESERVA}, execucao=execucao+1, falha_em=NULL
+      WHERE pesquisa_id=$1 AND ativo AND ${vencida('$2')} RETURNING *`, [pesquisaId, repetir])).rows[0];
     if (!m) continue; // outra aba reservou antes
-    try { feitos.push(await verificar(db, motor, m, podeAcessar)); }
-    catch {
-      await db.query(`UPDATE monitoramentos_tese SET proxima_em=now()+${NOVA_TENTATIVA} WHERE pesquisa_id=$1 AND execucao=$2`, [m.pesquisa_id, m.execucao]);
-      feitos.push({ pesquisaId: m.pesquisa_id, falhou: true });
-    }
+    let calculo;
+    try { calculo = await calcular(db, motor, m); }
+    catch { await falhou(db, m); feitos.push({ pesquisaId, falhou: true }); continue; }
+    // Acesso de novo, com a sessão relida, depois do cálculo e logo antes de gravar. Revogado
+    // durante o cálculo: nada é gravado, o cursor não avança e a reserva expira sozinha.
+    let pode;
+    try { pode = await podeAcessar(pesquisaId); }
+    catch (e) { await db.query('UPDATE monitoramentos_tese SET proxima_em=now() WHERE pesquisa_id=$1 AND execucao=$2', [pesquisaId, m.execucao]); throw e; }
+    if (!pode) { feitos.push({ pesquisaId, descartada: true }); continue; }
+    try { feitos.push(await gravar(db, m, calculo)); }
+    catch { await falhou(db, m); feitos.push({ pesquisaId, falhou: true }); }
   }
   return feitos;
 }
 
-async function verificar(db, motor, m, podeAcessar) {
+/** Falha: próxima tentativa em uma hora e falha registrada, só para a ficha vigente. */
+const falhou = (db, m) => db.query(`UPDATE monitoramentos_tese SET proxima_em=now()+${NOVA_TENTATIVA}, falha_em=now()
+  WHERE pesquisa_id=$1 AND execucao=$2`, [m.pesquisa_id, m.execucao]);
+
+/*
+ * Monitor ligado antes da cobertura (Rodada 15): a linha de base é só `pesquisa_itens`, que pode
+ * ter o corte de itens da pesquisa. Sem distinguir "estava além do corte" de "chegou depois",
+ * a primeira verificação inventaria avisos ou engoliria novidades reais. A referência confiável
+ * é a publicação em que a pesquisa foi calculada (`catalogo_hash`):
+ * - `pesquisa`: os itens não tiveram corte (todas as aprovadas foram gravadas); a linha de base
+ *   já está completa e o regime é o normal;
+ * - `historica`: houve corte; as aprovadas naquela publicação entram na linha de base sem aviso,
+ *   e o que aprova agora e não aprovava lá é novidade real;
+ * - `incerta`: a publicação não está disponível (catálogo em arquivo, outra versão). Nada é
+ *   absorvido em silêncio: as candidatas viram aviso marcado "a conferir", porque podem já
+ *   atender desde antes de o monitoramento ser ligado.
+ * Empresas que entraram entre o cálculo da pesquisa e a ativação contam como novas: excesso
+ * declarado, nunca perda.
+ */
+async function baseLegada(motor, pesquisa) {
+  const f = pesquisa.funil ?? {};
+  if (Number.isInteger(f.aprovadasCadastro) && f.aprovadasCadastro <= (f.armazenadas ?? MAX_ITENS)) return { origem: 'pesquisa', ids: [] };
+  const ref = await motor.aprovadasCadastro(pesquisa, { hash: pesquisa.catalogo_hash });
+  return ref ? { origem: 'historica', ids: ref.empresas.map((e) => e.id) } : { origem: 'incerta', ids: [] };
+}
+
+/* Cálculo fora de qualquer transação: o recorte é uma consulta grande (ver motor.calcular).
+   Todas as aprovadas, sem o corte de itens da pesquisa; o limite do recorte vira cobertura. */
+async function calcular(db, motor, m) {
   const pesquisa = (await db.query('SELECT * FROM pesquisas_tese WHERE id=$1', [m.pesquisa_id])).rows[0];
-  // Fora de qualquer transação: o recorte é uma consulta grande (ver motor.calcular).
-  // Todas as aprovadas, sem o corte de itens da pesquisa; o limite do recorte vira cobertura.
   const { funil, empresas } = await motor.aprovadasCadastro(pesquisa);
   const cobertura = coberturaDe(funil);
-  const conhecidas = new Set(m.conhecidas);
-  // Ligado antes da cobertura (Rodada 15), a linha de base tinha só os itens da pesquisa (até 2.000):
-  // a primeira verificação completa a linha de base com todas as aprovadas, sem avisá-las como novas.
-  const refazerBase = m.cobertura == null;
-  const novas = refazerBase ? [] : empresas.filter((e) => !conhecidas.has(e.id));
-  const incorporar = refazerBase ? empresas.map((e) => e.id) : novas.map((e) => e.id);
+  const transicao = m.cobertura == null ? await baseLegada(motor, pesquisa) : null;
+  const antes = new Set(m.conhecidas);
+  const conhecidas = new Set([...antes, ...(transicao?.ids ?? [])]);
+  const novas = empresas.filter((e) => !conhecidas.has(e.id));
+  const aConferir = transicao?.origem === 'incerta';
+  const incorporar = [...new Set([...(transicao?.ids ?? []), ...novas.map((e) => e.id)])].filter((id) => !antes.has(id));
   const ultimo = (await db.query(MAIOR_EVENTO)).rows[0].n;
   // Eventos de todo o conjunto monitorado: a linha de base (com as descobertas anteriores),
   // os itens da pesquisa e as novas de agora. Só o evento mais recente de cada empresa.
-  const monitoradas = [...new Set([...m.conhecidas, ...incorporar])];
+  const monitoradas = [...antes, ...incorporar];
   const eventos = (await db.query(`SELECT DISTINCT ON (a.id) a.id AS empresa_id,
         COALESCE(r.nome, i.empresa->>'nome', a.id) AS nome, ev.descricao
       FROM unnest($1::text[]) AS a(id)
@@ -111,20 +175,21 @@ async function verificar(db, motor, m, podeAcessar) {
       ORDER BY a.id, ev.id DESC`, [monitoradas, m.ultimo_evento, ultimo, m.pesquisa_id])).rows;
   const resultado = {
     verificadoEm: new Date().toISOString(), totalNovas: novas.length, totalEventos: eventos.length, cobertura,
-    ...(refazerBase ? { linhaDeBaseRefeita: true } : {}),
+    ...(transicao ? { transicao: transicao.origem } : {}), ...(aConferir ? { aConferir: novas.length } : {}),
     novas: novas.slice(0, NOMES_NO_RESULTADO).map((e) => ({ id: e.id, nome: e.nome, aderencia: e.aderencia })),
     eventos: eventos.slice(0, NOMES_NO_RESULTADO).map((e) => ({ id: e.empresa_id, nome: e.nome, rotulo: e.descricao })),
   };
-  // Acesso revalidado (sessão relida) logo antes de gravar: revogado durante o cálculo, nada é
-  // gravado e o cursor não avança; a reserva expira sozinha. Fora da transação porque a política
-  // consulta mandatos e sessão pelo banco.
-  if (!(await podeAcessar(m.pesquisa_id))) return { pesquisaId: m.pesquisa_id, descartada: true };
+  return { cobertura, novas, eventos, incorporar, ultimo, resultado, aConferir };
+}
+
+async function gravar(db, m, { cobertura, novas, eventos, incorporar, ultimo, resultado, aConferir }) {
   return db.transaction(async (tx) => {
     // Só quem tem a ficha vigente grava, e só com o monitoramento ainda ligado.
     const atual = (await tx.query('SELECT ativo, execucao FROM monitoramentos_tese WHERE pesquisa_id=$1 FOR UPDATE', [m.pesquisa_id])).rows[0];
     if (!atual?.ativo || atual.execucao !== m.execucao) return { pesquisaId: m.pesquisa_id, descartada: true };
     const linhas = [
-      ...novas.map((e) => ({ empresa_id: e.id, tipo: 'nova', empresa: { id: e.id, nome: e.nome, cidade: e.cidade, uf: e.uf }, detalhe: `Aderência ${e.aderencia}%` })),
+      ...novas.map((e) => ({ empresa_id: e.id, tipo: 'nova', empresa: { id: e.id, nome: e.nome, cidade: e.cidade, uf: e.uf, ...(aConferir ? { aConferir: true } : {}) },
+        detalhe: `Aderência ${e.aderencia}%${aConferir ? ' · a conferir: pode já atender desde antes do monitoramento' : ''}` })),
       ...eventos.map((e) => ({ empresa_id: e.empresa_id, tipo: 'evento', empresa: { id: e.empresa_id, nome: e.nome }, detalhe: e.descricao })),
     ];
     // Tudo é gravado, em lotes: a linha de base nunca passa por cima de algo não avisado.
@@ -134,7 +199,7 @@ async function verificar(db, motor, m, podeAcessar) {
       [m.pesquisa_id, JSON.stringify(linhas.slice(i, i + LOTE))]);
     }
     await tx.query(`UPDATE monitoramentos_tese SET conhecidas=ARRAY(SELECT DISTINCT unnest(conhecidas || $2::text[]) ORDER BY 1),
-        ultimo_evento=GREATEST(ultimo_evento,$3), verificado_em=now(), proxima_em=now()+${SEMANA}, ultimo_resultado=$4, cobertura=$5
+        ultimo_evento=GREATEST(ultimo_evento,$3), verificado_em=now(), proxima_em=now()+${SEMANA}, ultimo_resultado=$4, cobertura=$5, falha_em=NULL
       WHERE pesquisa_id=$1`, [m.pesquisa_id, incorporar, ultimo, JSON.stringify(resultado), JSON.stringify(cobertura)]);
     return { pesquisaId: m.pesquisa_id, ...resultado };
   });
