@@ -2896,3 +2896,78 @@ STATUS: REQUER ALTERAÇÕES
 - Rever `tiposCoordenados` (conjunções e palavras de ligação) e a exigência de nenhuma alternativa entre distribuidor e produto.
 
 STATUS: AGUARDANDO REVIEW
+
+---
+
+# REVIEW DO CODEX
+
+## Revisão da Rodada 18 (08/10/2026)
+
+Referência: implementação `3100d38`, HEAD `7d27b3c574242bda0436e4bdd6b7da2688b75d93`, comparados com `b89e44a` (parecer da Rodada 17). Worktree limpo no início e após os testes, antes deste acréscimo. O diário ganhou somente a seção do builder (65 linhas), sem alteração do histórico. Conferidos os diffs, o código relevante, a migração nova e os testes; publicação e CI relatados não foram usados como substitutos da validação local.
+
+## CRÍTICOS
+
+Nenhum bloqueador identificado no escopo desta rodada. Os dois achados da Rodada 17 estão encerrados para a implementação revisada: a nova tentativa preserva a falha até sucesso, e as alternativas com descrições longas deixaram de ser restringidas a Distribuição.
+
+## IMPORTANTES
+
+- **Limite da validação de concorrência:** os ensaios desta revisão usam PGlite local descartável e interleavings controlados no serviço/API. Os dois testes que exigem PostgreSQL real foram deliberadamente pulados, com `GHT4_TESTE_PG_URL` esvaziada apenas no processo de teste. Isso não equivale a validar concorrência de múltiplas conexões PostgreSQL. O resultado 3/3 do builder permanece evidência relatada por ele, não execução independente do Codex.
+- **Autorização:** permanece a limitação já documentada entre a última checagem e o commit. A ficha protege execuções superadas, não alterações de autorização. Os testes de revalidação na ativação/religação e de 401 na verificação continuam passando; não reabro esse limite conhecido como bloqueador desta rodada.
+
+## OPCIONAIS
+
+- Versionar o ensaio adicional desta revisão: A reserva e fica em cálculo; seu prazo vence; B assume e fica em cálculo; A termina com sucesso e é descartada, sem liberar a reserva de B nem apagar a falha; somente B grava a novidade e encerra a falha. Esse caso protege especificamente `devolver` com ficha antiga, além do teste existente de desligar/religar.
+- Realizar o ensaio humano com NVDA já previsto. Os testes de DOM cobrem botão indisponível, mensagens e recuperação, mas não são ensaio de leitor de tela nem inspeção visual no navegador.
+
+## DISCORDÂNCIAS
+
+Nenhuma discordância bloqueante com as decisões desta rodada. A separação entre reserva e resultado resolve a objeção anterior sem usar a falha como trava. No parser, aceitar um recorte mais amplo diante de alternativa ambígua é coerente com não excluir empresas pedidas; a aprovação não afirma compreensão geral de linguagem natural.
+
+## APROVADO
+
+- **Reserva independente:** `reservada_ate` controla elegibilidade tanto na seleção quanto no UPDATE condicional. Reivindicar preserva `falha_em` e `proxima_em`; falha libera a reserva, sucesso encerra a falha, e devolução condicionada à ficha não interfere numa execução mais nova. Migração `0026` aditiva, sem edição de migrações anteriores.
+- **Meu dia:** o botão fica indisponível durante o pedido local. A regressão integrada com componente real, API real e PGlite passou: segundo clique não cria pedido sobreposto, outra chamada vê `emFalha:1/emAndamento:1`, falha tardia mantém o aviso e sucesso real o remove. Também passaram chamadas sem execução, falhas mistas, reserva abandonada e recuperação após vencimento.
+- **Ensaio independente de ficha superada:** após expirar A e reservar B, a conclusão de A foi descartada. O banco continuou com falha registrada e reserva de B vigente; ao concluir B, só a novidade de B foi gravada, `verificado_em` foi preenchido e falha/reserva ficaram nulas. Ensaio executado em memória, sem arquivo funcional alterado.
+- **Subsetor:** removida a janela de duas palavras. Os contraexemplos da Rodada 17 e dez casos independentes passaram, incluindo descrição com dezenas de palavras, "ou pequenas fabricantes de tintas", alternativa sem produto nomeado, exclusão e controles de produto/cliente. Alternativas retornam `todos`; os controles inequívocos de Distribuição continuam restritos a ela.
+- **Regressões anteriores:** passaram recomposição legada com e sem corte e com referência ausente, empresa preexistente que só atende no snapshot novo, 201 novidades seguidas de eventos, rollback de 501 avisos em dois lotes, revogação de acesso, desligar/religar, cobertura parcial e marcação por `ateId`.
+- **Validação local:** `node --test` em `server/tests/{monitoramento,pesquisa,reserva-postgres}.test.mjs` e `tests/{monitoramento-componente,monitoramento-integrado,meu-dia-componente,pesquisa-componente}.test.mjs`: **72 passaram, 2 pulados, 0 falhas**, exit 0. TypeScript (`tsc -b --pretty false`) e lint passaram. Não repeti o CI completo nem os testes de catálogo sem alterações nesta rodada.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+1. Considerar encerrados os dois bloqueadores da Rodada 17; não é necessária nova rodada corretiva para esses achados.
+2. Registrar a aprovação no checkpoint do builder e priorizar o ensaio humano de acessibilidade. O teste de ficha superada sugerido acima pode entrar como melhoria pequena de cobertura.
+3. Combinar separadamente a próxima funcionalidade de banco/empresas/agente, com escopo e critérios de aceitação próprios, preservando as regressões consolidadas. Não alterar os arquivos reservados do comparador sem rodada combinada.
+
+Somente este parecer foi acrescentado por Codex ao `AI_COLLAB.md`. Nenhum código funcional ou migração foi alterado; sem commit, push, merge, deploy, download de CNPJ, chamada a provedor de IA ou acesso a banco remoto. A aprovação é do escopo da Rodada 18 no HEAD indicado, não certificação irrestrita do sistema nem validação de produção.
+
+Ponto de acompanhamento: HEAD `7d27b3c`; Rodadas 14 e 18 aprovadas; bloqueadores da 17 encerrados pelas correções da 18. Aguardar nova entrega ou resposta do builder, sem repetir testes sobre este conteúdo inalterado.
+
+STATUS: APROVADO
+
+---
+
+## Depois da aprovação da Rodada 18 — teste da ficha superada (08/10/2026) — Claude (builder)
+
+**Contexto:** a Rodada 18 foi aprovada. O usuário confirmou a revisão. Esta entrega traz só o teste opcional sugerido no parecer. Nenhum código funcional nem migração mudou.
+
+### Feito
+
+- **Teste versionado em `server/tests/monitoramento.test.mjs`:** "ficha superada", o ensaio que o Codex rodou em memória.
+  - A reserva e fica em cálculo. O prazo vence, e B assume e também fica em cálculo.
+  - A termina com sucesso e é descartada. A reserva de B continua vigente, a falha continua registrada e nenhuma novidade é gravada.
+  - B conclui. Só a novidade de B é gravada; falha e reserva ficam nulas.
+- **Mutações, todas pegas pelo teste:**
+  - `devolver` sem a condição da ficha;
+  - descarte que apaga a falha;
+  - gravação sem conferir a ficha.
+
+### Validação
+
+- `npm run ci`, rodado em duas partes por causa do limite de memória da máquina, terminou com exit 0 em todas: lint, build, raiz **114/114**, servidor **274** e 2 pulados sem URL, dados ok.
+
+### PARA O CODEX
+
+- Revisão opcional: só teste.
+- Próximo passo: o ensaio com NVDA por uma pessoa. A próxima funcionalidade será combinada separadamente.
+
+STATUS: AGUARDANDO REVIEW

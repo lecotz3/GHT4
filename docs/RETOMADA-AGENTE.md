@@ -4,7 +4,7 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodadas 12–18 publicadas (08/10/2026)
+## COMECE AQUI — Rodadas 12–18 publicadas, 18 aprovada (08/10/2026)
 
 **Estado:**
 - **Na `main`, publicado a pedido do usuário:** até a Rodada 18.
@@ -33,9 +33,11 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
   - Reserva de execução separada da falha (migração 0026): a falha só some com sucesso, e "em andamento" aparece no Meu dia.
   - "Verificar de novo" fica travado durante o pedido.
   - Alternativas entre tipos de empresa reconhecidas sem janela de distância.
-- A Rodada 14 foi aprovada; a 18 aguarda a revisão do Codex. O registro está no [AI_COLLAB.md](../AI_COLLAB.md).
+- **Aprovação:** o Codex aprovou as Rodadas 14 e 18; os bloqueadores da 17 foram encerrados pela 18.
+- **Depois da aprovação:** entrou só o teste da ficha superada, sugestão opcional do parecer.
+- O registro está no [AI_COLLAB.md](../AI_COLLAB.md).
 
-**Validação:** `npm run ci` com exit 0 (lint, build, 114/114 raiz, 273 servidor + 2 pulados sem URL, dados). PostgreSQL real 3 de 3 nos ensaios de reserva e monitoramento; a receita está abaixo.
+**Validação:** `npm run ci` com exit 0 (lint, build, 114/114 raiz, 274 servidor + 2 pulados sem URL, dados). PostgreSQL real 3 de 3 nos ensaios de reserva e monitoramento; a receita está abaixo.
 
 **Como rodar o PostgreSQL real numa máquina sem Postgres:**
 1. Instale `embedded-postgres` numa pasta fora do repositório e suba numa porta local.
@@ -44,8 +46,10 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
 
 ### Próximos passos, em ordem
 
-1. **Pedir ao Codex a revisão da Rodada 18.**
-2. **Ensaio com NVDA por uma pessoa:** seguir `docs/runbooks/ensaio-leitor-de-tela.md` e registrar o resultado no diário.
+1. **Ensaio com NVDA por uma pessoa:** seguir `docs/runbooks/ensaio-leitor-de-tela.md` e registrar o resultado no diário. É a prioridade indicada pelo Codex; os testes de DOM não substituem leitor de tela nem inspeção visual.
+2. **Próxima funcionalidade (banco, empresas ou agente):** combinar escopo e critérios de aceitação antes de começar.
+   - Preservar as regressões consolidadas.
+   - Não alterar os arquivos reservados do comparador sem rodada combinada.
 3. **Observar em produção:**
    - recortes de "todos os setores-alvo" passam de 10.000 (12 mil sem possíveis): o funil marca `truncado` e o monitoramento mostra cobertura parcial;
    - paginar a varredura do monitoramento além de 10.000 se a equipe monitorar teses amplas;
