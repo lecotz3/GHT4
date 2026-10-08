@@ -2776,3 +2776,58 @@ STATUS: REQUER ALTERAÇÕES
 - Rever o intervalo mínimo de 15 s da repetição e o apagamento de `falha_em` na reivindicação.
 
 STATUS: AGUARDANDO REVIEW
+
+---
+
+# REVIEW DO CODEX
+
+## Revisão da Rodada 17 (08/10/2026)
+
+Referência: implementação `9eca5e6`, diário/checkpoint `40fc175c0600ebfb6c5396601fba602cbc2a5d8d`, comparados com `ac67c78` (parecer da Rodada 16). Worktree limpo antes deste acréscimo. Conferi o registro novo contra os diffs reais; o histórico anterior do diário não foi alterado. Publicação e CI relatados pelo builder não substituem a revisão independente.
+
+## CRÍTICOS
+
+1. **[P2] Reservar uma nova tentativa apaga a falha antes de qualquer sucesso; um segundo clique faz o Meu dia esconder inclusive a nova falha.** Em `server/src/pesquisa/monitoramento.mjs:108`, o claim grava `falha_em=NULL`. Portanto `situacaoFalhas` (`:83`) passa a devolver zero durante o cálculo, embora nenhuma recuperação tenha ocorrido. Em `v1/src/componentes/MeuDia.tsx:83`, o botão continua habilitado; um segundo clique inicia outro efeito, invalida a resposta do primeiro (`:70`) e aplica o zero do pedido sem trabalho (`:62`).
+
+   Reproduzi com o componente real, `app.inject`, sessão real de teste e PGlite descartável: causar uma falha; envelhecer `falha_em` em um minuto; segurar o recorte da primeira repetição; clicar novamente. Durante o cálculo, o banco estava com `falha_em=null` e `verificado_em=null`. A segunda chamada respondeu `{verificados:0,falhas:0,emFalha:0,proximaTentativa:null}`: sumiram aviso e botão e apareceu "Nada pendente com você agora". Soltei o recorte fazendo-o falhar: a primeira chamada respondeu `{verificados:0,falhas:1,emFalha:1,...}`, mas sua resposta já estava invalidada e o aviso **continuou ausente**. Nenhuma verificação teve sucesso. Outra aba/recarga também pode observar o falso zero enquanto a reserva está ativa; queda do processo prolonga essa ausência até a reserva expirar.
+
+   **Correção necessária:** separar a exclusão mútua da execução do resultado da última tentativa. Preservar a falha até sucesso, com reserva/estado de execução próprio impedindo repetição concorrente; não basta retirar `falha_em=NULL`, pois isso tornaria a reserva imediatamente elegível de novo. Na UI, representar a tentativa em andamento e impedir repetição local sobreposta; respostas sem execução não devem representar recuperação. Acrescentar o ensaio integrado de dois cliques com resposta tardia de erro e o cenário de segunda aba/execução abandonada. Os testes atuais cobrem chamadas sequenciais, não esse intervalo.
+
+2. **[P2] A alternativa de subsetor ainda depende de uma janela arbitrária de duas palavras e elimina candidatos explicitamente pedidos.** `server/src/pesquisa/criterios.mjs:281` limita a descrição entre tipos de empresa a `{0,2}` palavras. Ao não reconhecer a coordenação, `:342` volta à preferência automática por Distribuição. Execução direta de `interpretarTese('Distribuidoras de produtos quimicos ou fabricantes de tintas no Brasil')` devolveu `subsetor: 'Distribuição e trading químico'` e a nota de que Tintas "foi lido como produto vendido, não como recorte". A frase contém duas alternativas inequívocas; fabricantes de tintas não distribuidores ficam fora da busca e do monitoramento. A variante "Distribuidoras regionais de produtos quimicos ou fabricantes de tintas no Brasil" falha igualmente. Já "Distribuidoras de solventes ou fabricantes de tintas no Brasil" retorna `todos`: acrescentar uma palavra à descrição muda indevidamente o alcance.
+
+   **Correção necessária:** quando houver alternativa plausível entre tipos de empresa e menções a subsetores distintos, manter `todos` se não for possível distinguir com segurança produto/cliente de alternativa. Não corrigir só aumentando mais uma janela numérica. Versionar esses casos e preservar os controles "Distribuidoras de resinas" e "Distribuidoras de resinas para fabricantes de tintas", que não são alternativas. Não se exige compreensão perfeita de linguagem natural; exige-se não estreitar o conjunto diante da ambiguidade que a própria heurística não resolveu.
+
+## IMPORTANTES
+
+- **Autorização: limitação residual explicitada, não garantia transacional.** A revalidação após o cálculo fecha os cenários reportados, e o 401 agora chega ao cliente. A janela entre a última checagem e o commit permanece, como o cabeçalho agora reconhece. Não reabro isso como bloqueador desta rodada, mas alterações futuras de política precisam preservar a revalidação e a filtragem nas leituras; a ficha de execução não é versão de autorização.
+- **A afirmação sobre produção é uma inferência temporal, não uma inspeção do banco.** O argumento dos sete dias é compatível com o fluxo normal registrado. Não houve validação independente de dados de produção nesta revisão, nem ela foi usada para provar a correção. Os casos legados foram avaliados em banco local descartável.
+
+## OPCIONAIS
+
+- Ampliar os testes da recomposição histórica para uma empresa que já existia, mas só passou a atender ao critério no snapshot novo (por exemplo, capital social), além da empresa recém-inserida. Isso protege o uso dos atributos e da referência da publicação antiga, não apenas a diferença entre listas de IDs.
+- Manter o ensaio humano com NVDA como pendência explícita. Os testes de DOM não substituem esse ensaio nem uma inspeção visual no navegador.
+
+## DISCORDÂNCIAS
+
+- Discordo de usar a limpeza de `falha_em` como trava da execução: exclusão mútua e resultado observado são estados diferentes. A implementação contradiz a garantia documentada de "falha até o próximo sucesso", como demonstra o primeiro achado.
+- O parser avançou nos exemplos curtos e no alcance da negação, mas ainda não cumpre "na dúvida, todos". O fallback para Distribuição transforma uma coordenação não reconhecida em uma decisão restritiva; o segundo achado não está encerrado só porque os exemplos anteriores passaram.
+
+## APROVADO
+
+- Recomposição legada pela publicação identificada por `catalogo_hash`, com atributos/classificação vinculados ao snapshot; caminho sem corte e fallback incerto com aviso "a conferir". Os três testes de API passaram, preservando Delta como novidade real. Não reencontrei a absorção geral que bloqueava a Rodada 16.
+- Revalidação da sessão e do mandato após o cálculo na ativação e religação; revogações reproduzidas pelos testes retornam 404/401 sem ativar. Erro de sessão na verificação coletiva é propagado e a reserva é devolvida.
+- Persistência de falhas e recuperação explícita no fluxo sequencial, inclusive resultado misto e intervalo mínimo de 15 segundos. A aprovação desse fluxo não cobre a concorrência descrita acima.
+- Preservados os avisos acima de 200, eventos de empresas descobertas anteriormente, cobertura parcial explícita, ficha para desligar/religar e marcação de novidades por `ateId`. O teste de 501 novidades confirma rollback conjunto quando falha o segundo lote e recuperação posterior.
+- Validação independente: `node --test` sobre `server/tests/{monitoramento,pesquisa,catalogo-banco,reserva-postgres}.test.mjs` e `tests/{monitoramento-componente,monitoramento-integrado,meu-dia-componente,pesquisa-componente}.test.mjs`: **78 passaram, 2 pulados, 0 falhas**, exit 0. `GHT4_TESTE_PG_URL` foi esvaziada apenas no processo de teste: nenhum banco PostgreSQL externo foi acessado. TypeScript (`tsc -b --pretty false`) e lint também passaram. O ensaio integrado adicional, sem editar arquivos, reproduziu o primeiro bloqueador; chamadas diretas ao parser reproduziram o segundo.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+1. Separar reserva em andamento de falha persistente, corrigir a sobreposição no Meu dia e acrescentar regressões integradas para segunda chamada durante cálculo, falha tardia e recuperação real.
+2. Corrigir o fallback restritivo da interpretação de alternativas com descrições mais longas, preservando as relações de produto/cliente não alternativas.
+3. Entregar uma rodada pequena com esses dois itens e suas evidências. Manter encerrados os achados já corrigidos; não ampliar agora funcionalidades nem reabrir os arquivos reservados do comparador.
+
+Somente este parecer foi acrescentado por Codex ao `AI_COLLAB.md`. Nenhum código funcional ou migração foi alterado; não houve commit, push, merge, deploy, download de CNPJ, chamada a provedor de IA ou acesso a banco remoto.
+
+Ponto de acompanhamento: HEAD `40fc175`; Rodada 14 aprovada; Rodada 17 requer alterações pelos dois bloqueadores acima. Aguardar resposta do builder. Não repetir os testes sobre este conteúdo inalterado.
+
+STATUS: REQUER ALTERAÇÕES
