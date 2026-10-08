@@ -17,11 +17,14 @@
      janela não é exibido a quem perdeu o acesso;
    - erro da política (sessão expirada, papel sem permissão) não vira "nada verificado": a
      reserva é devolvida e o erro chega à rota;
-   - reserva curta com ficha: processo interrompido não empurra a semana, e desligar ou
-     religar durante o cálculo invalida o resultado em voo;
-   - falha registrada (`falha_em`) até o próximo sucesso: nova tentativa automática em uma
-     hora, ou pedida (`repetir`) depois de um intervalo mínimo; uma chamada que não executou
-     nada não apaga a falha;
+   - reserva separada do resultado: reivindicar grava só `reservada_ate` (prazo curto) e
+     incrementa a ficha. Enquanto ela vale, nenhuma outra aba nem pedido de repetição
+     reivindica a mesma pesquisa; processo interrompido libera a reserva quando o prazo vence,
+     sem empurrar a semana. Desligar ou religar durante o cálculo invalida o resultado em voo;
+   - falha registrada (`falha_em`) até o próximo SUCESSO: reivindicar uma nova tentativa não a
+     apaga, então quem consulta durante o cálculo vê "falhou, nova tentativa em andamento", e
+     não um falso zero. Nova tentativa automática em uma hora, ou pedida (`repetir`) depois de
+     um intervalo mínimo; uma chamada que não executou nada não apaga a falha;
    - cobertura explícita: com o limite de empresas por recorte, a verificação pode ser
      parcial, e isso fica gravado e visível;
    - monitor ligado antes da cobertura (Rodada 15): linha de base reconstruída pela
@@ -40,8 +43,10 @@ const LOTE = 500;
 const NOMES_NO_RESULTADO = 10;
 
 const MAIOR_EVENTO = 'SELECT COALESCE(max(id),0)::bigint AS n FROM eventos_corporativos';
-/** Vencida, ou em falha há mais que o intervalo mínimo quando a pessoa pede nova tentativa. */
-const vencida = (repetir, t = '') => `(${t}proxima_em<=now() OR (${repetir}::boolean AND ${t}falha_em IS NOT NULL AND ${t}falha_em<=now()-${REPETIR_APOS}))`;
+/** Livre (sem reserva vigente) e vencida, ou em falha há mais que o intervalo mínimo quando a
+ *  pessoa pede nova tentativa. */
+const vencida = (repetir, t = '') => `((${t}reservada_ate IS NULL OR ${t}reservada_ate<=now())
+  AND (${t}proxima_em<=now() OR (${repetir}::boolean AND ${t}falha_em IS NOT NULL AND ${t}falha_em<=now()-${REPETIR_APOS})))`;
 
 /** Cobertura de uma varredura: quantas empresas do recorte foram de fato avaliadas. */
 export const coberturaDe = (funil) => ({ recorte: funil.recorte, avaliadas: funil.avaliadas, completa: !funil.truncado && funil.avaliadas >= funil.recorte });
@@ -56,7 +61,7 @@ export async function definirMonitoramento(db, { pesquisaId, usuarioId, ativo, a
     const atual = (await tx.query('SELECT * FROM monitoramentos_tese WHERE pesquisa_id=$1 FOR UPDATE', [pesquisaId])).rows[0];
     if (!ativo) {
       if (!atual) return null;
-      return (await tx.query('UPDATE monitoramentos_tese SET ativo=FALSE, execucao=execucao+1 WHERE pesquisa_id=$1 RETURNING *', [pesquisaId])).rows[0];
+      return (await tx.query('UPDATE monitoramentos_tese SET ativo=FALSE, execucao=execucao+1, reservada_ate=NULL WHERE pesquisa_id=$1 RETURNING *', [pesquisaId])).rows[0];
     }
     if (atual?.ativo) return atual;
     const itens = (await tx.query('SELECT empresa_id FROM pesquisa_itens WHERE pesquisa_id=$1', [pesquisaId])).rows.map((r) => r.empresa_id);
@@ -65,25 +70,28 @@ export async function definirMonitoramento(db, { pesquisaId, usuarioId, ativo, a
     return (await tx.query(`INSERT INTO monitoramentos_tese (pesquisa_id,usuario_id,ativo,conhecidas,ultimo_evento,proxima_em,cobertura)
         VALUES ($1,$2,TRUE,$3,$4,now()+${SEMANA},$5)
       ON CONFLICT (pesquisa_id) DO UPDATE SET ativo=TRUE, conhecidas=EXCLUDED.conhecidas, ultimo_evento=EXCLUDED.ultimo_evento,
-        proxima_em=EXCLUDED.proxima_em, cobertura=EXCLUDED.cobertura, falha_em=NULL, execucao=monitoramentos_tese.execucao+1
+        proxima_em=EXCLUDED.proxima_em, cobertura=EXCLUDED.cobertura, falha_em=NULL, reservada_ate=NULL,
+        execucao=monitoramentos_tese.execucao+1
       RETURNING *`, [pesquisaId, usuarioId, conhecidas, ultimo, cobertura && JSON.stringify(cobertura)])).rows[0];
   });
 }
 
 /** O estado público do monitoramento, para o detalhe da pesquisa. */
 export const publico = (m) => m ? { ativo: m.ativo, verificadoEm: m.verificado_em, proximaEm: m.proxima_em,
-  falhaEm: m.falha_em ?? null, cobertura: m.cobertura ?? null, ultimoResultado: m.ultimo_resultado ?? null } : null;
+  falhaEm: m.falha_em ?? null, emAndamento: Boolean(m.reservada_ate && new Date(m.reservada_ate) > new Date()),
+  cobertura: m.cobertura ?? null, ultimoResultado: m.ultimo_resultado ?? null } : null;
 
 const ESCOPO = `(c.mandato_id IS NULL OR $2 OR m.confidencial=FALSE OR c.mandato_id=ANY($3::uuid[]))`;
 const DA_PESSOA = `monitoramentos_tese t JOIN pesquisas_tese p ON p.id=t.pesquisa_id JOIN agente_conversas c ON c.id=p.conversa_id
   LEFT JOIN mandatos m ON m.id=c.mandato_id`;
 
-/** Monitoramentos ligados da pessoa (no escopo dela) cuja última tentativa falhou, e quando
- *  a próxima tentativa automática acontece. */
+/** Monitoramentos ligados da pessoa (no escopo dela) cuja última tentativa falhou, quantos
+ *  desses já têm nova tentativa em andamento, e quando a próxima automática acontece. */
 export async function situacaoFalhas(db, usuarioId, { escopo = { admin: false, mandatos: [] } } = {}) {
-  const r = (await db.query(`SELECT count(*)::int AS n, min(t.proxima_em) AS proxima FROM ${DA_PESSOA}
+  const r = (await db.query(`SELECT count(*)::int AS n, count(*) FILTER (WHERE t.reservada_ate > now())::int AS andamento,
+      min(t.proxima_em) AS proxima FROM ${DA_PESSOA}
     WHERE t.usuario_id=$1 AND p.usuario_id=$1 AND t.ativo AND t.falha_em IS NOT NULL AND ${ESCOPO}`, [usuarioId, escopo.admin, escopo.mandatos])).rows[0];
-  return { emFalha: r.n, proximaTentativa: r.proxima ?? null };
+  return { emFalha: r.n, emAndamento: r.andamento, proximaTentativa: r.proxima ?? null };
 }
 
 /**
@@ -93,9 +101,9 @@ export async function situacaoFalhas(db, usuarioId, { escopo = { admin: false, m
  *   conferida antes de reivindicar e de novo depois do cálculo. Devolve false quando a
  *   pesquisa saiu do alcance; lança quando a própria sessão ou o papel não valem mais;
  * - `repetir`: também as que falharam há mais que o intervalo mínimo (pedido explícito).
- * Cada candidata é reivindicada com UPDATE condicional: entre abas concorrentes, só uma
- * reserva cada pesquisa. Reivindicar apaga a falha anterior: uma execução em andamento não
- * é reivindicada de novo por outro pedido de repetição.
+ * Cada candidata é reivindicada com UPDATE condicional (livre e vencida): entre abas
+ * concorrentes, só uma reserva cada pesquisa, e uma execução em andamento não é reivindicada
+ * de novo, nem por pedido de repetição. Reivindicar não mexe na falha nem na próxima data.
  */
 export async function verificarVencidos(db, motor, usuarioId, { limite = 2, escopo = { admin: false, mandatos: [] }, podeAcessar = async () => true, repetir = false } = {}) {
   const candidatas = (await db.query(`SELECT t.pesquisa_id FROM ${DA_PESSOA}
@@ -105,27 +113,33 @@ export async function verificarVencidos(db, motor, usuarioId, { limite = 2, esco
   for (const pesquisaId of candidatas) {
     if (feitos.length >= limite) break;
     if (!(await podeAcessar(pesquisaId))) continue; // fora do escopo: não reserva nem consome nada
-    const m = (await db.query(`UPDATE monitoramentos_tese SET proxima_em=now()+${RESERVA}, execucao=execucao+1, falha_em=NULL
+    const m = (await db.query(`UPDATE monitoramentos_tese SET reservada_ate=now()+${RESERVA}, execucao=execucao+1
       WHERE pesquisa_id=$1 AND ativo AND ${vencida('$2')} RETURNING *`, [pesquisaId, repetir])).rows[0];
     if (!m) continue; // outra aba reservou antes
     let calculo;
     try { calculo = await calcular(db, motor, m); }
     catch { await falhou(db, m); feitos.push({ pesquisaId, falhou: true }); continue; }
     // Acesso de novo, com a sessão relida, depois do cálculo e logo antes de gravar. Revogado
-    // durante o cálculo: nada é gravado, o cursor não avança e a reserva expira sozinha.
+    // durante o cálculo: nada é gravado, o cursor não avança e a reserva é devolvida.
     let pode;
     try { pode = await podeAcessar(pesquisaId); }
-    catch (e) { await db.query('UPDATE monitoramentos_tese SET proxima_em=now() WHERE pesquisa_id=$1 AND execucao=$2', [pesquisaId, m.execucao]); throw e; }
-    if (!pode) { feitos.push({ pesquisaId, descartada: true }); continue; }
-    try { feitos.push(await gravar(db, m, calculo)); }
-    catch { await falhou(db, m); feitos.push({ pesquisaId, falhou: true }); }
+    catch (e) { await devolver(db, m); throw e; }
+    if (!pode) { await devolver(db, m); feitos.push({ pesquisaId, descartada: true }); continue; }
+    try {
+      const r = await gravar(db, m, calculo);
+      if (r.descartada) await devolver(db, m);
+      feitos.push(r);
+    } catch { await falhou(db, m); feitos.push({ pesquisaId, falhou: true }); }
   }
   return feitos;
 }
 
-/** Falha: próxima tentativa em uma hora e falha registrada, só para a ficha vigente. */
-const falhou = (db, m) => db.query(`UPDATE monitoramentos_tese SET proxima_em=now()+${NOVA_TENTATIVA}, falha_em=now()
+/** Falha: próxima tentativa em uma hora, falha registrada e reserva liberada, só para a ficha vigente. */
+const falhou = (db, m) => db.query(`UPDATE monitoramentos_tese SET proxima_em=now()+${NOVA_TENTATIVA}, falha_em=now(), reservada_ate=NULL
   WHERE pesquisa_id=$1 AND execucao=$2`, [m.pesquisa_id, m.execucao]);
+/** Sem resultado (acesso perdido, sessão encerrada, ficha superada): só libera a reserva. A falha
+ *  anterior, se houver, continua registrada. */
+const devolver = (db, m) => db.query('UPDATE monitoramentos_tese SET reservada_ate=NULL WHERE pesquisa_id=$1 AND execucao=$2', [m.pesquisa_id, m.execucao]);
 
 /*
  * Monitor ligado antes da cobertura (Rodada 15): a linha de base é só `pesquisa_itens`, que pode
@@ -199,8 +213,8 @@ async function gravar(db, m, { cobertura, novas, eventos, incorporar, ultimo, re
       [m.pesquisa_id, JSON.stringify(linhas.slice(i, i + LOTE))]);
     }
     await tx.query(`UPDATE monitoramentos_tese SET conhecidas=ARRAY(SELECT DISTINCT unnest(conhecidas || $2::text[]) ORDER BY 1),
-        ultimo_evento=GREATEST(ultimo_evento,$3), verificado_em=now(), proxima_em=now()+${SEMANA}, ultimo_resultado=$4, cobertura=$5, falha_em=NULL
-      WHERE pesquisa_id=$1`, [m.pesquisa_id, incorporar, ultimo, JSON.stringify(resultado), JSON.stringify(cobertura)]);
+        ultimo_evento=GREATEST(ultimo_evento,$3), verificado_em=now(), proxima_em=now()+${SEMANA}, ultimo_resultado=$4, cobertura=$5, falha_em=NULL,
+        reservada_ate=NULL WHERE pesquisa_id=$1`, [m.pesquisa_id, incorporar, ultimo, JSON.stringify(resultado), JSON.stringify(cobertura)]);
     return { pesquisaId: m.pesquisa_id, ...resultado };
   });
 }

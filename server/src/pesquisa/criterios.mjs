@@ -275,10 +275,36 @@ const SUBSETOR_POR_PALAVRA = [
 const EXCLUSAO = /\b(?:nao|nem|exceto|excetuando|excluindo|excluir|exclua|sem|salvo|tirando|fora|menos|evitar|evite|com excecao|a excecao)\b/g;
 /* Fim do alcance de uma exclusão: fim da oração ou retomada afirmativa ("mas", ", procuro"). */
 const RETOMADA = /[;.!?\n]|\b(?:mas|porem|contudo|entretanto|todavia|e sim)\b|,\s*(?:e\s+)?(?:procur|busc|prefer|prioriz|foc|quer[oe]|interess)\w*/g;
-/* Tipos de empresa coordenados como alternativas ("distribuidoras ou fabricantes", "fabricantes e
-   importadoras", "indústrias químicas ou fabricantes"): com eles, nenhum subsetor sozinho é seguro. */
-const TIPO_EMPRESA = String.raw`(?:distribuidor\w*|distribuicao|trading\w*|revendedor\w*|atacadist\w*|importador\w*|fabric\w*|produtor\w*|industri\w*|manufatur\w*|formulador\w*|envasador\w*|misturador\w*|empresas?|companhias?)`;
-const TIPOS_COORDENADOS = new RegExp(String.raw`\b${TIPO_EMPRESA}(?:\s+[a-z]+){0,2}?\s*(?:,|\/|\bou\b|\be\b|\bnem\b)\s*(?:(?:as|os|a|o)\s+)?${TIPO_EMPRESA}`);
+/* Tipos de empresa. Coordenados como alternativas ("distribuidoras ou fabricantes", "fabricantes e
+   importadoras", "distribuidoras de produtos químicos ou fabricantes"), nenhum subsetor sozinho é
+   seguro. */
+const TIPO_EMPRESA = /^(?:distribuidor\w*|distribuicao|trading\w*|revendedor\w*|atacadist\w*|importador\w*|fabric\w*|produtor\w*|industri\w*|manufatur\w*|formulador\w*|envasador\w*|misturador\w*|empresas?|companhias?)$/;
+const COORDENACAO = /^(?:ou|e|nem|,|\/)$/;
+const LIGACAO = /^(?:as|os|a|o|de|do|da|dos|das|tambem|ainda)$/;
+/**
+ * Primeiro par de tipos de empresa coordenados na mesma frase: um tipo em qualquer ponto antes
+ * da conjunção ("ou", "e", "nem", vírgula, barra) e outro logo depois dela (pulando artigos).
+ * Sem janela de distância: a descrição do primeiro tipo pode ter qualquer tamanho. Devolve
+ * [início, fim] no texto, ou null. "para fabricantes", "que representem fabricantes" não são
+ * conjunções: cliente e representado não viram alternativa.
+ */
+function tiposCoordenados(n) {
+  for (const frase of n.matchAll(/[^;.!?\n]+/g)) {
+    const tokens = [...frase[0].matchAll(/[a-z]+|,|\//g)].map((t) => ({ t: t[0], ini: frase.index + t.index, fim: frase.index + t.index + t[0].length }));
+    let primeiro = null;
+    for (let i = 0; i < tokens.length; i++) {
+      if (TIPO_EMPRESA.test(tokens[i].t)) { primeiro ??= tokens[i]; continue; }
+      if (!primeiro || !COORDENACAO.test(tokens[i].t)) continue;
+      let j = i + 1;
+      while (j < tokens.length && (LIGACAO.test(tokens[j].t) || COORDENACAO.test(tokens[j].t))) j++;
+      if (j < tokens.length && TIPO_EMPRESA.test(tokens[j].t)) return [primeiro.ini, tokens[j].fim];
+    }
+  }
+  return null;
+}
+/* Alternativa entre produtos ou tipos ("resinas ou tintas", "e/ou", "nem"): depois do distribuidor,
+   impede ler as menções seguintes como "produto vendido". */
+const ALTERNATIVA = /\bou\b|\/|\bnem\b/;
 
 export function interpretarTese(tese, { referencia } = {}) {
   const original = String(tese || '').slice(0, 2000);
@@ -318,10 +344,12 @@ export function interpretarTese(tese, { referencia } = {}) {
      - Exclusão: menção depois de "não", "nem", "exceto", "sem"... fica excluída até o fim da
        oração ou uma retomada afirmativa ("; procuro", "mas"), qualquer que seja a distância; e
        menção seguida de "excluídas". Excluída nunca vira recorte (e o recorte não a exclui).
-     - Tipos de empresa coordenados como alternativas ("distribuidoras ou fabricantes"): todos.
+     - Tipos de empresa coordenados como alternativas ("distribuidoras [de qualquer descrição] ou
+       fabricantes"): todos, qualquer que seja o tamanho da descrição.
      - Um único subsetor afirmado: ele.
      - Distribuidor citado primeiro e produtos depois ("Distribuidoras ... de resinas"), sem tipos
-       coordenados: distribuição; os produtos descrevem o que a distribuidora vende.
+       coordenados e sem "ou"/"nem"/"/" entre o distribuidor e o produto: distribuição; os
+       produtos descrevem o que a distribuidora vende (ou a quem: "para fabricantes de tintas").
      - Qualquer outra combinação ("resinas ou tintas"): todos os setores-alvo. */
   const marcos = [
     ...[...n.matchAll(EXCLUSAO)].filter((m) => !(m[0] === 'menos' && /\b(?:pelo|ao|a)\s+$/.test(n.slice(Math.max(0, m.index - 5), m.index)))
@@ -336,10 +364,13 @@ export function interpretarTese(tese, { referencia } = {}) {
   const distintos = [...new Set(positivas.map((x) => x.rotulo))];
   const negados = [...new Set(mencoes.filter((x) => x.negada).map((x) => x.rotulo))].filter((r) => !distintos.includes(r));
   const DISTRIBUICAO = 'Distribuição e trading químico';
-  const coordenados = n.match(TIPOS_COORDENADOS);
+  const coordenados = tiposCoordenados(n);
+  // Produtos depois do distribuidor só são "produto vendido" sem alternativa no caminho.
+  const produtoVendido = positivas[0]?.rotulo === DISTRIBUICAO && positivas.filter((x) => x.rotulo !== DISTRIBUICAO)
+    .every((x) => !ALTERNATIVA.test(n.slice(positivas[0].pos + positivas[0].palavra.length, x.pos)));
   if (distintos.length && coordenados) {
-    notas.push(`A tese coordena tipos de empresa como alternativas ("${original.slice(coordenados.index, coordenados.index + coordenados[0].length)}"): o recorte cobre todos os setores-alvo. Escolha um em "Recorte" se a tese for só sobre um deles.`);
-  } else if (distintos.length === 1 || (distintos.length > 1 && positivas[0].rotulo === DISTRIBUICAO)) {
+    notas.push(`A tese coordena tipos de empresa como alternativas ("${original.slice(...coordenados)}"): o recorte cobre todos os setores-alvo. Escolha um em "Recorte" se a tese for só sobre um deles.`);
+  } else if (distintos.length === 1 || (distintos.length > 1 && produtoVendido)) {
     filtros.subsetor = positivas[0].rotulo;
     notas.push(`Recorte no subsetor "${filtros.subsetor}" (pela palavra "${positivas[0].palavra}")${distintos.length > 1 ? `; ${distintos.slice(1).map((r) => `"${r}"`).join(', ')} foi lido como produto vendido, não como recorte` : ''}. Troque em "Recorte" para ver outros subsetores químicos.`);
   } else if (distintos.length > 1) {

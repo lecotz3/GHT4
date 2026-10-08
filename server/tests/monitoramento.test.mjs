@@ -61,7 +61,7 @@ test('monitoramento semanal: linha de base, empresa nova e evento novo viram avi
   await importarEventos(db, { texto: `const EVENTOS_CNPJ = ${JSON.stringify({ de: mes(-2), ate: mes(-1), eventos: [{ base: '11111111', tipo: 'aumento_de_capital', rotulo: 'Aumento de capital', detalhe: '1 → 3', ambiguidade: 'y' }] })};\n` });
   await db.query("UPDATE monitoramentos_tese SET proxima_em=now()-interval '1 minute'");
   const v = (await chamar('POST', '/api/monitoramentos/verificar')).json();
-  assert.deepEqual(v, { verificados: 1, falhas: 0, emFalha: 0, proximaTentativa: null });
+  assert.deepEqual(v, { verificados: 1, falhas: 0, emFalha: 0, emAndamento: 0, proximaTentativa: null });
   const novidades = (await db.query('SELECT empresa_id,tipo FROM monitoramento_novidades ORDER BY tipo,empresa_id')).rows;
   assert.deepEqual(novidades, [{ empresa_id: 'cnpj11111111', tipo: 'evento' }, { empresa_id: 'cnpj44444444', tipo: 'nova' }]);
   const inicio = (await chamar('GET', '/api/inicio')).json().teses;
@@ -131,11 +131,11 @@ test('monitoramento: falha fica registrada até o próximo sucesso; chamada sem 
   // Catálogo de volta: a nova tentativa pedida recupera de fato.
   await db.query('UPDATE catalogo_controle SET snapshot_id=$1', [ativa]);
   await db.query("UPDATE monitoramentos_tese SET falha_em=now()-interval '1 minute'");
-  assert.deepEqual((await chamar('POST', '/api/monitoramentos/verificar', { repetir: true })).json(), { verificados: 1, falhas: 0, emFalha: 0, proximaTentativa: null });
+  assert.deepEqual((await chamar('POST', '/api/monitoramentos/verificar', { repetir: true })).json(), { verificados: 1, falhas: 0, emFalha: 0, emAndamento: 0, proximaTentativa: null });
   const ok = (await db.query("SELECT verificado_em, falha_em, proxima_em - now() > interval '6 days' AS semana FROM monitoramentos_tese")).rows[0];
   assert.ok(ok.verificado_em); assert.equal(ok.falha_em, null); assert.equal(ok.semana, true);
   // Sem falha registrada, o pedido de repetição não antecipa a semana.
-  assert.deepEqual((await chamar('POST', '/api/monitoramentos/verificar', { repetir: true })).json(), { verificados: 0, falhas: 0, emFalha: 0, proximaTentativa: null });
+  assert.deepEqual((await chamar('POST', '/api/monitoramentos/verificar', { repetir: true })).json(), { verificados: 0, falhas: 0, emFalha: 0, emAndamento: 0, proximaTentativa: null });
 });
 
 test('monitoramento: sucesso e falha na mesma chamada; a falha continua registrada mesmo com outra tese verificada', async (t) => {
@@ -156,6 +156,65 @@ test('monitoramento: sucesso e falha na mesma chamada; a falha continua registra
   assert.equal((await chamar('GET', `/api/pesquisas/${ids[0]}`)).json().monitoramento.falhaEm, null);
 });
 
+test('nova tentativa em andamento não apaga a falha: outra aba vê "falhou, em andamento"; falha tardia mantém o registro; só o sucesso apaga', async (t) => {
+  const { db, entrar, gancho } = await preparar(t);
+  const chamar = await entrar('andamento-monitor@teste.local');
+  const id = randomUUID();
+  const { pesquisa } = (await chamar('POST', '/api/pesquisas', { id, tese: 'Distribuidoras com mais de 20 anos' })).json();
+  await chamar('POST', `/api/pesquisas/${id}/iniciar`, { versao: pesquisa.versao });
+  await chamar('PUT', `/api/pesquisas/${id}/monitoramento`, { ativo: true });
+  await db.query("UPDATE monitoramentos_tese SET proxima_em=now()-interval '1 minute'");
+  gancho.antes = async () => { throw new Error('recorte indisponível'); };
+  assert.equal((await chamar('POST', '/api/monitoramentos/verificar')).json().falhas, 1);
+  await db.query("UPDATE monitoramentos_tese SET falha_em=now()-interval '1 minute'");
+  const estado = async () => (await db.query('SELECT falha_em, reservada_ate > now() AS reservada, verificado_em FROM monitoramentos_tese')).rows[0];
+  // A primeira nova tentativa fica presa no recorte.
+  let soltar, chegou;
+  const noRecorte = new Promise((r) => { chegou = r; });
+  // Segura só o primeiro recorte: um segundo cálculo indevido passaria direto e apareceria na asserção, sem travar o teste.
+  let segurou = false;
+  gancho.antes = () => { if (segurou) return undefined; segurou = true; return new Promise((resolve, reject) => { chegou(); soltar = (ok) => (ok ? resolve() : reject(new Error('falhou de novo'))); }); };
+  const primeira = chamar('POST', '/api/monitoramentos/verificar', { repetir: true });
+  await noRecorte;
+  const durante = await estado();
+  assert.ok(durante.falha_em, 'a falha continua registrada durante a nova tentativa');
+  assert.equal(durante.reservada, true);
+  // Outra aba (ou segundo pedido) durante o cálculo: nada executa, e o estado não é um falso zero.
+  const outra = (await chamar('POST', '/api/monitoramentos/verificar', { repetir: true })).json();
+  assert.deepEqual(outra, { verificados: 0, falhas: 0, emFalha: 1, emAndamento: 1, proximaTentativa: outra.proximaTentativa });
+  assert.ok(outra.proximaTentativa);
+  assert.equal((await chamar('GET', `/api/pesquisas/${id}`)).json().monitoramento.emAndamento, true);
+  // A primeira falha tarde: a falha é renovada e a reserva liberada.
+  soltar(false);
+  const tarde = (await primeira).json();
+  assert.deepEqual([tarde.verificados, tarde.falhas, tarde.emFalha, tarde.emAndamento], [0, 1, 1, 0]);
+  const depois = await estado();
+  assert.ok(depois.falha_em); assert.equal(depois.reservada, null); assert.equal(depois.verificado_em, null);
+  // Só um sucesso apaga.
+  gancho.antes = null;
+  await db.query("UPDATE monitoramentos_tese SET falha_em=now()-interval '1 minute'");
+  assert.deepEqual((await chamar('POST', '/api/monitoramentos/verificar', { repetir: true })).json(), { verificados: 1, falhas: 0, emFalha: 0, emAndamento: 0, proximaTentativa: null });
+  const fim = await estado();
+  assert.equal(fim.falha_em, null); assert.ok(fim.verificado_em);
+});
+
+test('execução abandonada: a reserva vigente impede outra execução e mantém a falha; vencido o prazo, a verificação roda', async (t) => {
+  const { db, entrar } = await preparar(t);
+  const chamar = await entrar('abandono-monitor@teste.local');
+  const id = randomUUID();
+  const { pesquisa } = (await chamar('POST', '/api/pesquisas', { id, tese: 'Distribuidoras com mais de 20 anos' })).json();
+  await chamar('POST', `/api/pesquisas/${id}/iniciar`, { versao: pesquisa.versao });
+  await chamar('PUT', `/api/pesquisas/${id}/monitoramento`, { ativo: true });
+  // Falhou antes; uma nova tentativa reservou e o processo caiu no meio (nada concluiu).
+  await db.query("UPDATE monitoramentos_tese SET proxima_em=now()-interval '1 minute', falha_em=now()-interval '5 minutes', reservada_ate=now()+interval '9 minutes', execucao=execucao+1");
+  const r = (await chamar('POST', '/api/monitoramentos/verificar', { repetir: true })).json();
+  assert.deepEqual([r.verificados, r.falhas, r.emFalha, r.emAndamento], [0, 0, 1, 1], 'não reivindica de novo nem esconde a falha');
+  assert.equal((await chamar('POST', '/api/monitoramentos/verificar')).json().verificados, 0);
+  // Prazo da reserva vencido: a verificação volta a rodar, sem esperar a semana.
+  await db.query("UPDATE monitoramentos_tese SET reservada_ate=now()-interval '1 second'");
+  assert.deepEqual((await chamar('POST', '/api/monitoramentos/verificar')).json(), { verificados: 1, falhas: 0, emFalha: 0, emAndamento: 0, proximaTentativa: null });
+});
+
 /* Liga o monitoramento numa pesquisa nova e devolve o necessário para os ensaios abaixo. */
 async function monitorada(t, { mandato = false } = {}) {
   const { db, entrar } = await preparar(t);
@@ -168,7 +227,7 @@ async function monitorada(t, { mandato = false } = {}) {
   await chamar('POST', `/api/pesquisas/${id}/iniciar`, { versao: pesquisa.versao });
   assert.equal((await chamar('PUT', `/api/pesquisas/${id}/monitoramento`, { ativo: true })).statusCode, 200);
   const vencer = () => db.query("UPDATE monitoramentos_tese SET proxima_em=now()-interval '1 minute'");
-  const estado = async () => (await db.query('SELECT conhecidas, ultimo_evento::int AS ultimo, execucao, proxima_em, ultimo_resultado FROM monitoramentos_tese WHERE pesquisa_id=$1', [id])).rows[0];
+  const estado = async () => (await db.query('SELECT conhecidas, ultimo_evento::int AS ultimo, execucao, proxima_em, reservada_ate, falha_em, ultimo_resultado FROM monitoramentos_tese WHERE pesquisa_id=$1', [id])).rows[0];
   const novidades = async (tipo) => (await db.query('SELECT count(*)::int n FROM monitoramento_novidades WHERE pesquisa_id=$1 AND tipo=$2', [id, tipo])).rows[0].n;
   return { db, chamar, usuario, mandatoId, id, vencer, estado, novidades };
 }
@@ -179,7 +238,7 @@ test('monitoramento: 201 empresas novas e depois 201 eventos viram aviso; nada �
   const raizes = Array.from({ length: 201 }, (_, k) => String(50000000 + k));
   await importarCatalogo(db, { texto: fonte('2026-09', [...BASE, ...raizes.map((r) => linha(r, `Nova ${r}`, '1990-01-01'))]), versaoRegras: 'teste' });
   await vencer();
-  assert.deepEqual((await chamar('POST', '/api/monitoramentos/verificar')).json(), { verificados: 1, falhas: 0, emFalha: 0, proximaTentativa: null });
+  assert.deepEqual((await chamar('POST', '/api/monitoramentos/verificar')).json(), { verificados: 1, falhas: 0, emFalha: 0, emAndamento: 0, proximaTentativa: null });
   assert.equal(await novidades('nova'), 201, 'a 201ª também vira aviso');
   assert.ok((await estado()).conhecidas.includes('cnpj50000200'));
   await vencer();
@@ -219,7 +278,7 @@ test('monitoramento: mandato revogado não é verificado nem consome o cursor; r
   const antes = await estado();
   await db.query('DELETE FROM mandato_membros WHERE mandato_id=$1 AND usuario_id=$2', [mandatoId, usuario]);
   assert.equal((await chamar('GET', `/api/pesquisas/${id}`)).statusCode, 404);
-  assert.deepEqual((await chamar('POST', '/api/monitoramentos/verificar')).json(), { verificados: 0, falhas: 0, emFalha: 0, proximaTentativa: null });
+  assert.deepEqual((await chamar('POST', '/api/monitoramentos/verificar')).json(), { verificados: 0, falhas: 0, emFalha: 0, emAndamento: 0, proximaTentativa: null });
   const depois = await estado();
   assert.equal(await novidades('nova') + await novidades('evento'), 0, 'nada gravado na pesquisa inacessível');
   assert.deepEqual([depois.conhecidas, depois.ultimo, depois.execucao], [antes.conhecidas, antes.ultimo, antes.execucao], 'cursor, linha de base e ficha intactos');
@@ -234,7 +293,8 @@ test('monitoramento: mandato revogado não é verificado nem consome o cursor; r
   const fim = await estado();
   assert.equal(await novidades('nova') + await novidades('evento'), 0);
   assert.deepEqual([fim.conhecidas, fim.ultimo], [antes.conhecidas, antes.ultimo], 'cursor não avança');
-  assert.ok(new Date(fim.proxima_em) - Date.now() < 11 * 60e3, 'só a reserva curta: volta a vencer em minutos, não numa semana');
+  assert.ok(new Date(fim.proxima_em) <= new Date(), 'a semana não foi empurrada: continua vencida');
+  assert.equal(fim.reservada_ate, null, 'reserva devolvida');
 });
 
 test('monitoramento: reserva curta com ficha; desligar e religar durante o cálculo descarta o resultado em voo', async (t) => {
@@ -247,7 +307,8 @@ test('monitoramento: reserva curta com ficha; desligar e religar durante o cálc
   const execucao = verificarVencidos(db, motor, usuario);
   await emCalculo;
   const reservada = await estado();
-  assert.ok(new Date(reservada.proxima_em) - Date.now() < 11 * 60e3, 'processo interrompido aqui volta a vencer em minutos');
+  assert.ok(new Date(reservada.reservada_ate) - Date.now() < 11 * 60e3, 'reserva curta: processo interrompido aqui libera em minutos');
+  assert.ok(new Date(reservada.proxima_em) <= new Date(), 'reservar não empurra a semana');
   await definirMonitoramento(db, { pesquisaId: id, usuarioId: usuario, ativo: false });
   await definirMonitoramento(db, { pesquisaId: id, usuarioId: usuario, ativo: true, aprovadas: ['cnpj11111111', 'cnpj33333333'] });
   soltar();
@@ -280,17 +341,26 @@ test('monitoramento: cobertura parcial fica gravada e aparece no detalhe e no Me
    `cortada`: a pesquisa teve corte de itens (simulado no funil; só Alfa ficou na linha de base,
    Gama aprovava mas estava além do corte). Depois, uma publicação nova traz Delta, que é
    realmente nova. `hash`: publicação da pesquisa que o catálogo não tem. */
-async function legado(t, { cortada = false, hash = null } = {}) {
+async function legado(t, { cortada = false, hash = null, linhas = [...BASE, linha('44444444', 'Delta Química', '1995-01-01')] } = {}) {
   const ctx = await monitorada(t);
   const { db, id } = ctx;
   await db.query('UPDATE monitoramentos_tese SET cobertura=NULL, conhecidas=$1', [cortada ? ['cnpj11111111'] : ['cnpj11111111', 'cnpj33333333']]);
   if (cortada) await db.query(`UPDATE pesquisas_tese SET funil = funil || '{"aprovadasCadastro": 2500, "armazenadas": 2000}'::jsonb WHERE id=$1`, [id]);
   if (hash) await db.query('UPDATE pesquisas_tese SET catalogo_hash=$2 WHERE id=$1', [id, hash]);
-  await importarCatalogo(db, { texto: fonte('2026-09', [...BASE, linha('44444444', 'Delta Química', '1995-01-01')]), versaoRegras: 'teste' });
+  await importarCatalogo(db, { texto: fonte('2026-09', linhas), versaoRegras: 'teste' });
   await ctx.vencer();
   return ctx;
 }
 const novasGravadas = async (db) => (await db.query("SELECT empresa_id, empresa->>'aConferir' AS conferir, detalhe FROM monitoramento_novidades WHERE tipo='nova' ORDER BY empresa_id")).rows;
+
+test('monitor legado com corte: empresa que já existia e só passou a atender na publicação nova vira aviso (atributos da publicação antiga)', async (t) => {
+  // Beta existia na publicação da pesquisa, mas com abertura em 2020 (não atendia "mais de 20 anos");
+  // a publicação nova corrige a data. Pela publicação antiga ela não aprovava: é novidade real.
+  const corrigida = BASE.map((l) => (l[0] === 'cnpj22222222' ? linha('22222222', 'Beta Química', '1990-01-01') : l));
+  const { db, chamar } = await legado(t, { cortada: true, linhas: corrigida });
+  assert.equal((await chamar('POST', '/api/monitoramentos/verificar')).json().verificados, 1);
+  assert.deepEqual((await novasGravadas(db)).map((x) => [x.empresa_id, x.conferir]), [['cnpj22222222', null]], 'Gama absorvida; Beta, que passou a atender, vira aviso');
+});
 
 test('monitor legado sem corte: a linha de base já estava completa; empresa nova de publicação posterior vira aviso', async (t) => {
   const { db, chamar, id, vencer, estado } = await legado(t);
@@ -376,7 +446,7 @@ test('verificação pela rota: mandato revogado durante o recorte descarta; sess
   const antes = await estado();
   // Mandato revogado durante o recorte: a política real (sessão relida + carregar) descarta.
   gancho.antes = async () => { await db.query('DELETE FROM mandato_membros WHERE mandato_id=$1 AND usuario_id=$2', [mandatoId, usuario]); };
-  assert.deepEqual((await chamar('POST', '/api/monitoramentos/verificar')).json(), { verificados: 0, falhas: 0, emFalha: 0, proximaTentativa: null });
+  assert.deepEqual((await chamar('POST', '/api/monitoramentos/verificar')).json(), { verificados: 0, falhas: 0, emFalha: 0, emAndamento: 0, proximaTentativa: null });
   assert.equal(await novidades(), 0);
   assert.deepEqual((await estado()).conhecidas, antes.conhecidas, 'linha de base intacta');
   // Sessão encerrada durante o recorte: o cliente recebe 401 (vai ao login), não "nada verificado".
@@ -386,7 +456,8 @@ test('verificação pela rota: mandato revogado durante o recorte descarta; sess
   assert.equal(await novidades(), 0);
   const depois = await estado();
   assert.deepEqual([depois.conhecidas, depois.ultimo], [antes.conhecidas, antes.ultimo]);
-  assert.equal(depois.vencida, true, 'reserva devolvida: verifica no próximo login');
+  assert.equal(depois.vencida, true, 'a semana não foi empurrada: verifica no próximo login');
+  assert.equal((await db.query('SELECT reservada_ate FROM monitoramentos_tese WHERE pesquisa_id=$1', [id])).rows[0].reservada_ate, null, 'reserva devolvida');
 });
 
 test('monitoramento: mais de um lote de novidades; falha no segundo lote desfaz tudo', async (t) => {

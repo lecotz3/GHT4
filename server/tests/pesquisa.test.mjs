@@ -850,6 +850,20 @@ test('setores-alvo na tese: recorte só quando inequívoco; negação e alternat
   assert.equal(sub('Fabricantes de tintas com pelo menos 20 anos').filtros.subsetor, 'Tintas, vernizes e revestimentos', '"pelo menos" não exclui');
   assert.equal(sub('Distribuidoras de resinas').filtros.subsetor, 'Distribuição e trading químico');
   assert.equal(sub('Distribuidoras de resinas para fabricantes de tintas').filtros.subsetor, 'Distribuição e trading químico', 'cliente da distribuidora não é alternativa');
+  // Revisão da Rodada 17: a descrição do primeiro tipo pode ter qualquer tamanho; na dúvida, todos.
+  for (const t of ['Distribuidoras de produtos quimicos ou fabricantes de tintas no Brasil',
+    'Distribuidoras regionais de produtos quimicos ou fabricantes de tintas no Brasil',
+    'Distribuidoras independentes e familiares de produtos quimicos especiais ou fabricantes de tintas',
+    'Distribuidoras de solventes ou fabricantes de tintas no Brasil',
+    'Distribuidoras de produtos químicos ou fabricantes']) {
+    const r = sub(t);
+    assert.equal(r.filtros.subsetor, 'todos', t);
+    assert.ok(r.notas.some((x) => /coordena tipos de empresa como alternativas \("Distribuidoras .*fabricantes"\)/.test(x)), `${t}: ${r.notas.join(' | ')}`);
+    assert.ok(!r.notas.some((x) => /lido como produto vendido/.test(x)), t);
+  }
+  assert.equal(sub('Distribuidoras de resinas ou tintas').filtros.subsetor, 'todos', 'alternativa entre produtos: não dá para afirmar o recorte');
+  assert.equal(sub('Distribuidoras de resinas e tintas em SP').filtros.subsetor, 'Distribuição e trading químico', 'lista de produtos vendidos');
+  assert.equal(sub('Empresas que fabricam tintas e vernizes').filtros.subsetor, 'Tintas, vernizes e revestimentos');
   const geral = sub('Empresas químicas familiares com mais de 30 anos');
   assert.equal(geral.filtros.subsetor, 'todos');
   assert.ok(geral.notas.some((x) => /não cita um subsetor/.test(x)));

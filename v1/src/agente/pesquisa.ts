@@ -54,14 +54,15 @@ export interface IAInfo { provedor: string; modelo: string; gratuito: boolean }
 /** Monitoramento semanal: refaz o funil cadastral e avisa no Meu dia sobre empresas novas e eventos. */
 /** Quanto do recorte a verificação avalia: com o limite por recorte, pode ser parcial. */
 export interface Cobertura { recorte: number; avaliadas: number; completa: boolean }
-/** `falhaEm`: a última tentativa falhou (até o próximo sucesso). `aConferir`: novas de uma transição
- *  sem referência histórica, que podem ser anteriores ao monitoramento. */
+/** `falhaEm`: a última tentativa falhou (até o próximo sucesso). `emAndamento`: há uma verificação
+ *  reservada agora. `aConferir`: novas de uma transição sem referência histórica, que podem ser
+ *  anteriores ao monitoramento. */
 export interface Monitoramento {
-  ativo: boolean; verificadoEm: string | null; proximaEm: string; falhaEm?: string | null; cobertura: Cobertura | null
+  ativo: boolean; verificadoEm: string | null; proximaEm: string; falhaEm?: string | null; emAndamento?: boolean; cobertura: Cobertura | null
   ultimoResultado: { verificadoEm: string; totalNovas: number; totalEventos: number; cobertura?: Cobertura; aConferir?: number; novas: { id: string; nome: string; aderencia: number }[]; eventos: { id: string; nome: string; rotulo: string | null }[] } | null
 }
 /** Resposta da verificação: o que esta chamada fez e o estado gravado das falhas (não só desta chamada). */
-export interface VerificacaoMonitores { verificados: number; falhas: number; emFalha?: number; proximaTentativa?: string | null }
+export interface VerificacaoMonitores { verificados: number; falhas: number; emFalha?: number; emAndamento?: number; proximaTentativa?: string | null }
 /** Como a tela de pesquisa é aberta: por tese, por id, e, vindo de um aviso do Meu dia, até qual novidade marcar como vista. */
 export interface InicialPesquisa { tese?: string; pesquisaId?: string; novidadesAte?: number }
 export interface DetalhePesquisa { pesquisa: Pesquisa; contagens: Contagens; itens: ItemPesquisa[]; ia: IAInfo | null; atualizados?: string[]; marca?: string; execucaoLote?: number | null; monitoramento?: Monitoramento | null }

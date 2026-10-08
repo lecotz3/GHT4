@@ -46,28 +46,39 @@ export function MeuDia({ visivel, aoAbrirCrm, aoRede, aoOportunidades, aoExpirar
   // verificado, recarrega para mostrar as novidades. Falha aqui não derruba a agenda, mas aparece
   // num aviso próprio: sem ele, "nada pendente" esconderia teses que não foram verificadas.
   // O aviso segue o estado gravado no servidor (`emFalha`), não só o desta chamada: uma chamada
-  // que não executou nada não é recuperação. "Verificar de novo" pede nova tentativa (`repetir`).
-  const [monitor, setMonitor] = useState<{ chamada: boolean; emFalha: number; proxima: string | null; cedo: boolean }>({ chamada: false, emFalha: 0, proxima: null, cedo: false })
+  // que não executou nada não é recuperação. "Verificar de novo" pede nova tentativa (`repetir`)
+  // e fica indisponível enquanto o pedido está em curso: dois pedidos não se sobrepõem. Uma nova
+  // tentativa que outra aba já está calculando aparece como "em andamento" (`emAndamento`).
+  const [monitor, setMonitor] = useState<{ chamada: boolean; emFalha: number; emAndamento: number; proxima: string | null; cedo: boolean }>({ chamada: false, emFalha: 0, emAndamento: 0, proxima: null, cedo: false })
   const [tentativaMonitor, setTentativaMonitor] = useState(0)
+  const [verificando, setVerificando] = useState(false)
   const repetirMonitor = useRef(false)
   useEffect(() => {
     if (!visivel) return
     let ativo = true
     const repetir = repetirMonitor.current
     repetirMonitor.current = false
+    setVerificando(true)
     pesquisaApi.verificarMonitoramentos(repetir).then((r) => {
       if (!ativo) return
       const emFalha = Math.max(r.falhas, r.emFalha ?? 0)
-      // Pedido explícito que não executou nada, com falha pendente: a falha é recente demais.
-      setMonitor({ chamada: false, emFalha, proxima: r.proximaTentativa ?? null, cedo: repetir && emFalha > 0 && r.verificados + r.falhas === 0 })
+      // Pedido explícito que não executou nada, com falha pendente e sem outra tentativa em
+      // andamento: a falha é recente demais para repetir.
+      setMonitor({ chamada: false, emFalha, emAndamento: r.emAndamento ?? 0, proxima: r.proximaTentativa ?? null,
+        cedo: repetir && emFalha > 0 && r.verificados + r.falhas === 0 && !r.emAndamento })
       if (r.verificados > 0) tentarDeNovo()
     }).catch((e) => {
       if (!ativo) return
       if (e instanceof ErroApi && e.status === 401) { expirar.current(); return }
       setMonitor((m) => ({ ...m, chamada: true, cedo: false }))
-    })
+    }).finally(() => { if (ativo) setVerificando(false) })
     return () => { ativo = false }
   }, [visivel, tentarDeNovo, tentativaMonitor])
+  const repetirVerificacao = () => {
+    if (verificando) return
+    repetirMonitor.current = true
+    setTentativaMonitor((n) => n + 1)
+  }
   // As novidades são marcadas como vistas pela tela da pesquisa, depois que ela carrega.
   const abrirTese = (id: string, ateId: number) => aoAbrirPesquisa?.(id, ateId)
   if (falhou && !dados) return <p className="agente-nota-base" role="alert">Sua agenda não pôde ser carregada agora. <button className="agente-link" onClick={tentarDeNovo}>Tentar de novo</button> As tarefas abaixo continuam disponíveis.</p>
@@ -79,8 +90,9 @@ export function MeuDia({ visivel, aoAbrirCrm, aoRede, aoOportunidades, aoExpirar
   const monitorEmFalha = (monitor.chamada || monitor.emFalha > 0) && (dados.teses?.monitoradas ?? 0) > 0
   const avisoMonitor = monitorEmFalha
     ? <p className="agente-meu-dia-aviso" role="status"><IconeRede nome="atencao" /><span>{monitor.chamada ? 'Não foi possível verificar suas teses monitoradas agora.'
-      : `Não foi possível verificar ${monitor.emFalha === 1 ? '1 tese monitorada' : `${monitor.emFalha} teses monitoradas`}.${monitor.proxima ? ` Nova tentativa automática a partir de ${momento(monitor.proxima)}.` : ''}${monitor.cedo ? ' A última tentativa foi há instantes; aguarde alguns segundos para pedir outra.' : ''}`} As novidades abaixo podem estar desatualizadas.</span>
-      <button className="agente-link" onClick={() => { repetirMonitor.current = true; setTentativaMonitor((n) => n + 1) }}>Verificar de novo</button></p> : null
+      : `Não foi possível verificar ${monitor.emFalha === 1 ? '1 tese monitorada' : `${monitor.emFalha} teses monitoradas`}.${monitor.emAndamento > 0 ? ' Uma nova tentativa está em andamento.'
+        : monitor.proxima ? ` Nova tentativa automática a partir de ${momento(monitor.proxima)}.` : ''}${monitor.cedo ? ' A última tentativa foi há instantes; aguarde alguns segundos para pedir outra.' : ''}`} As novidades abaixo podem estar desatualizadas.</span>
+      <button className="agente-link" onClick={repetirVerificacao} disabled={verificando}>{verificando ? 'Verificando…' : 'Verificar de novo'}</button></p> : null
   const nada = (!c || c.atrasados + c.hoje + c.semana === 0) && !s?.total && !redePendente && !teses.length
   // Fora da rede é um cadastro pendente, não ausência de pendências: aparece em qualquer caso.
   const foraDaRede = r && !r.naRede ? <div className="agente-meu-dia-cartao"><h4>Você ainda não está na rede</h4><p>Peça ao administrador para vincular sua conta a uma pessoa da GHT4. Assim seus contatos passam a abrir caminhos.</p></div> : null

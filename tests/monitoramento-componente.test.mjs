@@ -104,6 +104,30 @@ test('Meu dia: falha registrada antes aparece ao abrir, mesmo quando esta chamad
   } finally { await t.desmontar(); }
 });
 
+test('Meu dia: pedido em curso trava "Verificar de novo"; tentativa em andamento em outra aba aparece como tal, sem falso zero', async () => {
+  const pedidos = servidor([
+    { metodo: 'GET', url: /\/api\/inicio$/, dados: () => inicio({ monitoradas: 1, itens: [] }) },
+    { metodo: 'POST', url: /\/api\/monitoramentos\/verificar$/, segurar: true },
+  ]);
+  const t = await montar(React.createElement(MeuDia, { visivel: true, aoAbrirCrm: () => {}, aoRede: () => {}, aoOportunidades: () => {}, aoExpirar: () => {} }));
+  const texto = () => document.querySelector('section.agente-meu-dia').textContent;
+  const verificar = () => pedidos.filter((p) => p.url.endsWith('/verificar'));
+  try {
+    await esperar();
+    await responder(verificar()[0], { verificados: 0, falhas: 1, emFalha: 1, emAndamento: 0, proximaTentativa: '2030-01-02T10:00:00Z' });
+    await clicar(botao(/^Verificar de novo$/));
+    const emCurso = botao(/^Verificando…$/);
+    assert.ok(emCurso.disabled);
+    await clicar(emCurso);
+    assert.equal(verificar().length, 2, 'segundo clique não sobrepõe outro pedido');
+    // Outra aba já está calculando a nova tentativa: o aviso diz isso, sem "aguarde" nem falso zero.
+    await responder(verificar()[1], { verificados: 0, falhas: 0, emFalha: 1, emAndamento: 1, proximaTentativa: '2030-01-02T10:00:00Z' });
+    assert.match(texto(), /Não foi possível verificar 1 tese monitorada\. Uma nova tentativa está em andamento\./);
+    assert.doesNotMatch(texto(), /aguarde|Nova tentativa automática|Nada pendente com você agora/);
+    assert.ok(botao(/^Verificar de novo$/) && !botao(/^Verificar de novo$/).disabled, 'concluído o pedido, o botão volta');
+  } finally { await t.desmontar(); }
+});
+
 test('Meu dia: sem tese monitorada, falha na verificação não gera aviso; 401 encerra a sessão', async () => {
   let expirou = 0;
   const pedidos = servidor([
