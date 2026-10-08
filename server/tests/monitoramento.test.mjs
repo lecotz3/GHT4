@@ -317,6 +317,45 @@ test('monitoramento: reserva curta com ficha; desligar e religar durante o cálc
   assert.ok(!(await estado()).conhecidas.includes('cnpj99999999'));
 });
 
+test('ficha superada: A perde a reserva por prazo e B assume; o sucesso tardio de A não libera a reserva de B nem apaga a falha; só B grava', async (t) => {
+  const { db, usuario, vencer, estado, novidades } = await monitorada(t);
+  await vencer();
+  await db.query("UPDATE monitoramentos_tese SET falha_em=now()-interval '5 minutes'");
+  /* Cálculo preso até o teste soltar; cada execução devolve uma empresa nova diferente. */
+  const preso = (empresa) => {
+    let soltar, chegou;
+    const noCalculo = new Promise((r) => { chegou = r; });
+    const motor = { aprovadasCadastro: async () => { chegou(); await new Promise((r) => { soltar = r; });
+      return { funil: { recorte: 3, avaliadas: 3, truncado: false }, empresas: [{ id: empresa, nome: empresa, cidade: 'X', uf: 'SP', aderencia: 100 }] }; } };
+    return { motor, noCalculo, soltar: () => soltar() };
+  };
+  const a = preso('cnpj88888888');
+  const execA = verificarVencidos(db, a.motor, usuario);
+  await a.noCalculo;
+  // O prazo da reserva de A vence no meio do cálculo; B reivindica e também fica calculando.
+  await db.query("UPDATE monitoramentos_tese SET reservada_ate=now()-interval '1 second'");
+  const b = preso('cnpj99999999');
+  const execB = verificarVencidos(db, b.motor, usuario);
+  await b.noCalculo;
+  const fichaB = (await estado()).execucao;
+  // A termina com sucesso, mas a ficha é antiga: descartada, sem tocar na reserva de B nem na falha.
+  a.soltar();
+  assert.deepEqual((await execA).map((x) => x.descartada), [true]);
+  const entre = await estado();
+  assert.equal(entre.execucao, fichaB);
+  assert.ok(new Date(entre.reservada_ate) > new Date(), 'a reserva de B continua vigente');
+  assert.ok(entre.falha_em, 'a falha continua registrada');
+  assert.equal(await novidades('nova'), 0, 'o resultado de A não é gravado');
+  // B conclui: grava só a sua novidade e encerra a falha e a reserva.
+  b.soltar();
+  assert.deepEqual((await execB).map((x) => Boolean(x.descartada)), [false]);
+  const fim = await estado();
+  assert.equal(fim.falha_em, null); assert.equal(fim.reservada_ate, null);
+  assert.ok(fim.conhecidas.includes('cnpj99999999')); assert.ok(!fim.conhecidas.includes('cnpj88888888'));
+  assert.equal(await novidades('nova'), 1);
+  assert.deepEqual((await db.query("SELECT empresa->>'id' AS id FROM monitoramento_novidades WHERE tipo='nova'")).rows.map((r) => r.id), ['cnpj99999999']);
+});
+
 test('monitoramento: cobertura parcial fica gravada e aparece no detalhe e no Meu dia; visto só até o aviso mostrado', async (t) => {
   const { db, chamar, usuario, id, vencer } = await monitorada(t);
   await vencer();
