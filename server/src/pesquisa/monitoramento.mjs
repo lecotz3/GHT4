@@ -25,10 +25,12 @@
      apaga, então quem consulta durante o cálculo vê "falhou, nova tentativa em andamento", e
      não um falso zero. Nova tentativa automática em uma hora, ou pedida (`repetir`) depois de
      um intervalo mínimo; uma chamada que não executou nada não apaga a falha;
-   - cobertura explícita: com o limite de empresas por recorte, a verificação pode ser
-     parcial, e isso fica gravado e visível;
-   - monitor ligado antes da cobertura (Rodada 15): linha de base reconstruída pela
-     publicação da pesquisa, sem absorver novidade real (ver `baseLegada`). */
+   - cobertura explícita: a verificação varre o recorte inteiro em páginas (ver
+     `motor.aprovadasCadastro`); acima do teto da varredura ela é parcial, e isso fica gravado
+     e visível;
+   - monitor ligado antes da cobertura (Rodada 15) ou com cobertura parcial: linha de base
+     reconstruída pela publicação da pesquisa, sem absorver novidade real (ver `baseLegada` e
+     `baseHistorica`). */
 
 import { MAX_ITENS } from './motor.mjs';
 
@@ -146,10 +148,12 @@ const devolver = (db, m) => db.query('UPDATE monitoramentos_tese SET reservada_a
  * ter o corte de itens da pesquisa. Sem distinguir "estava além do corte" de "chegou depois",
  * a primeira verificação inventaria avisos ou engoliria novidades reais. A referência confiável
  * é a publicação em que a pesquisa foi calculada (`catalogo_hash`):
- * - `pesquisa`: os itens não tiveram corte (todas as aprovadas foram gravadas); a linha de base
- *   já está completa e o regime é o normal;
- * - `historica`: houve corte; as aprovadas naquela publicação entram na linha de base sem aviso,
- *   e o que aprova agora e não aprovava lá é novidade real;
+ * - `pesquisa`: o funil da pesquisa avaliou o recorte inteiro (não truncado) e os itens não
+ *   tiveram corte (todas as aprovadas foram gravadas); a linha de base já está completa e o
+ *   regime é o normal;
+ * - `historica`: houve corte de itens ou o funil da pesquisa foi truncado (só a primeira página
+ *   do recorte foi avaliada); as aprovadas naquela publicação, varrida inteira, entram na linha
+ *   de base sem aviso, e o que aprova agora e não aprovava lá é novidade real;
  * - `incerta`: a publicação não está disponível (catálogo em arquivo, outra versão). Nada é
  *   absorvido em silêncio: as candidatas viram aviso marcado "a conferir", porque podem já
  *   atender desde antes de o monitoramento ser ligado.
@@ -158,18 +162,32 @@ const devolver = (db, m) => db.query('UPDATE monitoramentos_tese SET reservada_a
  */
 async function baseLegada(motor, pesquisa) {
   const f = pesquisa.funil ?? {};
-  if (Number.isInteger(f.aprovadasCadastro) && f.aprovadasCadastro <= (f.armazenadas ?? MAX_ITENS)) return { origem: 'pesquisa', ids: [] };
+  if (!f.truncado && Number.isInteger(f.aprovadasCadastro) && f.aprovadasCadastro <= (f.armazenadas ?? MAX_ITENS)) return { origem: 'pesquisa', ids: [] };
+  return baseHistorica(motor, pesquisa, 'historica');
+}
+
+/*
+ * Monitor com cobertura parcial (ligado antes da varredura paginada, quando a verificação só lia
+ * a primeira página do recorte, ou acima do teto da varredura): a linha de base só tem as
+ * aprovadas da parte avaliada. Quando a verificação passa a avaliar mais do recorte, as aprovadas
+ * da parte nova que já existiam não são novidade, e as que chegaram depois são. A referência é a
+ * mesma do legado com corte: as aprovadas na publicação da pesquisa entram na linha de base sem
+ * aviso (`ampliada`); sem essa publicação, as candidatas viram "a conferir" (`incerta`).
+ */
+async function baseHistorica(motor, pesquisa, origem) {
   const ref = await motor.aprovadasCadastro(pesquisa, { hash: pesquisa.catalogo_hash });
-  return ref ? { origem: 'historica', ids: ref.empresas.map((e) => e.id) } : { origem: 'incerta', ids: [] };
+  return ref ? { origem, ids: ref.empresas.map((e) => e.id) } : { origem: 'incerta', ids: [] };
 }
 
 /* Cálculo fora de qualquer transação: o recorte é uma consulta grande (ver motor.calcular).
-   Todas as aprovadas, sem o corte de itens da pesquisa; o limite do recorte vira cobertura. */
+   Todas as aprovadas, sem o corte de itens da pesquisa; o teto da varredura vira cobertura. */
 async function calcular(db, motor, m) {
   const pesquisa = (await db.query('SELECT * FROM pesquisas_tese WHERE id=$1', [m.pesquisa_id])).rows[0];
   const { funil, empresas } = await motor.aprovadasCadastro(pesquisa);
   const cobertura = coberturaDe(funil);
-  const transicao = m.cobertura == null ? await baseLegada(motor, pesquisa) : null;
+  const anterior = m.cobertura;
+  const ampliou = anterior?.completa === false && (cobertura.completa || cobertura.avaliadas > anterior.avaliadas);
+  const transicao = anterior == null ? await baseLegada(motor, pesquisa) : ampliou ? await baseHistorica(motor, pesquisa, 'ampliada') : null;
   const antes = new Set(m.conhecidas);
   const conhecidas = new Set([...antes, ...(transicao?.ids ?? [])]);
   const novas = empresas.filter((e) => !conhecidas.has(e.id));

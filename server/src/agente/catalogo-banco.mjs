@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { normalizar, LIMITE_RECORTE, escopoSubsetores, rotuloEscopo } from './catalogo.mjs';
+import { normalizar, LIMITE_RECORTE, escopoSubsetores, rotuloEscopo, validarPagina } from './catalogo.mjs';
 import { normalizarMunicipio } from './filtros.mjs';
 import { MESES_EVENTO_RECENTE, SQL_EVENTO_PUBLICO } from './eventos.mjs';
 
@@ -86,8 +86,12 @@ export function criarCatalogoBanco(db) {
     },
     /** Universo de uma pesquisa por tese, com os atributos públicos gravados na importação.
      *  Com `hash`, o recorte é o da publicação com esse hash (registros publicados são imutáveis
-     *  e não são apagados), e `null` se ela não existir; sem ele, o da publicação vigente. */
-    async recorte({ busca = '', uf = '', incluirPossiveis = false, cnae = '', subsetor } = {}, { hash = null } = {}) {
+     *  e não são apagados), e `null` se ela não existir; sem ele, o da publicação vigente.
+     *  Em páginas por `ordem` (a posição no arquivo importado, única na publicação): `proximo` é
+     *  a ordem da última empresa da página, e a seguinte começa depois dela. Quem lê várias
+     *  páginas repete o `hash` da primeira, para não misturar publicações. */
+    async recorte({ busca = '', uf = '', incluirPossiveis = false, cnae = '', subsetor } = {}, { hash = null, apos = null, limite = LIMITE_RECORTE } = {}) {
+      validarPagina(apos, limite);
       const termos = normalizar(busca).trim().split(/\s+/).filter(Boolean);
       const escopo = escopoSubsetores(subsetor);
       const { rows } = await db.query(`WITH atual AS (
@@ -105,14 +109,17 @@ export function criarCatalogoBanco(db) {
         WHERE c.subsetor=ANY($1::text[]) AND c.estado<>'excluida' AND ($2::boolean OR c.estado<>'possivel')
           AND ($3='' OR r.uf=ANY(string_to_array($3,','))) AND ($4='' OR r.cnae_principal=$4)
           AND NOT EXISTS (SELECT 1 FROM unnest($5::text[]) AS t(termo) WHERE strpos(r.busca_normalizada,t.termo)=0)
-      )
+      ), pagina AS (
+        SELECT * FROM filtradas WHERE $8::int IS NULL OR ordem>$8 ORDER BY ordem LIMIT $6::int+1
+      ), lida AS (SELECT * FROM pagina ORDER BY ordem LIMIT $6)
       SELECT a.hash, a.referencia, (SELECT count(*)::int FROM filtradas) AS total,
-        COALESCE((SELECT jsonb_agg(to_jsonb(f)-'ordem' ORDER BY f.ordem) FROM (SELECT * FROM filtradas ORDER BY ordem LIMIT $6) f),'[]'::jsonb) AS empresas
-      FROM atual a`, [escopo, incluirPossiveis, uf, cnae, termos, LIMITE_RECORTE, hash]);
+        (SELECT count(*) FROM pagina) > $6 AS mais, (SELECT max(ordem) FROM lida) AS ultima,
+        COALESCE((SELECT jsonb_agg(to_jsonb(f)-'ordem' ORDER BY f.ordem) FROM lida f),'[]'::jsonb) AS empresas
+      FROM atual a`, [escopo, incluirPossiveis, uf, cnae, termos, limite, hash, apos]);
       const r = rows[0];
       if (!r && hash) return null;
       if (!r) throw new Error('O catálogo ainda não foi importado no banco.');
-      return { empresas: r.empresas, total: r.total, truncado: r.total > LIMITE_RECORTE, referencia: r.referencia,
+      return { empresas: r.empresas, total: r.total, truncado: r.mais, proximo: r.mais ? r.ultima : null, referencia: r.referencia,
         hash: r.hash, fonte: 'Receita Federal · CNPJ', subsetor: rotuloEscopo(escopo) };
     },
     async obter(id) {

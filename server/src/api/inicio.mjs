@@ -53,7 +53,7 @@ export async function registrarInicio(app) {
       const acesso = `p.usuario_id=$1 AND (c.mandato_id IS NULL OR $2 OR m.confidencial=FALSE OR c.mandato_id=ANY($3::uuid[]))`;
       const va = [u.id, u.papel === 'admin', (u.mandatos ?? []).map((x) => x.id)];
       // `ateId`: a última novidade mostrada; abrir pelo aviso marca como vistas só até ela.
-      // `parcial`: a verificação não cobriu o recorte inteiro (limite de empresas por recorte).
+      // `parcial`: a verificação não cobriu o recorte inteiro (teto da varredura ou verificação anterior à leitura em páginas).
       // `aConferir`: novas da transição de um monitor antigo sem referência histórica (podem ser anteriores).
       const itens = (await db.query(`SELECT p.id AS "pesquisaId", c.titulo, p.tese,
           count(*) FILTER (WHERE n.tipo='nova')::int AS novas, count(*) FILTER (WHERE n.tipo='evento')::int AS eventos,

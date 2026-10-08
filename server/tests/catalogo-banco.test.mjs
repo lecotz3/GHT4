@@ -304,3 +304,49 @@ test('setores-alvo: busca e recorte cobrem os subsetores acionáveis; filtro por
     assert.equal((await catalogo.recorte({})).total, 3);
   }
 });
+
+test('recorte em páginas: as páginas somam o recorte inteiro, na ordem, sem repetir nem pular; o hash fixa a publicação', async t => {
+  const { criarCatalogo } = await import('../src/agente/catalogo.mjs');
+  const { writeFile, mkdtemp, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const path = await import('node:path');
+  const linha = (n) => [`cnpj2000000${n}`, `2000000${n}`, `Distribuidora ${n}`, `Distribuidora ${n} Ltda`, 'São Paulo', 'SP', '4684299', [], '02', '2062', null, false];
+  const texto = (linhas) => `const COLUNAS_QUIMICOS = ${JSON.stringify(colunas)};\nconst LINHAS_QUIMICOS = [\n${linhas.map(JSON.stringify).join(',\n')}\n];\nconst REFERENCIA_QUIMICOS = "2026-08";`;
+  const sete = [1, 2, 3, 4, 5, 6, 7].map(linha);
+  const db = await bancoDeTeste(); t.after(() => db.close());
+  await importarCatalogo(db, { texto: texto(sete) });
+  const pasta = await mkdtemp(path.join(tmpdir(), 'ght4-paginas-'));
+  t.after(() => rm(pasta, { recursive: true, force: true }));
+  await writeFile(path.join(pasta, 'base.js'), texto(sete));
+  for (const [origem, catalogo] of [['banco', criarCatalogoBanco(db)], ['arquivo', criarCatalogo({ arquivo: path.join(pasta, 'base.js'), arquivoIbama: null })]]) {
+    const inteiro = await catalogo.recorte({});
+    assert.deepEqual([inteiro.total, inteiro.empresas.length, inteiro.truncado, inteiro.proximo], [7, 7, false, null], origem);
+    const paginas = [await catalogo.recorte({}, { limite: 3 })];
+    // Limitado: um cursor que não avança falha aqui, sem prender o teste.
+    while (paginas.at(-1).proximo !== null && paginas.length < 5) paginas.push(await catalogo.recorte({}, { hash: paginas[0].hash, apos: paginas.at(-1).proximo, limite: 3 }));
+    assert.deepEqual(paginas.map((p) => [p.empresas.length, p.total, p.truncado]), [[3, 7, true], [3, 7, true], [1, 7, false]], `${origem}: três páginas`);
+    assert.deepEqual(paginas.flatMap((p) => p.empresas.map((e) => e.id)), inteiro.empresas.map((e) => e.id), `${origem}: mesma ordem, sem repetir nem pular`);
+    assert.ok(paginas[1].empresas[0].atributos, `${origem}: páginas seguintes trazem os atributos`);
+    // Página exatamente cheia no fim: não há mais; uma a menos: há.
+    const cheia = await catalogo.recorte({}, { limite: 7 }), quase = await catalogo.recorte({}, { limite: 6 });
+    assert.deepEqual([cheia.empresas.length, cheia.truncado, cheia.proximo], [7, false, null], `${origem}: última página cheia`);
+    assert.deepEqual([quase.empresas.length, quase.truncado], [6, true]);
+    const ultima = await catalogo.recorte({}, { hash: quase.hash, apos: quase.proximo, limite: 1 });
+    assert.deepEqual([ultima.empresas.map((e) => e.id), ultima.truncado, ultima.proximo], [[inteiro.empresas[6].id], false, null], `${origem}: última página de uma`);
+    assert.equal(await catalogo.recorte({}, { hash: 'f'.repeat(64), limite: 3 }), null);
+    for (const pagina of [{ limite: 0 }, { limite: 10001 }, { limite: 2.5 }, { apos: -1 }, { apos: 1.5 }, { apos: '3' }]) {
+      await assert.rejects(catalogo.recorte({}, pagina), /Paginação inválida/, `${origem}: ${JSON.stringify(pagina)}`);
+    }
+  }
+  // Banco: publicação nova no meio da leitura. Com o hash da primeira página, as seguintes
+  // continuam na publicação antiga; sem ele, o recorte é o da vigente.
+  const catalogo = criarCatalogoBanco(db);
+  const primeira = await catalogo.recorte({}, { limite: 3 });
+  await importarCatalogo(db, { texto: texto([linha(0), ...sete]) });
+  const seguinte = await catalogo.recorte({}, { hash: primeira.hash, apos: primeira.proximo, limite: 3 });
+  assert.deepEqual([seguinte.hash, seguinte.total], [primeira.hash, 7]);
+  assert.deepEqual(seguinte.empresas.map((e) => e.id), ['cnpj20000004', 'cnpj20000005', 'cnpj20000006']);
+  const vigente = await catalogo.recorte({});
+  assert.notEqual(vigente.hash, primeira.hash);
+  assert.deepEqual([vigente.total, vigente.empresas[0].id], [8, 'cnpj20000000']);
+});

@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { bancoDeTeste, criarUsuario, criarMandato, darAcesso } from './ajuda.mjs';
-import { verificarVencidos, definirMonitoramento } from '../src/pesquisa/monitoramento.mjs';
+import { verificarVencidos, definirMonitoramento, coberturaDe } from '../src/pesquisa/monitoramento.mjs';
+import { criarMotorPesquisa } from '../src/pesquisa/motor.mjs';
 import { criarApp } from '../src/app.mjs';
 import { importarCatalogo } from '../src/agente/importar-catalogo.mjs';
 import { criarCatalogoBanco } from '../src/agente/catalogo-banco.mjs';
@@ -15,14 +16,18 @@ const fonte = (referencia, linhas) => `const COLUNAS_QUIMICOS = ${JSON.stringify
 const BASE = [linha('11111111', 'Alfa Química', '1990-01-01'), linha('22222222', 'Beta Química', '2020-01-01'), linha('33333333', 'Gama Química', '1988-01-01')];
 const mes = (d) => { const x = new Date(); x.setUTCDate(1); x.setUTCMonth(x.getUTCMonth() + d); return x.toISOString().slice(0, 7); };
 
-/* `gancho.antes(filtros)` roda no meio de cada recorte: revogar acesso, encerrar a sessão ou
-   simular indisponibilidade enquanto a rota calcula. */
+/* `gancho.antes(filtros, pagina)` roda no meio de cada recorte: revogar acesso, encerrar a sessão,
+   simular indisponibilidade ou publicar outra versão enquanto a rota calcula. `gancho.pagina`
+   encurta as páginas do recorte, para varrer em várias páginas sem milhares de empresas. */
 async function preparar(t) {
   const db = await bancoDeTeste();
   await importarCatalogo(db, { texto: fonte('2026-08', BASE), versaoRegras: 'teste' });
   const base = criarCatalogoBanco(db);
-  const gancho = { antes: null };
-  const catalogo = { ...base, recorte: async (...args) => { if (gancho.antes) await gancho.antes(...args); return base.recorte(...args); } };
+  const gancho = { antes: null, pagina: null };
+  const catalogo = { ...base, recorte: async (filtros, pagina = {}) => {
+    if (gancho.antes) await gancho.antes(filtros, pagina);
+    return base.recorte(filtros, gancho.pagina ? { ...pagina, limite: gancho.pagina } : pagina);
+  } };
   const app = await criarApp(db, { catalogo });
   t.after(async () => { await app.close(); await db.close(); });
   const entrar = async (email, papel = 'analista') => {
@@ -378,13 +383,19 @@ test('monitoramento: cobertura parcial fica gravada e aparece no detalhe e no Me
 
 /* Estado da Rodada 15: linha de base só com os itens da pesquisa e sem cobertura gravada.
    `cortada`: a pesquisa teve corte de itens (simulado no funil; só Alfa ficou na linha de base,
-   Gama aprovava mas estava além do corte). Depois, uma publicação nova traz Delta, que é
-   realmente nova. `hash`: publicação da pesquisa que o catálogo não tem. */
-async function legado(t, { cortada = false, hash = null, linhas = [...BASE, linha('44444444', 'Delta Química', '1995-01-01')] } = {}) {
+   Gama aprovava mas estava além do corte). `truncada`: o funil da pesquisa só avaliou a primeira
+   página do recorte (Gama estava além dela), sem corte de itens. `cobertura`: monitor com
+   cobertura gravada, parcial, de antes da leitura em páginas (só Alfa foi avaliada). Depois, uma
+   publicação nova traz Delta, que é realmente nova. `hash`: publicação da pesquisa que o
+   catálogo não tem. */
+async function legado(t, { cortada = false, truncada = false, cobertura = null, hash = null, linhas = [...BASE, linha('44444444', 'Delta Química', '1995-01-01')] } = {}) {
   const ctx = await monitorada(t);
   const { db, id } = ctx;
-  await db.query('UPDATE monitoramentos_tese SET cobertura=NULL, conhecidas=$1', [cortada ? ['cnpj11111111'] : ['cnpj11111111', 'cnpj33333333']]);
+  const semGama = cortada || truncada || Boolean(cobertura);
+  await db.query('UPDATE monitoramentos_tese SET cobertura=$2::jsonb, conhecidas=$1',
+    [semGama ? ['cnpj11111111'] : ['cnpj11111111', 'cnpj33333333'], cobertura && JSON.stringify(cobertura)]);
   if (cortada) await db.query(`UPDATE pesquisas_tese SET funil = funil || '{"aprovadasCadastro": 2500, "armazenadas": 2000}'::jsonb WHERE id=$1`, [id]);
+  if (truncada) await db.query(`UPDATE pesquisas_tese SET funil = funil || '{"truncado": true, "aprovadasCadastro": 1, "armazenadas": 1}'::jsonb WHERE id=$1`, [id]);
   if (hash) await db.query('UPDATE pesquisas_tese SET catalogo_hash=$2 WHERE id=$1', [id, hash]);
   await importarCatalogo(db, { texto: fonte('2026-09', linhas), versaoRegras: 'teste' });
   await ctx.vencer();
@@ -434,6 +445,122 @@ test('monitor legado com corte e sem a publicação da pesquisa: nada é absorvi
   assert.deepEqual([r.transicao, r.aConferir, r.totalNovas], ['incerta', 2, 2]);
   const item = (await chamar('GET', '/api/inicio')).json().teses.itens[0];
   assert.deepEqual([item.novas, item.aConferir], [2, 2]);
+});
+
+test('monitor legado com funil truncado e sem corte de itens: a linha de base não estava completa; a publicação da pesquisa a reconstrói', async (t) => {
+  const { db, chamar, id } = await legado(t, { truncada: true });
+  assert.equal((await chamar('POST', '/api/monitoramentos/verificar')).json().verificados, 1);
+  assert.deepEqual((await novasGravadas(db)).map((x) => [x.empresa_id, x.conferir]), [['cnpj44444444', null]],
+    'Gama estava além da página avaliada pela pesquisa: absorvida; Delta chegou depois: aviso');
+  assert.equal((await chamar('GET', `/api/pesquisas/${id}`)).json().monitoramento.ultimoResultado.transicao, 'historica');
+});
+
+test('monitor com cobertura parcial de antes da leitura em páginas: ao cobrir o recorte inteiro, quem já existia além do corte não vira aviso; só a realmente nova', async (t) => {
+  const { db, chamar, id, vencer, estado } = await legado(t, { cobertura: { recorte: 3, avaliadas: 1, completa: false } });
+  assert.equal((await chamar('POST', '/api/monitoramentos/verificar')).json().verificados, 1);
+  assert.deepEqual((await novasGravadas(db)).map((x) => [x.empresa_id, x.conferir]), [['cnpj44444444', null]],
+    'Gama aprovava na publicação da pesquisa, além da parte avaliada: absorvida; Delta chegou depois: aviso');
+  const m = (await chamar('GET', `/api/pesquisas/${id}`)).json().monitoramento;
+  assert.equal(m.ultimoResultado.transicao, 'ampliada');
+  assert.deepEqual(m.cobertura, { recorte: 4, avaliadas: 4, completa: true });
+  assert.deepEqual((await estado()).conhecidas, ['cnpj11111111', 'cnpj33333333', 'cnpj44444444']);
+  await vencer(); await chamar('POST', '/api/monitoramentos/verificar');
+  assert.equal((await novasGravadas(db)).length, 1, 'regime normal depois: sem repetição');
+  assert.equal((await chamar('GET', `/api/pesquisas/${id}`)).json().monitoramento.ultimoResultado.transicao, undefined);
+});
+
+test('monitor com cobertura parcial e sem a publicação da pesquisa: nada é absorvido; quem estava fora da parte avaliada vira "a conferir"', async (t) => {
+  const { db, chamar, id } = await legado(t, { cobertura: { recorte: 3, avaliadas: 1, completa: false }, hash: 'f'.repeat(64) });
+  assert.equal((await chamar('POST', '/api/monitoramentos/verificar')).json().verificados, 1);
+  assert.deepEqual((await novasGravadas(db)).map((x) => [x.empresa_id, x.conferir]), [['cnpj33333333', 'true'], ['cnpj44444444', 'true']]);
+  const r = (await chamar('GET', `/api/pesquisas/${id}`)).json().monitoramento.ultimoResultado;
+  assert.deepEqual([r.transicao, r.aConferir, r.cobertura.completa], ['incerta', 2, true]);
+});
+
+/* Tese ampla: sete empresas (cinco com mais de 20 anos) em páginas de duas. A pesquisa avalia só a
+   primeira página; o monitoramento varre todas. */
+const AMPLA = [...BASE, linha('44444444', 'Delta Química', '1995-01-01'), linha('55555555', 'Épsilon Química', '1980-01-01'),
+  linha('66666666', 'Eta Química', '2021-01-01'), linha('77777777', 'Iota Química', '1970-01-01')];
+const ZETA = linha('88888888', 'Zeta Química', '1960-01-01');
+async function ampla(t) {
+  const { db, entrar, gancho } = await preparar(t);
+  await importarCatalogo(db, { texto: fonte('2026-08', AMPLA), versaoRegras: 'teste' });
+  gancho.pagina = 2;
+  const chamar = await entrar(`ampla-${randomUUID()}@teste.local`);
+  const id = randomUUID();
+  const { pesquisa } = (await chamar('POST', '/api/pesquisas', { id, tese: 'Distribuidoras com mais de 20 anos' })).json();
+  const funil = (await chamar('POST', `/api/pesquisas/${id}/iniciar`, { versao: pesquisa.versao })).json().pesquisa.funil;
+  const vencer = () => db.query("UPDATE monitoramentos_tese SET proxima_em=now()-interval '1 minute'");
+  const vigente = async () => (await db.query('SELECT p.hash FROM catalogo_publicacoes p JOIN catalogo_controle c ON c.snapshot_id=p.snapshot_id')).rows[0].hash;
+  return { db, chamar, gancho, id, funil, vencer, vigente };
+}
+
+test('tese ampla: ativar e verificar leem todas as páginas do recorte na mesma publicação; empresa nova na última página vira aviso', async (t) => {
+  const { db, chamar, gancho, id, funil, vencer, vigente } = await ampla(t);
+  assert.deepEqual([funil.recorte, funil.avaliadas, funil.truncado], [7, 2, true], 'a pesquisa avalia só a primeira página');
+  const paginas = [];
+  gancho.antes = (filtros, pagina) => { paginas.push(pagina); };
+  assert.equal((await chamar('PUT', `/api/pesquisas/${id}/monitoramento`, { ativo: true })).statusCode, 200);
+  const hash = await vigente();
+  assert.deepEqual(paginas.map((p) => [p.hash, p.apos === null]), [[null, true], [hash, false], [hash, false], [hash, false]],
+    'quatro páginas; a primeira fixa a publicação e as seguintes a repetem');
+  const ligado = (await chamar('GET', `/api/pesquisas/${id}`)).json().monitoramento;
+  assert.deepEqual(ligado.cobertura, { recorte: 7, avaliadas: 7, completa: true });
+  const conhecidas = async () => (await db.query('SELECT conhecidas FROM monitoramentos_tese WHERE pesquisa_id=$1', [id])).rows[0].conhecidas;
+  assert.deepEqual(await conhecidas(), ['cnpj11111111', 'cnpj33333333', 'cnpj44444444', 'cnpj55555555', 'cnpj77777777'], 'a linha de base inclui as páginas seguintes');
+  // Zeta entra no fim do recorte, na última página.
+  await importarCatalogo(db, { texto: fonte('2026-09', [...AMPLA, ZETA]), versaoRegras: 'teste' });
+  await vencer();
+  assert.equal((await chamar('POST', '/api/monitoramentos/verificar')).json().verificados, 1);
+  assert.deepEqual((await novasGravadas(db)).map((x) => x.empresa_id), ['cnpj88888888']);
+  assert.deepEqual((await chamar('GET', `/api/pesquisas/${id}`)).json().monitoramento.cobertura, { recorte: 8, avaliadas: 8, completa: true });
+  const item = (await chamar('GET', '/api/inicio')).json().teses.itens[0];
+  assert.deepEqual([item.novas, item.parcial], [1, false]);
+});
+
+test('tese ampla: publicação nova no meio da varredura não mistura versões; a verificação seguinte a vê', async (t) => {
+  const { db, chamar, gancho, id, vencer } = await ampla(t);
+  assert.equal((await chamar('PUT', `/api/pesquisas/${id}/monitoramento`, { ativo: true })).statusCode, 200);
+  await vencer();
+  let publicou = false;
+  gancho.antes = async (filtros, pagina) => {
+    if (pagina.apos === null || publicou) return;
+    publicou = true;
+    await importarCatalogo(db, { texto: fonte('2026-09', [...AMPLA, ZETA]), versaoRegras: 'teste' });
+  };
+  const r = (await chamar('POST', '/api/monitoramentos/verificar')).json();
+  assert.ok(publicou);
+  assert.deepEqual([r.verificados, r.falhas], [1, 0]);
+  assert.equal((await novasGravadas(db)).length, 0, 'as páginas seguintes continuaram na publicação da primeira');
+  assert.deepEqual((await chamar('GET', `/api/pesquisas/${id}`)).json().monitoramento.cobertura, { recorte: 7, avaliadas: 7, completa: true });
+  gancho.antes = null;
+  await vencer();
+  assert.equal((await chamar('POST', '/api/monitoramentos/verificar')).json().verificados, 1);
+  assert.deepEqual((await novasGravadas(db)).map((x) => x.empresa_id), ['cnpj88888888']);
+});
+
+test('varredura do motor: para no teto e marca cobertura parcial; publicação trocada no meio falha em vez de misturar', async () => {
+  const empresas = Array.from({ length: 7 }, (_, i) => ({ id: `cnpj9000000${i}`, nome: `E${i}`, cidade: 'X', uf: 'SP', atributos: null }));
+  const pedidos = [];
+  let trocar = false;
+  const catalogo = { recorte: async (filtros, { hash = null, apos = null } = {}) => {
+    pedidos.push([hash, apos]);
+    const inicio = apos ?? 0, fim = inicio + 2, mais = fim < empresas.length;
+    return { empresas: empresas.slice(inicio, fim), total: empresas.length, truncado: mais, proximo: mais ? fim : null,
+      referencia: '2026-08', hash: trocar && apos ? 'outra' : 'h1' };
+  } };
+  const pesquisa = { filtros: {}, criterios: [] };
+  const teto = await criarMotorPesquisa({ db: null, catalogo, limiteVarredura: 4 }).aprovadasCadastro(pesquisa);
+  assert.deepEqual([teto.funil.recorte, teto.funil.avaliadas, teto.funil.truncado, teto.empresas.length], [7, 4, true, 4]);
+  assert.deepEqual(coberturaDe(teto.funil), { recorte: 7, avaliadas: 4, completa: false });
+  assert.deepEqual(pedidos, [[null, null], ['h1', 2]]);
+  pedidos.length = 0;
+  const inteiro = await criarMotorPesquisa({ db: null, catalogo }).aprovadasCadastro(pesquisa);
+  assert.deepEqual([inteiro.funil.avaliadas, inteiro.funil.truncado, inteiro.hash, inteiro.empresas.length], [7, false, 'h1', 7]);
+  assert.equal(coberturaDe(inteiro.funil).completa, true);
+  assert.deepEqual(pedidos, [[null, null], ['h1', 2], ['h1', 4], ['h1', 6]]);
+  trocar = true;
+  await assert.rejects(criarMotorPesquisa({ db: null, catalogo }).aprovadasCadastro(pesquisa), /mudou durante a varredura/);
 });
 
 test('ativar o monitoramento confere sessão e mandato depois do cálculo: revogação ou sessão encerrada no meio não grava', async (t) => {

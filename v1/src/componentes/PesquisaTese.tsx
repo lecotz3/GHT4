@@ -3,7 +3,7 @@ import { IconeRede } from './IconeRede'
 import { ErroApi, type Usuario } from '../agente/api'
 import {
   pesquisaApi, ATALHOS_CADASTRO, DESCRICAO_CATEGORIA, EXEMPLOS_TESE, ROTULO_CATEGORIA, ROTULO_VEREDITO,
-  type Categoria, type Criterio, type DetalhePesquisa, type Filtros, type Funil, type IAInfo, type ItemPesquisa, type Previa, type ResumoPesquisa, type Veredito, type Monitoramento, type InicialPesquisa, SUBSETORES_ALVO, SUBSETOR_ORIGINAL, rotuloSubsetor,
+  type Categoria, type Criterio, type DetalhePesquisa, type Filtros, type Funil, type IAInfo, type ItemPesquisa, type Previa, type ResumoPesquisa, type Veredito, type Monitoramento, type InicialPesquisa, SUBSETORES_ALVO, SUBSETOR_ORIGINAL, rotuloSubsetor, TETO_VARREDURA,
 } from '../agente/pesquisa'
 import { montarGrupos, paginasVazias, type Paginas } from '../agente/pesquisa-tela'
 import { criarFluxos, type Rascunho } from '../agente/pesquisa-fluxos'
@@ -388,9 +388,11 @@ function MonitorarTese({ pesquisaId, monitoramento: m, podeUsar, aoMudar, aoFalh
       <p className="text-sm text-suave">{ativo && m
         ? `Próxima verificação a partir de ${dataBr(m.proximaEm)}, ao abrir o Meu dia. O funil cadastral é refeito no catálogo vigente (sem ler sites) e o Meu dia avisa sobre empresas novas e eventos societários.`
         : 'Toda semana, o Meu dia avisa sobre empresas que passarem a atender aos critérios cadastrais e sobre eventos societários das empresas desta pesquisa.'}</p>
-      {m?.cobertura && !m.cobertura.completa && <p className="pesquisa-alerta text-xs">Cobertura parcial: a verificação avalia {m.cobertura.avaliadas.toLocaleString('pt-BR')} de {m.cobertura.recorte.toLocaleString('pt-BR')} empresas do recorte (limite por recorte). Empresas fora dessa parte não geram aviso. Para cobrir tudo, restrinja o recorte (subsetor ou UF) com "Ajustar critérios".</p>}
+      {m?.cobertura && !m.cobertura.completa && <p className="pesquisa-alerta text-xs">Cobertura parcial: a última verificação avaliou {m.cobertura.avaliadas.toLocaleString('pt-BR')} de {m.cobertura.recorte.toLocaleString('pt-BR')} empresas do recorte, e empresas fora dessa parte não geraram aviso. {m.cobertura.recorte > TETO_VARREDURA
+        ? `O recorte passa do teto de ${TETO_VARREDURA.toLocaleString('pt-BR')} empresas por verificação: para cobrir tudo, restrinja o recorte (subsetor ou UF) com "Ajustar critérios".`
+        : 'A próxima verificação lê o recorte inteiro.'}</p>}
       {ativo && m?.falhaEm && <p className="pesquisa-alerta text-xs">A última tentativa de verificação falhou ({dataBr(m.falhaEm)}). {m.emAndamento ? 'Uma nova tentativa está em andamento.' : `Nova tentativa automática a partir de ${dataBr(m.proximaEm)}, ao abrir o Meu dia.`}</p>}
-      {u?.aConferir ? <p className="pesquisa-alerta text-xs">Verificação de transição: este monitoramento foi ligado numa versão anterior, que guardava só as empresas da pesquisa, e a versão do catálogo em que ela foi calculada não está disponível. {u.aConferir === 1 ? 'A empresa listada como nova pode' : `As ${u.aConferir} empresas listadas como novas podem`} já atender à tese desde antes do monitoramento: confira.</p> : null}
+      {u?.aConferir ? <p className="pesquisa-alerta text-xs">Verificação de transição: este monitoramento foi ligado numa versão anterior, que não acompanhava o recorte inteiro, e a versão do catálogo em que a pesquisa foi calculada não está disponível. {u.aConferir === 1 ? 'A empresa listada como nova pode' : `As ${u.aConferir} empresas listadas como novas podem`} já atender à tese desde antes do monitoramento: confira.</p> : null}
       {u && <p className="text-xs text-suave">Última verificação em {dataBr(u.verificadoEm)}{u.cobertura && !u.cobertura.completa ? ' (parcial)' : ''}: {plural(u.totalNovas, 'empresa nova', 'empresas novas')}{u.novas.length ? ` (${u.novas.map((x) => x.nome).join(', ')}${u.totalNovas > u.novas.length ? '…' : ''})` : ''} · {plural(u.totalEventos, 'com evento societário', 'com evento societário')}{u.eventos.length ? ` (${u.eventos.map((x) => x.nome).join(', ')})` : ''}.{u.totalNovas ? ' Para revisar as novas no site, use "Ajustar critérios" (nova rodada).' : ''}</p>}
     </div>
     <button className="agente-btn-secundario" onClick={() => void alternar()} disabled={salvando || !podeUsar}>{salvando ? 'Salvando…' : ativo ? 'Parar de monitorar' : 'Monitorar toda semana'}</button>

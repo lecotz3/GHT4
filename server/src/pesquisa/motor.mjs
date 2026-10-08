@@ -20,7 +20,7 @@
  * ========================================================================== */
 
 import { Subsetor } from '../agente/filtros.mjs';
-import { SUBSETOR } from '../agente/catalogo.mjs';
+import { SUBSETOR, LIMITE_VARREDURA } from '../agente/catalogo.mjs';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { Criterio, ListaCriterios, MAX_PESQUISA, consolidar, interpretarTese, verificarCadastro, CAMPOS_REGRA } from './criterios.mjs';
@@ -170,36 +170,56 @@ async function julgarComIA({ servicoIA, criterios, frases, site, empresa, execuc
 
 /* ---- motor -------------------------------------------------------------- */
 
-export function criarMotorPesquisa({ db, catalogo, servicoIA = null, web = {} }) {
+export function criarMotorPesquisa({ db, catalogo, servicoIA = null, web = {}, limiteVarredura = LIMITE_VARREDURA }) {
   const modo = servicoIA ? `ia:${servicoIA.status.provedor}/${servicoIA.status.modelo}` : 'regras';
 
-  /** Recorte da publicação vigente ou, com `hash`, de uma publicação anterior (null se não houver). */
-  async function recorteAtual(filtros, { hash = null } = {}) {
+  /** Página do recorte da publicação vigente ou, com `hash`, de uma publicação anterior (null se
+   *  não houver). Sem `apos`, a primeira página. */
+  async function recorteAtual(filtros, { hash = null, apos = null } = {}) {
     if (typeof catalogo.recorte !== 'function') throw Object.assign(new Error('Catálogo sem recorte.'), { codigo: 'base_indisponivel' });
-    return catalogo.recorte({ ...filtros, subsetor: filtros.subsetor ?? SUBSETOR }, { hash });
+    return catalogo.recorte({ ...filtros, subsetor: filtros.subsetor ?? SUBSETOR }, { hash, apos });
   }
 
-  /** Funil cadastral sobre o recorte inteiro. Puro: não grava nada. */
-  function funilDe(recorte, criterios) {
+  /** Funil cadastral, somado página a página do recorte. Puro: não grava nada. `leve` reduz o que
+   *  fica guardado de cada aprovada (o monitoramento varre o recorte inteiro e só precisa do cartão
+   *  e da aderência); sem ele, a pesquisa guarda a empresa e os vereditos. */
+  function novoFunil(criterios, referencia, leve = null) {
     const eliminadasPor = {}, exclusivas = {};
     const aprovadas = [];
-    let semAtributos = 0;
-    for (const [indice, e] of recorte.empresas.entries()) {
-      if (!e.atributos) semAtributos++;
-      const vereditos = criterios.map((c) => c.tipo === 'cadastro' ? verificarCadastro(c.regra, e, recorte.referencia) : PENDENTE);
-      const reprovou = criterios.filter((c, i) => c.obrigatorio && vereditos[i].veredito === 'nao_atende');
-      for (const c of reprovou) eliminadasPor[c.id] = (eliminadasPor[c.id] ?? 0) + 1;
-      if (reprovou.length === 1) exclusivas[reprovou[0].id] = (exclusivas[reprovou[0].id] ?? 0) + 1;
-      if (!reprovou.length) aprovadas.push({ e, vereditos, indice, ...consolidar(criterios, vereditos) });
-    }
-    aprovadas.sort((a, b) => b.aderencia - a.aderencia || a.indice - b.indice);
+    let avaliadas = 0, semAtributos = 0, comSite = 0;
     return {
-      aprovadas,
-      funil: { recorte: recorte.total, avaliadas: recorte.empresas.length, truncado: Boolean(recorte.truncado), semAtributos,
-        eliminadas: recorte.empresas.length - aprovadas.length, eliminadasPor, exclusivas,
-        aprovadasCadastro: aprovadas.length, comSite: aprovadas.filter((a) => a.e.atributos?.dominio).length,
-        armazenadas: Math.min(aprovadas.length, MAX_ITENS) },
+      somar(empresas) {
+        for (const e of empresas) {
+          const indice = avaliadas++;
+          if (!e.atributos) semAtributos++;
+          const vereditos = criterios.map((c) => c.tipo === 'cadastro' ? verificarCadastro(c.regra, e, referencia) : PENDENTE);
+          const reprovou = criterios.filter((c, i) => c.obrigatorio && vereditos[i].veredito === 'nao_atende');
+          for (const c of reprovou) eliminadasPor[c.id] = (eliminadasPor[c.id] ?? 0) + 1;
+          if (reprovou.length === 1) exclusivas[reprovou[0].id] = (exclusivas[reprovou[0].id] ?? 0) + 1;
+          if (reprovou.length) continue;
+          if (e.atributos?.dominio) comSite++;
+          const consolidado = consolidar(criterios, vereditos);
+          aprovadas.push(leve ? { e: leve(e), indice, aderencia: consolidado.aderencia } : { e, vereditos, indice, ...consolidado });
+        }
+      },
+      /** `total` do recorte; `truncado` se ficaram empresas sem avaliar. */
+      fechar({ total, truncado }) {
+        aprovadas.sort((a, b) => b.aderencia - a.aderencia || a.indice - b.indice);
+        return {
+          aprovadas,
+          funil: { recorte: total, avaliadas, truncado: Boolean(truncado), semAtributos,
+            eliminadas: avaliadas - aprovadas.length, eliminadasPor, exclusivas,
+            aprovadasCadastro: aprovadas.length, comSite, armazenadas: Math.min(aprovadas.length, MAX_ITENS) },
+        };
+      },
     };
+  }
+
+  /** Funil da pesquisa: só a primeira página do recorte (`truncado` se houver mais). */
+  function funilDe(recorte, criterios) {
+    const funil = novoFunil(criterios, recorte.referencia);
+    funil.somar(recorte.empresas);
+    return funil.fechar(recorte);
   }
 
   return {
@@ -257,13 +277,25 @@ export function criarMotorPesquisa({ db, catalogo, servicoIA = null, web = {} })
     },
 
     /** Todas as aprovadas no cadastro, sem o corte de itens da pesquisa (para o monitoramento).
-     *  O recorte continua limitado pelo catálogo; `funil.truncado` diz se a varredura foi parcial.
+     *  Varre o recorte inteiro, página a página, sempre na mesma publicação: a primeira página
+     *  fixa o hash e as seguintes o repetem, então uma importação no meio não mistura versões.
+     *  Para em `limiteVarredura` empresas; `funil.truncado` diz se sobrou recorte sem avaliar.
      *  Com `hash`, na publicação desse hash; `null` se o catálogo não a guardar. */
     async aprovadasCadastro(pesquisa, { hash = null } = {}) {
-      const recorte = await recorteAtual(pesquisa.filtros, { hash });
-      if (!recorte) return null;
-      const { funil, aprovadas } = funilDe(recorte, pesquisa.criterios);
-      return { funil, empresas: aprovadas.map((a) => ({ id: a.e.id, nome: a.e.nome, cidade: a.e.cidade, uf: a.e.uf, aderencia: a.aderencia })) };
+      let pagina = await recorteAtual(pesquisa.filtros, { hash });
+      if (!pagina) return null;
+      const { total, referencia, hash: fixo } = pagina;
+      const funil = novoFunil(pesquisa.criterios, referencia, (e) => ({ id: e.id, nome: e.nome, cidade: e.cidade, uf: e.uf }));
+      let lidas = 0;
+      for (;;) {
+        funil.somar(pagina.empresas);
+        lidas += pagina.empresas.length;
+        if (pagina.proximo == null || !pagina.empresas.length || lidas >= limiteVarredura) break;
+        pagina = await recorteAtual(pesquisa.filtros, { hash: fixo, apos: pagina.proximo });
+        if (!pagina || pagina.hash !== fixo || pagina.total !== total) throw new Error('A publicação do catálogo mudou durante a varredura.');
+      }
+      const { funil: resumo, aprovadas } = funil.fechar({ total, truncado: pagina.proximo != null });
+      return { funil: resumo, hash: fixo, empresas: aprovadas.map((a) => ({ ...a.e, aderencia: a.aderencia })) };
     },
 
     async gravarItens(tx, pesquisaId, itens) {

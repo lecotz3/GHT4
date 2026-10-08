@@ -17,10 +17,18 @@ export function escopoSubsetores(subsetor) {
 export const rotuloEscopo = (escopo) => escopo.length === 1 ? escopo[0] : `Químicos · ${escopo.length} subsetores`;
 const ARQUIVO = fileURLToPath(new URL('../../../data-quimicos.js', import.meta.url));
 const ARQUIVO_IBAMA = fileURLToPath(new URL('../../../data-ibama.js', import.meta.url));
-/** Teto do recorte entregue à revisão e ao monitoramento. Com os 9 setores-alvo o escopo amplo
- *  passa disso (12 mil sem possíveis, 36 mil com): o funil marca `truncado` e o monitoramento
- *  grava cobertura parcial. Restringir subsetor ou UF traz o recorte para dentro do teto. */
+/** Página do recorte. A pesquisa (prévia e revisão) usa só a primeira: com os 9 setores-alvo o
+ *  escopo amplo passa disso (12 mil sem possíveis, 36 mil com) e o funil marca `truncado`.
+ *  O monitoramento lê as páginas seguintes (`apos` = `proximo` da anterior) até
+ *  `LIMITE_VARREDURA`; acima disso grava cobertura parcial. */
 export const LIMITE_RECORTE = 10000;
+export const LIMITE_VARREDURA = 100000;
+/** Página pedida: até `LIMITE_RECORTE` empresas, depois do cursor `apos` (inteiro ≥ 0) se houver. */
+export function validarPagina(apos, limite) {
+  if (!Number.isInteger(limite) || limite < 1 || limite > LIMITE_RECORTE || (apos !== null && (!Number.isInteger(apos) || apos < 0))) {
+    throw new Error('Paginação inválida.');
+  }
+}
 export const normalizar = (s) => String(s ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
 // Lê apenas literais JSON. Não executa o JavaScript de arquivos de dados.
@@ -111,14 +119,17 @@ export function criarCatalogo({ arquivo = ARQUIVO, arquivoIbama = ARQUIVO_IBAMA 
       };
     },
     async obter(id) { return (await carregar()).empresas.find((e) => e.id === id) ?? null; },
-    /** Universo de uma pesquisa por tese: cartão + atributos públicos, na ordem do catálogo.
-     *  O arquivo guarda só a versão atual: `hash` de outra versão devolve `null`. */
-    async recorte(filtros = {}, { hash = null } = {}) {
+    /** Universo de uma pesquisa por tese: cartão + atributos públicos, na ordem do catálogo, em
+     *  páginas. `truncado`: há mais depois desta página; `proximo`: o `apos` da seguinte (aqui, a
+     *  posição no recorte). O arquivo guarda só a versão atual: `hash` de outra versão devolve `null`. */
+    async recorte(filtros = {}, { hash = null, apos = null, limite = LIMITE_RECORTE } = {}) {
+      validarPagina(apos, limite);
       const base = await carregar();
       if (hash && hash !== base.hash) return null;
       const filtradas = filtrar(base.empresas, filtros);
-      return { empresas: filtradas.slice(0, LIMITE_RECORTE).map((e) => ({ ...e, atributos: base.atributos.get(e.id) ?? null })),
-        total: filtradas.length, truncado: filtradas.length > LIMITE_RECORTE,
+      const inicio = apos ?? 0, fim = inicio + limite, mais = filtradas.length > fim;
+      return { empresas: filtradas.slice(inicio, fim).map((e) => ({ ...e, atributos: base.atributos.get(e.id) ?? null })),
+        total: filtradas.length, truncado: mais, proximo: mais ? fim : null,
         referencia: base.referencia, hash: base.hash, fonte: 'Receita Federal · CNPJ', subsetor: rotuloEscopo(escopoSubsetores(filtros.subsetor)) };
     },
   };

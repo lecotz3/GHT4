@@ -52,8 +52,11 @@ export interface Contagens { total: number; revisadas: number; pendentes: number
 export interface IAInfo { provedor: string; modelo: string; gratuito: boolean }
 /** `marca`: identifica o conjunto revisado da página; `execucaoLote`: geração em que o avanço rodou (null: não rodou). */
 /** Monitoramento semanal: refaz o funil cadastral e avisa no Meu dia sobre empresas novas e eventos. */
-/** Quanto do recorte a verificação avalia: com o limite por recorte, pode ser parcial. */
+/** Quanto do recorte a verificação avalia. Ela lê o recorte inteiro em páginas, até o teto; acima
+ *  dele (ou numa verificação anterior à leitura em páginas), a cobertura é parcial. */
 export interface Cobertura { recorte: number; avaliadas: number; completa: boolean }
+/** Teto de empresas lidas por verificação: o mesmo `LIMITE_VARREDURA` do servidor. */
+export const TETO_VARREDURA = 100000
 /** `falhaEm`: a última tentativa falhou (até o próximo sucesso). `emAndamento`: há uma verificação
  *  reservada agora. `aConferir`: novas de uma transição sem referência histórica, que podem ser
  *  anteriores ao monitoramento. */

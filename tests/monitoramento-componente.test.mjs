@@ -207,7 +207,7 @@ test('pesquisa: falha registrada e transição "a conferir" aparecem no monitora
     await esperar();
     const texto = document.getElementById(`monitor-${ID}`).closest('section').textContent;
     assert.match(texto, /A última tentativa de verificação falhou \(08\/10\/2026\)\. Nova tentativa automática a partir de 08\/10\/2026/);
-    assert.match(texto, /Verificação de transição: .*As 2 empresas listadas como novas podem já atender à tese desde antes do monitoramento: confira\./);
+    assert.match(texto, /Verificação de transição: este monitoramento foi ligado numa versão anterior, que não acompanhava o recorte inteiro, .*As 2 empresas listadas como novas podem já atender à tese desde antes do monitoramento: confira\./);
   } finally { await t.desmontar(); }
   servidor([
     { metodo: 'GET', url: /\/api\/inicio$/, dados: () => inicio({ monitoradas: 1, itens: [{ ...comNovidade.itens[0], novas: 2, eventos: 0, aConferir: 2, parcial: false }] }) },
@@ -254,7 +254,20 @@ test('pesquisa aberta pelo aviso: marca como vistas até o marco só depois de c
     assert.equal(vistas.length, 1);
     assert.deepEqual(vistas[0].corpo, { ateId: 7 });
     const secao = document.getElementById(`monitor-${ID}`).closest('section');
-    assert.match(secao.textContent, /Cobertura parcial: a verificação avalia 10\.000 de 12\.145 empresas do recorte/);
+    assert.match(secao.textContent, /Cobertura parcial: a última verificação avaliou 10\.000 de 12\.145 empresas do recorte, e empresas fora dessa parte não geraram aviso\. A próxima verificação lê o recorte inteiro\./);
     assert.match(secao.textContent, /Última verificação em 07\/10\/2026 \(parcial\)/);
+  } finally { await t.desmontar(); }
+  // Recorte acima do teto da varredura: a orientação é restringir o recorte.
+  const acima = { cobertura: { recorte: 150000, avaliadas: 100000, completa: false } };
+  pedidos = servidor([
+    { metodo: 'GET', url: /\/api\/pesquisas$/, dados: () => ({ pesquisas: [], ia: null }) },
+    { metodo: 'GET', url: new RegExp(`${ID}$`), dados: () => ({ ...detalhe, monitoramento: { ...parcial, ...acima, ultimoResultado: { ...parcial.ultimoResultado, ...acima } } }) },
+  ]);
+  t = await montar(React.createElement(PesquisaTese, { ...props, inicial: { pesquisaId: ID } }));
+  try {
+    await esperar(); await esperar();
+    const secao = document.getElementById(`monitor-${ID}`).closest('section');
+    assert.match(secao.textContent, /avaliou 100\.000 de 150\.000 empresas do recorte, e empresas fora dessa parte não geraram aviso\. O recorte passa do teto de 100\.000 empresas por verificação: para cobrir tudo, restrinja o recorte/);
+    assert.doesNotMatch(secao.textContent, /A próxima verificação lê o recorte inteiro/);
   } finally { await t.desmontar(); }
 });
