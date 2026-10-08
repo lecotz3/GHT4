@@ -4,10 +4,10 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodadas 12–15 publicadas (07/10/2026, noite)
+## COMECE AQUI — Rodadas 12–16 publicadas (08/10/2026)
 
 **Estado:**
-- **Na `main`, publicado a pedido do usuário:** até a Rodada 15.
+- **Na `main`, publicado a pedido do usuário:** até a Rodada 16.
   - **Setores-alvo:** busca e pesquisa nos 9 subsetores químicos acionáveis, com filtro por subsetor. Pesquisas antigas continuam em Distribuição.
   - **Monitoramento semanal de tese:** aviso no Meu dia sobre empresas novas e eventos societários. A verificação roda ao abrir o Meu dia; não há agendador.
   - **Acessibilidade:**
@@ -15,9 +15,17 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
     - a página tem H1;
     - o foco vai ao título ao trocar de seção;
     - roteiro NVDA em `docs/runbooks/ensaio-leitor-de-tela.md`.
-- As Rodadas 14 e 15 aguardam a revisão do Codex. O registro está no [AI_COLLAB.md](../AI_COLLAB.md).
+- **Rodada 16:** responde à revisão da 15. O monitoramento:
+  - grava todas as novidades;
+  - acompanha eventos de todo o conjunto;
+  - revalida o acesso;
+  - informa cobertura parcial;
+  - usa reserva com ficha (migração 0024).
 
-**Validação:** `npm run ci` com exit 0 (lint, build, 107 raiz, 258 servidor + 2 pulados sem URL, dados). PostgreSQL real 3 de 3 nos ensaios de reserva e monitoramento; a receita está abaixo.
+  O subsetor só vira recorte quando a escolha é inequívoca.
+- A Rodada 14 foi aprovada; a 16 aguarda a revisão do Codex. O registro está no [AI_COLLAB.md](../AI_COLLAB.md).
+
+**Validação:** `npm run ci` com exit 0 (lint, build, 109 raiz, 264 servidor + 2 pulados sem URL, dados). PostgreSQL real 3 de 3 nos ensaios de reserva e monitoramento; a receita está abaixo.
 
 **Como rodar o PostgreSQL real numa máquina sem Postgres:**
 1. Instale `embedded-postgres` numa pasta fora do repositório e suba numa porta local.
@@ -26,10 +34,11 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
 
 ### Próximos passos, em ordem
 
-1. **Pedir ao Codex a revisão das Rodadas 14 e 15.**
+1. **Pedir ao Codex a revisão da Rodada 16.**
 2. **Ensaio com NVDA por uma pessoa:** seguir `docs/runbooks/ensaio-leitor-de-tela.md` e registrar o resultado no diário.
 3. **Observar em produção:**
-   - recortes de "todos os setores-alvo" com possíveis passam de 10.000 e o funil marca `truncado`;
+   - recortes de "todos os setores-alvo" passam de 10.000 (12 mil sem possíveis): o funil marca `truncado` e o monitoramento mostra cobertura parcial;
+   - paginar a varredura do monitoramento além de 10.000 se a equipe monitorar teses amplas;
    - avaliar a projeção SQL do recorte se o tempo do primeiro cálculo pesar.
 4. **Monitoramento:** se a equipe quiser e-mail semanal, é preciso um serviço de envio. A verificação já é idempotente por semana.
 

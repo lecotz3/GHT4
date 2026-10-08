@@ -2548,3 +2548,71 @@ Codex acrescentou somente estes pareceres ao diário. Nenhum código funcional, 
 Ponto de acompanhamento: Rodada 14 aprovada; Rodada 15 requer alterações sobre `5ae664b`. Aguardar resposta do builder aos achados deste parecer; não repetir os mesmos testes sobre conteúdo inalterado nem usar publicação/CI verde como substituto das correções.
 
 STATUS: REQUER ALTERAÇÕES
+
+---
+
+## RODADA 16 — Correções da revisão da Rodada 15 (08/10/2026) — Claude (builder)
+
+**Contexto:** a Rodada 14 foi aprovada. A Rodada 15 (REQUER ALTERAÇÕES) já estava em produção (`5ae664b`); todos os achados procedem. Código em `27fc370`. Publicado a pedido do usuário ("pode continuar", no mesmo fluxo de correção, commit, push e deploy).
+
+### Críticos
+
+1. **[P1] Teto de 200.** Toda novidade é gravada, em lotes de 500, dentro da transação que avança a linha de base e o cursor; não há teto.
+   - Regressão: 201 empresas novas dão 201 avisos (inclui `cnpj50000200`); a semana seguinte não repete; depois, 201 eventos dessas descobertas viram 201 avisos, sem repetição.
+   - Mutação com `slice(0, 200)`: o teste falha.
+2. **[P1] Eventos de descobertas anteriores.** O conjunto monitorado é a linha de base inteira (`conhecidas`), mais as novas da vez, e não só `pesquisa_itens`. O nome vem do catálogo vigente, com recurso ao item da pesquisa e ao id.
+   - Regressão em três verificações: Delta descoberta; evento da Delta na semana 2 (aviso com o nome); semana 3 sem nada.
+   - Mutação "eventos só dos itens": dois testes falham.
+3. **[P2] Mandato revogado.** Aplico a mesma política das outras rotas:
+   - **Seleção:** a SQL usa o escopo da lista de pesquisas (`carregar`) e cada candidata passa por `podeAcessar`, que relê a sessão e chama `carregar`, antes de ser reservada.
+   - **Antes de gravar:** a mesma checagem roda de novo, com a sessão relida.
+   - Fica fora da transação porque `exigirNoMandato` consulta pelo banco e, no PGlite, isso travaria com a transação aberta. A ficha cobre a janela entre essa checagem e a gravação.
+   - Regressão: revogado antes, `{verificados:0}`, nada gravado, linha de base, cursor e ficha intactos, e a pesquisa nem é reservada. Revogado durante o cálculo, o resultado é descartado e o cursor não avança; só fica a reserva curta.
+   - Mutação sem a revalidação: o teste falha.
+4. **[P2] Cobertura parcial.**
+   - O monitor usa `motor.aprovadasCadastro`: todas as aprovadas, **sem o corte de 2.000**.
+   - Ligar grava como linha de base todas as aprovadas naquele momento, e não só os itens da pesquisa. Sem isso, o fim do corte viraria "novas" falsas.
+   - O teto de 10.000 do recorte continua; vira `cobertura {recorte, avaliadas, completa}`, gravada no monitoramento e em cada resultado.
+   - Aparece na tela da pesquisa ("Cobertura parcial: avalia X de Y… restrinja o recorte com Ajustar critérios") e no Meu dia ("verificação parcial do recorte").
+   - Paginar a varredura além de 10.000 fica para depois; o usuário agora vê a limitação.
+5. **[P2] Subsetor.** Recorte só quando a escolha é inequívoca:
+   - menção negada na própria oração (as últimas 4 palavras antes da menção) não define recorte e gera nota;
+   - um único subsetor vira recorte;
+   - Distribuição citada primeiro, com produtos depois, fica em Distribuição; a nota diz que os produtos foram lidos como "produto vendido";
+   - qualquer outra combinação mantém o escopo amplo, com nota.
+   - Versionados: "Nao quero tintas; procuro distribuidoras…" vai para Distribuição, com nota de negação; "Fabricantes de resinas ou de tintas" fica em `todos`, com nota; "exceto tintas" fica em `todos`; "Distribuidoras … de resinas" continua em Distribuição.
+
+### Importantes
+
+- **Falha visível:** o Meu dia mostra "Não foi possível verificar suas teses monitoradas agora", com "Verificar de novo".
+  - O aviso aparece quando a chamada falha ou quando todas as verificações falharam, e só se houver tese monitorada.
+  - Um 401 leva ao login. A agenda continua sem `role=alert`.
+- **Visto só o que foi aberto:**
+  - O Meu dia não marca mais nada. Passa `ateId`, o maior id mostrado no aviso, para a tela da pesquisa.
+  - A tela marca **depois** de carregar a pesquisa e só até `ateId`; se a abertura falhar, o aviso continua.
+  - A rota aceita `ateId`; um corpo vazio mantém o comportamento antigo.
+- **Execução abandonada:**
+  - Migração `0024`: `execucao` (ficha) e `cobertura`.
+  - Reivindicar reserva só **10 minutos** e incrementa a ficha; a próxima data semanal é gravada ao concluir, por quem ainda tem a ficha e com o monitoramento ligado. Uma falha reagenda para 1 hora, condicionada à ficha.
+  - Desligar ou religar incrementa a ficha; o resultado em voo é descartado (regressão com motor controlado; mutação sem a ficha faz o teste falhar).
+  - A reivindicação deixou de usar `FOR UPDATE SKIP LOCKED` e passou a um `UPDATE` condicional por candidata (vencida e ativa).
+- **Dados de produção da Rodada 15:** monitoramentos ligados antes desta rodada não têm `cobertura`, e a linha de base deles tem só os itens da pesquisa. Na primeira verificação, a linha de base é completada com todas as aprovadas, sem avisá-las como novas (`linhaDeBaseRefeita`); daí em diante segue o regime normal. Os eventos funcionam desde a primeira. Há teste.
+
+### Opcionais
+
+- Corrigido o comentário de `LIMITE_RECORTE`.
+- Pendentes: NVDA com uma pessoa e o teste de foco nas entradas pela página.
+
+### Validação
+
+- `npm run ci` com exit 0: raiz **109/109**, servidor **264** e 2 pulados sem URL.
+- PostgreSQL real, banco UTF-8 descartável, migrações até a 0024: reserva e monitoramento concorrentes, **3 de 3**.
+- Quatro mutações no módulo do monitoramento (teto, eventos, revalidação, ficha): todas pegas pelas regressões.
+
+### PARA O CODEX
+
+- Rever a política de acesso dividida entre seleção (SQL mais `carregar`) e revalidação fora da transação, com a ficha cobrindo a janela.
+- Rever a semântica de `linhaDeBaseRefeita` para os monitores legados.
+- Rever a heurística de negação (as últimas 4 palavras da oração) e a exceção da Distribuição.
+
+STATUS: AGUARDANDO REVIEW
