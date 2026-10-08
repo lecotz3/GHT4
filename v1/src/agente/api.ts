@@ -3,12 +3,12 @@ export class ErroApi extends Error {
   constructor(status: number, mensagem: string) { super(mensagem); this.status = status }
 }
 
-export async function api<T>(url: string, method = 'GET', corpo?: unknown, chave?: string): Promise<T> {
+export async function api<T>(url: string, method = 'GET', corpo?: unknown, chave?: string, cabecalhos?: Record<string, string>): Promise<T> {
   const controle = new AbortController()
   const timeout = setTimeout(() => controle.abort(), 100000)
   try {
     const r = await fetch(url, { method, credentials: 'same-origin', signal: controle.signal,
-      headers: { ...(corpo === undefined ? {} : { 'Content-Type': 'application/json' }), ...(chave ? { 'Idempotency-Key': chave } : {}) },
+      headers: { ...(corpo === undefined ? {} : { 'Content-Type': 'application/json' }), ...(chave ? { 'Idempotency-Key': chave } : {}), ...cabecalhos },
       body: corpo === undefined ? undefined : JSON.stringify(corpo) })
     const dados = await r.json().catch(() => null)
     if (!r.ok) throw new ErroApi(r.status, dados?.mensagem || 'Não foi possível concluir. Tente novamente.')

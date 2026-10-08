@@ -20,9 +20,9 @@ const det = (id, tese, o = {}) => ({
 });
 const resumo = (d) => ({ id: d.pesquisa.id, conversa_id: 'conv', tese: d.pesquisa.tese, estado: d.pesquisa.estado, motivo_estado: null, funil: {}, meta: 20, atualizado_em: '2026-10-07T12:00:00Z', titulo: 't', boas: 0 });
 
-async function montar(inicial) {
+async function montar(inicial, { aoExpirar = () => {} } = {}) {
   const t = await montarDom(React.createElement(PesquisaTese, { usuario: { id: 'u', nome: 'Ana', papel: 'analista' }, inicial,
-    aoConsumirInicial: () => {}, aoAbrirTrabalho: () => {}, aoExpirar: () => {} }));
+    aoConsumirInicial: () => {}, aoAbrirTrabalho: () => {}, aoExpirar }));
   return t;
 }
 
@@ -187,5 +187,54 @@ test('componente: lista leve; abrir a empresa busca o item completo uma vez, com
     assert.match(detalhe().textContent, /distribuidor autorizado de multinacionais/);
     assert.match(detalhe().textContent, /Termos encontrados juntos/);
     assert.equal(detalhe().getAttribute('aria-busy'), 'false');
+  } finally { await t.desmontar(); }
+});
+
+test('componente: pede a lista leve; 401 no item vai ao login; lote com a empresa aberta não repete o pedido', async () => {
+  const FUNIL = { recorte: 2, avaliadas: 2, truncado: false, semAtributos: 0, eliminadas: 0, eliminadasPor: {}, exclusivas: {}, aprovadasCadastro: 2, comSite: 2, armazenadas: 2 };
+  const base = (id) => ({ empresa_id: id, ordem: 1, etapa: 'revisada', aderencia: 80, categoria: 'provavel',
+    site: { dominio: 'alfa.com.br', estado: 'lido', identidade: 'cnpj', motivo: null },
+    empresa: { id, nome: `Empresa ${id}`, razaoSocial: `Razão ${id}`, cidade: 'Campinas', uf: 'SP', cnpjRaiz: '11111111', cnaePrincipal: '4684299', dominio: 'alfa.com.br', porte: null, capitalSocial: null, dataAbertura: null } });
+  const leve = (id) => ({ ...base(id), resumido: true, vereditos: [{ veredito: 'atende', resumo: 'Fundada em 1990', lastro: 'cadastro' }, { veredito: 'indicio', resumo: 'Cita multinacionais', lastro: 'site' }] });
+  const cheio = (id) => ({ ...base(id), vereditos: [{ veredito: 'atende', resumo: 'Fundada em 1990', lastro: 'cadastro', justificativa: 'Data de abertura no cadastro.', evidencias: [] },
+    { veredito: 'indicio', resumo: 'Cita multinacionais', lastro: 'site', justificativa: 'Termos encontrados juntos.', evidencias: [{ fonte: 'site', url: 'https://alfa.com.br/quem-somos', trecho: 'distribuidor autorizado de multinacionais' }] }] });
+  const A = det('a0000000-0000-4000-8000-000000000011', 'Tese A lote', { estado: 'pausada', funil: FUNIL, provavel: 1 });
+  A.contagens = { ...A.contagens, revisadas: 1, pendentes: 0 };
+  A.itens = [leve('cnpj11111111')];
+  // O lote devolve a mesma empresa, sem mudança, num objeto novo.
+  const depoisDoLote = () => ({ ...A, pesquisa: { ...A.pesquisa, estado: 'concluida', versao: A.pesquisa.versao + 1 }, itens: [leve('cnpj11111111')], atualizados: [], execucaoLote: 1 });
+  let expirou = 0;
+  const pedidos = servidor([
+    { metodo: 'GET', url: /\/api\/pesquisas$/, dados: () => ({ pesquisas: [resumo(A)], ia: null }) },
+    { metodo: 'GET', url: new RegExp(`${A.pesquisa.id}$`), dados: () => A },
+    { metodo: 'GET', url: /\/itens\/cnpj\d{8}$/, segurar: true },
+    { metodo: 'PATCH', url: new RegExp(`${A.pesquisa.id}$`), dados: () => A },
+    { metodo: 'POST', url: /\/avancar$/, dados: depoisDoLote },
+  ]);
+  const t = await montar({ pesquisaId: A.pesquisa.id }, { aoExpirar: () => { expirou += 1; } });
+  try {
+    await esperar();
+    const obter = pedidos.find((x) => x.metodo === 'GET' && x.url.endsWith(A.pesquisa.id));
+    assert.equal(obter.cabecalhos['X-GHT4-Lista'], 'leve', 'o cliente atual negocia a lista leve');
+    await clicar(botao(/Empresa cnpj11111111/));
+    const itens = () => pedidos.filter((x) => /\/itens\/cnpj/.test(x.url));
+    const detalhe = () => document.querySelector('.pesquisa-detalhe');
+    // 401: vai ao fluxo de sessão expirada, sem "Tentar de novo" local.
+    await responder(itens()[0], { mensagem: 'Sessão expirada.' }, 401);
+    assert.equal(expirou, 1);
+    assert.equal(detalhe().querySelector('[role="alert"]'), null);
+    // Reabre a empresa (outra sessão já válida): carrega o item completo.
+    await clicar(botao(/Empresa cnpj11111111/)); await clicar(botao(/Empresa cnpj11111111/));
+    assert.equal(itens().length, 2);
+    await responder(itens()[1], { item: cheio('cnpj11111111') });
+    assert.match(detalhe().textContent, /distribuidor autorizado de multinacionais/);
+    // Chega um lote com a empresa aberta e sem mudança nela: nada de novo pedido, evidência continua.
+    const revisar = botao(/Revisar até a meta|Continuar|Retomar/);
+    assert.ok(revisar, 'há uma ação que roda um lote');
+    await clicar(revisar);
+    for (let k = 0; k < 5; k += 1) await esperar();
+    assert.ok(pedidos.some((x) => /\/avancar$/.test(x.url)), 'o lote rodou');
+    assert.equal(itens().length, 2, 'o lote não repete o pedido do item');
+    assert.match(detalhe().textContent, /distribuidor autorizado de multinacionais/);
   } finally { await t.desmontar(); }
 });

@@ -1,5 +1,9 @@
 import { api } from './api'
 
+/** Este cliente busca o item completo ao abrir a empresa; por isso pede a lista leve (o servidor
+ *  só a envia a quem pede, e clientes antigos continuam recebendo a lista completa). */
+const leve = <T>(url: string, method = 'GET', corpo?: unknown) => api<T>(url, method, corpo, undefined, { 'X-GHT4-Lista': 'leve' })
+
 export type Veredito = 'atende' | 'indicio' | 'indeterminado' | 'nao_atende'
 export type Categoria = 'aderente' | 'provavel' | 'a_confirmar' | 'nao_aderente'
 export type EstadoPesquisa = 'rascunho' | 'pronta' | 'em_andamento' | 'pausada' | 'concluida'
@@ -44,19 +48,19 @@ export interface Previa { funil: Funil; referencia: string; amostra: { id: strin
 
 export const pesquisaApi = {
   listar: () => api<{ pesquisas: ResumoPesquisa[]; ia: IAInfo | null }>('/api/pesquisas'),
-  criar: (corpo: { id: string; tese: string; frente: 'compra' | 'venda' | null; mandatoId?: string | null }) => api<DetalhePesquisa>('/api/pesquisas', 'POST', corpo),
-  obter: (id: string) => api<DetalhePesquisa>(`/api/pesquisas/${id}`),
-  itens: (id: string, grupo: Categoria | 'fila', offset: number, marca?: string) => api<{ itens: ItemPesquisa[]; total: number; proximoOffset: number | null; marca?: string }>(`/api/pesquisas/${id}/itens?grupo=${grupo}&offset=${offset}${marca ? `&marca=${marca}` : ''}`),
+  criar: (corpo: { id: string; tese: string; frente: 'compra' | 'venda' | null; mandatoId?: string | null }) => leve<DetalhePesquisa>('/api/pesquisas', 'POST', corpo),
+  obter: (id: string) => leve<DetalhePesquisa>(`/api/pesquisas/${id}`),
+  itens: (id: string, grupo: Categoria | 'fila', offset: number, marca?: string) => leve<{ itens: ItemPesquisa[]; total: number; proximoOffset: number | null; marca?: string }>(`/api/pesquisas/${id}/itens?grupo=${grupo}&offset=${offset}${marca ? `&marca=${marca}` : ''}`),
   /** Item completo (justificativas, trechos citados, páginas lidas), ao abrir a empresa. */
   item: (id: string, empresaId: string) => api<{ item: ItemPesquisa }>(`/api/pesquisas/${id}/itens/${empresaId}`),
-  editar: (id: string, corpo: { versao: number; criterios?: Criterio[]; filtros?: Filtros; frente?: 'compra' | 'venda'; meta?: number; limiteWeb?: number }) => api<DetalhePesquisa>(`/api/pesquisas/${id}`, 'PATCH', corpo),
+  editar: (id: string, corpo: { versao: number; criterios?: Criterio[]; filtros?: Filtros; frente?: 'compra' | 'venda'; meta?: number; limiteWeb?: number }) => leve<DetalhePesquisa>(`/api/pesquisas/${id}`, 'PATCH', corpo),
   previa: (id: string, criterios: Criterio[], filtros: Filtros) => api<Previa>(`/api/pesquisas/${id}/previa`, 'POST', { criterios, filtros }),
-  iniciar: (id: string, versao: number) => api<DetalhePesquisa>(`/api/pesquisas/${id}/iniciar`, 'POST', { versao }),
+  iniciar: (id: string, versao: number) => leve<DetalhePesquisa>(`/api/pesquisas/${id}/iniciar`, 'POST', { versao }),
   /** Sem `execucao`: retomada explícita. Com ela: continuação do laço, só na mesma geração. */
-  avancar: (id: string, quantidade = 2, execucao?: number) => api<DetalhePesquisa>(`/api/pesquisas/${id}/avancar`, 'POST', execucao === undefined ? { quantidade } : { quantidade, execucao }),
+  avancar: (id: string, quantidade = 2, execucao?: number) => leve<DetalhePesquisa>(`/api/pesquisas/${id}/avancar`, 'POST', execucao === undefined ? { quantidade } : { quantidade, execucao }),
   /** Sem `execucao`: pausa humana. Com ela: pausa automática que só vale para essa geração. */
-  pausar: (id: string, execucao?: number) => api<DetalhePesquisa>(`/api/pesquisas/${id}/pausar`, 'POST', execucao === undefined ? {} : { execucao }),
-  ajustar: (id: string, novo: string) => api<DetalhePesquisa>(`/api/pesquisas/${id}/ajustar`, 'POST', { id: novo }),
+  pausar: (id: string, execucao?: number) => leve<DetalhePesquisa>(`/api/pesquisas/${id}/pausar`, 'POST', execucao === undefined ? {} : { execucao }),
+  ajustar: (id: string, novo: string) => leve<DetalhePesquisa>(`/api/pesquisas/${id}/ajustar`, 'POST', { id: novo }),
   registrar: (id: string, chave: string, empresas: string[]) => api<{ turno: { id: string }; conversa: { id: string } }>(`/api/pesquisas/${id}/registrar`, 'POST', { chave, empresas }),
 }
 

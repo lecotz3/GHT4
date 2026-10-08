@@ -15,7 +15,7 @@ import { criarMotorPesquisa, Filtros, ListaCriterios, ordenarItens } from '../pe
 const Id = z.string().uuid();
 const Versao = z.number().int().min(1);
 /** Corta no fim de uma palavra, com reticências, para títulos e resumos. */
-const resumir = (t, max) => { const limpo = t.replace(/\s+/g, ' ').trim(); if (limpo.length <= max) return limpo; const corte = limpo.slice(0, max - 1); return `${corte.slice(0, corte.lastIndexOf(' ') > max * 0.6 ? corte.lastIndexOf(' ') : corte.length).replace(/[\s,;.:]+$/, '')}…`; };
+export const resumirTexto = (t, max) => { const limpo = t.replace(/\s+/g, ' ').trim(); if (limpo.length <= max) return limpo; const corte = limpo.slice(0, max - 1); return `${corte.slice(0, corte.lastIndexOf(' ') > max * 0.6 ? corte.lastIndexOf(' ') : corte.length).replace(/[\s,;.:]+$/, '')}…`; };
 const CAMPOS = `id,conversa_id,usuario_id,anterior_id,tese,frente,filtros,criterios,meta,limite_web,catalogo_hash,referencia,funil,
   estado,motivo_estado,modo,notas,turno_id,versao,execucao,criado_em,atualizado_em`;
 
@@ -36,8 +36,8 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
       { total: 0, revisadas: 0, pendentes: 0, aderente: 0, provavel: 0, a_confirmar: 0, nao_aderente: 0 });
   /* Lista leve: por critério só o necessário para a tabela (veredito, resumo, lastro); justificativa,
      trechos, páginas e modelo vêm em GET /api/pesquisas/:id/itens/:empresaId, ao abrir a empresa.
-     A entrega ao trabalho lê do banco e não depende disto. */
-  const resumir = (i) => ({ ...i, resumido: true,
+     A entrega ao trabalho lê do banco e não depende disto. Nome próprio: não encobre `resumirTexto`. */
+  const itemLeve = (i) => ({ ...i, resumido: true,
     vereditos: (i.vereditos ?? []).map((v) => ({ veredito: v.veredito, resumo: v.resumo, lastro: v.lastro, ...(v.pendente ? { pendente: true } : {}) })),
     site: i.site ? { dominio: i.site.dominio ?? null, estado: i.site.estado, identidade: i.site.identidade ?? null, motivo: i.site.motivo ?? null } : null });
   const semAtributos = (i) => { const { atributos, ...empresa } = i.empresa; return { ...i, empresa: { ...empresa, porte: atributos?.porte ?? null, capitalSocial: atributos?.capitalSocial ?? null, dataAbertura: atributos?.dataAbertura ?? null } }; };
@@ -65,10 +65,21 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
         (SELECT *, 1, row_number() OVER (ORDER BY ordem) FROM base WHERE etapa<>'revisada' ORDER BY ordem LIMIT $3))
       SELECT r.*, to_jsonb(x) AS item FROM resumo r LEFT JOIN pagina x ON true ORDER BY x.grupo_, x.pos_`, [p.id, limite, fila])).rows;
     const { marca, total, revisadas, pendentes, aderente, provavel, a_confirmar, nao_aderente } = linhas[0];
-    const itens = linhas.filter((l) => l.item).map(({ item: { grupo_, pos_, ...i } }) => resumir(semAtributos(i)));
+    const itens = linhas.filter((l) => l.item).map(({ item: { grupo_, pos_, ...i } }) => semAtributos(i));
     return { pesquisa: p, marca, contagens: { total, revisadas, pendentes, aderente, provavel, a_confirmar, nao_aderente }, itens,
       ia: servicoIA ? { provedor: servicoIA.status.provedor, modelo: servicoIA.status.modelo, gratuito: servicoIA.status.gratuito } : null };
   }
+
+  /* A lista leve é negociada: só quem envia `X-GHT4-Lista: leve` (o cliente que busca o item completo
+     ao abrir a empresa) a recebe. Sem o cabeçalho, o contrato completo de antes, para que uma aba
+     aberta com o cliente anterior continue funcionando depois da publicação. Vale para toda resposta
+     das rotas de pesquisa que traz `itens` (detalhe, ações que devolvem o detalhe e continuação). */
+  app.addHook('preSerialization', async (req, res, corpo) => {
+    if (!req.routeOptions?.url?.startsWith('/api/pesquisas') || !Array.isArray(corpo?.itens)) return corpo;
+    res.header('Vary', 'X-GHT4-Lista');
+    if (req.headers['x-ght4-lista'] !== 'leve') return corpo;
+    return { ...corpo, itens: corpo.itens.map(itemLeve) };
+  });
 
   app.get('/api/pesquisas', async (req) => {
     const u = req.exigir('agente.ler');
@@ -103,7 +114,7 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
       if (!conversa) throw new ErroHttp(404, 'trabalho_inexistente', 'Trabalho não encontrado.');
       if (conversa.mandato_id) await req.exigirNoMandato(conversa.mandato_id, 'agente.usar');
     } else {
-      const titulo = `Pesquisa · ${resumir(p.tese, 100)}`;
+      const titulo = `Pesquisa · ${resumirTexto(p.tese, 100)}`;
       conversa = await db.transaction(async (tx) => {
         const c = (await tx.query(`INSERT INTO agente_conversas (usuario_id,mandato_id,titulo,contexto) VALUES ($1,$2,$3,$4) RETURNING *`,
           [u.id, p.mandatoId, titulo, JSON.stringify({ frente: p.frente ?? 'venda', objetivo: p.tese.slice(0, 2000) })])).rows[0];
@@ -157,7 +168,7 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     fila ? [pesquisa.id, q.limite, q.offset] : [pesquisa.id, q.limite, q.offset, q.grupo])).rows;
     const { marca, total } = linhas[0];
     if (q.marca && q.marca !== marca) throw new ErroHttp(409, 'lista_atualizada', 'A lista mudou com novas revisões. Ela foi recarregada; peça mais de novo.');
-    const itens = linhas.filter((l) => l.item).map(({ item: { pos_, ...i } }) => resumir(semAtributos(i)));
+    const itens = linhas.filter((l) => l.item).map(({ item: { pos_, ...i } }) => semAtributos(i));
     return { itens, total, marca, proximoOffset: q.offset + itens.length < total ? q.offset + itens.length : null };
   });
 
@@ -310,10 +321,10 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     }
     const sites = [...citadas.values()];
     const evidenciasTexto = avaliacoes.flatMap((a) => a.criterios.flatMap((c) => c.evidencias.filter((ev) => ev.trecho).slice(0, 1)
-      .map((ev) => `${itens.find((i) => i.empresa_id === a.empresaId).empresa.nome} · ${c.texto}: "${resumir(ev.trecho, 160)}" (${ev.url ?? ev.fonte})`))).slice(0, 40);
+      .map((ev) => `${itens.find((i) => i.empresa_id === a.empresaId).empresa.nome} · ${c.texto}: "${resumirTexto(ev.trecho, 160)}" (${ev.url ?? ev.fonte})`))).slice(0, 40);
     const resultado = {
       modo: 'pesquisa_por_tese', titulo: `Pesquisa por tese · ${empresas.length} ${empresas.length === 1 ? 'empresa' : 'empresas'}`,
-      resumo: `Empresas escolhidas na pesquisa "${resumir(pesquisa.tese, 160)}". Aderência calculada critério a critério; cada veredito traz a fonte. Ausência de evidência ficou como "?" e não como reprovação.`,
+      resumo: `Empresas escolhidas na pesquisa "${resumirTexto(pesquisa.tese, 160)}". Aderência calculada critério a critério; cada veredito traz a fonte. Ausência de evidência ficou como "?" e não como reprovação.`,
       empresas, fontes: [{ titulo: 'Receita Federal — cadastro CNPJ', referencia: pesquisa.referencia, descricao: 'Critérios cadastrais conferidos no snapshot indicado.' }, ...sites].slice(0, 40),
       pesquisa: { id: pesquisa.id, tese: pesquisa.tese, referencia: pesquisa.referencia, catalogoHash: pesquisa.catalogo_hash },
       avaliacoes,

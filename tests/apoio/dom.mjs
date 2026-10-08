@@ -27,7 +27,7 @@ export async function montar(elemento) {
 export function servidor(regras) {
   const pedidos = [];
   globalThis.fetch = (url, o = {}) => new Promise((resolve) => {
-    const p = { url: String(url), metodo: o.method ?? 'GET', corpo: o.body ? JSON.parse(o.body) : undefined,
+    const p = { url: String(url), metodo: o.method ?? 'GET', corpo: o.body ? JSON.parse(o.body) : undefined, cabecalhos: o.headers ?? {},
       responder: (dados, status = 200) => resolve(new Response(JSON.stringify(dados), { status, headers: { 'content-type': 'application/json' } })) };
     pedidos.push(p);
     const regra = regras.find((r) => r.metodo === p.metodo && r.url.test(p.url));

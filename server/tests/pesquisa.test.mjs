@@ -10,6 +10,7 @@ import { validarPropostaIA, julgarPorTexto, criarMotorPesquisa } from '../src/pe
 import { atributosDe } from '../src/agente/atributos.mjs';
 import { criarCatalogo } from '../src/agente/catalogo.mjs';
 import { configurarIA, criarServicoIA } from '../src/agente/provedor.mjs';
+import { resumirTexto } from '../src/api/pesquisas.mjs';
 import { criarApp } from '../src/app.mjs';
 import { bancoDeTeste, criarUsuario, criarMandato, darAcesso } from './ajuda.mjs';
 
@@ -149,6 +150,7 @@ async function catalogoDeTeste(t) {
   return criarCatalogo({ arquivo, arquivoIbama: null });
 }
 
+const LEVE = { 'x-ght4-lista': 'leve' };
 const SITE = {
   'https://www.alfa.com.br/': '<html><title>Alfa</title><body><a href="/quem-somos">Quem somos</a><p>Alfa Química, CNPJ 11.111.111/0001-00.</p></body></html>',
   'https://www.alfa.com.br/quem-somos': '<html><body><p>Somos distribuidores autorizados de fabricantes multinacionais de solventes e resinas.</p></body></html>',
@@ -168,7 +170,7 @@ async function preparar(t, { servicoIA = null, papel = 'analista', fetchImpl = f
     await criarUsuario(db, { email, senha: 'senha-de-teste', papel: p });
     const r = await app.inject({ method: 'POST', url: '/api/sessao', payload: { email, senha: 'senha-de-teste' } });
     const cookie = r.headers['set-cookie'].split(';')[0];
-    return (method, url, payload) => app.inject({ method, url, payload, headers: { cookie } });
+    return (method, url, payload, cabecalhos = {}) => app.inject({ method, url, payload, headers: { cookie, ...cabecalhos } });
   };
   return { db, app, chamar: await entrar('analista@teste.local', papel), entrar };
 }
@@ -197,7 +199,7 @@ test('pesquisa por tese: rascunho, funil, revisão no site, entrega ao trabalho 
   assert.equal(iniciada.pesquisa.funil.comSite, 1, 'webmail não conta como site');
   assert.equal((await chamar('PATCH', `/api/pesquisas/${id}`, { versao: iniciada.pesquisa.versao, criterios: pesquisa.criterios })).statusCode, 409);
 
-  const lote = (await chamar('POST', `/api/pesquisas/${id}/avancar`, { quantidade: 5 })).json();
+  const lote = (await chamar('POST', `/api/pesquisas/${id}/avancar`, { quantidade: 5 }, LEVE)).json();
   const alfa = lote.itens.find((i) => i.empresa_id === 'cnpj11111111');
   assert.equal(alfa.etapa, 'revisada');
   assert.equal(alfa.site.identidade, 'cnpj');
@@ -213,6 +215,17 @@ test('pesquisa por tese: rascunho, funil, revisão no site, entrega ao trabalho 
   assert.ok(completo.site.paginas.length >= 1);
   assert.equal(completo.empresa.atributos, undefined, 'atributos internos não saem no item completo');
   assert.equal(completo.resumido, undefined);
+  // Contrato negociado: sem o cabeçalho (cliente anterior, aba aberta antes da publicação), lista completa
+  // no detalhe e na continuação; com ele, lista leve também na continuação.
+  const antigo = (await chamar('GET', `/api/pesquisas/${id}`)).json().itens.find((i) => i.empresa_id === 'cnpj11111111');
+  assert.equal(antigo.resumido, undefined);
+  assert.match(antigo.vereditos[2].evidencias[0].trecho, /fabricantes multinacionais/);
+  assert.ok(antigo.vereditos[2].justificativa); assert.ok(antigo.site.paginas.length >= 1);
+  const contAntiga = (await chamar('GET', `/api/pesquisas/${id}/itens?grupo=provavel`)).json().itens[0];
+  assert.ok(Array.isArray(contAntiga.vereditos[2].evidencias));
+  const contLeve = (await chamar('GET', `/api/pesquisas/${id}/itens?grupo=provavel`, undefined, LEVE)).json().itens[0];
+  assert.equal(contLeve.resumido, true); assert.equal(contLeve.vereditos[2].evidencias, undefined);
+  assert.equal((await chamar('GET', `/api/pesquisas/${id}`, undefined, LEVE)).json().itens.find((i) => i.empresa_id === 'cnpj11111111').resumido, true);
   assert.equal((await chamar('GET', `/api/pesquisas/${id}/itens/cnpj99999999`)).statusCode, 404);
   assert.equal((await chamar('GET', `/api/pesquisas/${id}/itens/nao-e-cnpj`)).statusCode, 422);
   const intruso = await entrar('intruso-item@teste.local', 'analista');
@@ -723,6 +736,14 @@ test('entrega leva avaliação por critério com trecho, URL interna e data; bas
   const { turno } = (await chamar('POST', `/api/pesquisas/${id}/registrar`, { chave: randomUUID(), empresas: ['cnpj11111111'] })).json();
   const r = turno.resultado;
   assert.equal(r.pesquisa.id, id); assert.ok(r.pesquisa.catalogoHash);
+  // Textos gravados (título, resumo, citações): nenhum objeto vira "[object Object]".
+  const tese = 'Distribuidoras com mais de 20 anos, sem holding no quadro, que representem fabricantes multinacionais';
+  const conversa = (await db.query('SELECT titulo FROM agente_conversas WHERE id=(SELECT conversa_id FROM pesquisas_tese WHERE id=$1)', [id])).rows[0];
+  assert.equal(conversa.titulo, 'Pesquisa · Distribuidoras com mais de 20 anos, sem holding no quadro, que representem fabricantes…', 'título cortado em 100');
+  assert.equal(r.resumo.startsWith(`Empresas escolhidas na pesquisa "${tese}".`), true, r.resumo);
+  const citacoes = r.blocos.find((b) => b.titulo === 'Evidências citadas').itens;
+  assert.match(citacoes[0], /^Alfa[^:]*· .+: "[^"]*fabricantes multinacionais[^"]*" \(https:\/\/www\.alfa\.com\.br\/quem-somos\)$/);
+  assert.doesNotMatch(JSON.stringify(r) + conversa.titulo, /\[object Object\]/);
   const criterio = r.avaliacoes[0].criterios.find((c) => c.tipo === 'pesquisa');
   assert.ok(criterio.evidencias.length, 'evidência do critério de pesquisa chega à entrega');
   assert.equal(criterio.evidencias[0].url, 'https://www.alfa.com.br/quem-somos', 'página interna citada, não só a inicial');
@@ -785,4 +806,13 @@ test('provedor que retém dados não recebe nada de mandato confidencial; gratui
   assert.ok(lote.atualizados.length >= 1, 'a revisão segue sem IA');
   assert.equal(chamadas, 0, 'nada saiu para o provedor');
   });
+});
+
+test('resumirTexto: corta no limite, em fronteira de palavra, com reticências', () => {
+  assert.equal(resumirTexto('  curto   demais ', 100), 'curto demais');
+  const longo = 'palavra '.repeat(40).trim();
+  const r = resumirTexto(longo, 100);
+  assert.ok(r.length <= 100, r.length); assert.ok(r.endsWith('…')); assert.doesNotMatch(r, /palavr…$|\s…$/);
+  assert.equal(resumirTexto('x'.repeat(160), 160), 'x'.repeat(160));
+  assert.equal(resumirTexto('x'.repeat(161), 160).length, 160);
 });

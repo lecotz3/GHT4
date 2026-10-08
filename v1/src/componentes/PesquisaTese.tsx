@@ -283,7 +283,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
                     <td><Aderencia valor={i.aderencia} /></td>
                     {p.criterios.map((c, k) => <td key={c.id} data-c={`C${k + 1}`}><Simbolo v={i.vereditos[k]?.veredito ?? 'indeterminado'} titulo={`${c.texto}: ${i.vereditos[k]?.resumo ?? ''}`} /></td>)}
                   </tr>
-                  {aberto === i.empresa_id && <tr className="pesquisa-detalhe-linha"><td colSpan={3 + p.criterios.length}><Detalhe pesquisaId={p.id} item={i} criterios={p.criterios} /></td></tr>}
+                  {aberto === i.empresa_id && <tr className="pesquisa-detalhe-linha"><td colSpan={3 + p.criterios.length}><Detalhe pesquisaId={p.id} item={i} criterios={p.criterios} aoExpirar={aoExpirar} /></td></tr>}
                 </Fragment>)}</tbody>
               </table></div></>}
               {g.restantes > 0 && g.offset < g.total && <button className="agente-link mt-2 text-xs" onClick={() => void mostrarMais(g.categoria, g.offset)} disabled={g.carregando || abrindo} aria-busy={g.carregando}>
@@ -344,8 +344,11 @@ function Aderencia({ valor }: { valor: number }) {
 }
 
 /** A lista vem leve; ao abrir a empresa, busca o item completo (justificativas e trechos citados). */
-function Detalhe({ pesquisaId, item: resumo, criterios }: { pesquisaId: string; item: ItemPesquisa; criterios: Criterio[] }) {
+function Detalhe({ pesquisaId, item: resumo, criterios, aoExpirar }: { pesquisaId: string; item: ItemPesquisa; criterios: Criterio[]; aoExpirar: () => void }) {
   const [completo, setCompleto] = useState<ItemPesquisa | null>(null)
+  // Sessão expirada vai ao fluxo de login do pai; a referência evita refazer a busca se o pai recriar a função.
+  const expirar = useRef(aoExpirar)
+  useEffect(() => { expirar.current = aoExpirar })
   const [falha, setFalha] = useState('')
   const [tentativa, setTentativa] = useState(0)
   // Busca de novo só quando a empresa ou o resultado dela muda, não a cada lote da revisão.
@@ -357,7 +360,11 @@ function Detalhe({ pesquisaId, item: resumo, criterios }: { pesquisaId: string; 
     setCompleto(null); setFalha('')
     pesquisaApi.item(pesquisaId, empresaId)
       .then((r) => { if (vivo) setCompleto(r.item) })
-      .catch((e) => { if (vivo) setFalha(mensagem(e)) })
+      .catch((e) => {
+        if (!vivo) return
+        if (e instanceof ErroApi && e.status === 401) expirar.current()
+        else setFalha(mensagem(e))
+      })
     return () => { vivo = false }
   }, [pesquisaId, empresaId, precisa, versaoItem, tentativa])
   const carregando = precisa && !completo && !falha
