@@ -2616,3 +2616,64 @@ STATUS: REQUER ALTERAÇÕES
 - Rever a heurística de negação (as últimas 4 palavras da oração) e a exceção da Distribuição.
 
 STATUS: AGUARDANDO REVIEW
+
+---
+
+# REVIEW DO CODEX
+
+## Revisão da Rodada 16 (08/10/2026)
+
+Revisão independente do código `27fc370` e da documentação `5300676`, sobre HEAD `53006766687aafeaa4fdddea487e0b5c38bc84ea`. O worktree estava limpo e permaneceu assim durante os ensaios. O diário, incluindo seu histórico já lido nas revisões anteriores, foi confrontado com o diff real: esta rodada acrescentou 68 linhas ao diário, sem modificar os registros anteriores. Publicação, CI e mutações relatados pelo builder não substituíram a verificação independente.
+
+## CRÍTICOS
+
+1. **[P1] Recompor a base legada apaga novidades reais da primeira verificação após a atualização.** Em `server/src/pesquisa/monitoramento.mjs:97-99`, `cobertura == null` transforma incondicionalmente `novas` em lista vazia e incorpora todas as aprovadas à base conhecida. Não há informação que distinga uma empresa anteriormente cortada de uma empresa que realmente chegou depois. Reproduzi com a API real e PGlite: monitor legado conhecendo apenas Alfa e Gama, ambas dentro de um universo pequeno, sem nenhum corte; uma publicação posterior acrescentou Delta. A primeira verificação devolveu `linhaDeBaseRefeita:true`, `totalNovas:0`, gravou zero avisos e incorporou Delta a `conhecidas`. A seguinte também devolveu zero. O teste do builder cobre somente a hipótese de a empresa já existir além do corte, não a hipótese oposta. Preservar a diferença temporal usando referência histórica confiável; se não for possível reconstruí-la, comunicar a incerteza/recomposição e conservar as candidatas para conferência, sem absorver novidades silenciosamente. Cobrir catálogo pequeno sem corte e catálogo antigo com corte, ambos com empresa efetivamente nova entre as versões.
+
+2. **[P2] Ativar o monitoramento grava depois de o acesso ao mandato ter sido revogado durante o cálculo.** A revalidação foi acrescentada à verificação coletiva, mas não ao novo cálculo assíncrono de ativação em `server/src/api/pesquisas.mjs:177-193`. A rota chama `carregar` antes de `motor.aprovadasCadastro`, espera o recorte e depois grava usando a autorização antiga. Ensaio independente com rota, banco e catálogo reais, introduzindo apenas um ponto controlado de revogação durante `recorte`: DELETE da participação no mandato, seguido de PUT de ativação retornando 200 e monitor `ativo=true`; GET da mesma pesquisa já retornava 404. Nenhum conteúdo foi exposto pelo GET, mas houve gravação fora do escopo vigente. Reler sessão e exigir novamente `agente.usar` no recurso após o cálculo, antes de definir o monitoramento; testar ativação e reativação com revogação de mandato e encerramento de sessão durante a espera.
+
+3. **[P2] O recorte ainda elimina alternativas e pode selecionar um setor explicitamente excluído.** Em `server/src/pesquisa/criterios.mjs:323-325`, basta Distribuição ser a primeira menção para tratar qualquer setor posterior como produto vendido. A função real retorna somente Distribuição para `Distribuidoras ou fabricantes de tintas no Brasil`, apesar da alternativa explícita entre dois tipos de empresa. Além disso, a janela de quatro palavras em `:315-316` perde negações comuns: `Empresas quimicas, exceto empresas fabricantes nacionais de tintas` seleciona justamente Tintas, sem nota de exclusão. Os exemplos originais da Rodada 15 passaram, mas o problema semântico não está encerrado. Limitar a exceção de Distribuição a construções positivas realmente reconhecidas, sem alternativa/coordenação conflitante; detectar exclusão sem depender apenas da distância arbitrária de quatro palavras. Quando não houver segurança, preservar `todos` com pendência explícita. Acrescentar os dois contraexemplos e manter `Distribuidoras de resinas` funcionando.
+
+4. **[P2] "Verificar de novo" apaga a falha sem verificar novamente.** Depois de uma falha, `server/src/pesquisa/monitoramento.mjs:81` adia a pesquisa em uma hora; uma chamada imediata não encontra candidata e retorna `{verificados:0,falhas:0}`. Em `v1/src/componentes/MeuDia.tsx:53`, isso limpa `monitorFalhou`. Reproduzi integrando o componente real à API real por `app.inject`, com catálogo indisponível: primeira resposta `{verificados:0,falhas:1}`, clique no botão, segunda resposta `{verificados:0,falhas:0}`, aviso desaparece e a tela mostra "Nada pendente com você agora"; no banco `verificado_em` continua NULL e a próxima tentativa permanece uma hora adiante. O teste atual exige precisamente esse desaparecimento, portanto consagra a falsa recuperação. Diferenciar "nada executado" de "recuperado", manter o estado de falha e informar a tentativa agendada; ou disponibilizar nova tentativa explícita com limites apropriados. Também não ocultar a falha quando outra tese tem sucesso: a condição atual suprime o aviso em `{verificados:1,falhas:1}`. Cobrir retry imediato sem execução, recuperação efetiva e sucesso/falha misturados.
+
+## IMPORTANTES
+
+- **A ficha não garante a vigência da autorização.** Ela muda na reserva e ao ligar/desligar, não quando uma participação em mandato é removida. A checagem em `server/src/pesquisa/monitoramento.mjs:121` ocorre antes da transação, e `:124` confere apenas `ativo` e `execucao`. Logo, a frase do builder de que a ficha cobre a janela após a autorização não é demonstrada por esse mecanismo. A revalidação antes da seleção e após o cálculo melhorou o caso original; não equivale a uma garantia atômica contra revogação posterior à última checagem. Documentar a garantia com precisão e, se exigir proteção nessa janela, compartilhar uma política transacional ou uma versão de autorização efetivamente invalidada pela revogação. Não executei um ensaio de disputa real entre conexões nesta revisão.
+- **Não engolir sessão expirada como pesquisa descartada.** Em `server/src/api/pesquisas.mjs:201-203`, o callback converte qualquer `ErroHttp` de `carregar`, inclusive 401, em `false`. Se a sessão cair durante o processamento, a rota pode devolver 200 com zero verificadas, em vez do 401 que o componente sabe tratar. Separar falta de acesso ao recurso de falta de autenticação e cobrir esse caminho, não apenas o 401 já presente no início da requisição. Achado por inspeção; o ensaio de revogação acima usou mandato, não expiração de sessão.
+- As regressões de revogação durante o cálculo no serviço usam um callback que responde `true` e depois `false`. São úteis, mas complementar com sessão e política HTTP reais evita deixar a ativação desprotegida enquanto o teste do verificador passa.
+
+## OPCIONAIS
+
+- O roteiro com NVDA e o foco nas entradas pela página continuam pendentes, como registrado pelo builder; não repetidos nesta revisão.
+- Acrescentar um caso com mais de 500 novidades para atravessar duas inserções e verificar rollback conjunto se o segundo lote falhar. O teste de 201 fecha o corte antigo, mas não atravessa o novo tamanho de lote.
+
+## DISCORDÂNCIAS
+
+- Não concordo com classificar todas as empresas incorporadas ao legado como pré-existentes sem referência histórica: evitar falso positivo não justifica apagar uma novidade real silenciosamente.
+- "Escolha inequívoca" ainda é uma descrição forte demais para a exceção de Distribuição e a janela de negação implementadas.
+- Zero execuções não comprova recuperação; o teste de interface precisa exigir que o estado corresponda ao que o servidor efetivamente executou.
+- A ficha de execução protege contra resultados de uma execução superada. Ela não é uma ficha de autorização e não é invalidada por revogação de mandato.
+
+## APROVADO
+
+- **Rodada 15, críticos 1 e 2:** gravação integral em lotes na mesma transação do avanço, sem `slice(0,200)`, e eventos de todo o conjunto conhecido. Passaram as regressões de 201 empresas, 201 eventos, descoberta seguida de evento posterior e ausência de repetição.
+- **Rodada 15, crítico 3, no verificador:** seleção por proprietário/mandato, política antes da reserva e nova checagem depois do cálculo. A revogação anterior não reserva nem consome estado; o callback de revogação durante o cálculo descarta o resultado. A ativação e os limites da garantia estão separados acima.
+- **Rodada 15, crítico 4:** `aprovadasCadastro` remove o corte de 2.000 do monitoramento e mantém cobertura explícita. Conferi o motor com o catálogo local: 10.000 aprovadas para um recorte de 12.145, com `truncado=true`. A informação parcial aparece no detalhe e nos avisos existentes do Meu dia. A paginação além de 10.000 pode continuar como evolução declarada, sem alegar cobertura total.
+- Migração `0024` aditiva e reserva de dez minutos com ficha; próxima semana só ao concluir. O teste de desligar/religar descarta a execução antiga. Os testes PGlite passaram, sem que isso seja apresentado como certificação de PostgreSQL concorrente.
+- A abertura pelo aviso transporta `ateId`, marca depois do detalhe recebido e limita a atualização ao marco. Passaram falha na abertura sem marcação, marcação após sucesso e preservação de novidade posterior ao marco.
+- O aviso separado de falha e o tratamento de 401 HTTP preservam a agenda; falta corrigir as transições de recuperação e a propagação de autenticação descritas acima. A aprovação da Rodada 14 permanece válida.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Corrigir os quatro bloqueadores com regressões específicas, sem ampliar o escopo: preservar novidades do legado, revalidar a ativação após o cálculo, tornar conservadoras as decisões de subsetor e distinguir retry agendado de verificação bem-sucedida. Registrar também a garantia real de autorização e o comportamento de sessão expirada. Se já houver monitor legado recomposto em ambiente real, levantar explicitamente o intervalo potencialmente afetado antes de propor reparo; esta revisão não consultou produção nem executou reparos. Não alterar migrações aplicadas.
+
+Validação independente concluída:
+
+- `node --test server/tests/monitoramento.test.mjs server/tests/pesquisa.test.mjs server/tests/reserva-postgres.test.mjs tests/monitoramento-componente.test.mjs tests/meu-dia-componente.test.mjs tests/pesquisa-componente.test.mjs tests/pesquisa-fluxos.test.mjs`: **69 passaram, zero falhas e 2 pulados**. `GHT4_TESTE_PG_URL` foi esvaziada somente no processo de teste para impedir conexão a qualquer banco configurado; os dois ensaios PostgreSQL real foram pulados explicitamente. As fixtures PGlite rodaram.
+- TypeScript (`node node_modules/typescript/bin/tsc -b --pretty false`, em `v1`) e `npm run lint`: exit 0.
+- Ensaios adicionais em memória, sem editar testes do builder: perda da novidade legada pela API, retry adiado pela API, componente MeuDia conectado à API real via `app.inject`, revogação durante a ativação, contraexemplos da interpretação e leitura do catálogo local pelo novo método do motor.
+
+Somente este parecer foi acrescentado por Codex ao `AI_COLLAB.md`. Nenhum código funcional, teste versionado, comparador ou migração foi alterado; nenhum commit, push, merge, deploy, download, chamada a provedor de IA ou acesso a banco remoto foi realizado. Todos os processos iniciados nesta revisão terminaram.
+
+Ponto de acompanhamento: HEAD funcional `5300676`; Rodada 14 aprovada; Rodada 16 requer alterações. Os bloqueadores antigos de corte de 200 e continuidade de eventos estão corrigidos no fluxo normal, mas persistem os quatro problemas acima. Aguardar resposta do builder; não repetir testes desse conteúdo inalterado.
+
+STATUS: REQUER ALTERAÇÕES
