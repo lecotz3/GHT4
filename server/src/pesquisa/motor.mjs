@@ -19,6 +19,8 @@
  *  Regra que não se negocia: sem evidência, o veredito é "indeterminado".
  * ========================================================================== */
 
+import { Subsetor } from '../agente/filtros.mjs';
+import { SUBSETOR } from '../agente/catalogo.mjs';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { Criterio, ListaCriterios, MAX_PESQUISA, consolidar, interpretarTese, verificarCadastro, CAMPOS_REGRA } from './criterios.mjs';
@@ -37,6 +39,9 @@ const espacos = (t) => normalizar(t).replace(/\s+/g, ' ').trim();
 export const Filtros = z.object({
   uf: z.string().regex(/^$|^[A-Z]{2}$/).default(''), busca: z.string().trim().max(120).default(''),
   cnae: z.string().regex(/^$|^\d{7}$/).default(''), incluirPossiveis: z.boolean().default(false),
+  /* Sem padrão de propósito: pesquisas gravadas antes dos setores-alvo não têm a chave e continuam
+     no subsetor original (ver `recorteAtual`); as novas sempre a trazem, da interpretação da tese. */
+  subsetor: Subsetor.optional(),
 }).strict();
 
 /** Cartão público da empresa guardado em cada item, no formato do resultado do agente. */
@@ -170,7 +175,7 @@ export function criarMotorPesquisa({ db, catalogo, servicoIA = null, web = {} })
 
   async function recorteAtual(filtros) {
     if (typeof catalogo.recorte !== 'function') throw Object.assign(new Error('Catálogo sem recorte.'), { codigo: 'base_indisponivel' });
-    return catalogo.recorte(filtros);
+    return catalogo.recorte({ ...filtros, subsetor: filtros.subsetor ?? SUBSETOR });
   }
 
   /** Funil cadastral sobre o recorte inteiro. Puro: não grava nada. */

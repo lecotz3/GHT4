@@ -7,7 +7,7 @@ import { TAREFAS, executarTarefa, complementarComIA } from '../agente/tarefas.mj
 import { autorizarOportunidade } from '../crm/acesso.mjs';
 import { caminhosDeAcesso } from '../rede/caminhos.mjs';
 import { versaoDaRede } from '../rede/estado.mjs';
-import { ReferenciaModelo,filtrosDoContexto,ListaUf } from '../agente/filtros.mjs';
+import { ReferenciaModelo,filtrosDoContexto,ListaUf,Subsetor } from '../agente/filtros.mjs';
 import { registrarPropostas,mesmosFiltros } from './propostas.mjs';
 
 const Id = z.string().uuid();
@@ -22,6 +22,7 @@ const Contexto = z.object({
   offset: z.number().int().min(0).max(1000000).optional(),
   catalogoHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   cnae: z.string().regex(/^$|^\d{7}$/).optional(),
+  subsetor: Subsetor.optional(),
   empresaId: z.string().regex(/^cnpj\d{8}$/).nullable().optional(),
   oportunidadeId: Id.optional(), documentoIds: z.array(Id).max(4).optional(),
 }).strict();
@@ -69,6 +70,7 @@ export async function registrarRotasDoAgente(app, { catalogo = criarCatalogo(), 
       incluirPossiveis: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
       comEvento: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
       ordem: z.enum(['enquadramento', 'prioridade']).default('enquadramento'),
+      subsetor: Subsetor.optional(),
     }).parse(req.query);
     try { return await catalogo.buscar(filtros); }
     catch (e) { if (e.codigo === 'base_atualizada') throw new ErroHttp(409, e.codigo, e.message);

@@ -45,7 +45,7 @@ try {
   assert.deepEqual(base, { disponivel: true, total: esperado.total, referencia: esperado.referencia, totalOrigem: esperado.totalOrigem, fonte: esperado.fonte, subsetor: esperado.subsetor });
   const primeira = await chamar('GET', '/api/agente/empresas');
   assert.deepEqual(primeira.empresas.map(e => e.id), esperado.empresas.map(e => e.id));
-  const proxima = await chamar('GET', `/api/agente/empresas?offset=${primeira.proximoOffset}&catalogoHash=${primeira.hash}`);
+  const proxima = await chamar('GET', `/api/agente/empresas?offset=${primeira.proximoOffset}&catalogoHash=${primeira.hashPaginacao}`);
   assert.equal(new Set([...primeira.empresas, ...proxima.empresas].map(e => e.id)).size, 24);
   assert.equal((await chamar('GET', '/api/agente/empresas?incluirPossiveis=true')).total, ampliado.total);
   const filtro = await chamar('GET', '/api/agente/empresas?busca=Adequim&uf=SP');

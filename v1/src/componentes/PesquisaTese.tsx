@@ -3,7 +3,7 @@ import { IconeRede } from './IconeRede'
 import { ErroApi, type Usuario } from '../agente/api'
 import {
   pesquisaApi, ATALHOS_CADASTRO, DESCRICAO_CATEGORIA, EXEMPLOS_TESE, ROTULO_CATEGORIA, ROTULO_VEREDITO,
-  type Categoria, type Criterio, type DetalhePesquisa, type Filtros, type Funil, type IAInfo, type ItemPesquisa, type Previa, type ResumoPesquisa, type Veredito,
+  type Categoria, type Criterio, type DetalhePesquisa, type Filtros, type Funil, type IAInfo, type ItemPesquisa, type Previa, type ResumoPesquisa, type Veredito, SUBSETORES_ALVO, SUBSETOR_ORIGINAL, rotuloSubsetor,
 } from '../agente/pesquisa'
 import { montarGrupos, paginasVazias, type Paginas } from '../agente/pesquisa-tela'
 import { criarFluxos, type Rascunho } from '../agente/pesquisa-fluxos'
@@ -238,8 +238,12 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
               <button type="button" className="agente-btn-secundario" onClick={adicionarCadastro} disabled={!atalho}><IconeRede nome="documento" />Adicionar</button>
             </div>
           </div>
-          <details className="pesquisa-recorte"><summary>Recorte, meta e limite · {filtros.uf || 'todas as UFs'} · meta {meta} · até {limiteWeb} sites</summary>
+          <details className="pesquisa-recorte"><summary>Recorte, meta e limite · {rotuloSubsetor(filtros.subsetor ?? SUBSETOR_ORIGINAL)} · {filtros.uf || 'todas as UFs'} · meta {meta} · até {limiteWeb} sites</summary>
             <div className="grid gap-4 sm:grid-cols-4">
+              <label className="text-sm sm:col-span-4">Subsetor<select className="agente-input mt-1 w-full" value={filtros.subsetor ?? SUBSETOR_ORIGINAL} onChange={(e) => setFiltros({ ...filtros, subsetor: e.target.value })}>
+                <option value="todos">Todos os setores-alvo ({SUBSETORES_ALVO.length} subsetores químicos)</option>
+                {SUBSETORES_ALVO.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select></label>
               <label className="text-sm">UF da sede<select className="agente-input mt-1 w-full" value={filtros.uf} onChange={(e) => setFiltros({ ...filtros, uf: e.target.value })}>{UFS.map((u) => <option key={u} value={u}>{u || 'Todas'}</option>)}</select></label>
               <label className="text-sm">Meta de aderentes<input type="number" min={1} max={200} className="agente-input mt-1 w-full" value={meta} onChange={(e) => setMeta(Math.max(1, Math.min(200, Number(e.target.value) || 1)))} /></label>
               <label className="text-sm">Limite de sites lidos<input type="number" min={0} max={500} className="agente-input mt-1 w-full" value={limiteWeb} onChange={(e) => setLimiteWeb(Math.max(0, Math.min(500, Number(e.target.value) || 0)))} /></label>

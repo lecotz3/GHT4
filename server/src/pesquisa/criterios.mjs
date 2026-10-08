@@ -259,12 +259,25 @@ const maiuscula = (s) => s.charAt(0).toUpperCase() + s.slice(1);
  * Nada é descartado em silêncio: o que não vira regra cadastral vira critério
  * de pesquisa, e cada interpretação discutível vem com uma nota.
  */
+/* Palavras que identificam cada subsetor acionável (texto normalizado, sem acento). */
+const SUBSETOR_POR_PALAVRA = [
+  ['Distribuição e trading químico', /\b(distribuidor\w*|distribuicao|trading|revendedor\w*|atacadist\w*)\b/],
+  ['Especialidades e aditivos', /\b(especialidades? quimicas?|aditivos?)\b/],
+  ['Tintas, vernizes e revestimentos', /\b(tintas?|vernizes?|revestimentos?)\b/],
+  ['Domissanitários e produtos de limpeza', /\b(domissanitari\w*|produtos? de limpeza|saneantes?)\b/],
+  ['Inorgânicos e gases industriais', /\b(inorganic\w*|gases? industriais?)\b/],
+  ['Fertilizantes e nutrição vegetal', /\b(fertilizantes?|adubos?|nutricao vegetal)\b/],
+  ['Defensivos agrícolas', /\b(defensivos?|agrotoxicos?|agroquimicos?)\b/],
+  ['Explosivos e pirotecnia', /\b(explosiv\w*|pirotecni\w*|fogos de artificio)\b/],
+  ['Resinas, elastômeros e fibras', /\b(resinas?|elastomeros?|fibras? sinteticas?|borrachas? sinteticas?)\b/],
+];
+
 export function interpretarTese(tese, { referencia } = {}) {
   const original = String(tese || '').slice(0, 2000);
   const n = normalizarMesmoTamanho(original);
   const usados = [];
   const criterios = [], notas = [];
-  const filtros = { uf: '', busca: '', cnae: '', incluirPossiveis: false };
+  const filtros = { uf: '', busca: '', cnae: '', incluirPossiveis: false, subsetor: 'todos' };
   let frente = null;
   const clausulaDe = (pos) => {
     const ini = Math.max(n.lastIndexOf(',', pos - 1), n.lastIndexOf(';', pos - 1), n.lastIndexOf('.', pos - 1), n.lastIndexOf('\n', pos - 1)) + 1;
@@ -290,6 +303,15 @@ export function interpretarTese(tese, { referencia } = {}) {
     if (usados.some(([a, b]) => m.index >= a && m.index < b)) continue;
     adicionar(m, `Declara o CNAE ${m[1]}-${m[2]}/${m[3]}`, { campo: 'cnae_secundario', valor: [`${m[1]}${m[2]}${m[3]}`] });
   }
+
+  // Subsetor: o primeiro citado na tese é o sujeito ("Distribuidoras ... de resinas" é distribuição).
+  // Não consome o texto; sem citação, o recorte cobre todos os setores-alvo.
+  const citados = SUBSETOR_POR_PALAVRA.map(([rotulo, re]) => { const m = n.match(re); return m ? { rotulo, pos: m.index, palavra: original.slice(m.index, m.index + m[0].length) } : null; })
+    .filter(Boolean).sort((a, b) => a.pos - b.pos);
+  if (citados.length) {
+    filtros.subsetor = citados[0].rotulo;
+    notas.push(`Recorte no subsetor "${citados[0].rotulo}" (pela palavra "${citados[0].palavra}"). Troque em "Recorte" para ver outros subsetores químicos.`);
+  } else notas.push('A tese não cita um subsetor: o recorte cobre todos os subsetores químicos acionáveis. Escolha um em "Recorte" para concentrar a revisão.');
 
   // Localização: cidade explícita, região, nomes de estado e siglas em maiúsculas.
   const ufs = new Set();

@@ -11,7 +11,7 @@ function fonte({ referencia = '2026-08', nome = 'Química São Paulo', duplicar 
     ['cnpj12345678','12345678',nome,'Química Teste Ltda','São Paulo','SP','4684299',[],'02','2062',{email:'privado@example.test'},true],
     ['cnpj87654321','87654321','Possível','Possível Ltda','Campinas','SP','4693100',['4684299'],'02','2062',null,false],
     ['cnpj11111111','11111111','Inativa','Inativa Ltda','Curitiba','PR','4684299',[],'08','2062',null,false],
-    ['cnpj22222222','22222222','Outro subsetor','Outro Ltda','Curitiba','PR','2013401',[],'02','2062',null,false],
+    ['cnpj22222222','22222222','Outro subsetor','Outro Ltda','Curitiba','PR','2021500',[],'02','2062',null,false],
   ];
   if (duplicar) linhas.push(linhas[0]);
   return `const COLUNAS_QUIMICOS = ${JSON.stringify(colunas)};\nconst LINHAS_QUIMICOS = [\n${linhas.map(JSON.stringify).join(',\n')}\n];\nconst REFERENCIA_QUIMICOS = "${referencia}";\nglobalThis.catalogoExecutado=true;`;
@@ -33,7 +33,7 @@ test('importação persiste todo o universo e busca o piloto sem expor hipótese
   assert.ok(!JSON.stringify((await db.query('SELECT * FROM catalogo_registros')).rows).includes('privado@'));
   const primeira = await catalogo.buscar({ incluirPossiveis:true, limite:1 });
   assert.equal(primeira.total,2); assert.equal(primeira.proximoOffset,1);
-  const segunda = await catalogo.buscar({ incluirPossiveis:true, limite:1, offset:1, catalogoHash:primeira.hash });
+  const segunda = await catalogo.buscar({ incluirPossiveis:true, limite:1, offset:1, catalogoHash:primeira.hashPaginacao });
   assert.notEqual(primeira.empresas[0].id,segunda.empresas[0].id); assert.equal(segunda.proximoOffset,null);
   assert.equal((await catalogo.buscar({ incluirPossiveis:true,cnae:'4693100' })).total,1);
   assert.equal((await catalogo.buscar({ busca:'%' })).total,0);
@@ -198,9 +198,13 @@ test('regressões da revisão: relação exige as duas pontas ativas, evento qua
   const p1b = await catalogo.buscar({ incluirPossiveis: true, ordem: 'prioridade', limite: 1 });
   await db.query('UPDATE rede_vinculos SET ativo=true, versao=versao+1, atualizado_em=now()');
   await assert.rejects(catalogo.buscar({ incluirPossiveis: true, ordem: 'prioridade', limite: 1, offset: 1, catalogoHash: p1b.hashPaginacao }), (e) => e.codigo === 'base_atualizada');
-  // Ordem por enquadramento segue usando só o hash da publicação.
+  // Ordem por enquadramento: publicação + escopo de subsetores, sem os sinais vivos.
   const e1 = await catalogo.buscar({ incluirPossiveis: true, limite: 1 });
-  assert.equal(e1.hashPaginacao, e1.hash);
+  assert.notEqual(e1.hashPaginacao, e1.hash);
+  assert.equal((await catalogo.buscar({ incluirPossiveis: true, limite: 1 })).hashPaginacao, e1.hashPaginacao, 'estável sem mudança');
+  const outroEscopo = await catalogo.buscar({ incluirPossiveis: true, limite: 1, subsetor: 'Distribuição e trading químico' });
+  assert.notEqual(outroEscopo.hashPaginacao, e1.hashPaginacao, 'outro escopo não continua a página');
+  await assert.rejects(catalogo.buscar({ incluirPossiveis: true, limite: 1, offset: 1, catalogoHash: e1.hashPaginacao, subsetor: 'Distribuição e trading químico' }), (e) => e.codigo === 'base_atualizada');
 });
 
 test('eventos: raiz numérica é rejeitada e o rótulo do quadro não afirma mudança no total', async () => {
@@ -264,4 +268,39 @@ test('continuação: mutação dentro de buscar e filtro "com evento" também re
   const b1 = await catalogo.buscar({ incluirPossiveis: true, limite: 1 });
   await evento('87654321');
   assert.equal((await catalogo.buscar({ incluirPossiveis: true, limite: 1, offset: 1, catalogoHash: b1.hashPaginacao })).empresas.length, 1);
+});
+
+test('setores-alvo: busca e recorte cobrem os subsetores acionáveis; filtro por subsetor; contexto fica fora', async t => {
+  const { SUBSETORES_ALVO } = await import('../src/agente/catalogo.mjs');
+  const { criarCatalogo } = await import('../src/agente/catalogo.mjs');
+  const { writeFile, mkdtemp, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const path = await import('node:path');
+  const linhas = [
+    ['cnpj10000001','10000001','Distribuidora A','Distribuidora A Ltda','São Paulo','SP','4684299',[],'02','2062',null,false],
+    ['cnpj10000002','10000002','Fertilizantes B','Fertilizantes B Ltda','Uberaba','MG','2013401',[],'02','2062',null,false],
+    ['cnpj10000003','10000003','Tintas C','Tintas C Ltda','Recife','PE','2071100',[],'02','2062',null,false],
+    ['cnpj10000004','10000004','Petroquímica D','Petroquímica D SA','Camaçari','BA','2021500',[],'02','2062',null,false],
+  ];
+  const texto = `const COLUNAS_QUIMICOS = ${JSON.stringify(colunas)};\nconst LINHAS_QUIMICOS = [\n${linhas.map(JSON.stringify).join(',\n')}\n];\nconst REFERENCIA_QUIMICOS = "2026-08";`;
+  const db = await bancoDeTeste(); t.after(() => db.close());
+  await importarCatalogo(db, { texto });
+  const pasta = await mkdtemp(path.join(tmpdir(), 'ght4-alvo-'));
+  t.after(() => rm(pasta, { recursive: true, force: true }));
+  await writeFile(path.join(pasta, 'base.js'), texto);
+  // As duas origens do catálogo seguem o mesmo escopo.
+  for (const [origem, catalogo] of [['banco', criarCatalogoBanco(db)], ['arquivo', criarCatalogo({ arquivo: path.join(pasta, 'base.js'), arquivoIbama: null })]]) {
+    const todos = await catalogo.buscar({ limite: 10 });
+    assert.deepEqual(todos.empresas.map((e) => e.id).sort(), ['cnpj10000001', 'cnpj10000002', 'cnpj10000003'], `${origem}: os três setores-alvo, sem petroquímica básica`);
+    assert.equal(todos.subsetor, `Químicos · ${SUBSETORES_ALVO.length} subsetores`);
+    assert.deepEqual(todos.subsetores, SUBSETORES_ALVO);
+    assert.equal(todos.empresas.find((e) => e.id === 'cnpj10000002').subsetor, 'Fertilizantes e nutrição vegetal', `${origem}: o cartão diz o subsetor`);
+    assert.equal((await catalogo.buscar({ subsetor: 'todos' })).total, 3);
+    const fert = await catalogo.buscar({ subsetor: 'Fertilizantes e nutrição vegetal' });
+    assert.deepEqual(fert.empresas.map((e) => e.id), ['cnpj10000002']); assert.equal(fert.subsetor, 'Fertilizantes e nutrição vegetal');
+    await assert.rejects(catalogo.buscar({ subsetor: 'Petroquímica básica e intermediários' }), (e) => e.codigo === 'subsetor_invalido');
+    const recorte = await catalogo.recorte({ subsetor: 'Tintas, vernizes e revestimentos' });
+    assert.deepEqual(recorte.empresas.map((e) => e.id), ['cnpj10000003']);
+    assert.equal((await catalogo.recorte({})).total, 3);
+  }
 });

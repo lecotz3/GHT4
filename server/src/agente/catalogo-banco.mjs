@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { SUBSETOR, normalizar, LIMITE_RECORTE } from './catalogo.mjs';
+import { normalizar, LIMITE_RECORTE, escopoSubsetores, rotuloEscopo } from './catalogo.mjs';
 import { normalizarMunicipio } from './filtros.mjs';
 import { MESES_EVENTO_RECENTE, SQL_EVENTO_PUBLICO } from './eventos.mjs';
 
@@ -26,8 +26,9 @@ const SQL_SINAIS = `current_date::text
 // Os filtros são parâmetros; '%' e '_' em um nome não se tornam curingas SQL.
 export function criarCatalogoBanco(db) {
   return {
-    async buscar({ busca = '', uf = '', municipio = '', comEvento = false, ordem = 'enquadramento', incluirPossiveis = false, limite = 12, offset = 0, catalogoHash, cnae = '' } = {}) {
+    async buscar({ busca = '', uf = '', municipio = '', comEvento = false, ordem = 'enquadramento', incluirPossiveis = false, limite = 12, offset = 0, catalogoHash, cnae = '', subsetor } = {}) {
       if (!Number.isInteger(limite) || limite < 0 || limite > 1000 || !Number.isInteger(offset) || offset < 0) throw new Error('Paginação inválida.');
+      const escopo = escopoSubsetores(subsetor);
       const termos = normalizar(busca).trim().split(/\s+/).filter(Boolean);
       // Seleção ou ordem que dependem de sinais vivos: a continuação também carrega a versão deles.
       const dependeDeSinais = ordem === 'prioridade' || Boolean(comEvento);
@@ -37,7 +38,7 @@ export function criarCatalogoBanco(db) {
         JOIN snapshots_universo s ON s.id=p.snapshot_id AND s.estado='pronto'
       ), filtradas AS (
         SELECT 'cnpj'||trim(e.cnpj_raiz) AS id, r.nome, r.razao_social AS "razaoSocial",
-          trim(e.cnpj_raiz) AS "cnpjRaiz", r.cidade, r.uf, r.cnae_principal AS "cnaePrincipal",
+          trim(e.cnpj_raiz) AS "cnpjRaiz", r.cidade, r.uf, r.cnae_principal AS "cnaePrincipal", c.subsetor,
           c.estado, c.motivo, NULL::numeric AS receita, 'Não apurada'::text AS "intencaoDeTransacao",
           a.referencia, r.ordem, r.entidade_id,
           EXISTS (SELECT 1 FROM eventos_corporativos ev WHERE ev.entidade_id=r.entidade_id AND ev.tipo<>'outro'
@@ -52,7 +53,7 @@ export function criarCatalogoBanco(db) {
         FROM atual a JOIN catalogo_registros r ON r.snapshot_id=a.snapshot_id
         JOIN entidades_juridicas e ON e.id=r.entidade_id
         JOIN classificacoes_subsetor c ON c.snapshot_id=r.snapshot_id AND c.entidade_id=r.entidade_id
-        WHERE c.subsetor=$1 AND c.estado<>'excluida' AND ($2::boolean OR c.estado<>'possivel')
+        WHERE c.subsetor=ANY($1::text[]) AND c.estado<>'excluida' AND ($2::boolean OR c.estado<>'possivel')
           AND ($3='' OR r.uf=ANY(string_to_array($3,','))) AND ($4='' OR r.cnae_principal=$4)
           AND ($8='' OR regexp_replace(${SEM_ACENTO},'\\s+',' ','g')=$8)
           AND NOT EXISTS (SELECT 1 FROM unnest($5::text[]) AS t(termo) WHERE strpos(r.busca_normalizada,t.termo)=0)
@@ -64,13 +65,14 @@ export function criarCatalogoBanco(db) {
       SELECT a.hash, a.referencia, a.total_origem, (SELECT count(*)::int FROM filtradas) AS total,
         ${dependeDeSinais ? SQL_SINAIS : 'NULL::text'} AS sinais,
         COALESCE((SELECT jsonb_agg(to_jsonb(p)-'ordem'-'entidade_id' ORDER BY ${ORDENS[ordem] ?? ORDENS.enquadramento}) FROM pagina p),'[]'::jsonb) AS empresas
-      FROM atual a`, [SUBSETOR, incluirPossiveis, uf, cnae, termos, limite, offset, normalizarMunicipio(municipio), Boolean(comEvento), MESES_EVENTO_RECENTE]);
+      FROM atual a`, [escopo, incluirPossiveis, uf, cnae, termos, limite, offset, normalizarMunicipio(municipio), Boolean(comEvento), MESES_EVENTO_RECENTE]);
       const r = rows[0];
       if (!r) throw new Error('O catálogo ainda não foi importado no banco.');
       /* Prioridade e "com evento" dependem de eventos e rede, que mudam sem nova publicação.
          Se mudaram desde a primeira página, a seguinte poderia pular ou repetir empresas:
          a busca recomeça em vez de continuar. Sem essa dependência, vale o hash cadastral. */
-      const hashPaginacao = dependeDeSinais ? createHash('sha256').update(`${r.hash}|${r.sinais}`).digest('hex') : r.hash;
+      // O escopo de subsetores entra sempre: outra lista de subsetores não continua a página.
+      const hashPaginacao = createHash('sha256').update(`${r.hash}|${escopo.join(',')}${dependeDeSinais ? `|${r.sinais}` : ''}`).digest('hex');
       if (catalogoHash && catalogoHash !== hashPaginacao) {
         const e = new Error(dependeDeSinais ? 'Eventos ou relações mudaram desde a primeira página. Inicie uma nova busca para não pular empresas.'
           : 'O catálogo foi atualizado. Inicie uma nova busca.');
@@ -80,34 +82,35 @@ export function criarCatalogoBanco(db) {
         proximoOffset: offset + limite < r.total ? offset + limite : null,
         cobertura: { receitaApurada: 0, intencaoApurada: 0, classificacao: r.total, universo: r.total },
         referencia: r.referencia, hash: r.hash, hashPaginacao, totalOrigem: r.total_origem,
-        fonte: 'Receita Federal · CNPJ', subsetor: SUBSETOR };
+        fonte: 'Receita Federal · CNPJ', subsetor: rotuloEscopo(escopo), subsetores: escopo };
     },
     /** Universo de uma pesquisa por tese, com os atributos públicos gravados na importação. */
-    async recorte({ busca = '', uf = '', incluirPossiveis = false, cnae = '' } = {}) {
+    async recorte({ busca = '', uf = '', incluirPossiveis = false, cnae = '', subsetor } = {}) {
       const termos = normalizar(busca).trim().split(/\s+/).filter(Boolean);
+      const escopo = escopoSubsetores(subsetor);
       const { rows } = await db.query(`WITH atual AS (
         SELECT p.*, s.referencia FROM catalogo_controle cc
         JOIN catalogo_publicacoes p ON p.snapshot_id=cc.snapshot_id
         JOIN snapshots_universo s ON s.id=p.snapshot_id AND s.estado='pronto'
       ), filtradas AS (
         SELECT 'cnpj'||trim(e.cnpj_raiz) AS id, r.nome, r.razao_social AS "razaoSocial",
-          trim(e.cnpj_raiz) AS "cnpjRaiz", r.cidade, r.uf, r.cnae_principal AS "cnaePrincipal",
+          trim(e.cnpj_raiz) AS "cnpjRaiz", r.cidade, r.uf, r.cnae_principal AS "cnaePrincipal", c.subsetor,
           c.estado, c.motivo, a.referencia, r.ordem,
           CASE WHEN r.atributos = '{}'::jsonb THEN NULL ELSE r.atributos END AS atributos
         FROM atual a JOIN catalogo_registros r ON r.snapshot_id=a.snapshot_id
         JOIN entidades_juridicas e ON e.id=r.entidade_id
         JOIN classificacoes_subsetor c ON c.snapshot_id=r.snapshot_id AND c.entidade_id=r.entidade_id
-        WHERE c.subsetor=$1 AND c.estado<>'excluida' AND ($2::boolean OR c.estado<>'possivel')
+        WHERE c.subsetor=ANY($1::text[]) AND c.estado<>'excluida' AND ($2::boolean OR c.estado<>'possivel')
           AND ($3='' OR r.uf=ANY(string_to_array($3,','))) AND ($4='' OR r.cnae_principal=$4)
           AND NOT EXISTS (SELECT 1 FROM unnest($5::text[]) AS t(termo) WHERE strpos(r.busca_normalizada,t.termo)=0)
       )
       SELECT a.hash, a.referencia, (SELECT count(*)::int FROM filtradas) AS total,
         COALESCE((SELECT jsonb_agg(to_jsonb(f)-'ordem' ORDER BY f.ordem) FROM (SELECT * FROM filtradas ORDER BY ordem LIMIT $6) f),'[]'::jsonb) AS empresas
-      FROM atual a`, [SUBSETOR, incluirPossiveis, uf, cnae, termos, LIMITE_RECORTE]);
+      FROM atual a`, [escopo, incluirPossiveis, uf, cnae, termos, LIMITE_RECORTE]);
       const r = rows[0];
       if (!r) throw new Error('O catálogo ainda não foi importado no banco.');
       return { empresas: r.empresas, total: r.total, truncado: r.total > LIMITE_RECORTE, referencia: r.referencia,
-        hash: r.hash, fonte: 'Receita Federal · CNPJ', subsetor: SUBSETOR };
+        hash: r.hash, fonte: 'Receita Federal · CNPJ', subsetor: rotuloEscopo(escopo) };
     },
     async obter(id) {
       if (!/^cnpj\d{8}$/.test(id)) return null;

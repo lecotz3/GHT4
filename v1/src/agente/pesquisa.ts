@@ -13,7 +13,16 @@ export interface Criterio {
   id: string; texto: string; obrigatorio: boolean; tipo: 'cadastro' | 'pesquisa'
   regra: Regra | null; trecho?: string | null; origem: 'regras' | 'ia' | 'usuario'
 }
-export interface Filtros { uf: string; busca: string; cnae: string; incluirPossiveis: boolean }
+export interface Filtros { uf: string; busca: string; cnae: string; incluirPossiveis: boolean; subsetor?: string }
+/** Setores-alvo: espelho de `subsetoresAcionaveis()` da taxonomia (um teste confere as duas listas). */
+export const SUBSETORES_ALVO = [
+  'Distribuição e trading químico', 'Especialidades e aditivos', 'Tintas, vernizes e revestimentos',
+  'Domissanitários e produtos de limpeza', 'Inorgânicos e gases industriais', 'Fertilizantes e nutrição vegetal',
+  'Defensivos agrícolas', 'Explosivos e pirotecnia', 'Resinas, elastômeros e fibras',
+] as const
+/** Pesquisas gravadas antes dos setores-alvo não têm `subsetor` e continuam neste. */
+export const SUBSETOR_ORIGINAL = 'Distribuição e trading químico'
+export const rotuloSubsetor = (s?: string) => !s || s === 'todos' ? 'todos os setores-alvo' : s
 export interface Evidencia { fonte: string; url?: string; trecho?: string; referencia?: string; campo?: string }
 /** Na lista (`resumido`) vêm só veredito, resumo e lastro; justificativa e evidências vêm com o item completo. */
 export interface VereditoCriterio {

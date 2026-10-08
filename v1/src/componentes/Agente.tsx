@@ -1,3 +1,4 @@
+import { SUBSETORES_ALVO } from '../agente/pesquisa'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { MarcaGHT4 } from './MarcaGHT4'
 import { Equipe } from './Equipe'
@@ -280,6 +281,10 @@ function EspacoDoAgente({ usuario, inicio, aoOportunidades, aoTrabalhar, aoRede,
             <details className="agente-opcoes"><summary>Mais filtros e observações</summary><div className="space-y-4">
               <label className="flex items-start gap-2 text-sm"><input className="mt-1" type="checkbox" checked={contexto.incluirPossiveis || false} onChange={(e) => setContexto({ ...contexto, modeloBusca: null, incluirPossiveis: e.target.checked, offset: 0, catalogoHash: undefined })} disabled={bloqueado} /><span>Incluir enquadramentos possíveis<span className="mt-1 block text-xs text-suave">Evidência cadastral mais fraca, que exige revisão adicional.</span></span></label>
               <label className="flex items-start gap-2 text-sm"><input className="mt-1" type="checkbox" checked={contexto.comEvento || false} onChange={(e) => setContexto({ ...contexto, modeloBusca: null, comEvento: e.target.checked, offset: 0, catalogoHash: undefined })} disabled={bloqueado} /><span>Só com evento societário nos últimos 12 meses<span className="mt-1 block text-xs text-suave">Troca de sócios, entrada de sócio estrangeiro, aumento de capital ou filial em nova UF, detectados no CNPJ. É fato do registro, não intenção de vender.</span></span></label>
+              <label className="block text-sm">Subsetor<select className={`${campo} mt-1`} value={contexto.subsetor || 'todos'} onChange={(e) => setContexto({ ...contexto, modeloBusca: null, subsetor: e.target.value, offset: 0, catalogoHash: undefined })} disabled={bloqueado}>
+                <option value="todos">Todos os setores-alvo</option>
+                {SUBSETORES_ALVO.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select></label>
               <label className="block text-sm">CNAE principal (opcional, sete dígitos)<input className={`${campo} mt-1`} value={contexto.cnae || ''} onChange={(e) => setContexto({ ...contexto, modeloBusca: null, cnae: e.target.value, offset: 0, catalogoHash: undefined })} pattern="[0-9]{7}|" maxLength={7} disabled={bloqueado} /></label>{campoTexto}
             </div></details>
             {contexto.modeloBusca && <p className="text-xs text-suave">Modelo aplicado · versão {contexto.modeloBusca.versao}. <button type="button" className="agente-link" disabled={bloqueado} onClick={() => setContexto(c => ({ ...c, modeloBusca: null }))}>Usar como pesquisa personalizada</button></p>}
@@ -344,7 +349,7 @@ function Resposta({ resultado: r, aoPreparar, aoMapear, aoRevisar, desabilitado 
           <span className={`agente-enquadramento ${e.estado === 'possivel' ? 'is-possivel' : e.estado === 'provavel' ? 'is-provavel' : 'is-confirmado'}`}>{e.estado === 'provavel' ? 'Enquadramento provável' : e.estado === 'possivel' ? 'Enquadramento possível' : 'Enquadramento confirmado'}</span></div>
         <p className="agente-empresa-meta"><span><IconeRede nome="local" />{e.cidade} · {e.uf}</span><span>Raiz CNPJ <span className="tabular-nums">{e.cnpjRaiz}</span></span>{e.aderencia !== undefined && <span>Aderência à tese <span className="tabular-nums">{e.aderencia}%</span></span>}</p>
         <SinaisEmpresa empresa={e} />
-        <details className="mt-2 text-xs text-suave"><summary className="cursor-pointer">Ver cadastro e evidência</summary><p className="mt-2">{e.razaoSocial} · CNAE {e.cnaePrincipal}</p><p className="mt-1">{e.motivo}</p></details></div>
+        <details className="mt-2 text-xs text-suave"><summary className="cursor-pointer">Ver cadastro e evidência</summary><p className="mt-2">{e.razaoSocial}{e.subsetor ? ` · ${e.subsetor}` : ''} · CNAE {e.cnaePrincipal}</p><p className="mt-1">{e.motivo}</p></details></div>
       <div className="agente-empresa-acoes"><button className={secundario} onClick={() => abrirFicha(e.id)}>Ver ficha</button><button className={secundario} onClick={() => aoPreparar(e)} disabled={desabilitado}>Preparar reunião</button>
       <button className={secundario} onClick={() => aoMapear(e)} disabled={desabilitado}>Abrir caminho</button>
       <button className={secundario} onClick={() => aoRevisar(e)} disabled={desabilitado}>Revisar empresa</button></div>

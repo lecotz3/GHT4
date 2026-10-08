@@ -816,3 +816,28 @@ test('resumirTexto: corta no limite, em fronteira de palavra, com reticências',
   assert.equal(resumirTexto('x'.repeat(160), 160), 'x'.repeat(160));
   assert.equal(resumirTexto('x'.repeat(161), 160).length, 160);
 });
+
+test('setores-alvo na tese: o primeiro subsetor citado vira o recorte; sem citação, todos; pesquisa antiga fica no original', async () => {
+  const sub = (t) => interpretarTese(t, { referencia: REF });
+  const dist = sub('Distribuidoras químicas que representem fabricantes de resinas');
+  assert.equal(dist.filtros.subsetor, 'Distribuição e trading químico');
+  assert.ok(dist.notas.some((x) => /subsetor "Distribuição e trading químico" \(pela palavra "Distribuidoras"\)/.test(x)));
+  assert.equal(sub('Fabricantes de tintas industriais em SC').filtros.subsetor, 'Tintas, vernizes e revestimentos');
+  assert.equal(sub('Misturadoras de fertilizantes no Centro-Oeste').filtros.subsetor, 'Fertilizantes e nutrição vegetal');
+  assert.equal(sub('Fabricantes de produtos de limpeza com marca própria').filtros.subsetor, 'Domissanitários e produtos de limpeza');
+  const geral = sub('Empresas químicas familiares com mais de 30 anos');
+  assert.equal(geral.filtros.subsetor, 'todos');
+  assert.ok(geral.notas.some((x) => /não cita um subsetor/.test(x)));
+  // O motor: filtros gravados antes dos setores-alvo (sem a chave) continuam no subsetor original.
+  const pedidos = [];
+  const catalogo = { recorte: async (f) => { pedidos.push(f.subsetor); return { empresas: [], total: 0, truncado: false, referencia: REF, hash: 'h' }; }, buscar: async () => ({ hash: 'h', referencia: REF }) };
+  const motor = criarMotorPesquisa({ db: null, catalogo });
+  await motor.previa({ uf: '', busca: '', cnae: '', incluirPossiveis: false }, []);
+  await motor.previa({ uf: '', busca: '', cnae: '', incluirPossiveis: false, subsetor: 'todos' }, []);
+  await motor.previa({ uf: '', busca: '', cnae: '', incluirPossiveis: false, subsetor: 'Defensivos agrícolas' }, []);
+  assert.deepEqual(pedidos, ['Distribuição e trading químico', 'todos', 'Defensivos agrícolas']);
+  // O contrato dos filtros aceita só subsetores acionáveis.
+  const { Filtros } = await import('../src/pesquisa/motor.mjs');
+  assert.equal(Filtros.safeParse({ subsetor: 'Petroquímica básica e intermediários' }).success, false);
+  assert.equal(Filtros.parse({}).subsetor, undefined, 'sem padrão: a ausência marca a pesquisa antiga');
+});

@@ -1,11 +1,20 @@
-import { normalizarMunicipio } from './filtros.mjs';
+import { normalizarMunicipio, SUBSETORES_ALVO, TODOS_SUBSETORES } from './filtros.mjs';
 import { readFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { classificar, forcaDoEstado } from '../../../packages/domain/classificacao.mjs';
 import { atributosDe, contarDominios, lerPegadaIbama } from './atributos.mjs';
 
+/** Subsetor do escopo original. Pesquisas gravadas sem `subsetor` nos filtros continuam nele. */
 export const SUBSETOR = 'Distribuição e trading químico';
+export { SUBSETORES_ALVO, TODOS_SUBSETORES };
+/** Subsetores consultados: um deles, ou todos os acionáveis (`todos`, vazio ou ausente). */
+export function escopoSubsetores(subsetor) {
+  if (!subsetor || subsetor === TODOS_SUBSETORES) return SUBSETORES_ALVO;
+  if (!SUBSETORES_ALVO.includes(subsetor)) throw Object.assign(new Error('Subsetor fora do escopo.'), { codigo: 'subsetor_invalido' });
+  return [subsetor];
+}
+export const rotuloEscopo = (escopo) => escopo.length === 1 ? escopo[0] : `Químicos · ${escopo.length} subsetores`;
 const ARQUIVO = fileURLToPath(new URL('../../../data-quimicos.js', import.meta.url));
 const ARQUIVO_IBAMA = fileURLToPath(new URL('../../../data-ibama.js', import.meta.url));
 /** Teto do recorte entregue à revisão: o subsetor inteiro, com possíveis, cabe com folga. */
@@ -41,12 +50,12 @@ export function lerCatalogo(texto, { textoIbama = null } = {}) {
   const empresas = linhas.map((linha) => {
     const e = Object.fromEntries(colunas.map((c, i) => [c, linha[i]]));
     const classificacao = classificar(e);
-    if (classificacao.estado === 'excluida' || classificacao.subsetor !== SUBSETOR) return null;
+    if (classificacao.estado === 'excluida' || !SUBSETORES_ALVO.includes(classificacao.subsetor)) return null;
     atributos.set(e.id, atributosDe(e, apoio));
     // Campos financeiros ausentes e contatos pessoais não são completados nem propagados.
     return {
       id: e.id, nome: e.nome, razaoSocial: e.razaoSocial, cnpjRaiz: e.cnpjRaiz,
-      cidade: e.cidade, uf: e.uf, cnaePrincipal: e.cnaePrincipal,
+      cidade: e.cidade, uf: e.uf, cnaePrincipal: e.cnaePrincipal, subsetor: classificacao.subsetor,
       estado: classificacao.estado, motivo: classificacao.motivo,
       receita: null, intencaoDeTransacao: 'Não apurada', referencia,
     };
@@ -56,11 +65,12 @@ export function lerCatalogo(texto, { textoIbama = null } = {}) {
 }
 
 /** Filtro comum às duas origens do catálogo (arquivo e banco). */
-function filtrar(empresas, { busca = '', uf = '', municipio = '', comEvento = false, incluirPossiveis = false, cnae = '' }) {
+function filtrar(empresas, { busca = '', uf = '', municipio = '', comEvento = false, incluirPossiveis = false, cnae = '', subsetor }) {
   const termos = normalizar(busca).trim().split(/\s+/).filter(Boolean);
+  const escopo = escopoSubsetores(subsetor);
   const ufs = uf ? uf.split(',') : [], cidade = normalizarMunicipio(municipio);
   // Eventos só existem no catálogo em banco: no arquivo, "com evento" não encontra nada.
-  return empresas.filter((e) => (incluirPossiveis || e.estado !== 'possivel')
+  return empresas.filter((e) => escopo.includes(e.subsetor) && (incluirPossiveis || e.estado !== 'possivel')
     && (!ufs.length || ufs.includes(e.uf))
     && (!cidade || normalizarMunicipio(e.cidade) === cidade)
     && (!cnae || e.cnaePrincipal === cnae)
@@ -83,16 +93,19 @@ export function criarCatalogo({ arquivo = ARQUIVO, arquivoIbama = ARQUIVO_IBAMA 
     return cache;
   }
   return {
-    async buscar({ busca = '', uf = '', municipio = '', comEvento = false, incluirPossiveis = false, limite = 12, offset = 0, catalogoHash, cnae = '' } = {}) {
+    async buscar({ busca = '', uf = '', municipio = '', comEvento = false, incluirPossiveis = false, limite = 12, offset = 0, catalogoHash, cnae = '', subsetor } = {}) {
       const base = await carregar();
-      if (catalogoHash && catalogoHash !== base.hash) { const e = new Error('O catálogo foi atualizado. Inicie uma nova busca.'); e.codigo = 'base_atualizada'; throw e; }
-      const filtradas = filtrar(base.empresas, { busca, uf, municipio, comEvento, incluirPossiveis, cnae });
+      const escopo = escopoSubsetores(subsetor);
+      // A continuação também confere o escopo: outra lista de subsetores não pode continuar a página.
+      const hashPaginacao = createHash('sha256').update(`${base.hash}|${escopo.join(',')}`).digest('hex');
+      if (catalogoHash && catalogoHash !== hashPaginacao) { const e = new Error('O catálogo foi atualizado. Inicie uma nova busca.'); e.codigo = 'base_atualizada'; throw e; }
+      const filtradas = filtrar(base.empresas, { busca, uf, municipio, comEvento, incluirPossiveis, cnae, subsetor });
       return {
         empresas: filtradas.slice(offset, offset + limite).map((e) => ({ ...e, eventos: [] })), total: filtradas.length, offset, limite,
         proximoOffset: offset + limite < filtradas.length ? offset + limite : null,
         cobertura: { receitaApurada: 0, intencaoApurada: 0, classificacao: filtradas.length, universo: filtradas.length },
-        referencia: base.referencia, hash: base.hash, totalOrigem: base.totalOrigem,
-        fonte: 'Receita Federal · CNPJ', subsetor: SUBSETOR,
+        referencia: base.referencia, hash: base.hash, hashPaginacao, totalOrigem: base.totalOrigem,
+        fonte: 'Receita Federal · CNPJ', subsetor: rotuloEscopo(escopo), subsetores: escopo,
       };
     },
     async obter(id) { return (await carregar()).empresas.find((e) => e.id === id) ?? null; },
@@ -102,7 +115,7 @@ export function criarCatalogo({ arquivo = ARQUIVO, arquivoIbama = ARQUIVO_IBAMA 
       const filtradas = filtrar(base.empresas, filtros);
       return { empresas: filtradas.slice(0, LIMITE_RECORTE).map((e) => ({ ...e, atributos: base.atributos.get(e.id) ?? null })),
         total: filtradas.length, truncado: filtradas.length > LIMITE_RECORTE,
-        referencia: base.referencia, hash: base.hash, fonte: 'Receita Federal · CNPJ', subsetor: SUBSETOR };
+        referencia: base.referencia, hash: base.hash, fonte: 'Receita Federal · CNPJ', subsetor: rotuloEscopo(escopoSubsetores(filtros.subsetor)) };
     },
   };
 }
