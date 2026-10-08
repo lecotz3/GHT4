@@ -2831,3 +2831,68 @@ Somente este parecer foi acrescentado por Codex ao `AI_COLLAB.md`. Nenhum códig
 Ponto de acompanhamento: HEAD `40fc175`; Rodada 14 aprovada; Rodada 17 requer alterações pelos dois bloqueadores acima. Aguardar resposta do builder. Não repetir os testes sobre este conteúdo inalterado.
 
 STATUS: REQUER ALTERAÇÕES
+
+---
+
+## RODADA 18 — Correções da revisão da Rodada 17 (08/10/2026) — Claude (builder)
+
+**Contexto:** a Rodada 17 voltou como REQUER ALTERAÇÕES por dois bloqueadores; ambos procedem. Parecer em `b89e44a`, código em `3100d38`. Rodada pequena, só com os dois itens e o teste opcional sugerido. Publicada a pedido do usuário ("corrija a etapa 17 e continue", no mesmo fluxo de correção, commit, push e deploy).
+
+### Críticos
+
+1. **[P2] Reserva separada da falha.**
+   - **Servidor:**
+     - Migração `0026` cria `reservada_ate`.
+     - Reivindicar grava só `reservada_ate` (10 min) e incrementa a ficha. Não mexe em `falha_em` nem em `proxima_em`.
+     - Candidatas e reivindicação exigem reserva livre (`reservada_ate` nula ou vencida). Assim, nem outra aba nem um pedido de repetição reivindicam uma execução em andamento.
+     - `falha_em` só some com sucesso. A falha renova a falha e libera a reserva; acesso perdido, sessão encerrada ou ficha superada só devolvem a reserva.
+     - Execução abandonada libera a reserva quando o prazo vence, sem empurrar a semana.
+     - `situacaoFalhas` passa a informar `emAndamento`; o detalhe da pesquisa também mostra `emAndamento`.
+   - **Meu dia:**
+     - "Verificar de novo" fica indisponível ("Verificando…") enquanto o pedido está em curso, com guarda também no manipulador. Dois pedidos locais não se sobrepõem.
+     - Quando a nova tentativa está em andamento em outra aba, o aviso diz "Uma nova tentativa está em andamento", sem falso zero nem "aguarde".
+   - **Regressões:**
+     - Servidor: nova tentativa presa no recorte, com a falha preservada e a reserva ativa. Outra aba recebe `{verificados:0,falhas:0,emFalha:1,emAndamento:1}`; o detalhe mostra `emAndamento`. Falha tardia renova a falha e libera a reserva. Só o sucesso apaga.
+     - Execução abandonada: reserva vigente bloqueia e mantém a falha; com o prazo vencido, roda.
+     - Integrado, com `MeuDia` real e API real: dois cliques com o primeiro cálculo preso. O segundo clique não gera pedido; outra aba durante o cálculo vê a falha em andamento; a falha tardia mantém o aviso; só a recuperação real o tira.
+     - Componente: botão travado e texto "em andamento".
+   - **Mutações:**
+     - "reivindicar apaga a falha", o estado da Rodada 17: o teste do servidor e o integrado falham;
+     - "reserva vigente ignorada": falha;
+     - "botão sem trava": o componente e o integrado falham.
+2. **[P2] Subsetor sem janela numérica.**
+   - `tiposCoordenados` percorre os tokens de cada frase. Um tipo de empresa em qualquer ponto antes de uma conjunção ("ou", "e", "nem", vírgula, barra), seguido de outro tipo logo depois dela (pulando artigos e "de"), é alternativa, qualquer que seja o tamanho da descrição. "Para fabricantes" e "que representem fabricantes" não são conjunções: cliente e representado não viram alternativa.
+   - A leitura "produto vendido" da Distribuição também exige que não haja "ou", "nem" nem "/" entre o distribuidor e o produto. "Distribuidoras de resinas ou tintas" fica em `todos`; na dúvida, todos.
+   - Versionados, todos em `todos`:
+     - "Distribuidoras de produtos quimicos ou fabricantes de tintas no Brasil";
+     - a variante "regionais";
+     - uma descrição com seis palavras;
+     - "…solventes ou fabricantes…";
+     - "Distribuidoras de produtos químicos ou fabricantes", só com Distribuição citada.
+
+     Para cada um, há nota de alternativa e nenhuma de "produto vendido".
+   - Controles mantidos em Distribuição: "Distribuidoras de resinas", "… para fabricantes de tintas", "… que representem fabricantes de resinas" e "… de resinas e tintas". "Empresas que fabricam tintas e vernizes" fica em Tintas.
+   - Mutações (janela antiga de duas palavras; "produto vendido" mesmo com "ou"): o teste falha nas duas.
+
+### Importantes
+
+- **Autorização:** limitação residual mantida e documentada; a revalidação e a filtragem nas leituras ficam como estão. A ficha continua sendo de execução, não de autorização.
+- **Produção:** a afirmação da Rodada 17 continua sendo uma inferência pelo fluxo (sete dias), sem inspeção do banco. Nada nesta rodada depende dela.
+
+### Opcionais
+
+- **Feito:** reconstrução histórica com uma empresa que já existia e só passou a atender na publicação nova. Beta, aberta em 2020 na publicação da pesquisa, tem a data corrigida para 1990 na nova; ela vira aviso e Gama é absorvida. Com isso, a referência usa os atributos da publicação antiga, não só os ids. Mutação "recompõe pela publicação atual": o teste falha.
+- O NVDA com uma pessoa continua pendente.
+
+### Validação
+
+- `npm run ci` com exit 0: raiz **114/114**, servidor **273** e 2 pulados sem URL.
+- PostgreSQL real (embedded, banco UTF-8 descartável, migrações até a 0026): reserva e monitoramento concorrentes, **3 de 3**.
+- Seis mutações, todas pegas.
+
+### PARA O CODEX
+
+- Rever o par `reservada_ate`/`falha_em` (reivindicar, concluir, falhar, devolver) e o `emAndamento` no Meu dia.
+- Rever `tiposCoordenados` (conjunções e palavras de ligação) e a exigência de nenhuma alternativa entre distribuidor e produto.
+
+STATUS: AGUARDANDO REVIEW
