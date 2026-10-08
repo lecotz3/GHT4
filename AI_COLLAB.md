@@ -2971,3 +2971,85 @@ STATUS: APROVADO
 - Próximo passo: o ensaio com NVDA por uma pessoa. A próxima funcionalidade será combinada separadamente.
 
 STATUS: AGUARDANDO REVIEW
+
+---
+
+## RODADA 19 — Varredura paginada do monitoramento para teses amplas (08/10/2026) — Claude (builder)
+
+**Contexto:** pedido do usuário ("pode paginar a varredura das teses amplas"), item de produção listado no checkpoint. Antes, o recorte parava em 10 mil empresas. "Todos os setores-alvo" tem 12.145 sem possíveis e 36.238 com eles, então o monitoramento dessas teses ficava com cobertura parcial: empresas fora da primeira página nunca geravam aviso.
+
+**Escopo:** só o monitoramento (ativação, verificação e reconstruções). A pesquisa (prévia, revisão e itens) continua avaliando a primeira página, com `truncado` no funil. Nenhuma migração.
+
+### Feito
+
+- **Catálogo (arquivo e banco):** `recorte(filtros, { hash, apos, limite })` em páginas. `truncado` diz se há mais depois da página; `proximo` é o cursor da seguinte.
+  - No banco, o cursor é a `ordem`, a posição no arquivo importado, única na publicação. A página lê `limite + 1` linhas para saber se há mais.
+  - No arquivo, o cursor é a posição no recorte.
+  - A primeira página é a mesma de antes: conferido com o catálogo real nos três recortes medidos.
+  - Paginação inválida é rejeitada.
+- **Motor:**
+  - O funil passa a ser somado página a página (`novoFunil`: `somar`/`fechar`); a pesquisa usa o mesmo funil sobre a primeira página.
+  - `aprovadasCadastro` varre todas as páginas na mesma publicação. A primeira fixa o hash e as seguintes o repetem. Se uma página vier de outra publicação ou com outro total, a varredura falha (nova tentativa em uma hora) em vez de misturar versões.
+  - Guarda só o cartão e a aderência de cada aprovada.
+  - Teto de 100 mil empresas por varredura (`LIMITE_VARREDURA`); acima dele vale a cobertura parcial que já existia.
+- **Transições, para não inventar avisos:**
+  - **Monitor com cobertura parcial gravada** (ligado antes desta rodada com recorte acima de 10 mil): sem tratamento, as empresas que já existiam além do antigo corte virariam milhares de avisos falsos na primeira verificação completa. Na primeira verificação que cobre mais, as aprovadas na publicação da pesquisa (varrida inteira) entram na linha de base sem aviso (`transicao: 'ampliada'`), e o que aprova agora e não aprovava lá vira aviso. Sem a publicação, as candidatas viram "a conferir" (`incerta`).
+  - **Legado (sem cobertura) cuja pesquisa teve o funil truncado:** deixa de contar como linha de base completa e vai para a reconstrução histórica.
+  - A reconstrução histórica também passa a varrer a publicação da pesquisa inteira.
+- **Tela:**
+  - O aviso de cobertura parcial diz o que a última verificação avaliou e o que a próxima fará: "lê o recorte inteiro" ou, acima do teto, "restrinja o recorte".
+  - O texto da transição "a conferir" passa a valer para os dois casos ("não acompanhava o recorte inteiro").
+
+### Medição
+
+PostgreSQL local descartável, com o catálogo real de 38 mil linhas e duas rodadas por recorte:
+
+| Recorte | Empresas | 1ª página (antes / agora) | Varredura completa |
+|---|---|---|---|
+| Todos os setores, sem possíveis | 12.145 | ~420 / ~440 ms | ~0,65 s (2 páginas) |
+| Todos os setores, com possíveis | 36.238 | ~520 / ~610 ms | ~2,6 s (4 páginas) |
+| Só Distribuição | 1.613 | ~110 / ~90 ms | ~0,1 s |
+
+A medição foi local, não em produção; no Supabase, cada página soma a latência de rede.
+
+### Validação
+
+- `npm run ci`, rodado em partes, terminou com exit 0 em todas: lint, build, raiz **114/114**, servidor **281** e 2 pulados sem URL, dados ok.
+- PostgreSQL real:
+  - `reserva-postgres` passou **4 de 4**;
+  - páginas de 10.000, 3.000 e 777 dão as mesmas 11.559 aprovadas das 36.238 empresas, na mesma ordem e sem repetição;
+  - a primeira página é idêntica à do código anterior.
+- **Testes novos:**
+  - catálogo em páginas nas duas origens: soma, ordem, última página cheia, hash fixo com publicação nova no meio, paginação inválida;
+  - tese ampla em páginas de duas: ativação e verificação leem as quatro páginas; empresa nova na última página vira aviso;
+  - publicação nova no meio da varredura não mistura versões; a verificação seguinte a vê;
+  - teto do motor e troca de publicação;
+  - transição `ampliada`, com e sem a publicação da pesquisa;
+  - legado com funil truncado;
+  - texto da tela abaixo e acima do teto.
+- **Dez mutações, todas pegas:**
+  - só a primeira página;
+  - páginas seguintes sem fixar a publicação;
+  - sem fixar nem conferir (mistura versões);
+  - teto ignorado;
+  - sem transição da cobertura parcial;
+  - legado truncado tratado como completo;
+  - cursor que repete a última empresa;
+  - banco que sempre diz que há mais;
+  - arquivo que ignora o cursor;
+  - aviso que sempre manda restringir.
+
+### Limites
+
+- **Pesquisa:** continua limitada à primeira página, inclusive na prévia e na revisão com IA. Paginar o funil da pesquisa é outra rodada.
+- **Referência da transição:** é a publicação da pesquisa. Empresas que entraram entre o cálculo da pesquisa e a ativação, além do antigo corte, contam como novas: excesso declarado, o mesmo critério do legado.
+- **Custo da transição:** ela faz uma segunda varredura, uma vez por monitor.
+- **Produção:** não houve acesso ao banco de produção, então não sei quantos monitores têm cobertura parcial hoje.
+
+### PARA O CODEX
+
+- Rever o cursor por `ordem` com `LIMIT limite+1`.
+- Rever a fixação do hash e a conferência de total na varredura.
+- Rever a transição `ampliada`, o legado truncado e os textos da tela.
+
+STATUS: AGUARDANDO REVIEW

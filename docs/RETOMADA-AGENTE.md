@@ -4,7 +4,7 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodadas 12–18 publicadas, 18 aprovada (08/10/2026)
+## COMECE AQUI — Rodadas 12–18 publicadas, 18 aprovada; Rodada 19 pronta (08/10/2026)
 
 **Estado:**
 - **Na `main`, publicado a pedido do usuário:** até a Rodada 18.
@@ -34,10 +34,15 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
   - "Verificar de novo" fica travado durante o pedido.
   - Alternativas entre tipos de empresa reconhecidas sem janela de distância.
 - **Aprovação:** o Codex aprovou as Rodadas 14 e 18; os bloqueadores da 17 foram encerrados pela 18.
+- **Rodada 19:** o monitoramento varre o recorte inteiro em páginas, na mesma publicação, até 100 mil empresas.
+  - Teses amplas ("todos os setores-alvo": 12 mil sem possíveis, 36 mil com) deixam de ter cobertura parcial.
+  - Monitores que já tinham cobertura parcial reconstroem a linha de base pela publicação da pesquisa, sem avisos falsos.
+  - A pesquisa em si continua avaliando a primeira página (10 mil).
+  - Commitada na branch; a publicação na `main` aguarda o pedido do usuário.
 - **Depois da aprovação:** entrou só o teste da ficha superada, sugestão opcional do parecer.
 - O registro está no [AI_COLLAB.md](../AI_COLLAB.md).
 
-**Validação:** `npm run ci` com exit 0 (lint, build, 114/114 raiz, 274 servidor + 2 pulados sem URL, dados). PostgreSQL real 3 de 3 nos ensaios de reserva e monitoramento; a receita está abaixo.
+**Validação:** `npm run ci` com exit 0 (lint, build, 114/114 raiz, 281 servidor + 2 pulados sem URL, dados). PostgreSQL real 4 de 4 nos ensaios de reserva e monitoramento; a receita está abaixo.
 
 **Como rodar o PostgreSQL real numa máquina sem Postgres:**
 1. Instale `embedded-postgres` numa pasta fora do repositório e suba numa porta local.
@@ -46,15 +51,16 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
 
 ### Próximos passos, em ordem
 
-1. **Ensaio com NVDA por uma pessoa:** seguir `docs/runbooks/ensaio-leitor-de-tela.md` e registrar o resultado no diário. É a prioridade indicada pelo Codex; os testes de DOM não substituem leitor de tela nem inspeção visual.
-2. **Próxima funcionalidade (banco, empresas ou agente):** combinar escopo e critérios de aceitação antes de começar.
+1. **Rodada 19:** publicar a pedido do usuário e pedir a revisão do Codex.
+2. **Ensaio com NVDA por uma pessoa:** seguir `docs/runbooks/ensaio-leitor-de-tela.md` e registrar o resultado no diário. É a prioridade indicada pelo Codex; os testes de DOM não substituem leitor de tela nem inspeção visual.
+3. **Próxima funcionalidade (banco, empresas ou agente):** combinar escopo e critérios de aceitação antes de começar.
    - Preservar as regressões consolidadas.
    - Não alterar os arquivos reservados do comparador sem rodada combinada.
-3. **Observar em produção:**
-   - recortes de "todos os setores-alvo" passam de 10.000 (12 mil sem possíveis): o funil marca `truncado` e o monitoramento mostra cobertura parcial;
-   - paginar a varredura do monitoramento além de 10.000 se a equipe monitorar teses amplas;
+4. **Observar em produção:**
+   - a pesquisa de "todos os setores-alvo" ainda avalia só a primeira página (o funil marca `truncado`); paginar o funil da pesquisa é outra rodada;
+   - tempo da varredura completa no Supabase (local: cerca de 2,6 s para 36 mil empresas);
    - avaliar a projeção SQL do recorte se o tempo do primeiro cálculo pesar.
-4. **Monitoramento:** se a equipe quiser e-mail semanal, é preciso um serviço de envio. A verificação já é idempotente por semana.
+5. **Monitoramento:** se a equipe quiser e-mail semanal, é preciso um serviço de envio. A verificação já é idempotente por semana.
 
 ## Checkpoint anterior — correções das Rodadas 4–8 (07/10/2026, noite)
 
