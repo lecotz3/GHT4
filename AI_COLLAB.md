@@ -2449,3 +2449,102 @@ Commits: `10f99b1`, `ccfa221`, `9df2ea5`.
 - **Acessibilidade:** rever o foco no H1 ao navegar e os textos para o leitor de tela.
 
 STATUS: AGUARDANDO REVIEW
+
+---
+
+# REVIEW DO CODEX
+
+## Revisão da Rodada 14 (08/10/2026)
+
+Revisão independente de `f4e7ccd` e do registro `015d354`, conferidos no HEAD `5ae664b22cf262881bac0a91d4577889ba7c462e`. Worktree limpo no início. Diário lido integralmente durante a revisão e confrontado com código, commits e diffs; publicação e CI do builder não foram usados como aprovação.
+
+## CRÍTICOS
+
+Nenhum bloqueador remanescente identificado no escopo da Rodada 14. Os três achados da Rodada 13 estão corrigidos no código examinado.
+
+## IMPORTANTES
+
+A declaração de que não houve dados reais afetados é do builder. Não consultei produção, banco real ou histórico de deploy para certificá-la. A correção da função impede novas strings quebradas, mas não repara registros preexistentes caso alguma instalação tenha usado a versão defeituosa.
+
+## OPCIONAIS
+
+Manter como próximas regressões o cliente anterior executado contra a API nova, o `Agente` completo no fluxo de remoção e a revogação de mandato no endpoint de item. Os contratos completos sem cabeçalho e o carregamento compartilhado de autorização foram conferidos; esses testes adicionais não bloqueiam esta correção.
+
+## DISCORDÂNCIAS
+
+Nenhuma nova discordância bloqueadora. A negociação explícita resolve a incompatibilidade que um deploy simultâneo, sozinho, não resolvia. O ganho medido continua restrito à resposta HTTP: o banco ainda lê os campos completos antes da redução em Node.
+
+## APROVADO
+
+- `resumirTexto` e `itemLeve` têm responsabilidades e nomes distintos; títulos, resumo da entrega e citações voltam a conter texto verificável.
+- O gancho `preSerialization` só reduz respostas de pesquisas com `itens` e cabeçalho `X-GHT4-Lista: leve`; sem ele preserva evidências, justificativas e páginas. `Vary` declara a negociação. Não encontrei outra rota atual ou outro `Vary` conflitante no código examinado.
+- O cliente novo negocia a lista leve; o detalhe mantém recuperação local para falhas comuns e encaminha 401 ao fluxo de sessão expirada. A referência do callback evita pedidos extras quando o pai renderiza novamente.
+- Testes de contrato e DOM passaram, inclusive lote recebido com empresa aberta sem refazer o pedido do item. A execução conjunta desta revisão está discriminada no parecer da Rodada 15 abaixo.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Considerar encerrados os três bloqueadores da Rodada 13 e preservar essas regressões. Esta aprovação é exclusivamente da Rodada 14, não do monitoramento introduzido depois.
+
+STATUS: APROVADO
+
+---
+
+# REVIEW DO CODEX
+
+## Revisão da Rodada 15 (08/10/2026)
+
+Escopo: `10f99b1` (setores-alvo), `ccfa221` (monitoramento), `9df2ea5` (acessibilidade) e documentação até `5ae664b`. Estado funcional revisado: HEAD `5ae664b22cf262881bac0a91d4577889ba7c462e`, sem alterações locais antes deste parecer.
+
+## CRÍTICOS
+
+1. **[P1] O teto de 200 descarta novidades definitivamente.** Em `server/src/pesquisa/monitoramento.mjs:79` e `:80`, somente 200 empresas e 200 eventos viram registros; em `:88-90`, todas as empresas detectadas entram em `conhecidas` e o cursor avança sobre todos os eventos. Ensaio independente com API real e PGlite em memória: publiquei 201 empresas elegíveis novas; `totalNovas=201`, mas apenas 200 avisos foram gravados. `cnpj50000200` ficou conhecida sem aviso e a verificação seguinte retornou zero novas. O agregado no resultado e os primeiros dez nomes não tornam o restante recuperável. Corrigir com lotes continuáveis e estado durável dos itens pendentes, ou persistir todas as novidades em lotes limitados. Nunca consumir o cursor/linha de base de algo descartado pelo teto. Cobrir 200/201 empresas e eventos, incluindo continuação e repetição sem duplicação.
+
+2. **[P1] Uma empresa descoberta pelo monitoramento deixa de receber eventos nas semanas seguintes.** Em `server/src/pesquisa/monitoramento.mjs:65-71`, a consulta considera `pesquisa_itens` mais somente as empresas novas da verificação atual. As descobertas anteriores estão em `conhecidas`, mas não em `pesquisa_itens`, nem voltam a integrar `novas`. Reproduzido: Delta apareceu como nova na primeira verificação; importei um evento de capital de Delta antes da segunda. O evento existia no banco, mas `totalEventos=0` e `ultimo_evento` avançou de 0 para 1, ultrapassando-o. Acompanhar eventos de todo o conjunto monitorado, incluindo descobertas anteriores, com nomes/identidades recuperáveis. Adicionar regressão de pelo menos três verificações: descoberta, evento posterior e ausência de repetição.
+
+3. **[P2] A verificação semanal ignora a revogação de acesso ao mandato.** `server/src/api/pesquisas.mjs:189-192` verifica apenas `agente.ler` e passa o ID do usuário; a reivindicação em `server/src/pesquisa/monitoramento.mjs:44-46` não verifica o mandato da conversa. Reproduzido: após remover o membro do mandato confidencial, GET da pesquisa devolveu 404 e `/api/inicio.teses` ficou vazio, corretamente. Porém POST `/api/monitoramentos/verificar` respondeu `{verificados:1,falhas:0}` e gravou uma novidade nessa pesquisa agora inacessível. Não observei exposição do conteúdo no Meu dia; o defeito comprovado é continuar executando e alterando um recurso fora do escopo atual. Aplicar o mesmo escopo de autorização na seleção e revalidá-lo antes de persistir resultados; cobrir revogação antes e durante a execução sem consumir o cursor do recurso inacessível.
+
+4. **[P2] Uma verificação parcial é apresentada como concluída sem revelar sua cobertura.** Em `server/src/pesquisa/monitoramento.mjs:60`, `funil` é descartado e só os `itens` de `motor.calcular` são utilizados. Existem dois cortes: 10.000 empresas no recorte e 2.000 aprovadas no motor (`server/src/pesquisa/motor.mjs:249`). Conferência independente, somente lendo o catálogo local: o escopo padrão dos nove setores, SEM possíveis, tem 12.145 empresas; 10.000 são avaliadas e apenas 2.000 chegam a `itens`. Com possíveis: 36.238, 10.000 e 2.000. Portanto o corte não ocorre apenas ao incluir possíveis. O monitor pode concluir com zero novidades enquanto empresas elegíveis ficam fora da cobertura, sem estado de incompletude na API/tela. Paginar a varredura ou, enquanto isso não existir, persistir e exibir explicitamente cobertura, corte e resultado incompleto, permitindo restringir o recorte. Não apresentar ausência de achados numa amostra como ausência de novidades no universo da tese.
+
+5. **[P2] A primeira menção de subsetor pode selecionar justamente o setor excluído.** Em `server/src/pesquisa/criterios.mjs:307-313`, a primeira ocorrência é tratada como sujeito sem considerar negação ou alternativas. Ensaio com a função real: `Nao quero tintas; procuro distribuidoras com mais de 20 anos` selecionou `Tintas, vernizes e revestimentos`, com apenas uma nota afirmando esse recorte. `Fabricantes de resinas ou de tintas no Brasil` selecionou só Resinas, sem sinalizar que a alternativa foi eliminada. Isso restringe o universo antes da avaliação dos critérios. Não usar menções negadas como filtro positivo; quando não houver uma escolha inequívoca, manter escopo amplo e pedir confirmação do recorte, ou representar os setores explicitamente. Versionar os dois casos e preservar o acerto de `Distribuidoras ... de resinas`.
+
+## IMPORTANTES
+
+- **Falha de monitoramento não deve parecer ausência de pendências.** `v1/src/componentes/MeuDia.tsx:48` ignora erros HTTP e resultados com todas as verificações falhas. O teste de componente inclusive exige ausência de alerta num 503. É correto manter a agenda utilizável, mas deve haver estado separado de monitoramento desatualizado/falho, nova tentativa proporcional e tratamento de 401. Hoje a tela pode continuar dizendo "Nada pendente com você agora" sem informar que as teses não foram verificadas.
+- **Reconhecer somente avisos efetivamente abertos.** `v1/src/componentes/MeuDia.tsx:53` marca novidades como vistas antes de a navegação carregar a pesquisa; a rota em `server/src/api/pesquisas.mjs:196-199` marca todas as não vistas, inclusive as surgidas depois da renderização do cartão. Se abrir a pesquisa falhar, os avisos já desapareceram da próxima visita. Confirmar a leitura após carregar o destino e limitar a confirmação aos IDs ou ao marco de novidades efetivamente apresentados. Cobrir falha na abertura e chegada concorrente de novidade.
+- **Recuperação de execução abandonada ainda não está definida.** A reivindicação já agenda sete dias à frente antes do cálculo (`server/src/pesquisa/monitoramento.mjs:44`); o reagendamento em uma hora depende de o `catch` chegar a executar. Uma interrupção do processo depois da reivindicação deixa a data futura sem verificação concluída. Considerar reserva com prazo curto e ficha de execução, separada do próximo vencimento semanal, e finalização condicional à ficha vigente. O teste feliz de seis chamadas não cobre interrupção nem desligar/religar durante um cálculo. Este risco foi identificado por inspeção; não executei encerramento forçado nem ensaio PostgreSQL real nesta revisão.
+
+## OPCIONAIS
+
+- Executar o roteiro com uma pessoa usando NVDA; a conferência de DOM não substitui a experiência de ouvir e navegar. Não reexecutei o ensaio visual de contraste nem certifiquei os 746 textos relatados pelo builder.
+- Estender o teste de foco às entradas pela própria página, como o aviso do Meu dia, além da troca de seção pelo menu.
+- Remover a premissa antiga de que o subsetor inteiro cabe com folga em `LIMITE_RECORTE`, no comentário de `server/src/agente/catalogo.mjs:20`.
+
+## DISCORDÂNCIAS
+
+- Discordo de avançar a linha de base inteira após persistir só uma parte: limite de processamento precisa de continuação, não de descarte permanente.
+- Discordo de equiparar primeira menção ao sujeito da tese; os dois contraexemplos acima são entradas comuns, não apenas construções adversariais.
+- Um limite conhecido registrado no diário não substitui informar ao usuário que a verificação dele foi parcial. O problema já acontece no catálogo local padrão, não apenas numa futura base maior.
+- Isolar a falha do monitoramento para não derrubar a agenda é bom; ocultar sua existência não é necessário para obter esse isolamento.
+
+## APROVADO
+
+- Escopo dos nove subsetores derivado da taxonomia, exclusão dos setores de contexto, consulta SQL parametrizada com `ANY` e seletor coerente entre busca e pesquisa.
+- `subsetor` opcional sem valor padrão preserva a forma dos modelos salvos; pesquisas antigas sem a chave continuam em Distribuição. A marca de paginação inclui o escopo e impede continuar uma busca em outro universo.
+- Monitoramento cadastral sem nova consulta a sites nem uso de IA; migração aditiva; isolamento de proprietário/mandato nos endpoints individuais e na listagem do Meu dia, ressalvada a verificação coletiva apontada acima.
+- Veredito falado, cabeçalhos de critério, nomes das tabelas, H1, foco pelo menu e anúncio ao ligar/desligar passaram nos testes de componente selecionados. O roteiro distingue validação técnica de ensaio humano ainda pendente.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Priorizar correções pequenas e verificáveis dos cinco bloqueadores, começando por persistência/continuação dos avisos e continuidade dos eventos. Reaproveitar a política de acesso já existente, explicitar resultados parciais e remover a inferência incorreta de setor. Acrescentar regressões para cada reprodução descrita acima e tratar separadamente os estados de falha/leitura dos avisos. Caso a solução precise de schema novo, criar migração posterior à `0023`; não alterar migração aplicada.
+
+Validação independente concluída nesta revisão conjunta:
+
+- `node --test server/tests/pesquisa.test.mjs server/tests/monitoramento.test.mjs server/tests/catalogo-banco.test.mjs server/tests/catalogo-agente.test.mjs server/tests/interpretacao.test.mjs tests/pesquisa-componente.test.mjs tests/acessibilidade-componente.test.mjs tests/meu-dia-componente.test.mjs tests/monitoramento-componente.test.mjs tests/setores-alvo.test.mjs`: **75 testes passaram, zero falhas ou pulos**. São testes selecionados, não o CI completo.
+- `node node_modules/typescript/bin/tsc -b --pretty false`, em `v1`, e `npm run lint`, na raiz: exit 0.
+- Ensaios adicionais, sem arquivos funcionais novos: API real com PGlite em memória para perda da 201ª empresa, evento de descoberta anterior e revogação de mandato; leitura do catálogo local pelo motor; interpretação dos dois textos ambíguos/negados. Os defeitos descritos foram reproduzidos mesmo com a suíte verde. No ensaio de revogação, ajustei a expectativa inicial de 403 para o 404 que o RBAC corretamente usa para ocultar o recurso.
+
+Codex acrescentou somente estes pareceres ao diário. Nenhum código funcional, comparador ou migração foi alterado; nenhum commit, push, merge, deploy, download de CNPJ, chamada ao provedor de IA ou acesso a banco remoto foi realizado. Todos os processos de teste e ensaios iniciados por esta revisão terminaram.
+
+Ponto de acompanhamento: Rodada 14 aprovada; Rodada 15 requer alterações sobre `5ae664b`. Aguardar resposta do builder aos achados deste parecer; não repetir os mesmos testes sobre conteúdo inalterado nem usar publicação/CI verde como substituto das correções.
+
+STATUS: REQUER ALTERAÇÕES
