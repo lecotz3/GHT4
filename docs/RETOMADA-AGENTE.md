@@ -4,19 +4,20 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodadas 12–14 publicadas (07/10/2026, noite)
+## COMECE AQUI — Rodadas 12–15 publicadas (07/10/2026, noite)
 
 **Estado:**
-- **Na `main`, publicadas a pedido do usuário:** até a Rodada 14.
-  - Rodada 12: aprovada pelo Codex.
-  - Rodada 13: remoção com foco previsível e lista leve com evidências sob demanda, `GET /api/pesquisas/:id/itens/:empresaId`.
-  - Rodada 14: corrige as três regressões da revisão da 13:
-    - nomes `resumirTexto` e `itemLeve`;
-    - **lista leve negociada pelo cabeçalho `X-GHT4-Lista: leve`**: sem ele, o contrato completo;
-    - 401 no item vai ao login.
-- O registro está nas Rodadas 12 a 14 do [AI_COLLAB.md](../AI_COLLAB.md). A Rodada 14 aguarda a revisão do Codex.
+- **Na `main`, publicado a pedido do usuário:** até a Rodada 15.
+  - **Setores-alvo:** busca e pesquisa nos 9 subsetores químicos acionáveis, com filtro por subsetor. Pesquisas antigas continuam em Distribuição.
+  - **Monitoramento semanal de tese:** aviso no Meu dia sobre empresas novas e eventos societários. A verificação roda ao abrir o Meu dia; não há agendador.
+  - **Acessibilidade:**
+    - a tabela fala o veredito;
+    - a página tem H1;
+    - o foco vai ao título ao trocar de seção;
+    - roteiro NVDA em `docs/runbooks/ensaio-leitor-de-tela.md`.
+- As Rodadas 14 e 15 aguardam a revisão do Codex. O registro está no [AI_COLLAB.md](../AI_COLLAB.md).
 
-**Validação:** `npm run ci` com exit 0 (lint, build, 100 raiz, 253 servidor + 1 pulado sem URL, dados). O PostgreSQL real passou na Rodada 12; a receita está abaixo.
+**Validação:** `npm run ci` com exit 0 (lint, build, 107 raiz, 258 servidor + 2 pulados sem URL, dados). PostgreSQL real 3 de 3 nos ensaios de reserva e monitoramento; a receita está abaixo.
 
 **Como rodar o PostgreSQL real numa máquina sem Postgres:**
 1. Instale `embedded-postgres` numa pasta fora do repositório e suba numa porta local.
@@ -25,12 +26,12 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
 
 ### Próximos passos, em ordem
 
-1. **Pedir ao Codex a revisão da Rodada 14.**
-2. **Conferir em produção** a abertura de uma empresa: carregamento, evidências e o pedido com o cabeçalho.
-3. **Ensaio com leitor de tela real** (NVDA/VoiceOver) e conferência visual de foco e contraste. A auditoria automatizada cobre só a estrutura.
-4. **Funcionalidades em espera** (dependem de escopo acordado com o usuário):
-   - monitoramento semanal de tese;
-   - base CNPJ nacional (plano de banco e volume; importar a base RFB enxuta e trocar o subsetor fixo por taxonomia por CNAE).
+1. **Pedir ao Codex a revisão das Rodadas 14 e 15.**
+2. **Ensaio com NVDA por uma pessoa:** seguir `docs/runbooks/ensaio-leitor-de-tela.md` e registrar o resultado no diário.
+3. **Observar em produção:**
+   - recortes de "todos os setores-alvo" com possíveis passam de 10.000 e o funil marca `truncado`;
+   - avaliar a projeção SQL do recorte se o tempo do primeiro cálculo pesar.
+4. **Monitoramento:** se a equipe quiser e-mail semanal, é preciso um serviço de envio. A verificação já é idempotente por semana.
 
 ## Checkpoint anterior — correções das Rodadas 4–8 (07/10/2026, noite)
 

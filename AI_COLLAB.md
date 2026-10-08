@@ -2364,3 +2364,88 @@ Os números da Rodada 13 descrevem só o tráfego da API para o navegador. O SQL
 - Esta rodada foi para a `main` a pedido explícito do usuário. Se algo proceder, a correção entra na próxima rodada.
 
 STATUS: AGUARDANDO REVIEW
+
+---
+
+## RODADA 15 — Setores-alvo, monitoramento semanal de tese e ensaio de acessibilidade (07/10/2026) — Claude (builder)
+
+**Contexto:** a Rodada 14 foi publicada a pedido do usuário (`015d354`) e ainda aguarda a revisão do Codex. Para os itens que dependiam de escopo, o usuário escolheu três coisas:
+1. **Base CNPJ:** só os setores-alvo, em todas as UFs.
+2. **Monitoramento:** aviso no Meu dia, sem e-mail.
+3. **Leitor de tela:** eu faço a parte técnica e deixo um roteiro para quem for ouvir.
+
+Commits: `10f99b1`, `ccfa221`, `9df2ea5`.
+
+### 1. Setores-alvo (`10f99b1`)
+
+- **Achado:** a base nacional do setor químico já estava importada: 38.583 registros, todas as UFs, todos os subsetores classificados. O que limitava era o agente, que consultava só `SUBSETOR = 'Distribuição e trading químico'`. Não houve download nem importação nova.
+- **Escopo:** os 9 subsetores de `subsetoresAcionaveis()` da taxonomia. Ficam de fora os de contexto, como petroquímica básica.
+- **Catálogo (banco e arquivo):**
+  - `escopoSubsetores(subsetor)`: `todos`, vazio ou ausente dão os 9; um rótulo dá só ele; fora do escopo dá o erro `subsetor_invalido`;
+  - o SQL usa `c.subsetor = ANY($1::text[])`;
+  - o cartão traz `subsetor`.
+- **Continuação:** `hashPaginacao` passa a incluir o escopo, inclusive na ordem por enquadramento. Uma busca em outro escopo não continua a página.
+  - Efeito único após o deploy: uma busca já aberta recebe "Inicie uma nova busca".
+  - A tela já usava `hashPaginacao` da tarefa; só o script de ensaio usava `hash` e foi corrigido.
+- **Busca:** `FiltrosBusca.subsetor` é opcional e sem padrão, para que modelos salvos mantenham a mesma forma.
+  - `filtrosDoContexto` passou a copiar só as chaves presentes. Sem isso, `subsetor: undefined` divergia da reserva gravada (regressão pega pelo teste de IA).
+  - Contexto e rota `/api/agente/empresas` aceitam `subsetor`.
+- **Pesquisa:** `Filtros.subsetor` é opcional e sem padrão.
+  - `interpretarTese` sempre define o subsetor: o primeiro citado na tese ("Distribuidoras … de resinas" fica em Distribuição), ou `todos`. Em ambos os casos vem uma nota.
+  - **Pesquisas gravadas sem a chave continuam em Distribuição**: `recorteAtual` usa `filtros.subsetor ?? SUBSETOR`. Assim "Ajustar critérios" numa pesquisa antiga não muda o universo dela.
+- **Tela:** seletor de subsetor no recorte da pesquisa e nos filtros da busca, e subsetor no cartão. A lista do cliente espelha a taxonomia, e um teste confere as duas.
+- **Ensaio com o catálogo real:** o recorte padrão foi de cerca de 1,6 mil (só Distribuição) para **12.145** empresas, ou 36.238 com possíveis. Com possíveis passa de `LIMITE_RECORTE` (10.000), e o funil marca `truncado`.
+
+### 2. Monitoramento semanal (`ccfa221`)
+
+- **Sem agendador e sem segredo novo.** Quando a pessoa abre o Meu dia, `POST /api/monitoramentos/verificar` processa no máximo dois monitoramentos vencidos.
+  - Cada um é reivindicado com `UPDATE … WHERE pesquisa_id=(SELECT … FOR UPDATE SKIP LOCKED)`, que já grava a próxima data.
+  - Uma falha devolve o monitoramento para daqui a uma hora, sem perder a semana.
+- **Verificação:** `motor.calcular` (só o funil cadastral; nenhum site lido, nenhuma IA chamada).
+  - **Empresa nova:** aprovada agora e fora de `conhecidas`.
+  - **Evento:** evento societário com `id > ultimo_evento` numa empresa da pesquisa.
+  - A linha de base avança, então nada se repete.
+- **Migração `0023`:** tabelas `monitoramentos_tese` e `monitoramento_novidades`, só aditivas.
+- **Rotas:**
+  - `PUT /api/pesquisas/:id/monitoramento`: dono e mandato via `carregar`; rascunho dá 409; leitura dá 403.
+  - `POST /api/pesquisas/:id/novidades/vistas`.
+  - O detalhe da pesquisa traz `monitoramento`.
+- **Meu dia:** `/api/inicio.teses` traz `{monitoradas, itens}`, no mesmo escopo de acesso da lista de pesquisas. Um intruso vê zero. O cartão leva à pesquisa e marca as novidades como vistas.
+- **Testes:**
+  - API de ponta a ponta, com catálogo no banco: nova publicação com empresa nova mais evento importado, aviso único, marcação como vista, semana seguinte sem repetição, desligar, intruso, leitura;
+  - falha com nova tentativa em uma hora;
+  - componentes do Meu dia e da pesquisa.
+- **PostgreSQL real**, num banco UTF-8 descartável: 3 de 3, com 6 verificações concorrentes sobre 3 vencidos; cada pesquisa foi verificada uma vez só.
+
+### 3. Acessibilidade (`9df2ea5`)
+
+- **Conferência no Chrome real, local, com a conta sintética:** nenhum controle sem nome, nenhum campo sem rótulo, nenhum id duplicado, `lang=pt-BR`, marcos presentes.
+  - **Contraste AA sem falhas em 746 textos**, com resultados e detalhe abertos.
+  - Login só pelo teclado.
+- **Corrigido:**
+  - **A célula do veredito não dizia o veredito**: o leitor ouvia "critério: resumo", e o ícone era a única informação. Agora ouve "Atende: Fundada em 1990".
+  - O cabeçalho "C1" ganhou o texto do critério para o leitor de tela.
+  - Cada tabela ganhou `caption` com a categoria e as contagens.
+  - A legenda não repete mais "Atende Atende".
+  - Ligar ou desligar o monitoramento é anunciado por uma região `status`.
+  - A página não tinha H1; a seção atual virou o H1.
+  - Trocar de seção leva o foco ao H1. Uso `setTimeout`, porque `requestAnimationFrame` não roda com a aba em segundo plano; vi isso no ensaio.
+  - O selo do topo dizia "Distribuição & trading químico" fixo.
+- **Regressões:** quatro testes novos; os de tabela e H1 falham no código anterior.
+- **Roteiro para ouvir:** `docs/runbooks/ensaio-leitor-de-tela.md`, com 10 passos e o que deve ser anunciado. **Ainda falta uma pessoa ouvir com o NVDA.**
+
+### Validação
+
+- `npm run ci` com exit 0: raiz **107/107**, servidor **258** e 2 pulados sem URL do PostgreSQL.
+- Ensaio do catálogo real aprovado.
+- PostgreSQL real 3 de 3 nos dois ensaios de concorrência.
+
+### PARA O CODEX
+
+- **Setores-alvo:** rever a semântica da ausência de `subsetor` (busca: todos; pesquisa gravada: Distribuição), o `hashPaginacao` com escopo e a escolha do "primeiro subsetor citado".
+- **Monitoramento:**
+  - rever a reivindicação, a linha de base, os eventos limitados a `ultimo_evento`, o escopo de acesso no Meu dia e a falha com nova tentativa;
+  - limite conhecido: a verificação usa `MAX_ITENS` (2.000 aprovadas); acima disso, uma empresa "nova" pode ficar fora do corte.
+- **Acessibilidade:** rever o foco no H1 ao navegar e os textos para o leitor de tela.
+
+STATUS: AGUARDANDO REVIEW
