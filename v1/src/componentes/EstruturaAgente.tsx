@@ -18,7 +18,14 @@ export function EstruturaAgente({ usuario, secao, aoNavegar, aoSair, saindo, chi
 }) {
   const [menu, setMenu] = useState(false)
   const conteudo = useRef<HTMLDivElement>(null)
-  const navegar = (s: SecaoAgente) => { aoNavegar(s); setMenu(false); window.scrollTo({ top: 0, behavior: 'instant' }) }
+  // Trocar de seção leva o foco ao título dela: o leitor de tela anuncia a página nova e o
+  // próximo Tab segue a partir do conteúdo, não do menu.
+  const titulo = useRef<HTMLHeadingElement>(null)
+  const navegar = (s: SecaoAgente) => {
+    aoNavegar(s); setMenu(false); window.scrollTo({ top: 0, behavior: 'instant' })
+    // Depois da renderização da seção nova; setTimeout também roda com a aba em segundo plano.
+    setTimeout(() => titulo.current?.focus({ preventScroll: true }), 0)
+  }
   return <div className="agente-app agente-shell">
     <a className="agente-pular" href="#conteudo-agente" onClick={e => { e.preventDefault(); conteudo.current?.focus() }}>Pular para o conteúdo</a>
     <aside className="agente-lateral">
@@ -32,7 +39,7 @@ export function EstruturaAgente({ usuario, secao, aoNavegar, aoSair, saindo, chi
       </div>
     </aside>
     <div className="agente-corpo">
-      <header className="agente-cabecalho"><div><span>Seu espaço</span><span aria-hidden="true">/</span><strong>{secao === 'ajuda' ? 'Como usar' : secoes.find(s => s.id === secao)?.nome}</strong></div><span className="agente-selo-setor">Distribuição &amp; trading químico</span></header>
+      <header className="agente-cabecalho"><div><span>Seu espaço</span><span aria-hidden="true">/</span><h1 ref={titulo} tabIndex={-1} className="agente-cabecalho-titulo">{secao === 'ajuda' ? 'Como usar' : secoes.find(s => s.id === secao)?.nome}</h1></div><span className="agente-selo-setor">Químicos · setores-alvo</span></header>
       <div id="conteudo-agente" ref={conteudo} tabIndex={-1}>{children}</div>
     </div>
   </div>

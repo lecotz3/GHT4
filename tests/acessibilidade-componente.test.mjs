@@ -92,6 +92,67 @@ test('acessibilidade: pesquisa por tese (composição, rascunho, resultados com 
   assert.deepEqual(problemas, []);
 });
 
+test('acessibilidade: tabela de resultados tem nome, cabeçalho com o critério e célula que fala o veredito', async () => {
+  const C = det('a0000000-0000-4000-8000-0000000000a3', 'pausada', { itens: [item('cnpj11111111', 'aderente'), item('cnpj22222222', 'provavel')] });
+  servidor([
+    { metodo: 'GET', url: /\/api\/pesquisas$/, dados: () => ({ pesquisas: [], ia: null }) },
+    { metodo: 'GET', url: new RegExp(`${C.pesquisa.id}$`), dados: () => C },
+  ]);
+  const t = await montar(React.createElement(PesquisaTese, { usuario: { id: 'u', nome: 'Ana', papel: 'analista' }, inicial: { pesquisaId: C.pesquisa.id },
+    aoConsumirInicial: () => {}, aoAbrirTrabalho: () => {}, aoExpirar: () => {} }));
+  try {
+    await esperar();
+    const tabelas = [...document.querySelectorAll('table')];
+    assert.ok(tabelas.length >= 2);
+    for (const tabela of tabelas) assert.match(tabela.caption?.textContent ?? '', /^(Aderentes|Prováveis|A confirmar|Não aderentes)[^:]*: \d+ empresas?/, 'cada tabela tem nome');
+    // Ícones são aria-hidden e sem texto: o textContent é o que o leitor de tela lê (texto visível + sr-only).
+    const cabecalhos = [...tabelas[0].querySelectorAll('thead th')].slice(3).map((th) => th.textContent);
+    assert.deepEqual(cabecalhos, ['C1: Mais de 20 anos', 'C2: Representa multinacionais'], 'a coluna diz o critério');
+    const linha = [...tabelas[0].rows].find((r) => /Empresa cnpj11111111/.test(r.textContent));
+    const celulas = [...linha.cells].slice(3).map((c) => c.textContent);
+    assert.deepEqual(celulas, ['Atende: Fundada em 1990', 'Indício: Cita multinacionais'], 'o veredito é dito, não só o ícone');
+    assert.ok([...linha.cells].slice(3).every((c) => c.querySelector('svg')?.getAttribute('aria-hidden') === 'true'));
+    // Legenda: o ícone não repete o rótulo visível ao lado.
+    for (const rotulo of ['Atende', 'Indício', 'Sem evidência', 'Não atende']) {
+      const entrada = [...document.querySelectorAll('.pesquisa-simbolo')].map((s) => s.parentElement).find((p) => p.textContent.includes(rotulo) && !p.closest('table'));
+      assert.ok(entrada, `legenda tem ${rotulo}`);
+      assert.equal(entrada.textContent, rotulo, `legenda de ${rotulo} sem repetição`);
+    }
+  } finally { await t.desmontar(); }
+});
+
+test('acessibilidade: a estrutura do agente tem um h1 com a seção atual', async () => {
+  const { EstruturaAgente } = await import('../v1/src/componentes/EstruturaAgente.tsx');
+  const t = await montar(React.createElement(EstruturaAgente, { usuario: { id: 'u', nome: 'Ana Souza', papel: 'analista' }, secao: 'pesquisa', aoNavegar: () => {}, aoSair: () => {}, saindo: false },
+    React.createElement('p', null, 'conteúdo')));
+  try {
+    const h1 = document.querySelectorAll('h1');
+    assert.equal(h1.length, 1, 'exatamente um h1');
+    assert.equal(h1[0].textContent, 'Pesquisar por tese');
+    assert.doesNotMatch(document.body.textContent, /Distribuição & trading químico/, 'o selo do setor não fixa um subsetor');
+  } finally { await t.desmontar(); }
+});
+
+test('acessibilidade: trocar de seção pelo menu leva o foco ao título da seção nova', async () => {
+  const { EstruturaAgente } = await import('../v1/src/componentes/EstruturaAgente.tsx');
+  function Pai() {
+    const [secao, setSecao] = React.useState('inicio');
+    return React.createElement(EstruturaAgente, { usuario: { id: 'u', nome: 'Ana Souza', papel: 'analista' }, secao, aoNavegar: setSecao, aoSair: () => {}, saindo: false },
+      React.createElement('p', null, 'conteúdo'));
+  }
+  window.scrollTo = () => {}; // jsdom não implementa rolagem
+  const t = await montar(React.createElement(Pai));
+  try {
+    const item = [...document.querySelectorAll('nav button')].find((b) => /Pesquisar por tese/.test(b.textContent));
+    item.focus();
+    await clicar(item);
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+    assert.equal(document.activeElement.tagName, 'H1');
+    assert.equal(document.activeElement.textContent, 'Pesquisar por tese');
+    assert.equal(document.activeElement.getAttribute('tabindex'), '-1', 'focável por script, fora da ordem de Tab');
+  } finally { await t.desmontar(); }
+});
+
 test('acessibilidade: início com "Continue de onde parou" e confirmação de remoção', async () => {
   servidor([{ metodo: 'GET', url: /\/api\/inicio$/, dados: () => ({ hoje: '2026-10-07', compromissos: { atrasados: 0, hoje: 1, semana: 1, itens: [{ oportunidade_id: 'o1', titulo: 'Op', descricao: 'Ligar', prazo: '2026-10-07', tipo: 'contato', empresa: 'Alfa' }] }, semProximoPasso: { total: 1, itens: [{ id: 'o2', titulo: 'Op 2', etapa: 'contato', empresa: 'Beta' }] }, rede: { naRede: false, perguntasPendentes: 1, vinculosParaConfirmar: 0 } }) }]);
   const conversas = [1, 2].map((n) => ({ id: `c${n}`, titulo: `Trabalho ${n}`, mandato_id: null, contexto: { frente: 'venda' }, versao: 1, atualizado_em: '2026-10-07T12:00:00Z' }));

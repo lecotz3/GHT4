@@ -85,9 +85,11 @@ test('pesquisa: liga o monitoramento, mostra a próxima data e a última verific
     assert.match(secao().textContent, /Próxima verificação a partir de 14\/10\/2026/);
     assert.match(secao().textContent, /Última verificação em 07\/10\/2026: 1 empresa nova \(Delta Química\)/);
     assert.match(secao().textContent, /Ajustar critérios/);
+    assert.equal(secao().querySelector('[role="status"]').textContent, 'Monitoramento ligado. Próxima verificação a partir de 14/10/2026.', 'leitor de tela ouve a mudança');
     await clicar(botao(/^Parar de monitorar$/));
     assert.deepEqual(puts()[1].corpo, { ativo: false });
     await responder(puts()[1], { monitoramento: { ...ligado, ativo: false } });
     assert.match(secao().textContent, /Monitoramento semanal · desligado/);
+    assert.equal(secao().querySelector('[role="status"]').textContent, 'Monitoramento desligado.');
   } finally { await t.desmontar(); }
 });

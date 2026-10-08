@@ -279,7 +279,9 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
               {!g.itens.length && <p className="pesquisa-fila">Nenhuma empresa deste grupo veio na primeira lista.</p>}
               {g.itens.length > 0 && <>
               <div className="pesquisa-tabela-rolagem"><table className="pesquisa-tabela">
-                <thead><tr><th scope="col" className="w-8"><span className="sr-only">Selecionar</span></th><th scope="col">Empresa</th><th scope="col">Aderência</th>{p.criterios.map((c, k) => <th key={c.id} scope="col" title={c.texto}>C{k + 1}</th>)}</tr></thead>
+                <caption className="sr-only">{ROTULO_CATEGORIA[g.categoria]}: {numero(g.total)} {g.total === 1 ? 'empresa' : 'empresas'}{g.itens.length < g.total ? `, ${numero(g.itens.length)} exibidas` : ''}</caption>
+                {/* "C1" na tela; o leitor de tela ouve também o critério, que cada célula da coluna herda. */}
+                <thead><tr><th scope="col" className="w-8"><span className="sr-only">Selecionar</span></th><th scope="col">Empresa</th><th scope="col">Aderência</th>{p.criterios.map((c, k) => <th key={c.id} scope="col" title={c.texto}>C{k + 1}<span className="sr-only">: {c.texto}</span></th>)}</tr></thead>
                 <tbody>{g.itens.map((i) => <Fragment key={i.empresa_id}>
                   <tr className={aberto === i.empresa_id ? 'is-aberta' : ''}>
                     <td><input type="checkbox" aria-label={`Selecionar ${i.empresa.nome}`} checked={selecionadas.has(i.empresa_id)} disabled={!podeUsar || (!selecionadas.has(i.empresa_id) && selecionadas.size >= 30)}
@@ -287,7 +289,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
                     <td><button className="pesquisa-empresa" onClick={() => setAberto(aberto === i.empresa_id ? null : i.empresa_id)} aria-expanded={aberto === i.empresa_id}>
                       <strong>{i.empresa.nome}</strong><small>{i.empresa.cidade}/{i.empresa.uf}{i.site?.dominio ? ` · ${i.site.dominio}` : ''}</small></button></td>
                     <td><Aderencia valor={i.aderencia} /></td>
-                    {p.criterios.map((c, k) => <td key={c.id} data-c={`C${k + 1}`}><Simbolo v={i.vereditos[k]?.veredito ?? 'indeterminado'} titulo={`${c.texto}: ${i.vereditos[k]?.resumo ?? ''}`} /></td>)}
+                    {p.criterios.map((c, k) => <td key={c.id} data-c={`C${k + 1}`}><Simbolo v={i.vereditos[k]?.veredito ?? 'indeterminado'} titulo={`${ROTULO_VEREDITO[i.vereditos[k]?.veredito ?? 'indeterminado']}: ${i.vereditos[k]?.resumo ?? ''}`} dica={`${c.texto}: ${i.vereditos[k]?.resumo ?? ''}`} /></td>)}
                   </tr>
                   {aberto === i.empresa_id && <tr className="pesquisa-detalhe-linha"><td colSpan={3 + p.criterios.length}><Detalhe pesquisaId={p.id} item={i} criterios={p.criterios} aoExpirar={aoExpirar} /></td></tr>}
                 </Fragment>)}</tbody>
@@ -337,12 +339,14 @@ function Legenda({ criterios }: { criterios: Criterio[] }) {
   return <details className="pesquisa-legenda" open>
     <summary>Critérios e legenda</summary>
     <ol>{criterios.map((c, k) => <li key={c.id}><b>C{k + 1}</b> {c.texto} <span>{c.obrigatorio ? 'obrigatório' : 'opcional'} · {c.tipo === 'cadastro' ? 'cadastro' : 'site'}</span></li>)}</ol>
-    <p>{(['atende', 'indicio', 'indeterminado', 'nao_atende'] as Veredito[]).map((v) => <span key={v}><Simbolo v={v} titulo={ROTULO_VEREDITO[v]} />{ROTULO_VEREDITO[v]}</span>)}</p>
+    <p>{(['atende', 'indicio', 'indeterminado', 'nao_atende'] as Veredito[]).map((v) => <span key={v}><Simbolo v={v} titulo="" />{ROTULO_VEREDITO[v]}</span>)}</p>
   </details>
 }
 
-function Simbolo({ v, titulo }: { v: Veredito; titulo: string }) {
-  return <span className={`pesquisa-simbolo ${v}`} title={titulo}><IconeRede nome={ICONE[v]} /><span className="sr-only">{titulo}</span></span>
+/** Ícone do veredito. `titulo` é o que o leitor de tela ouve (vazio quando o texto visível ao lado já diz);
+ *  `dica` é o balão para quem passa o mouse. */
+function Simbolo({ v, titulo, dica }: { v: Veredito; titulo: string; dica?: string }) {
+  return <span className={`pesquisa-simbolo ${v}`} title={dica ?? (titulo || undefined)}><IconeRede nome={ICONE[v]} />{titulo && <span className="sr-only">{titulo}</span>}</span>
 }
 
 function Aderencia({ valor }: { valor: number }) {
@@ -357,10 +361,16 @@ function MonitorarTese({ pesquisaId, monitoramento: m, podeUsar, aoMudar, aoFalh
   pesquisaId: string; monitoramento: Monitoramento | null; podeUsar: boolean; aoMudar: (m: Monitoramento | null) => void; aoFalhar: (e: unknown) => void
 }) {
   const [salvando, setSalvando] = useState(false)
+  // Região de status sempre presente: a troca do texto é anunciada pelo leitor de tela.
+  const [anuncio, setAnuncio] = useState('')
   const ativo = Boolean(m?.ativo), u = m?.ultimoResultado
   const alternar = async () => {
-    setSalvando(true)
-    try { aoMudar((await pesquisaApi.monitorar(pesquisaId, !ativo)).monitoramento) } catch (e) { aoFalhar(e) } finally { setSalvando(false) }
+    setSalvando(true); setAnuncio('')
+    try {
+      const novo = (await pesquisaApi.monitorar(pesquisaId, !ativo)).monitoramento
+      aoMudar(novo)
+      setAnuncio(novo?.ativo ? `Monitoramento ligado. Próxima verificação a partir de ${dataBr(novo.proximaEm)}.` : 'Monitoramento desligado.')
+    } catch (e) { aoFalhar(e) } finally { setSalvando(false) }
   }
   return <section className="agente-superficie flex flex-wrap items-start justify-between gap-3 p-4" aria-labelledby={`monitor-${pesquisaId}`}>
     <div className="min-w-0 flex-1 space-y-1">
@@ -371,6 +381,7 @@ function MonitorarTese({ pesquisaId, monitoramento: m, podeUsar, aoMudar, aoFalh
       {u && <p className="text-xs text-suave">Última verificação em {dataBr(u.verificadoEm)}: {plural(u.totalNovas, 'empresa nova', 'empresas novas')}{u.novas.length ? ` (${u.novas.map((x) => x.nome).join(', ')}${u.totalNovas > u.novas.length ? '…' : ''})` : ''} · {plural(u.totalEventos, 'com evento societário', 'com evento societário')}{u.eventos.length ? ` (${u.eventos.map((x) => x.nome).join(', ')})` : ''}.{u.totalNovas ? ' Para revisar as novas no site, use "Ajustar critérios" (nova rodada).' : ''}</p>}
     </div>
     <button className="agente-btn-secundario" onClick={() => void alternar()} disabled={salvando || !podeUsar}>{salvando ? 'Salvando…' : ativo ? 'Parar de monitorar' : 'Monitorar toda semana'}</button>
+    <p role="status" className="sr-only">{anuncio}</p>
   </section>
 }
 

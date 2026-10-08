@@ -45,7 +45,8 @@
 .agente-corpo { min-width: 0; }
 .agente-cabecalho { height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 36px; border-bottom: 1px solid var(--color-fio); background: var(--color-papel); }
 .agente-cabecalho > div { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--color-suave); }
-.agente-cabecalho strong { color: var(--color-tinta); font-weight: 500; }
+.agente-cabecalho strong, .agente-cabecalho-titulo { color: var(--color-tinta); font-weight: 500; font-size: inherit; line-height: inherit; margin: 0; }
+.agente-cabecalho-titulo:focus { outline: none; }
 .agente-selo-setor { font-size: 10px; color: var(--color-suave); border: 1px solid var(--color-fio); padding: 7px 10px; border-radius: 20px; }
 .agente-menu-movel { display: none; }
 .agente-pular { position: fixed; top: -80px; left: 20px; z-index: 100; padding: 14px; background: white; color: black; border-radius: 8px; }
