@@ -260,7 +260,7 @@ function EspacoDoAgente({ usuario, inicio, aoOportunidades, aoTrabalhar, aoRede,
 
   if (inicio) return <main className="agente-pagina">
     {erro && <p role="alert" className="mb-5 text-sm text-alerta">{erro} <button className="underline" onClick={() => void carregar()}>Tentar novamente</button></p>}
-    {estado ? <InicioAgente usuario={usuario} estado={estado} conversas={conversas} aoComecar={comecar} aoRetomar={(id) => { aoTrabalhar(); void abrir(id) }} aoRede={aoRede} aoAjuda={aoAjuda} aoPesquisar={(tese) => aoPesquisar({ tese })} bloqueado={bloqueado} visivel={inicio} aoAbrirCrm={aoAbrirCrm} aoOportunidades={aoOportunidades} aoExpirar={aoExpirar} aoExcluir={excluir} /> : <p role="status">Preparando seu espaço…</p>}
+    {estado ? <InicioAgente usuario={usuario} estado={estado} conversas={conversas} aoComecar={comecar} aoRetomar={(id) => { aoTrabalhar(); void abrir(id) }} aoRede={aoRede} aoAjuda={aoAjuda} aoPesquisar={(tese) => aoPesquisar({ tese })} aoAbrirPesquisa={(id) => aoPesquisar({ pesquisaId: id })} bloqueado={bloqueado} visivel={inicio} aoAbrirCrm={aoAbrirCrm} aoOportunidades={aoOportunidades} aoExpirar={aoExpirar} aoExcluir={excluir} /> : <p role="status">Preparando seu espaço…</p>}
   </main>
 
   return <main className="agente-pagina space-y-6">

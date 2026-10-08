@@ -3,7 +3,7 @@ import { IconeRede } from './IconeRede'
 import { ErroApi, type Usuario } from '../agente/api'
 import {
   pesquisaApi, ATALHOS_CADASTRO, DESCRICAO_CATEGORIA, EXEMPLOS_TESE, ROTULO_CATEGORIA, ROTULO_VEREDITO,
-  type Categoria, type Criterio, type DetalhePesquisa, type Filtros, type Funil, type IAInfo, type ItemPesquisa, type Previa, type ResumoPesquisa, type Veredito, SUBSETORES_ALVO, SUBSETOR_ORIGINAL, rotuloSubsetor,
+  type Categoria, type Criterio, type DetalhePesquisa, type Filtros, type Funil, type IAInfo, type ItemPesquisa, type Previa, type ResumoPesquisa, type Veredito, type Monitoramento, SUBSETORES_ALVO, SUBSETOR_ORIGINAL, rotuloSubsetor,
 } from '../agente/pesquisa'
 import { montarGrupos, paginasVazias, type Paginas } from '../agente/pesquisa-tela'
 import { criarFluxos, type Rascunho } from '../agente/pesquisa-fluxos'
@@ -268,6 +268,8 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
               <button className="agente-btn-secundario" onClick={() => void ajustar()} disabled={rodando || bloqueado || !podeUsar}><IconeRede nome="funil" />Ajustar critérios</button>
             </div>
           </section>
+          <MonitorarTese pesquisaId={p.id} monitoramento={detalhe?.monitoramento ?? null} podeUsar={podeUsar}
+            aoMudar={(m) => setDetalhe((d) => d && d.pesquisa.id === p.id ? { ...d, monitoramento: m } : d)} aoFalhar={falhou} />
           <Legenda criterios={p.criterios} />
           {entregue && <p role="status" className="pesquisa-aviso">{entregue.n} {entregue.n === 1 ? 'empresa enviada' : 'empresas enviadas'} ao trabalho. <button className="agente-link" onClick={() => aoAbrirTrabalho(entregue.conversaId)}>Abrir trabalho<IconeRede nome="seta" /></button></p>}
           <section className="pesquisa-resultados" aria-label="Empresas revisadas">
@@ -345,6 +347,31 @@ function Simbolo({ v, titulo }: { v: Veredito; titulo: string }) {
 
 function Aderencia({ valor }: { valor: number }) {
   return <span className="pesquisa-aderencia"><span className="pesquisa-aderencia-trilho" aria-hidden="true"><span style={{ width: `${valor}%` }} /></span>{valor}%</span>
+}
+
+const dataBr = (iso: string) => new Date(iso).toLocaleDateString('pt-BR')
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`
+
+/** Liga ou desliga o monitoramento semanal e mostra o resultado da última verificação. */
+function MonitorarTese({ pesquisaId, monitoramento: m, podeUsar, aoMudar, aoFalhar }: {
+  pesquisaId: string; monitoramento: Monitoramento | null; podeUsar: boolean; aoMudar: (m: Monitoramento | null) => void; aoFalhar: (e: unknown) => void
+}) {
+  const [salvando, setSalvando] = useState(false)
+  const ativo = Boolean(m?.ativo), u = m?.ultimoResultado
+  const alternar = async () => {
+    setSalvando(true)
+    try { aoMudar((await pesquisaApi.monitorar(pesquisaId, !ativo)).monitoramento) } catch (e) { aoFalhar(e) } finally { setSalvando(false) }
+  }
+  return <section className="agente-superficie flex flex-wrap items-start justify-between gap-3 p-4" aria-labelledby={`monitor-${pesquisaId}`}>
+    <div className="min-w-0 flex-1 space-y-1">
+      <h3 id={`monitor-${pesquisaId}`} className="text-sm font-semibold">Monitoramento semanal {ativo ? '· ligado' : '· desligado'}</h3>
+      <p className="text-sm text-suave">{ativo && m
+        ? `Próxima verificação a partir de ${dataBr(m.proximaEm)}, ao abrir o Meu dia. O funil cadastral é refeito no catálogo vigente (sem ler sites) e o Meu dia avisa sobre empresas novas e eventos societários.`
+        : 'Toda semana, o Meu dia avisa sobre empresas que passarem a atender aos critérios cadastrais e sobre eventos societários das empresas desta pesquisa.'}</p>
+      {u && <p className="text-xs text-suave">Última verificação em {dataBr(u.verificadoEm)}: {plural(u.totalNovas, 'empresa nova', 'empresas novas')}{u.novas.length ? ` (${u.novas.map((x) => x.nome).join(', ')}${u.totalNovas > u.novas.length ? '…' : ''})` : ''} · {plural(u.totalEventos, 'com evento societário', 'com evento societário')}{u.eventos.length ? ` (${u.eventos.map((x) => x.nome).join(', ')})` : ''}.{u.totalNovas ? ' Para revisar as novas no site, use "Ajustar critérios" (nova rodada).' : ''}</p>}
+    </div>
+    <button className="agente-btn-secundario" onClick={() => void alternar()} disabled={salvando || !podeUsar}>{salvando ? 'Salvando…' : ativo ? 'Parar de monitorar' : 'Monitorar toda semana'}</button>
+  </section>
 }
 
 /** A lista vem leve; ao abrir a empresa, busca o item completo (justificativas e trechos citados). */

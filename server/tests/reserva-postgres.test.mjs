@@ -10,6 +10,7 @@ import { abrirPostgres } from '../src/db/cliente.mjs';
 import { migrar } from '../src/db/migrar.mjs';
 import { bancoDeTeste, criarUsuario } from './ajuda.mjs';
 import { criarMotorPesquisa } from '../src/pesquisa/motor.mjs';
+import { verificarVencidos } from '../src/pesquisa/monitoramento.mjs';
 
 const URL_PG = process.env.GHT4_TESTE_PG_URL;
 
@@ -53,4 +54,39 @@ test('reserva em PostgreSQL: conexões concorrentes nunca pegam a mesma empresa 
   t.after(() => db.close());
   await migrar(db, { silencioso: true });
   await ensaio(db);
+});
+
+/* Monitoramento: abas abrindo o Meu dia ao mesmo tempo disputam os vencidos. Cada pesquisa
+   vencida é verificada uma vez só, mesmo com o cálculo demorando. */
+async function ensaioMonitor(db) {
+  const u = await criarUsuario(db, { email: `pg-monitor-${randomUUID()}@teste.local` });
+  const conversa = (await db.query(`INSERT INTO agente_conversas (usuario_id,titulo) VALUES ($1,'Ensaio monitor') RETURNING id`, [u.id])).rows[0].id;
+  const ids = [];
+  for (let i = 0; i < 3; i++) {
+    const id = randomUUID(); ids.push(id);
+    await db.query(`INSERT INTO pesquisas_tese (id,conversa_id,usuario_id,tese,frente,filtros,criterios,meta,limite_web,catalogo_hash,referencia,funil,modo,estado)
+      VALUES ($1,$2,$3,'Ensaio do monitor','venda','{}','[]',20,40,$4,'2026-08','{}','regras','concluida')`, [id, conversa, u.id, 'a'.repeat(64)]);
+    await db.query(`INSERT INTO monitoramentos_tese (pesquisa_id,usuario_id,proxima_em) VALUES ($1,$2,now()-interval '1 minute')`, [id, u.id]);
+  }
+  const vistos = [];
+  const motor = { calcular: async (p) => { vistos.push(p.id); await new Promise((r) => setTimeout(r, 50)); return { itens: [] }; } };
+  const r = await Promise.all(Array.from({ length: 6 }, () => verificarVencidos(db, motor, u.id, { limite: 1 })));
+  assert.equal(r.flat().length, 3, 'três vencidos, três verificações');
+  assert.ok(r.flat().every((x) => !x.falhou), 'nenhuma falhou');
+  assert.deepEqual([...vistos].sort(), [...ids].sort(), 'cada pesquisa uma vez só');
+  const adiante = (await db.query(`SELECT count(*) FILTER (WHERE proxima_em > now() + interval '6 days')::int AS n FROM monitoramentos_tese WHERE usuario_id=$1`, [u.id])).rows[0].n;
+  assert.equal(adiante, 3);
+}
+
+test('ensaio do monitoramento: fixture válida e lógica em série (PGlite)', async (t) => {
+  const db = await bancoDeTeste();
+  t.after(() => db.close());
+  await ensaioMonitor(db);
+});
+
+test('monitoramento em PostgreSQL: abas concorrentes não verificam a mesma pesquisa duas vezes', { skip: !URL_PG && 'defina GHT4_TESTE_PG_URL para rodar' }, async (t) => {
+  const db = await abrirPostgres(URL_PG);
+  t.after(() => db.close());
+  await migrar(db, { silencioso: true });
+  await ensaioMonitor(db);
 });

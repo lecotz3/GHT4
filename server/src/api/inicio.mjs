@@ -13,7 +13,7 @@ export async function registrarInicio(app) {
   app.get('/api/inicio', async (req, res) => {
     const u = req.exigir('agente.ler');
     const dia = hoje();
-    const resposta = { hoje: dia, compromissos: null, semProximoPasso: null, rede: null };
+    const resposta = { hoje: dia, compromissos: null, semProximoPasso: null, rede: null, teses: null };
     if (pode(u.papel, 'crm.ler')) {
       const v = [...valoresDeEscopo(u), dia];
       const meus = `(
@@ -47,6 +47,21 @@ export async function registrarInicio(app) {
             WHERE p.lado='mercado' AND p.ativo AND r.id IS NULL) AS "perguntasPendentes",
           (SELECT count(*)::int FROM rede_vinculos v WHERE v.ativo AND v.disposicao='nao_confirmado'
             AND $1 IN (v.pessoa_a_id,v.pessoa_b_id)) AS "vinculosParaConfirmar"`, [eu.id])).rows[0]);
+    }
+    if (pode(u.papel, 'agente.ler')) {
+      // Teses monitoradas com novidade ainda não vista, no mesmo escopo da lista de pesquisas.
+      const acesso = `p.usuario_id=$1 AND (c.mandato_id IS NULL OR $2 OR m.confidencial=FALSE OR c.mandato_id=ANY($3::uuid[]))`;
+      const va = [u.id, u.papel === 'admin', (u.mandatos ?? []).map((x) => x.id)];
+      const itens = (await db.query(`SELECT p.id AS "pesquisaId", c.titulo, p.tese,
+          count(*) FILTER (WHERE n.tipo='nova')::int AS novas, count(*) FILTER (WHERE n.tipo='evento')::int AS eventos,
+          max(n.detectado_em) AS "detectadoEm", (array_agg(n.empresa->>'nome' ORDER BY n.id))[1:3] AS exemplos
+        FROM monitoramento_novidades n JOIN pesquisas_tese p ON p.id=n.pesquisa_id
+        JOIN agente_conversas c ON c.id=p.conversa_id LEFT JOIN mandatos m ON m.id=c.mandato_id
+        WHERE n.vista_em IS NULL AND ${acesso}
+        GROUP BY p.id, c.titulo, p.tese ORDER BY max(n.detectado_em) DESC, p.id LIMIT 5`, va)).rows;
+      const monitoradas = (await db.query(`SELECT count(*)::int AS n FROM monitoramentos_tese t JOIN pesquisas_tese p ON p.id=t.pesquisa_id
+        JOIN agente_conversas c ON c.id=p.conversa_id LEFT JOIN mandatos m ON m.id=c.mandato_id WHERE t.ativo AND ${acesso}`, va)).rows[0].n;
+      resposta.teses = { monitoradas, itens };
     }
     res.header('Cache-Control', 'no-store');
     return resposta;

@@ -51,7 +51,12 @@ export interface ItemPesquisa {
 export interface Contagens { total: number; revisadas: number; pendentes: number; aderente: number; provavel: number; a_confirmar: number; nao_aderente: number }
 export interface IAInfo { provedor: string; modelo: string; gratuito: boolean }
 /** `marca`: identifica o conjunto revisado da página; `execucaoLote`: geração em que o avanço rodou (null: não rodou). */
-export interface DetalhePesquisa { pesquisa: Pesquisa; contagens: Contagens; itens: ItemPesquisa[]; ia: IAInfo | null; atualizados?: string[]; marca?: string; execucaoLote?: number | null }
+/** Monitoramento semanal: refaz o funil cadastral e avisa no Meu dia sobre empresas novas e eventos. */
+export interface Monitoramento {
+  ativo: boolean; verificadoEm: string | null; proximaEm: string
+  ultimoResultado: { verificadoEm: string; totalNovas: number; totalEventos: number; novas: { id: string; nome: string; aderencia: number }[]; eventos: { id: string; nome: string; rotulo: string | null }[] } | null
+}
+export interface DetalhePesquisa { pesquisa: Pesquisa; contagens: Contagens; itens: ItemPesquisa[]; ia: IAInfo | null; atualizados?: string[]; marca?: string; execucaoLote?: number | null; monitoramento?: Monitoramento | null }
 export interface ResumoPesquisa { id: string; conversa_id: string; tese: string; estado: EstadoPesquisa; motivo_estado: string | null; funil: Partial<Funil>; meta: number; atualizado_em: string; titulo: string; boas: number }
 export interface Previa { funil: Funil; referencia: string; amostra: { id: string; nome: string; cidade: string; uf: string; aderencia: number }[] }
 
@@ -60,6 +65,9 @@ export const pesquisaApi = {
   criar: (corpo: { id: string; tese: string; frente: 'compra' | 'venda' | null; mandatoId?: string | null }) => leve<DetalhePesquisa>('/api/pesquisas', 'POST', corpo),
   obter: (id: string) => leve<DetalhePesquisa>(`/api/pesquisas/${id}`),
   itens: (id: string, grupo: Categoria | 'fila', offset: number, marca?: string) => leve<{ itens: ItemPesquisa[]; total: number; proximoOffset: number | null; marca?: string }>(`/api/pesquisas/${id}/itens?grupo=${grupo}&offset=${offset}${marca ? `&marca=${marca}` : ''}`),
+  monitorar: (id: string, ativo: boolean) => api<{ monitoramento: Monitoramento | null }>(`/api/pesquisas/${id}/monitoramento`, 'PUT', { ativo }),
+  verificarMonitoramentos: () => api<{ verificados: number; falhas: number }>('/api/monitoramentos/verificar', 'POST', {}),
+  marcarNovidadesVistas: (id: string) => api<{ vistas: number }>(`/api/pesquisas/${id}/novidades/vistas`, 'POST', {}),
   /** Item completo (justificativas, trechos citados, páginas lidas), ao abrir a empresa. */
   item: (id: string, empresaId: string) => api<{ item: ItemPesquisa }>(`/api/pesquisas/${id}/itens/${empresaId}`),
   editar: (id: string, corpo: { versao: number; criterios?: Criterio[]; filtros?: Filtros; frente?: 'compra' | 'venda'; meta?: number; limiteWeb?: number }) => leve<DetalhePesquisa>(`/api/pesquisas/${id}`, 'PATCH', corpo),

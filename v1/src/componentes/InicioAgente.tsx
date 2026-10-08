@@ -4,10 +4,11 @@ import { EXEMPLOS_TESE } from '../agente/pesquisa'
 import { IconeRede } from './IconeRede'
 import { MeuDia } from './MeuDia'
 
-export function InicioAgente({ usuario, estado, conversas, aoComecar, aoRetomar, aoRede, aoAjuda, aoPesquisar, bloqueado, visivel, aoAbrirCrm, aoOportunidades, aoExpirar, aoExcluir }: {
+export function InicioAgente({ usuario, estado, conversas, aoComecar, aoRetomar, aoRede, aoAjuda, aoPesquisar, bloqueado, visivel, aoAbrirCrm, aoOportunidades, aoExpirar, aoExcluir, aoAbrirPesquisa }: {
   usuario: Usuario; estado: EstadoAgente; conversas: Conversa[]; aoComecar: (t: Tarefa) => void; aoRetomar: (id: string) => void; aoRede: () => void; aoAjuda: () => void
   aoPesquisar: (tese: string) => void; bloqueado: boolean
   visivel: boolean; aoAbrirCrm: (id: string) => void; aoOportunidades: () => void; aoExpirar: () => void; aoExcluir: (id: string) => Promise<boolean>
+  aoAbrirPesquisa?: (id: string) => void
 }) {
   const [tese, setTese] = useState('')
   // Excluir pede confirmação no próprio item: um clique solto não some com o trabalho.
@@ -55,7 +56,7 @@ export function InicioAgente({ usuario, estado, conversas, aoComecar, aoRetomar,
       </div>
       <button className="agente-link mt-5 text-xs" onClick={aoAjuda}><IconeRede nome="ajuda" />Primeira vez? Veja como funciona</button>
     </section>
-    <MeuDia visivel={visivel} aoAbrirCrm={aoAbrirCrm} aoRede={aoRede} aoOportunidades={aoOportunidades} aoExpirar={aoExpirar} />
+    <MeuDia visivel={visivel} aoAbrirCrm={aoAbrirCrm} aoRede={aoRede} aoOportunidades={aoOportunidades} aoExpirar={aoExpirar} aoAbrirPesquisa={aoAbrirPesquisa} />
     <section aria-labelledby="escolha-tarefa"><div className="agente-linha-titulo"><h3 id="escolha-tarefa">Ou vá direto a uma tarefa</h3><span>Atalhos do dia a dia</span></div><div className="agente-acoes-iniciais compactas">{[
       { id: 'buscar_empresas', icone: 'busca', titulo: 'Buscar por nome ou região', texto: 'Ache uma empresa específica no catálogo.', acao: 'Abrir busca', cor: 'laranja' },
       { id: 'mapear_acesso', icone: 'rede', titulo: 'Abrir um caminho', texto: 'Veja quem da GHT4 alcança a liderança.', acao: 'Escolher empresa', cor: 'azul' },

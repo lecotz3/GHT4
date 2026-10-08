@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { ErroHttp } from '../app.mjs';
 import { registrar } from '../auditoria/registrar.mjs';
 import { criarMotorPesquisa, Filtros, ListaCriterios, ordenarItens } from '../pesquisa/motor.mjs';
+import { definirMonitoramento, verificarVencidos, publico as monitoramentoPublico } from '../pesquisa/monitoramento.mjs';
 
 const Id = z.string().uuid();
 const Versao = z.number().int().min(1);
@@ -65,8 +66,9 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
         (SELECT *, 1, row_number() OVER (ORDER BY ordem) FROM base WHERE etapa<>'revisada' ORDER BY ordem LIMIT $3))
       SELECT r.*, to_jsonb(x) AS item FROM resumo r LEFT JOIN pagina x ON true ORDER BY x.grupo_, x.pos_`, [p.id, limite, fila])).rows;
     const { marca, total, revisadas, pendentes, aderente, provavel, a_confirmar, nao_aderente } = linhas[0];
+    const monitoramento = monitoramentoPublico((await db.query('SELECT * FROM monitoramentos_tese WHERE pesquisa_id=$1', [p.id])).rows[0]);
     const itens = linhas.filter((l) => l.item).map(({ item: { grupo_, pos_, ...i } }) => semAtributos(i));
-    return { pesquisa: p, marca, contagens: { total, revisadas, pendentes, aderente, provavel, a_confirmar, nao_aderente }, itens,
+    return { pesquisa: p, marca, contagens: { total, revisadas, pendentes, aderente, provavel, a_confirmar, nao_aderente }, itens, monitoramento,
       ia: servicoIA ? { provedor: servicoIA.status.provedor, modelo: servicoIA.status.modelo, gratuito: servicoIA.status.gratuito } : null };
   }
 
@@ -170,6 +172,31 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     if (q.marca && q.marca !== marca) throw new ErroHttp(409, 'lista_atualizada', 'A lista mudou com novas revisões. Ela foi recarregada; peça mais de novo.');
     const itens = linhas.filter((l) => l.item).map(({ item: { pos_, ...i } }) => semAtributos(i));
     return { itens, total, marca, proximoOffset: q.offset + itens.length < total ? q.offset + itens.length : null };
+  });
+
+  /* Monitoramento semanal: ligar grava como linha de base as empresas já vistas na pesquisa. */
+  app.put('/api/pesquisas/:id/monitoramento', async (req) => {
+    const { ativo } = z.object({ ativo: z.boolean() }).strict().parse(req.body);
+    const { pesquisa, conversa, usuario } = await carregar(req, req.params.id, 'agente.usar');
+    if (pesquisa.estado === 'rascunho') throw new ErroHttp(409, 'pesquisa_rascunho', 'Inicie a pesquisa antes de monitorá-la.');
+    const m = await definirMonitoramento(db, { pesquisaId: pesquisa.id, usuarioId: pesquisa.usuario_id, ativo });
+    await registrar(db, { usuarioId: usuario.id, mandatoId: conversa.mandato_id, entidade: 'pesquisa_tese', entidadeId: pesquisa.id,
+      acao: ativo ? 'monitorar' : 'parar_monitoramento', depois: { ativo } });
+    return { monitoramento: monitoramentoPublico(m) };
+  });
+
+  /* Chamado pelo Meu dia: verifica os monitoramentos vencidos da pessoa (no máximo dois por vez). */
+  app.post('/api/monitoramentos/verificar', async (req) => {
+    const u = req.exigir('agente.ler');
+    const feitos = await verificarVencidos(db, motor, u.id);
+    return { verificados: feitos.length, falhas: feitos.filter((f) => f.falhou).length };
+  });
+
+  /* Abrir a pesquisa a partir do aviso marca as novidades dela como vistas. */
+  app.post('/api/pesquisas/:id/novidades/vistas', async (req) => {
+    const { pesquisa } = await carregar(req, req.params.id);
+    const r = await db.query('UPDATE monitoramento_novidades SET vista_em=now() WHERE pesquisa_id=$1 AND vista_em IS NULL RETURNING id', [pesquisa.id]);
+    return { vistas: r.rows.length };
   });
 
   /* Item completo (justificativas, trechos citados, páginas lidas), pedido ao abrir a empresa. */
