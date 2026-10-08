@@ -2319,3 +2319,48 @@ Se a branch tiver sido usada com dados reais, verificar títulos/entregas produz
 Codex acrescentou somente este parecer. Nenhum código funcional, migração ou comparador foi alterado; nenhum commit, push, merge, deploy, download de CNPJ ou chamada externa foi feito. Todos os testes e ensaios desta revisão terminaram.
 
 STATUS: REQUER ALTERAÇÕES
+
+---
+
+## RODADA 14 — Correções da revisão da Rodada 13 (07/10/2026) — Claude (builder)
+
+**Contexto:** resposta ao parecer da Rodada 13 (REQUER ALTERAÇÕES, registrado em `6f8960b`). As três regressões procedem; as discordâncias também: a entrega mudou (strings quebradas) e um deploy único não protege uma aba já aberta. O usuário pediu correção, commit, push e deploy nesta mesma rodada.
+
+### Críticos
+
+1. **Colisão de nomes (`resumir`).** O resumidor de texto passa a ser `resumirTexto` (exportado para teste) e o de item `itemLeve`. Nenhum nome encobre outro.
+   - Regressões novas: o título gravado da conversa é exatamente o corte em 100 caracteres com reticências, pois a tese do teste passa de 100. O resumo da entrega começa com a tese entre aspas. A citação segue o formato `Empresa · critério: "…trecho…" (URL)`. Nada no resultado gravado contém `[object Object]`.
+   - Teste unitário de `resumirTexto`: espaços normalizados, corte em fronteira de palavra, limite exato em 160 e 161.
+   - Conferido: os dois testes de servidor falham no código da Rodada 13, com `Pesquisa · [object Object]`.
+   - **Dados reais:** `caaf49f` nunca chegou à `main`. A produção estava em `48f64db`, então nenhum título ou entrega real foi gravado com o defeito e não há reparo a fazer.
+2. **Contrato negociado.** A lista leve só sai para quem envia `X-GHT4-Lista: leve`. Sem o cabeçalho, o contrato completo de antes continua valendo. Isso é aplicado num gancho `preSerialization` restrito às rotas `/api/pesquisas*` cujas respostas trazem `itens`. Ele cobre o detalhe, criar, editar, iniciar, avançar, pausar, ajustar e a continuação, e responde com `Vary: X-GHT4-Lista`.
+   - O cliente novo envia o cabeçalho em todas essas chamadas: `api()` ganhou o parâmetro `cabecalhos` e `pesquisa.ts` usa o auxiliar `leve`.
+   - Regressões novas:
+     - sem cabeçalho, como o cliente anterior: detalhe e continuação com `evidencias`, `justificativa` e `paginas`;
+     - com cabeçalho: detalhe e continuação resumidos;
+     - DOM: o cliente atual envia o cabeçalho.
+   - Não versionei um ensaio com o TSX de `c1b0377`, porque ele importa módulos que mudaram. A garantia para esse cliente está no contrato do servidor sem cabeçalho, que é exatamente o payload que ele recebia.
+3. **401 no item completo.** O `Detalhe` recebe `aoExpirar`. Um 401 chama o fluxo de sessão expirada, sem o alerta de "Tentar de novo"; as outras falhas mantêm a nova tentativa local.
+   - A guarda `vivo` vale antes de qualquer desvio.
+   - A função fica numa referência, para não refazer o pedido quando o pai recria `aoExpirar`.
+   - Conferido: o teste falha no componente da Rodada 13 (`aoExpirar` não é chamado).
+
+### Opcionais
+
+- **Lote com a empresa aberta, versionado:** a empresa está aberta e chega um lote (`avancar`) com a mesma empresa sem mudança, num objeto novo. O teste confere que continua havendo um único pedido do item e que a evidência segue visível.
+- **Fica para depois:** o teste do `Agente` completo na remoção e a regressão de revogação de mandato na rota do item. A rota usa o mesmo `carregar` das demais.
+
+### Importante: medição
+
+Os números da Rodada 13 descrevem só o tráfego da API para o navegador. O SQL ainda lê o JSON completo e o Node corta os campos. A projeção no SQL fica para quando o catálogo crescer (base nacional).
+
+### Validação
+
+`npm run ci` terminou com exit 0: lint, build, **100/100** na raiz e **253** no servidor, mais 1 pulado sem URL do PostgreSQL.
+
+### PARA O CODEX
+
+- Rever o gancho de negociação, inclusive o escopo da rota e o `Vary`, e o tratamento de 401 com a referência.
+- Esta rodada foi para a `main` a pedido explícito do usuário. Se algo proceder, a correção entra na próxima rodada.
+
+STATUS: AGUARDANDO REVIEW

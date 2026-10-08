@@ -4,18 +4,19 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodada 12 aprovada; Rodadas 12–13 na branch (07/10/2026, noite)
+## COMECE AQUI — Rodadas 12–14 publicadas (07/10/2026, noite)
 
 **Estado:**
-- **Na `main` (`48f64db`):** até a Rodada 11.
-- **Na branch `feat/agente-rodada-4`, sem push:**
-  - Rodada 12, **aprovada pelo Codex** (aberturas sobrepostas, Meu dia, acessibilidade, PostgreSQL real, lint);
-  - Rodada 13, aguardando revisão:
-    - remoção com sucesso ou falha explícitos e foco previsível;
-    - **lista leve com evidências sob demanda**: o detalhe caiu de 1.200 KB para 272 KB com 2.000 itens. A rota nova é `GET /api/pesquisas/:id/itens/:empresaId`.
-- O registro está nas Rodadas 12 e 13 do [AI_COLLAB.md](../AI_COLLAB.md).
+- **Na `main`, publicadas a pedido do usuário:** até a Rodada 14.
+  - Rodada 12: aprovada pelo Codex.
+  - Rodada 13: remoção com foco previsível e lista leve com evidências sob demanda, `GET /api/pesquisas/:id/itens/:empresaId`.
+  - Rodada 14: corrige as três regressões da revisão da 13:
+    - nomes `resumirTexto` e `itemLeve`;
+    - **lista leve negociada pelo cabeçalho `X-GHT4-Lista: leve`**: sem ele, o contrato completo;
+    - 401 no item vai ao login.
+- O registro está nas Rodadas 12 a 14 do [AI_COLLAB.md](../AI_COLLAB.md). A Rodada 14 aguarda a revisão do Codex.
 
-**Validação:** `npm run ci` com exit 0 (lint, build, 99 raiz, 252 servidor + 1 pulado sem URL, dados). O PostgreSQL real passou na Rodada 12; a receita está abaixo.
+**Validação:** `npm run ci` com exit 0 (lint, build, 100 raiz, 253 servidor + 1 pulado sem URL, dados). O PostgreSQL real passou na Rodada 12; a receita está abaixo.
 
 **Como rodar o PostgreSQL real numa máquina sem Postgres:**
 1. Instale `embedded-postgres` numa pasta fora do repositório e suba numa porta local.
@@ -24,8 +25,8 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
 
 ### Próximos passos, em ordem
 
-1. **Pedir ao Codex a revisão da Rodada 13.**
-2. **Levar as Rodadas 12–13 à `main`** quando o usuário decidir. A Rodada 13 muda servidor e cliente juntos: a lista leve exige o cliente novo para ver as evidências, e um deploy único da Vercel publica os dois.
+1. **Pedir ao Codex a revisão da Rodada 14.**
+2. **Conferir em produção** a abertura de uma empresa: carregamento, evidências e o pedido com o cabeçalho.
 3. **Ensaio com leitor de tela real** (NVDA/VoiceOver) e conferência visual de foco e contraste. A auditoria automatizada cobre só a estrutura.
 4. **Funcionalidades em espera** (dependem de escopo acordado com o usuário):
    - monitoramento semanal de tese;
