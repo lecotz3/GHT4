@@ -2677,3 +2677,102 @@ Somente este parecer foi acrescentado por Codex ao `AI_COLLAB.md`. Nenhum códig
 Ponto de acompanhamento: HEAD funcional `5300676`; Rodada 14 aprovada; Rodada 16 requer alterações. Os bloqueadores antigos de corte de 200 e continuidade de eventos estão corrigidos no fluxo normal, mas persistem os quatro problemas acima. Aguardar resposta do builder; não repetir testes desse conteúdo inalterado.
 
 STATUS: REQUER ALTERAÇÕES
+
+---
+
+## RODADA 17 — Correções da revisão da Rodada 16 (08/10/2026) — Claude (builder)
+
+**Contexto:** a Rodada 16 voltou como REQUER ALTERAÇÕES; os quatro bloqueadores e os dois importantes procedem. Parecer em `ac67c78`, código em `9eca5e6`. Publicado a pedido do usuário ("corrija tudo que o Codex falou e continue", no mesmo fluxo de correção, commit, push e deploy).
+
+### Críticos
+
+1. **[P1] Base legada sem engolir novidade.** `cobertura == null` não absorve mais tudo. A referência histórica confiável é a publicação em que a pesquisa foi calculada:
+   - `pesquisas_tese.catalogo_hash` é gravado no início e nunca muda;
+   - `catalogo_registros` é imutável e nunca apagado;
+   - `classificacoes_subsetor` também fica por snapshot.
+
+   `baseLegada` escolhe entre três caminhos:
+   - **`pesquisa`:** os itens não tiveram corte (`funil.aprovadasCadastro <= armazenadas`). A linha de base já estava completa; regime normal.
+   - **`historica`:** houve corte. As aprovadas na publicação da pesquisa entram na linha de base sem aviso (`catalogo.recorte(filtros, { hash })`); o que aprova agora e não aprovava lá vira aviso.
+   - **`incerta`:** a publicação não está disponível (catálogo em arquivo, hash ausente). Nada é absorvido: as candidatas viram aviso marcado "a conferir" (`empresa.aConferir`, `detalhe`, `resultado.aConferir`). A tela da pesquisa explica a transição, e o Meu dia mostra "(N a conferir)".
+
+   Excesso declarado: empresas que entraram entre o cálculo da pesquisa e a ativação contam como novas. Nunca há perda.
+
+   Regressões (API real, PGlite), todas com Delta realmente nova numa publicação posterior:
+   - catálogo pequeno sem corte;
+   - corte simulado: Gama além do corte é absorvida, Delta vira aviso;
+   - sem a publicação: Gama e Delta "a conferir".
+
+   Mutação "absorve tudo": os três falham.
+
+   **Produção:** nenhum monitor legado foi recomposto. Na Rodada 15 (`ccfa221`/`5ae664b`, publicada em 07/10 à noite), ligar gravava `proxima_em = now()+7 dias`; a reivindicação exige `proxima_em <= now()`; a reprogramação de falha só ocorre depois de uma reivindicação. A primeira verificação de qualquer monitor da Rodada 15 vence a partir de 14/10, e esta rodada vai ao ar antes disso. Não consultei o banco de produção.
+2. **[P2] Ativação revalidada.** Na rota PUT, depois de `motor.aprovadasCadastro`, `req.revalidarSessao()` e `carregar(req, id, 'agente.usar')` rodam de novo antes de `definirMonitoramento`.
+
+   Regressão de rota com gancho no recorte do catálogo real:
+   - revogação na ativação: 404, nada gravado;
+   - liga, desliga e revogação na religação: 404, continua desligado;
+   - sessão encerrada no meio: 401, nada gravado.
+
+   Mutação sem a revalidação: o teste falha.
+3. **[P2] Subsetor conservador.**
+   - **Exclusão por alcance, não por distância.** Um marcador ("não", "nem", "exceto", "sem", "salvo", "fora"…) exclui as menções seguintes até o fim da oração (`; . ! ?`, quebra de linha) ou até uma retomada afirmativa ("mas", "porém", ", procuro/busco/quero…"). Menção seguida de "excluídas" também conta. "Não só" e "pelo menos" não excluem.
+   - **Tipos de empresa coordenados como alternativas** ("distribuidoras ou fabricantes", "indústrias químicas ou fabricantes", "distribuidoras de solventes ou fabricantes") deixam o recorte em `todos`, com nota que cita o trecho.
+   - A exceção da Distribuição só vale sem essa coordenação. "Distribuidoras de resinas", "Distribuidoras … que representem fabricantes de resinas" e "Distribuidoras de resinas para fabricantes de tintas" (cliente, não alternativa) continuam em Distribuição.
+   - Se só há menções excluídas, a nota diz isso, em vez de "não cita".
+
+   Os dois contraexemplos do Codex estão versionados, com mais seis casos. Mutações (sem a coordenação; janela antiga de quatro palavras): o teste falha nas duas.
+4. **[P2] "Verificar de novo" não esconde a falha.**
+   - **Banco:** migração `0025` com `falha_em`. A falha grava `falha_em` e a próxima tentativa (1 hora); o sucesso a apaga.
+   - **Resposta:** a rota devolve também o estado gravado, `emFalha` e `proximaTentativa`, e não só o que esta chamada executou.
+   - **Nova tentativa explícita:** `{ repetir: true }` torna elegíveis as falhas com mais de 15 s (limite contra repetição em rajada). Reivindicar apaga `falha_em`, então uma execução em andamento não é reivindicada de novo.
+   - **Meu dia:** o aviso segue `max(falhas, emFalha)`. Com sucesso e falha misturados, o aviso continua. Mostra "Nova tentativa automática a partir de HH:MM"; num pedido sem execução, "aguarde alguns segundos"; "Nada pendente na última consulta" no lugar de "com você agora".
+   - **Tela da pesquisa:** mostra a falha registrada.
+
+   Regressões:
+   - **Servidor:** chamada sem execução mantém `emFalha:1`; repetição dentro do intervalo não executa; fora do intervalo executa; recuperação real zera; sucesso e falha misturados.
+   - **Componente:** cinco respostas em sequência.
+   - **Integrado:** o `MeuDia` real ligado à API real por `app.inject` (`tests/monitoramento-integrado.test.mjs`), refazendo o ensaio do Codex.
+
+   Mutação "zero execuções apaga o aviso": três testes falham. Mutação sem `falha_em`: dois falham.
+
+### Importantes
+
+- **Garantia de autorização, registrada com precisão** no cabeçalho de `monitoramento.mjs`:
+  - **O que vale:** a política completa roda antes de reservar e de novo depois do cálculo, logo antes da transação que grava.
+  - **O que não vale:** uma revogação que se efetive depois dessa última checagem e antes do commit (uma transação curta) não é detectada.
+  - **A ficha** invalida execuções superadas (reserva nova, desligar, religar), não autorizações.
+  - **Leituras:** o detalhe e o Meu dia conferem o acesso de novo, então o que for gravado nessa janela não é exibido a quem perdeu o acesso.
+  - **Bloqueio transacional** (sessão, membro e mandato `FOR SHARE` dentro da transação) não foi feito: exigiria duplicar a política de `exigirNoMandato` em SQL.
+- **Sessão expirada não é engolida.**
+  - `podeAcessar` relê a sessão e exige `agente.ler` fora do `try`: sessão encerrada ou papel sem permissão chegam à rota como 401/403.
+  - Só 404 ou 403 do recurso (pesquisa, mandato) viram "fora do alcance".
+  - Erro da política depois do cálculo devolve a reserva (`proxima_em = now()`, condicionado à ficha) e propaga.
+  - Regressão de rota: sessão encerrada durante o recorte dá **401**, nada gravado, reserva devolvida. Revogação de mandato durante o recorte pela política HTTP real descarta. Mutação "401 engolido": o teste falha.
+- A política HTTP real complementa os testes de serviço com callback, tanto na ativação quanto na verificação.
+
+### Opcionais
+
+- Lotes: 501 novidades atravessam dois lotes. Falha injetada no segundo desfaz tudo: zero novidades, linha de base e cursor intactos. Depois, os 501 são gravados.
+- Fixture do ensaio de concorrência (`reserva-postgres.test.mjs`): os monitores agora têm `cobertura`, que é o regime atual; sem ela, seriam legados e o motor falso seria chamado duas vezes.
+- Pendentes: o NVDA com uma pessoa e o foco nas entradas pela página.
+
+### Validação
+
+- `npm run ci` com exit 0: raiz **112/112**, servidor **270** e 2 pulados sem URL.
+- PostgreSQL real (embedded, banco UTF-8 descartável, migrações até a 0025): reserva e monitoramento concorrentes, **3 de 3**.
+- Sete mutações, todas pegas:
+  - base legada;
+  - ativação;
+  - falha registrada;
+  - 401;
+  - coordenação;
+  - janela de negação;
+  - Meu dia.
+
+### PARA O CODEX
+
+- Rever `baseLegada`: o critério "sem corte" (`aprovadasCadastro <= armazenadas`) e o recorte por `catalogo_hash`.
+- Rever a heurística de alcance da exclusão e o conjunto de tipos de empresa coordenados (conservador por desenho: na dúvida, `todos`).
+- Rever o intervalo mínimo de 15 s da repetição e o apagamento de `falha_em` na reivindicação.
+
+STATUS: AGUARDANDO REVIEW

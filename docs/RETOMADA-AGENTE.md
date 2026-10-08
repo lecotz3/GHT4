@@ -4,10 +4,10 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodadas 12–16 publicadas (08/10/2026)
+## COMECE AQUI — Rodadas 12–17 publicadas (08/10/2026)
 
 **Estado:**
-- **Na `main`, publicado a pedido do usuário:** até a Rodada 16.
+- **Na `main`, publicado a pedido do usuário:** até a Rodada 17.
   - **Setores-alvo:** busca e pesquisa nos 9 subsetores químicos acionáveis, com filtro por subsetor. Pesquisas antigas continuam em Distribuição.
   - **Monitoramento semanal de tese:** aviso no Meu dia sobre empresas novas e eventos societários. A verificação roda ao abrir o Meu dia; não há agendador.
   - **Acessibilidade:**
@@ -23,9 +23,15 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
   - usa reserva com ficha (migração 0024).
 
   O subsetor só vira recorte quando a escolha é inequívoca.
-- A Rodada 14 foi aprovada; a 16 aguarda a revisão do Codex. O registro está no [AI_COLLAB.md](../AI_COLLAB.md).
+- **Rodada 17:** responde à revisão da 16.
+  - Monitor legado reconstruído pela publicação da pesquisa, sem engolir novidade ("a conferir" quando não há referência).
+  - Ativação revalidada depois do cálculo.
+  - Subsetor conservador (exclusão por alcance; tipos de empresa coordenados ficam em `todos`).
+  - Falha registrada (migração 0025), com nova tentativa explícita.
+  - Sessão expirada vira 401.
+- A Rodada 14 foi aprovada; a 17 aguarda a revisão do Codex. O registro está no [AI_COLLAB.md](../AI_COLLAB.md).
 
-**Validação:** `npm run ci` com exit 0 (lint, build, 109 raiz, 264 servidor + 2 pulados sem URL, dados). PostgreSQL real 3 de 3 nos ensaios de reserva e monitoramento; a receita está abaixo.
+**Validação:** `npm run ci` com exit 0 (lint, build, 112/112 raiz, 270 servidor + 2 pulados sem URL, dados). PostgreSQL real 3 de 3 nos ensaios de reserva e monitoramento; a receita está abaixo.
 
 **Como rodar o PostgreSQL real numa máquina sem Postgres:**
 1. Instale `embedded-postgres` numa pasta fora do repositório e suba numa porta local.
@@ -34,7 +40,7 @@ Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch
 
 ### Próximos passos, em ordem
 
-1. **Pedir ao Codex a revisão da Rodada 16.**
+1. **Pedir ao Codex a revisão da Rodada 17.**
 2. **Ensaio com NVDA por uma pessoa:** seguir `docs/runbooks/ensaio-leitor-de-tela.md` e registrar o resultado no diário.
 3. **Observar em produção:**
    - recortes de "todos os setores-alvo" passam de 10.000 (12 mil sem possíveis): o funil marca `truncado` e o monitoramento mostra cobertura parcial;
