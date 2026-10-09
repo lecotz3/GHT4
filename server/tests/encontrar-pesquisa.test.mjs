@@ -157,3 +157,46 @@ test('recorte em páginas e teto de pessoas: empresa sem avaliar não vira "ning
   assert.deepEqual(r.lacunas.empresas.map((l) => l.empresa.id), ['cnpj11111111'], 'a gerente não serve; Empresa 3 e 4 ficaram sem avaliar');
   assert.ok(r.limitacoes.some((l) => /Mais de 2 pessoas mapeadas.*não entram em "Onde falta quem decide"/.test(l)));
 });
+
+test('dentro da pesquisa, empresa citada pelo nome estreita o recorte da pesquisa', async (t) => {
+  const { db, usuario } = await montar(t);
+  const socio = await usuario('socio@teste.local', 'socio', 'Helena Sócia');
+  const buscar = async (corpo) => { const r = await socio.chamar('POST', '/api/encontrar', corpo); assert.equal(r.statusCode, 200, r.body); return r.json(); };
+  const id = randomUUID();
+  const criada = await socio.chamar('POST', '/api/pesquisas', { id, tese: 'Distribuidoras com mais de 20 anos' });
+  assert.equal((await socio.chamar('POST', `/api/pesquisas/${id}/iniciar`, { versao: criada.json().pesquisa.versao })).statusCode, 200);
+
+  let r = await buscar({ pedido: 'Quem decide na Alfa Química', pesquisaId: id });
+  assert.deepEqual([r.funil.recorte, r.lacunas.empresas.map((l) => l.empresa.id)], [1, ['cnpj11111111']], 'só a Alfa, das empresas da pesquisa');
+  assert.deepEqual(r.leitura.empresas.map((n) => n.trecho), ['Alfa Química']);
+
+  // A Beta existe no catálogo, mas não está entre as aderentes e prováveis: o pedido não a traz de volta.
+  r = await buscar({ pedido: 'Quem decide na Beta Química', pesquisaId: id });
+  assert.equal(r.funil.recorte, 0);
+  assert.ok(r.leitura.notas.some((n) => /Beta Química não está entre as aderentes e prováveis desta pesquisa/.test(n)), JSON.stringify(r.leitura.notas));
+});
+
+test('o teto de pessoas conta só as empresas que passam nos critérios', async (t) => {
+  const pasta = await mkdtemp(path.join(tmpdir(), 'ght4-encontrar-teto-criterios-'));
+  t.after(() => rm(pasta, { recursive: true, force: true }));
+  const arquivo = path.join(pasta, 'base.js');
+  const colunas = ['id', 'nome', 'razaoSocial', 'cnpjRaiz', 'cidade', 'uf', 'cnaePrincipal', 'cnaeSecundarias', 'situacaoCadastral', 'naturezaJuridica',
+    'capitalSocial', 'porteDeclarado', 'dataAbertura', 'estabelecimentosAtivos', 'ufsAtuacao', 'qtdSocios', 'qtdSociosPj', 'socioEstrangeiro', 'contato'];
+  const linhas = [['11111111', '2020-01-01'], ['22222222', '1990-01-01']].map(([raiz, abertura], i) => [`cnpj${raiz}`, `Empresa ${i + 1}`, `Empresa ${i + 1} Ltda`, raiz,
+    'Campinas', 'SP', '4684299', [], '02', '2062', 500000, '05', abertura, 1, ['SP'], 2, 0, false, {}]);
+  await writeFile(arquivo, `const COLUNAS_QUIMICOS = ${JSON.stringify(colunas)};\nconst LINHAS_QUIMICOS = [\n${linhas.map((l) => JSON.stringify(l)).join(',\n')}\n];\nconst REFERENCIA_QUIMICOS = "${REF}";`);
+  const db = await bancoDeTeste();
+  t.after(() => db.close());
+  const catalogo = criarCatalogo({ arquivo, arquivoIbama: null });
+  const u = await criarUsuario(db, { email: 'teto-criterios@teste.local', papel: 'socio', senha, nome: 'Teto' });
+  const pessoa = (nome, empresaId) => db.query(`INSERT INTO rede_pessoas (id,lado,nome,nome_normalizado,cargo,senioridade,empresa_id,origem,origem_referencia,criado_por)
+    VALUES ($1,'mercado',$2,lower($2),'Diretor-presidente','ceo',$3,'cadastro_publico','Quadro societário',$4)`, [randomUUID(), nome, empresaId, u.id]);
+  // A Empresa 1 é nova demais e tem três dirigentes; a Empresa 2 passa e tem um.
+  for (const nome of ['Ana Um', 'Bia Um', 'Caio Um']) await pessoa(nome, 'cnpj11111111');
+  await pessoa('Dora Dois', 'cnpj22222222');
+
+  const r = await encontrarPessoas(db, catalogo, { texto: 'Quem decide nas distribuidoras com mais de 20 anos', usuario: { ...u, mandatos: [] } }, { limitePessoas: 2 });
+  assert.deepEqual(r.grupos.forte.map((p) => p.nome), ['Dora Dois'], 'quem está fora dos critérios não ocupa o teto');
+  assert.deepEqual([r.funil.pessoas, r.funil.foraDosCriterios], [1, 3]);
+  assert.ok(!r.limitacoes.some((l) => /Mais de 2 pessoas/.test(l)));
+});

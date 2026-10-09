@@ -75,12 +75,21 @@ function recortePeloNome(leitura, referencia) {
 
 /* Dentro de uma pesquisa por tese ("quem decide nas aderentes"), o recorte são as empresas
    aderentes e prováveis dela, com o cadastro que a pesquisa guardou, e cada uma ganha a linha do
-   veredito da pesquisa: aderente atende; provável é indício e manda para revisão. Os critérios do
-   pedido ainda valem por cima, e a UF citada também. */
+   veredito da pesquisa: aderente atende; provável é indício e manda para revisão. O pedido só
+   estreita: os critérios dele valem por cima, a UF citada também, e a empresa citada pelo nome ou
+   CNPJ fica entre as da pesquisa (a que não está nela ganha uma nota, não entra). */
 export const CATEGORIAS_DA_PESQUISA = Object.freeze(['aderente', 'provavel']);
 function recorteDaPesquisa(leitura, pesquisa) {
   const ufs = leitura.recorte.uf ? leitura.recorte.uf.split(',') : [];
-  const empresas = pesquisa.itens.map((i) => i.empresa).filter((e) => !ufs.length || ufs.includes(e.uf));
+  let daPesquisa = pesquisa.itens.map((i) => i.empresa);
+  if (leitura.empresas.length) {
+    const citadas = new Map(leitura.empresas.flatMap((n) => n.empresas).map((e) => [e.id, e]));
+    const ids = new Set(daPesquisa.map((e) => e.id));
+    const fora = [...citadas.values()].filter((e) => !ids.has(e.id)).map((e) => e.nome);
+    if (fora.length) leitura.notas.push(`${fora.join(', ')} ${fora.length === 1 ? 'não está' : 'não estão'} entre as aderentes e prováveis desta pesquisa. Para ${fora.length === 1 ? 'ela' : 'elas'}, faça o pedido fora da pesquisa.`);
+    daPesquisa = daPesquisa.filter((e) => citadas.has(e.id));
+  }
+  const empresas = daPesquisa.filter((e) => !ufs.length || ufs.includes(e.uf));
   return { empresas, total: empresas.length, truncado: false, referencia: pesquisa.referencia, fonte: 'Receita Federal · CNPJ' };
 }
 function linhaDaPesquisa(item, pesquisa) {
@@ -105,8 +114,11 @@ export async function encontrarPessoas(db, catalogo, { texto, usuario, pesquisa 
   const escopo = pesquisa?.escopo ?? `usuario:${usuario.id}`;
   let recorte;
   try {
-    if (pesquisa) recorte = recorteDaPesquisa(leitura, pesquisa);
-    else if (leitura.candidatos.length) {
+    if (pesquisa) {
+      // Nome ou CNPJ no pedido estreita as empresas da pesquisa; não traz outras para dentro dela.
+      if (leitura.candidatos.length) leitura = interpretarPedido(texto, { municipios, nomes: (await resolverNomes(catalogo, leitura.candidatos)).nomes });
+      recorte = recorteDaPesquisa(leitura, pesquisa);
+    } else if (leitura.candidatos.length) {
       const { nomes, referencia } = await resolverNomes(catalogo, leitura.candidatos);
       leitura = interpretarPedido(texto, { municipios, nomes });
       if (leitura.empresas.length) recorte = recortePeloNome(leitura, referencia);
@@ -126,11 +138,18 @@ export async function encontrarPessoas(db, catalogo, { texto, usuario, pesquisa 
   }));
   const ids = [...empresas.keys()];
   const nosCriterios = ids.filter((id) => !empresas.get(id).avaliacao.reprovada);
+  const reprovadas = ids.filter((id) => empresas.get(id).avaliacao.reprovada);
 
-  const linhas = ids.length ? (await db.query(
-    `SELECT id, lado, nome, cargo, senioridade, organizacao, empresa_id, origem, origem_referencia
-       FROM rede_pessoas WHERE lado = 'mercado' AND ativo AND empresa_id = ANY($1::text[])
-      ORDER BY empresa_id, nome, id LIMIT ${limitePessoas + 1}`, [ids])).rows : [];
+  // Só as empresas que passam ocupam o teto de pessoas; as das reprovadas só entram na contagem
+  // (listá-las seria ruído, e consumir o teto com elas faria lacuna falsa nas que passam).
+  const [linhas, foraDosCriterios] = await Promise.all([
+    nosCriterios.length ? db.query(
+      `SELECT id, lado, nome, cargo, senioridade, organizacao, empresa_id, origem, origem_referencia
+         FROM rede_pessoas WHERE lado = 'mercado' AND ativo AND empresa_id = ANY($1::text[])
+        ORDER BY empresa_id, nome, id LIMIT ${limitePessoas + 1}`, [nosCriterios]).then((r) => r.rows) : [],
+    reprovadas.length ? db.query(`SELECT count(*)::int AS n FROM rede_pessoas WHERE lado = 'mercado' AND ativo AND empresa_id = ANY($1::text[])`,
+      [reprovadas]).then((r) => r.rows[0].n) : 0,
+  ]);
   const limitacoes = [
     'Só entram pessoas que a casa já mapeou: o quadro societário público no recorte estatutário, as listas compartilhadas pela equipe e quem alguém da casa registrou com a fonte. O GHT4 não compra base de pessoas nem lê LinkedIn.',
     'Telefone e e-mail não aparecem: a conversa começa pelo caminho da rede ou pelo canal institucional do plano de acesso.',
@@ -143,11 +162,10 @@ export async function encontrarPessoas(db, catalogo, { texto, usuario, pesquisa 
   if (linhas.length > limitePessoas) {
     linhas.length = limitePessoas;
     semAvaliar = linhas.at(-1).empresa_id;
-    limitacoes.push(`Mais de ${limitePessoas.toLocaleString('pt-BR')} pessoas mapeadas no recorte: esta busca leu as primeiras, e as empresas seguintes (em ordem de CNPJ) não entram em "Onde falta quem decide". Estreite o pedido.`);
+    limitacoes.push(`Mais de ${limitePessoas.toLocaleString('pt-BR')} pessoas mapeadas nas empresas que passam nos critérios: esta busca leu as primeiras, e as empresas seguintes (em ordem de CNPJ) não entram em "Onde falta quem decide". Estreite o pedido.`);
   }
 
-  // Pessoas das empresas reprovadas só entram na contagem: listá-las seria ruído.
-  const avaliadas = linhas.filter((p) => !empresas.get(p.empresa_id).avaliacao.reprovada);
+  const avaliadas = linhas;
   const restricoes = new Map(nosCriterios.length ? (await db.query(
     'SELECT empresa_id, categoria, motivo FROM crm_restricoes_contato WHERE escopo = $1 AND ativa AND empresa_id = ANY($2::text[])',
     [escopo, nosCriterios])).rows.map((r) => [r.empresa_id, r]) : []);
@@ -204,7 +222,7 @@ export async function encontrarPessoas(db, catalogo, { texto, usuario, pesquisa 
     funil: {
       recorte: recorte.total, lidas: recorte.empresas.length, truncado: Boolean(recorte.truncado),
       nosCriterios: nosCriterios.length, comPessoas: new Set(avaliadas.map((p) => p.empresa_id)).size,
-      pessoas: avaliadas.length, foraDosCriterios: linhas.length - avaliadas.length, ...contagem,
+      pessoas: avaliadas.length, foraDosCriterios, ...contagem,
     },
     grupos: Object.fromEntries(GRUPOS.map((g) => [g, grupos[g].slice(0, EXIBIDOS[g])])),
     lacunas: { total: lacunas.length, ninguemMapeado: lacunas.filter((l) => !l.mapeadas).length, empresas: lacunas.slice(0, LACUNAS_EXIBIDAS) },
