@@ -4,7 +4,32 @@ Atualizado em 9 de outubro de 2026 (checkpoint anterior: 8 de outubro). Branch d
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodadas 21 e 22 publicadas: o find aceita empresa pelo nome, lê melhor a tese e liga ao CNPJ (09/10/2026)
+## COMECE AQUI — Rodada 23 publicada: find dentro da pesquisa por tese, avisos de outros espaços e o catálogo inteiro (09/10/2026)
+
+**Estado:**
+- **Na `main`:** Rodadas 21 a 23. Desde 09/10/2026, cada rodada pronta é commitada e publicada na `main` por fast-forward, por autorização do usuário ("pode continuar commitando e publicando tudo").
+- **Rodada 23:** as melhorias de prioridade média da Etapa 4 do roteiro "Find 100% funcional" (https://claude.ai/code/artifact/b4bdfeb9-60cb-4b98-a477-2845cf74f1d8). Registro completo no [AI_COLLAB.md](../AI_COLLAB.md).
+  - **Find dentro da pesquisa:** "Quem decide nestas empresas" na pesquisa por tese leva o find às aderentes e prováveis dela. É `POST /api/encontrar` com `pesquisaId`, com a autorização do plano de acesso.
+  - **Restrições dos outros espaços visíveis:** viram aviso no cartão e na lacuna, sem mudar o grupo.
+  - **Medição:** `node ferramentas/medir-encontrar.mjs` usa o catálogo real e 8.736 dirigentes sintéticos; o pior pedido levou 0,16 s. Por isso a melhoria de desempenho não entrou.
+  - **O catálogo inteiro e o quadro inteiro:** o recorte é lido em páginas (antes parava nas 10 mil primeiras empresas) e as pessoas vão até 20 mil (antes 5 mil). Empresa sem avaliar não vira mais "ninguém mapeado".
+  - **Nome de empresa com aspas, inicial e "&":** agora é reconhecido.
+- **Arquivos fora do git:** `brag-output/` e as capturas do ensaio, que ficam no scratchpad da sessão.
+
+**Validação:** `npm run ci` exit 0. Lint 0, build com tipos, raiz **134/134**, servidor **305** (303 passam, 2 pulados sem URL), dados. Ensaio e visual a 1440 px e 390 px sem rolagem horizontal.
+
+### Próximos passos, em ordem
+
+1. **Revisão do Codex:** Rodadas 21 a 23 ("PARA O CODEX" no diário).
+2. **Encher a rede** (Etapas 1 e 2 do roteiro):
+   - importar o quadro estatutário com a credencial trazida pelo CLI da Vercel;
+   - ativar a casa;
+   - ligar ao CNPJ quem veio só com o nome.
+3. **Aceite em produção** (Etapa 3): os onze pedidos, com contas de sócio e de analista; anotar o tempo em produção.
+4. **Prioridade baixa da Etapa 4:** histórico e memória das buscas; IA opcional para pedidos ambíguos.
+5. **Lessie logado:** extensão do Claude no Chrome, ou a CLI ou o MCP oficial autorizado pelo usuário.
+
+## Checkpoint anterior — Rodadas 21 e 22 publicadas: o find aceita empresa pelo nome, lê melhor a tese e liga ao CNPJ (09/10/2026)
 
 **Estado:**
 - **Na `main`:**

@@ -3348,3 +3348,97 @@ STATUS: AGUARDANDO REVIEW
 - Rever a rota de vínculo: só `empresa_id`, versão, auditoria, e se a sugestão deve exigir `rede.editar` (hoje exige) ou só `rede.ler`.
 
 STATUS: AGUARDANDO REVIEW
+
+## RODADA 23 — Find: dentro da pesquisa por tese, avisos de outros espaços e o catálogo inteiro (09/10/2026) — Claude (builder)
+
+**Contexto:** o usuário pediu "continue", depois da Rodada 22. Esta rodada faz as melhorias de prioridade média da Etapa 4 do roteiro "Find 100% funcional": o find dentro de uma pesquisa por tese e as restrições de outros espaços como aviso. A de desempenho dependia de medição, e a medição foi feita.
+- **Ferramenta nova** (`ferramentas/medir-encontrar.mjs`): catálogo real e rede sintética do tamanho do quadro estatutário de 2026-08 (8.736 dirigentes em 2.477 empresas).
+- **Desempenho:** a pior mediana foi de 0,16 s, longe dos 5 s. A melhoria de desempenho não é necessária.
+- **Dois limites de correção** apareceram, para quando o quadro for importado:
+  - o pedido amplo lia só as primeiras 10 mil das 12.145 empresas;
+  - o teto de 5.000 pessoas cortava o quadro, e as empresas cortadas viravam "ninguém mapeado", o que é falso.
+
+  Os dois foram corrigidos, o que antecipa o item de prioridade baixa "recorte além de 10 mil".
+- **Defeito pego na medição:** a busca pelo nome perdia nomes reais com aspas e abreviatura ("Mario A. Lussari & Cia. Ltda.").
+
+**Escopo:**
+- **Adições:**
+  - `ferramentas/medir-encontrar.mjs`;
+  - testes `server/tests/encontrar-pesquisa.test.mjs` e `tests/encontrar-pesquisa-componente.test.mjs`;
+  - o ensaio `ferramentas/ensaio-encontrar.mjs` cobre o find dentro da pesquisa.
+- **Alterações em código existente,** todas cobertas por teste:
+  - `encontrar/buscar.mjs`: recorte da pesquisa, escopo da restrição, avisos, leitura em páginas, teto de 20 mil pessoas, empresas sem avaliar fora das lacunas e limites injetáveis para teste;
+  - `encontrar/triagem.mjs`: campo `avisos`; ponto final duplicado no motivo de "não contatar";
+  - `encontrar/nomes.mjs`: aspas, iniciais, "&" e apóstrofo;
+  - `api/encontrar.mjs`: `pesquisaId` opcional;
+  - telas: `EncontrarPessoas.tsx`, `PesquisaTese.tsx` (botão), `Agente.tsx` (ligação), `encontrar.ts` e `encontrar.css`.
+- **Sem mudança em:** migração e catálogo.
+
+### Feito
+
+1. **Find dentro da pesquisa por tese:**
+   - **Botão:** "Quem decide nestas empresas" no andamento da pesquisa, quando há aderentes ou prováveis.
+   - **Tela do find:**
+     - abre com a faixa "Nas empresas da pesquisa “…”: N aderentes ou prováveis";
+     - o pedido vem pronto ("Quem decide");
+     - "Procurar em todas as empresas" volta ao find comum;
+     - pelo menu, o find sempre abre em todas as empresas.
+   - **Rota:** `POST /api/encontrar` aceita `pesquisaId`, com a mesma autorização do plano de acesso aberto da pesquisa:
+     - `agente.ler`;
+     - pesquisa do próprio membro (404 para outro);
+     - mandato da conversa.
+   - **Recorte:** as aderentes e prováveis, com o cadastro que a pesquisa guardou.
+     - Cada empresa ganha a linha "Na pesquisa por tese": aderente atende; provável é indício e manda para revisão.
+     - O pedido ainda vale por cima, inclusive a UF.
+   - **Restrição:** a que decide o grupo é a do espaço da pesquisa; o mandato dela, quando houver.
+2. **Restrições de outros espaços como aviso:**
+   - **Mesma visibilidade do plano de acesso** (`situacaoDaEmpresa`): o espaço pessoal do membro e os mandatos que ele vê. Mandato confidencial de que não participa e espaço pessoal de outro membro ficam de fora.
+   - **Efeito:** o aviso não muda o grupo. Aparece no cartão da pessoa e na lacuna, como "Há restrição de contato no espaço “X”: motivo. Fale com o responsável antes de abordar."
+3. **O catálogo inteiro e o quadro inteiro:**
+   - **Recorte:** lido em páginas na mesma publicação, como no monitoramento, até `LIMITE_VARREDURA`.
+   - **Pessoas:** até 20 mil.
+   - **Corte:** acima do teto, as empresas a partir da última lida não entram em "Onde falta quem decide", e a busca avisa.
+   - **Medição** (banco local PGlite):
+
+     | Pedido | Volume | Mediana |
+     | --- | --- | --- |
+     | "Quem decide nas empresas químicas" | 12.145 empresas, 8.736 pessoas | 161 ms |
+     | O mesmo, no teste de estresse | 25 mil pessoas em 6 mil empresas, cortadas em 20 mil | 357 ms |
+     | Pedidos com UF ou subsetor | — | 20 a 60 ms |
+4. **Nome com aspas e abreviatura:**
+   - aspas depois da preposição abrem o nome;
+   - dentro do nome, ponto, "&" e inicial ("A.") não o fecham;
+   - apóstrofo de fechamento não gruda na palavra;
+   - vírgula e aspas de fechamento fecham o nome.
+
+### Validação
+
+- **`npm run ci`, exit 0:**
+  - lint 0;
+  - build com tipos;
+  - raiz **134/134** (2 novos);
+  - servidor **305**, dos quais 303 passam e 2 são pulados sem URL de PostgreSQL (3 novos);
+  - dados e paleta.
+- **Testes novos:**
+  - `server/tests/encontrar-pesquisa.test.mjs`:
+    - find na pesquisa: aderente forte, provável em revisão, empresa fora da pesquisa ausente, UF por cima, 404 para outro sócio e para pesquisa inexistente, 422;
+    - restrições: a do espaço do trabalho decide; mandato aberto vira aviso; mandato fechado invisível para quem não participa e visível para quem participa; espaço pessoal de outro membro invisível; aviso nas lacunas;
+    - páginas e teto: Empresas 3 e 4 sem avaliar fora das lacunas.
+  - `server/tests/encontrar-nomes.test.mjs`: nome entre aspas, com inicial e "&".
+  - `tests/encontrar-pesquisa-componente.test.mjs`: o botão da pesquisa leva id, tese e contagem; no find, a faixa, o pedido pronto, o corpo com `pesquisaId`, a leitura, os avisos no cartão e na lacuna, e a volta a todas as empresas.
+- **Ensaio** `node ferramentas/ensaio-encontrar.mjs` (com pesquisa por tese) e visual a 1440 px e 390 px, sem rolagem horizontal.
+
+### Limites
+
+- **Medição local, não de produção:** PGlite em memória, sem a rede até o Supabase. O item "Tempo" do aceite (Etapa 3) continua valendo em produção.
+- **O cadastro dentro da pesquisa é o que ela guardou:** empresa que mudou depois da pesquisa aparece com o cadastro antigo, e a busca avisa a referência.
+- **Prioridade baixa da Etapa 4, a seguir:** histórico e memória das buscas, e IA opcional para pedidos ambíguos.
+
+### PARA O CODEX
+
+- Rever a autorização com `pesquisaId` (igual à do plano de acesso) e o escopo da restrição dentro da pesquisa (mandato da conversa).
+- Rever a regra "provável é indício" na linha da pesquisa e a decisão de deixar a UF do pedido valer por cima da pesquisa.
+- Rever a visibilidade dos avisos contra `situacaoDaEmpresa`.
+- Rever o corte por `empresa_id >= última lida`: é conservador e também tira das lacunas a última empresa, mesmo quando ela foi lida inteira.
+
+STATUS: AGUARDANDO REVIEW
