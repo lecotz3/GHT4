@@ -880,3 +880,154 @@ test('setores-alvo na tese: recorte só quando inequívoco; negação e alternat
   assert.equal(Filtros.safeParse({ subsetor: 'Petroquímica básica e intermediários' }).success, false);
   assert.equal(Filtros.parse({}).subsetor, undefined, 'sem padrão: a ausência marca a pesquisa antiga');
 });
+
+test('nova rodada: copia os critérios; com opcionais, já os recebe opcionais; id repetido devolve a mesma rodada', async (t) => {
+  const { chamar } = await preparar(t);
+  const id = await pesquisaPronta(chamar);
+  const origem = (await chamar('GET', `/api/pesquisas/${id}`)).json().pesquisa;
+  const obrigatorio = origem.criterios.find((c) => c.tipo === 'cadastro' && c.obrigatorio);
+
+  const comum = await chamar('POST', `/api/pesquisas/${id}/ajustar`, { id: randomUUID() });
+  assert.equal(comum.statusCode, 201, comum.body);
+  assert.deepEqual(comum.json().pesquisa.criterios, origem.criterios, 'sem opcionais, a rodada nova repete os critérios');
+  assert.equal(comum.json().pesquisa.estado, 'rascunho');
+
+  const novo = randomUUID();
+  const relaxada = await chamar('POST', `/api/pesquisas/${id}/ajustar`, { id: novo, opcionais: [obrigatorio.id] });
+  assert.equal(relaxada.statusCode, 201, relaxada.body);
+  const criterios = relaxada.json().pesquisa.criterios;
+  assert.equal(criterios.find((c) => c.id === obrigatorio.id).obrigatorio, false);
+  assert.deepEqual(criterios.filter((c) => c.id !== obrigatorio.id), origem.criterios.filter((c) => c.id !== obrigatorio.id), 'só o peso do escolhido muda');
+  assert.equal(relaxada.json().pesquisa.anterior_id, id);
+  // Repetição do envio: a mesma rodada, sem criar outra.
+  const repetida = await chamar('POST', `/api/pesquisas/${id}/ajustar`, { id: novo, opcionais: [obrigatorio.id] });
+  assert.equal(repetida.json().pesquisa.id, novo);
+  assert.equal((await chamar('POST', `/api/pesquisas/${id}/ajustar`, { id: randomUUID(), opcionais: ['inexistente'] })).statusCode, 422);
+  // A rodada anterior não muda.
+  assert.deepEqual((await chamar('GET', `/api/pesquisas/${id}`)).json().pesquisa.criterios, origem.criterios);
+});
+
+test('memória do membro: lembra os critérios ao iniciar, é pessoal, pausável e apagável, e ignora mandato confidencial', async (t) => {
+  const { chamar, entrar, db } = await preparar(t);
+  assert.deepEqual((await chamar('GET', '/api/memoria')).json(), { ativa: true, criterios: [] });
+  // Rascunho não alimenta a memória: só o que a pessoa confirmou ao iniciar.
+  await chamar('POST', '/api/pesquisas', { id: randomUUID(), tese: 'Distribuidoras com mais de 20 anos que atendam o agronegócio' });
+  assert.equal((await chamar('GET', '/api/memoria')).json().criterios.length, 0);
+
+  await pesquisaPronta(chamar);
+  const m1 = (await chamar('GET', '/api/memoria')).json();
+  assert.equal(m1.criterios.length, 3);
+  assert.ok(m1.criterios.every((c) => c.usos === 1 && /^[a-f0-9]{32}$/.test(c.chave) && !('id' in c) && !('trecho' in c)));
+  await pesquisaPronta(chamar);
+  assert.ok((await chamar('GET', '/api/memoria')).json().criterios.every((c) => c.usos === 2), 'o mesmo critério soma usos, não duplica');
+
+  // Pausada: não grava, e não apaga o que já havia.
+  assert.equal((await chamar('PUT', '/api/memoria', { ativa: false })).json().ativa, false);
+  await pesquisaPronta(chamar);
+  assert.ok((await chamar('GET', '/api/memoria')).json().criterios.every((c) => c.usos === 2));
+  await chamar('PUT', '/api/memoria', { ativa: true });
+
+  // Pessoal: outra pessoa não vê.
+  const outra = await entrar('outra@teste.local', 'analista');
+  assert.deepEqual((await outra('GET', '/api/memoria')).json().criterios, []);
+  assert.equal((await outra('DELETE', `/api/memoria/criterios/${m1.criterios[0].chave}`)).statusCode, 404);
+
+  // Mandato confidencial não alimenta a memória.
+  const mandato = await criarMandato(db, { codigo: 'CONF-1', confidencial: true });
+  const { id: uid } = (await db.query("SELECT id FROM usuarios WHERE email='analista@teste.local'")).rows[0];
+  await darAcesso(db, mandato.id, uid);
+  const sigilo = randomUUID();
+  const { pesquisa } = (await chamar('POST', '/api/pesquisas', { id: sigilo, mandatoId: mandato.id, tese: 'Distribuidoras com filiais que representem a fabricante sigilosa' })).json();
+  assert.equal((await chamar('POST', `/api/pesquisas/${sigilo}/iniciar`, { versao: pesquisa.versao })).statusCode, 200);
+  assert.ok(!(await chamar('GET', '/api/memoria')).json().criterios.some((c) => /sigilosa/.test(c.texto)));
+
+  // Esquecer um e apagar tudo; a auditoria guarda só a contagem.
+  const esquecido = m1.criterios[0].chave;
+  assert.ok(!(await chamar('DELETE', `/api/memoria/criterios/${esquecido}`)).json().criterios.some((c) => c.chave === esquecido));
+  assert.equal((await chamar('DELETE', `/api/memoria/criterios/${esquecido}`)).statusCode, 404);
+  assert.deepEqual((await chamar('DELETE', '/api/memoria/criterios')).json().criterios, []);
+  const trilha = (await db.query("SELECT acao, depois FROM auditoria WHERE entidade='memoria' ORDER BY id")).rows;
+  assert.deepEqual(trilha.map((r) => r.acao), ['pausar_memoria', 'retomar_memoria', 'esquecer_criterio', 'apagar_memoria']);
+  assert.ok(trilha.every((r) => !JSON.stringify(r.depois).includes('anos')), 'texto de critério não vai para a trilha imutável');
+});
+
+test('revisão humana: só em empresa revisada, travada, versionada, desfazível e levada à entrega', async (t) => {
+  const { chamar, entrar, db } = await preparar(t);
+  const id = await pesquisaPronta(chamar);
+  const { pesquisa } = (await chamar('GET', `/api/pesquisas/${id}`)).json();
+  const site = pesquisa.criterios.findIndex((c) => c.tipo === 'pesquisa');
+  const pedido = (o = {}) => ({ criterioId: pesquisa.criterios[site].id, veredito: 'atende', justificativa: 'Confirmado em reunião com o diretor comercial em 05/10.',
+    fonte: { descricao: 'Ata da reunião de 05/10', url: 'https://exemplo.com.br/ata' }, anterior: { veredito: 'indeterminado', lastro: 'site' }, ...o });
+  const delta = 'cnpj44444444';
+  // Na fila: a revisão automática ainda vai passar por ela, então a humana espera.
+  const cedo = await chamar('POST', `/api/pesquisas/${id}/itens/${delta}/revisao`, pedido({ anterior: { veredito: 'indeterminado', lastro: 'pendente' } }));
+  assert.equal(cedo.statusCode, 409); assert.equal(cedo.json().erro, 'item_nao_revisado');
+
+  await chamar('POST', `/api/pesquisas/${id}/avancar`, { quantidade: 5 });
+  const antes = (await chamar('GET', `/api/pesquisas/${id}/itens/${delta}`)).json();
+  assert.equal(antes.item.categoria, 'a_confirmar', 'sem site no cadastro: falta evidência');
+  assert.deepEqual(antes.revisoes, []);
+
+  const feita = await chamar('POST', `/api/pesquisas/${id}/itens/${delta}/revisao`, pedido());
+  assert.equal(feita.statusCode, 200, feita.body);
+  const v = feita.json().item.vereditos[site];
+  assert.equal(v.lastro, 'humano'); assert.equal(v.veredito, 'atende'); assert.equal(v.revisao.autor.nome, 'Fulano de Teste');
+  assert.equal(v.automatico.lastro, 'site', 'o automático fica guardado para desfazer');
+  assert.equal(feita.json().item.categoria, 'aderente');
+  assert.deepEqual(feita.json().revisoes.map((r) => r.acao), ['revisar']);
+  assert.equal((await chamar('GET', `/api/pesquisas/${id}`)).json().contagens.aderente >= 1, true);
+  // O que a tela mostrava mudou: recusa em vez de sobrescrever.
+  assert.equal((await chamar('POST', `/api/pesquisas/${id}/itens/${delta}/revisao`, pedido({ veredito: 'nao_atende' }))).json().erro, 'veredito_atualizado');
+  // Travada: avançar de novo não toca a empresa revisada.
+  await chamar('POST', `/api/pesquisas/${id}/avancar`, { quantidade: 5 });
+  assert.equal((await chamar('GET', `/api/pesquisas/${id}/itens/${delta}`)).json().item.vereditos[site].lastro, 'humano');
+  // Outra pessoa não alcança.
+  const outra = await entrar('outra@teste.local', 'analista');
+  assert.equal((await outra('POST', `/api/pesquisas/${id}/itens/${delta}/revisao/desfazer`, { criterioId: pesquisa.criterios[site].id })).statusCode, 404);
+
+  const desfeita = (await chamar('POST', `/api/pesquisas/${id}/itens/${delta}/revisao/desfazer`, { criterioId: pesquisa.criterios[site].id })).json();
+  assert.equal(desfeita.item.vereditos[site].lastro, 'site'); assert.equal(desfeita.item.categoria, 'a_confirmar');
+  assert.deepEqual(desfeita.revisoes.map((r) => r.acao), ['desfazer', 'revisar']);
+  assert.equal((await chamar('POST', `/api/pesquisas/${id}/itens/${delta}/revisao/desfazer`, { criterioId: pesquisa.criterios[site].id })).json().erro, 'sem_revisao_humana');
+  await assert.rejects(db.query("UPDATE pesquisa_revisoes SET acao='revisar'"), /append-only/);
+
+  // De novo, e a entrega leva a decisão da equipe e a fonte informada.
+  await chamar('POST', `/api/pesquisas/${id}/itens/${delta}/revisao`, pedido());
+  const entrega = (await chamar('POST', `/api/pesquisas/${id}/registrar`, { chave: randomUUID(), empresas: [delta] })).json();
+  const resultado = (await db.query('SELECT resultado FROM agente_turnos WHERE id=$1', [entrega.turno.id])).rows[0].resultado;
+  assert.ok(resultado.blocos.find((b) => b.titulo === 'Decisões da equipe').itens[0].includes('confirmado por Fulano de Teste'));
+  assert.ok(resultado.fontes.some((f) => f.titulo.startsWith('Fonte da revisão humana') && f.url === 'https://exemplo.com.br/ata'));
+  const trilha = (await db.query("SELECT acao, justificativa FROM auditoria WHERE entidade='pesquisa_item' ORDER BY id")).rows;
+  assert.deepEqual(trilha.map((r) => r.acao), ['revisar_veredito', 'desfazer_revisao', 'revisar_veredito']);
+  assert.match(trilha[0].justificativa, /reunião com o diretor/);
+});
+
+test('registro da execução: cada passo vira evento tipado, lido por cursor, só pelo dono e sem trecho de site', async (t) => {
+  const { chamar, entrar, db } = await preparar(t);
+  const id = await pesquisaPronta(chamar, 1);
+  await chamar('POST', `/api/pesquisas/${id}/avancar`, { quantidade: 5 });
+  const tudo = (await chamar('GET', `/api/pesquisas/${id}/eventos`)).json();
+  const tipos = tudo.eventos.map((e) => e.tipo);
+  assert.deepEqual(tipos.slice(0, 3), ['criterios', 'funil', 'retomada']);
+  assert.ok(tipos.includes('lote'));
+  assert.equal(tipos.at(-1), 'conclusao', 'meta 1 atingida: a conclusão fecha o registro');
+  const funil = tudo.eventos.find((e) => e.tipo === 'funil');
+  assert.equal(funil.dados.aprovadasCadastro, 2); assert.equal(funil.ator, 'agente');
+  const lote = tudo.eventos.find((e) => e.tipo === 'lote');
+  assert.ok(lote.dados.empresas[0].nome && lote.dados.empresas[0].categoria);
+  assert.ok(!JSON.stringify(tudo).includes('distribuidores autorizados'), 'trecho do site não entra no registro');
+  assert.equal(tudo.eventos.find((e) => e.tipo === 'retomada').autor, 'Fulano de Teste');
+  // Cursor: depois do último, nada; uma ação nova aparece sozinha.
+  assert.deepEqual((await chamar('GET', `/api/pesquisas/${id}/eventos?apos=${tudo.ultimo}`)).json(), { eventos: [], ultimo: tudo.ultimo });
+  await chamar('PUT', `/api/pesquisas/${id}/monitoramento`, { ativo: true });
+  const novos = (await chamar('GET', `/api/pesquisas/${id}/eventos?apos=${tudo.ultimo}`)).json();
+  assert.deepEqual(novos.eventos.map((e) => [e.tipo, e.dados.ativo, e.ator]), [['monitoramento', true, 'pessoa']]);
+  // Nova rodada: evento na anterior e "critérios" na nova, com a origem.
+  const nova = randomUUID();
+  await chamar('POST', `/api/pesquisas/${id}/ajustar`, { id: nova });
+  assert.equal((await chamar('GET', `/api/pesquisas/${id}/eventos?apos=${novos.ultimo}`)).json().eventos[0].tipo, 'ajuste');
+  assert.equal((await chamar('GET', `/api/pesquisas/${nova}/eventos`)).json().eventos[0].dados.origem, 'ajuste');
+  const outra = await entrar('outra@teste.local', 'analista');
+  assert.equal((await outra('GET', `/api/pesquisas/${id}/eventos`)).statusCode, 404);
+  await assert.rejects(db.query('DELETE FROM pesquisa_eventos'), /append-only/);
+});

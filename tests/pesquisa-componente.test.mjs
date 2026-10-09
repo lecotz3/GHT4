@@ -238,3 +238,115 @@ test('componente: pede a lista leve; 401 no item vai ao login; lote com a empres
     assert.match(detalhe().textContent, /distribuidor autorizado de multinacionais/);
   } finally { await t.desmontar(); }
 });
+
+test('componente: rascunho restritivo sugere relaxar, e a memória acrescenta critério com um clique', async () => {
+  const A = det('a0000000-0000-4000-8000-0000000000aa', 'Tese A restritiva');
+  const memoria = { ativa: true, criterios: [{ chave: 'f'.repeat(32), texto: 'Laboratório próprio', tipo: 'pesquisa', regra: null, obrigatorio: true, usos: 4, ultimoUso: '2026-10-01T00:00:00Z' }] };
+  const pedidos = servidor([
+    { metodo: 'GET', url: /\/api\/pesquisas$/, dados: () => ({ pesquisas: [resumo(A)], ia: null }) },
+    { metodo: 'GET', url: new RegExp(`${A.pesquisa.id}$`), dados: () => A },
+    { metodo: 'GET', url: /\/api\/memoria$/, dados: () => memoria },
+    { metodo: 'POST', url: /\/previa$/, dados: () => ({ funil: { recorte: 40, avaliadas: 40, truncado: false, semAtributos: 0, eliminadas: 37, eliminadasPor: { c1: 30 }, exclusivas: { c1: 30 }, aprovadasCadastro: 3, comSite: 3, armazenadas: 3 }, referencia: '2026-08', amostra: [] }) },
+  ]);
+  const t = await montar({ pesquisaId: A.pesquisa.id });
+  for (let i = 0; i < 6; i++) await esperar();
+  await new Promise((r) => setTimeout(r, 400)); // prévia com debounce
+  await esperar();
+  const texto = () => document.body.textContent;
+  assert.match(texto(), /Só 3 empresas passam no cadastro para uma meta de 20/);
+  assert.match(texto(), /Opcional, recupera 30 empresas · 33 no cadastro · alcança a meta/);
+  await clicar(botao(/^Tornar opcional$/));
+  const c1 = [...document.querySelectorAll('.pesquisa-lista-criterios li')].find((li) => /Mais de 20 anos/.test(li.textContent));
+  assert.equal(c1.querySelector('button[aria-pressed="true"]').textContent, 'Opcional', 'o relaxamento só muda o peso, no rascunho');
+  // Memória: o chip acrescenta o critério, marcado como vindo dela; não entra sozinho.
+  assert.equal([...document.querySelectorAll('.pesquisa-lista-criterios li')].length, 2);
+  await clicar(botao(/^Laboratório próprio/));
+  const lab = [...document.querySelectorAll('.pesquisa-lista-criterios li')].find((li) => /Laboratório próprio/.test(li.textContent));
+  assert.ok(lab, 'critério da memória entrou na lista');
+  assert.match(lab.textContent, /da sua memória/);
+  assert.ok(!botao(/^Laboratório próprio/), 'a sugestão some depois de usada');
+  assert.ok(pedidos.some((p) => p.url.endsWith('/api/memoria')));
+  await t.desmontar();
+});
+
+test('componente: revisão humana de um veredito envia o que a tela mostrava, mostra a trava e relê a pesquisa', async () => {
+  const { dom } = await import('./apoio/dom.mjs');
+  const digitar = (el, valor) => React.act(async () => {
+    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set.call(el, valor);
+    el.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  });
+  const FUNIL = { recorte: 1, avaliadas: 1, truncado: false, semAtributos: 0, eliminadas: 0, eliminadasPor: {}, exclusivas: {}, aprovadasCadastro: 1, comSite: 1, armazenadas: 1 };
+  const base = { empresa_id: 'cnpj11111111', ordem: 1, etapa: 'revisada', aderencia: 80, categoria: 'provavel', site: { dominio: 'alfa.com.br', estado: 'lido', identidade: 'cnpj', motivo: null },
+    empresa: { id: 'cnpj11111111', nome: 'Empresa Alfa', razaoSocial: 'Alfa Ltda', cidade: 'Campinas', uf: 'SP', cnpjRaiz: '11111111', cnaePrincipal: '4684299', dominio: 'alfa.com.br', porte: null, capitalSocial: null, dataAbertura: null } };
+  const auto = { veredito: 'indicio', resumo: 'Cita multinacionais', lastro: 'site', justificativa: 'Termos encontrados juntos.', evidencias: [] };
+  const cheio = { ...base, vereditos: [{ veredito: 'atende', resumo: 'Fundada em 1990', lastro: 'cadastro', evidencias: [{ fonte: 'Receita Federal · CNPJ', referencia: '2026-08' }] }, auto] };
+  const humano = { veredito: 'nao_atende', resumo: 'Contestado pela equipe', lastro: 'humano', justificativa: 'Representa só fabricantes nacionais, segundo o diretor.', evidencias: [],
+    revisao: { autor: { id: 'u', nome: 'Ana' }, em: '2026-10-08T12:00:00Z' }, automatico: auto };
+  const A = det('a0000000-0000-4000-8000-0000000000bb', 'Tese A revisão', { estado: 'pausada', funil: FUNIL, provavel: 1 });
+  A.contagens = { ...A.contagens, revisadas: 1, pendentes: 0 };
+  A.itens = [{ ...base, resumido: true, vereditos: [{ veredito: 'atende', resumo: 'Fundada em 1990', lastro: 'cadastro' }, { veredito: 'indicio', resumo: 'Cita multinacionais', lastro: 'site' }] }];
+  const pedidos = servidor([
+    { metodo: 'GET', url: /\/api\/pesquisas$/, dados: () => ({ pesquisas: [resumo(A)], ia: null }) },
+    { metodo: 'GET', url: new RegExp(`${A.pesquisa.id}$`), dados: () => A },
+    { metodo: 'GET', url: /\/itens\/cnpj\d{8}$/, dados: () => ({ item: cheio, revisoes: [] }) },
+    { metodo: 'POST', url: /\/revisao$/, segurar: true },
+  ]);
+  const t = await montar({ pesquisaId: A.pesquisa.id });
+  try {
+    await esperar();
+    await clicar(botao(/Empresa Alfa/));
+    await esperar();
+    await clicar(botao(/^Revisar: Representa multinacionais/));
+    const form = document.querySelector('.pesquisa-revisao-form');
+    assert.ok(form, 'formulário aberto');
+    assert.ok(botao(/^Salvar decisão$/).disabled, 'sem justificativa não salva');
+    await clicar(form.querySelector('input[value="nao_atende"]'));
+    await digitar(form.querySelector('textarea'), 'Representa só fabricantes nacionais, segundo o diretor.');
+    const gets = () => pedidos.filter((p) => p.metodo === 'GET' && p.url.endsWith(A.pesquisa.id)).length;
+    const antes = gets();
+    await clicar(botao(/^Salvar decisão$/));
+    const post = pedidos.find((p) => p.url.endsWith('/revisao'));
+    assert.deepEqual(post.corpo, { criterioId: 'c2', veredito: 'nao_atende', justificativa: 'Representa só fabricantes nacionais, segundo o diretor.', anterior: { veredito: 'indicio', lastro: 'site' } });
+    await responder(post, { item: { ...cheio, categoria: 'nao_aderente', vereditos: [cheio.vereditos[0], humano] },
+      revisoes: [{ id: 1, criterioId: 'c2', acao: 'revisar', antes: auto, depois: humano, em: '2026-10-08T12:00:00Z', autor: 'Ana' }] });
+    await esperar();
+    const detalhe = document.querySelector('.pesquisa-detalhe').textContent;
+    assert.match(detalhe, /Revisão humana · Ana/);
+    assert.match(detalhe, /Travada: a revisão automática não altera/);
+    assert.match(detalhe, /Histórico de revisões humanas \(1\)/);
+    assert.ok(botao(/^Desfazer/), 'decisão humana pode ser desfeita');
+    assert.ok(gets() > antes, 'a pesquisa é relida para atualizar contagens e grupos');
+  } finally { await t.desmontar(); }
+});
+
+test('componente: "Chegar a quem decide" abre o plano de acesso da empresa, no contexto da pesquisa', async () => {
+  const FUNIL = { recorte: 1, avaliadas: 1, truncado: false, semAtributos: 0, eliminadas: 0, eliminadasPor: {}, exclusivas: {}, aprovadasCadastro: 1, comSite: 1, armazenadas: 1 };
+  const item = { empresa_id: 'cnpj11111111', ordem: 1, etapa: 'revisada', aderencia: 80, categoria: 'provavel', site: null,
+    empresa: { id: 'cnpj11111111', nome: 'Empresa Alfa', razaoSocial: 'Alfa Ltda', cidade: 'Campinas', uf: 'SP', cnpjRaiz: '11111111', cnaePrincipal: '4684299', dataAbertura: null },
+    vereditos: [{ veredito: 'atende', resumo: 'Fundada em 1990', lastro: 'cadastro' }, { veredito: 'indicio', resumo: 'Cita multinacionais', lastro: 'site' }] };
+  const A = det('a0000000-0000-4000-8000-0000000000dd', 'Tese A acesso', { estado: 'pausada', funil: FUNIL, provavel: 1 });
+  A.contagens = { ...A.contagens, revisadas: 1, pendentes: 0 };
+  A.itens = [item];
+  // O plano termina com o id da pesquisa na consulta: a regra dele vem antes da regra da pesquisa.
+  const pedidos = servidor([
+    { metodo: 'GET', url: /\/api\/acesso\/cnpj11111111\?pesquisaId=/, segurar: true },
+    { metodo: 'GET', url: /\/api\/pesquisas$/, dados: () => ({ pesquisas: [resumo(A)], ia: null }) },
+    { metodo: 'GET', url: new RegExp(`${A.pesquisa.id}$`), dados: () => A },
+  ]);
+  const t = await montar({ pesquisaId: A.pesquisa.id });
+  try {
+    await esperar();
+    await clicar(botao(/Empresa Alfa/));
+    await esperar();
+    assert.ok(!document.querySelector('.acesso'), 'o plano só abre a pedido');
+    await clicar(botao(/^Chegar a quem decide/));
+    const pedido = pedidos.find((p) => p.url.includes('/api/acesso/'));
+    assert.equal(pedido.url, `/api/acesso/cnpj11111111?pesquisaId=${encodeURIComponent(A.pesquisa.id)}`);
+    assert.match(document.querySelector('.acesso').textContent, /Montando o plano de acesso/);
+    // Responder o pedido em voo: um pedido pendente seguraria o processo até o prazo do cliente.
+    await responder(pedido, { erro: 'pessoa_inexistente', mensagem: 'Plano indisponível no teste.' }, 404);
+    assert.match(document.querySelector('.acesso').textContent, /Plano indisponível no teste/);
+    await clicar(botao(/^Fechar o plano de acesso/));
+    assert.ok(!document.querySelector('.acesso'));
+  } finally { await t.desmontar(); }
+});

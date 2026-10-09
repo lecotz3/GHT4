@@ -22,7 +22,7 @@ export interface ApiFluxos {
   iniciar(id: string, versao: number): Promise<DetalhePesquisa>
   avancar(id: string, quantidade: number, execucao?: number): Promise<DetalheLote>
   pausar(id: string, execucao?: number): Promise<DetalhePesquisa>
-  ajustar(id: string, novo: string): Promise<DetalhePesquisa>
+  ajustar(id: string, novo: string, opcionais?: string[]): Promise<DetalhePesquisa>
   registrar(id: string, chave: string, empresas: string[]): Promise<{ conversa: { id: string } }>
   itens(id: string, grupo: Categoria, offset: number, marca?: string): Promise<RespostaItens>
 }
@@ -61,7 +61,7 @@ export function criarFluxos(api: ApiFluxos, ef: EfeitosFluxos, { uuid = () => cr
   let abrindo: number | null = null
   let parar = false
   let envioCriar: { id: string; tese: string } | null = null
-  let envioAjuste: { origem: string; id: string } | null = null
+  let envioAjuste: { origem: string; assinatura: string; id: string } | null = null
   let envioRegistro: { corpo: string; chave: string } | null = null
   let paginas = paginasVazias()
   let pedidos = 0
@@ -180,6 +180,14 @@ export function criarFluxos(api: ApiFluxos, ef: EfeitosFluxos, { uuid = () => cr
     } catch (e) { if (tela.vigente(g)) ef.erro(e) } finally { if (tela.vigente(g)) ef.ocupado(false) }
   }
 
+  /** Relê a pesquisa exibida sem trocar de tela (contagens e grupos depois de uma revisão humana). */
+  async function recarregar(d: DetalhePesquisa) {
+    if (!exibida(d)) return
+    const g = tela.observar()
+    try { const n = await api.obter(d.pesquisa.id); if (tela.vigente(g)) aplicar(n) }
+    catch (e) { if (tela.vigente(g)) ef.erro(e) }
+  }
+
   async function ajustarLimites(d: DetalhePesquisa, campos: { meta?: number; limiteWeb?: number }) {
     if (!exibida(d)) return
     const g = tela.observar()
@@ -187,16 +195,19 @@ export function criarFluxos(api: ApiFluxos, ef: EfeitosFluxos, { uuid = () => cr
     catch (e) { if (tela.vigente(g)) ef.erro(e) }
   }
 
-  async function ajustar(d: DetalhePesquisa) {
+  /** `opcionais`: critérios que a nova rodada recebe como opcionais (sugestão de relaxamento aceita). */
+  async function ajustar(d: DetalhePesquisa, opcionais: string[] = []) {
     if (!exibida(d)) return
     const id = d.pesquisa.id
     ef.ocupado(true)
-    if (envioAjuste?.origem !== id) envioAjuste = { origem: id, id: uuid() }
+    // A chave de idempotência vale para a mesma origem E os mesmos opcionais: outro pedido, outra chave.
+    const assinatura = [...opcionais].sort().join(',')
+    if (envioAjuste?.origem !== id || envioAjuste.assinatura !== assinatura) envioAjuste = { origem: id, assinatura, id: uuid() }
     const meu = envioAjuste
     // A vigência é tomada ao pedir: se outra pesquisa abrir durante o pedido, a nova rodada fica só no histórico.
     const g = tela.tomar()
     try {
-      const n = await api.ajustar(id, meu.id)
+      const n = opcionais.length ? await api.ajustar(id, meu.id, opcionais) : await api.ajustar(id, meu.id)
       if (envioAjuste === meu) envioAjuste = null
       ef.recarregarLista()
       if (!tela.vigente(g)) return
@@ -249,7 +260,7 @@ export function criarFluxos(api: ApiFluxos, ef: EfeitosFluxos, { uuid = () => cr
   }
 
   return {
-    aplicar, esvaziar, abrir, montar, revisar, iniciar, ajustarLimites, ajustar, registrar, mostrarMais,
+    aplicar, esvaziar, abrir, montar, revisar, iniciar, recarregar, ajustarLimites, ajustar, registrar, mostrarMais,
     /** Botão Pausar: decisão humana; o laço pausa a execução ao terminar o lote em curso. */
     pausar: () => { parar = true },
     /** Componente desmontado: o laço perde a vigência e faz só a pausa automática com ficha. */

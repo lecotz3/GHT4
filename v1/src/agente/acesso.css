@@ -1,0 +1,92 @@
+/* Plano de acesso a quem decide (componentes/PlanoAcesso.tsx). Mesmos tokens da pesquisa por tese. */
+.acesso { margin-top: 16px; border: 1px solid var(--color-fio); border-radius: 14px; background: white; padding: 14px 16px 16px; display: grid; gap: 12px; }
+.acesso-cabeca { display: flex; gap: 10px; align-items: center; }
+.acesso-cabeca h4 { font-size: 14px; font-weight: 650; color: var(--color-tinta); }
+.acesso-cabeca p { font-size: 11px; color: var(--color-suave); }
+.acesso-icone { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--color-comprador-fundo); color: var(--color-comprador); flex: none; }
+.acesso-icone svg { width: 16px; height: 16px; }
+
+.acesso-passo { border-radius: 12px; padding: 10px 14px; background: var(--color-comprador-fundo); border: 1px solid var(--color-comprador-fio); font-size: 12px; line-height: 1.6; color: var(--color-tinta-2); }
+.acesso-passo.nao_contatar { background: var(--color-alerta-fundo); border-color: var(--color-alerta-fio); }
+.acesso-passo-rotulo { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--color-suave); }
+.acesso-passo-titulo { font-size: 13px; font-weight: 650; color: var(--color-tinta); }
+.acesso-rascunhos { display: grid; gap: 10px; margin-top: 10px; }
+.acesso-rascunho { display: grid; gap: 4px; }
+.acesso-rascunho label { font-weight: 600; font-size: 11px; }
+.acesso-rascunho textarea { font-size: 12px; line-height: 1.55; padding: 8px 10px; resize: vertical; background: white; }
+.acesso-rascunho button { justify-self: start; }
+.acesso-passo-alerta { display: flex; gap: 6px; align-items: flex-start; margin: 4px 0; color: var(--color-alerta); font-weight: 600; }
+.acesso-passo-alerta svg { width: 14px; height: 14px; margin-top: 3px; flex: none; }
+.acesso-sancoes { display: grid; gap: 6px; font-size: 12px; line-height: 1.5; }
+.acesso-sancoes li { border-left: 3px solid var(--color-fio-forte); padding-left: 10px; }
+.acesso-sancoes li.vigente, .acesso-sancoes li.sem_data_final { border-left-color: var(--color-alerta); }
+.acesso-sancoes small { display: block; font-size: 11px; color: var(--color-suave); }
+.acesso-regras { display: grid; gap: 2px; font-size: 11px; color: var(--color-suave); list-style: disc; padding-left: 18px; }
+
+.acesso-blocos { display: grid; gap: 14px; }
+.acesso-blocos > section { display: grid; gap: 6px; }
+.acesso-blocos h5 { display: flex; gap: 8px; align-items: center; font-size: 12px; font-weight: 650; color: var(--color-tinta); }
+.acesso-blocos h5 span { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--color-papel-2); font-size: 10px; color: var(--color-tinta-2); }
+.acesso-leitura { font-size: 12px; line-height: 1.6; color: var(--color-tinta-2); }
+.acesso-sinal { display: flex; gap: 6px; align-items: flex-start; font-size: 11px; line-height: 1.5; color: var(--color-alvo-tinta); }
+.acesso-sinal svg { width: 13px; height: 13px; margin-top: 2px; flex: none; }
+
+.acesso-pessoas { display: grid; gap: 10px; }
+.acesso-pessoa { border: 1px solid var(--color-fio); border-radius: 12px; padding: 10px 12px; display: grid; gap: 8px; }
+.acesso-pessoa-cabeca { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.acesso-pessoa-cabeca b { font-size: 13px; }
+.acesso-pessoa-cabeca small { display: block; font-size: 11px; color: var(--color-suave); }
+.acesso-posicao { font-size: 10px; font-weight: 600; border-radius: 999px; padding: 2px 9px; white-space: nowrap; background: var(--color-papel-2); color: var(--color-tinta-2); }
+.acesso-posicao.decide { background: #e6f5ec; color: #1f6b43; }
+.acesso-posicao.influencia { background: var(--color-comprador-fundo); color: var(--color-comprador); }
+
+.acesso-juizo { display: grid; font-size: 11px; line-height: 1.45; min-width: 0; }
+.acesso-juizo-linha { display: grid; grid-template-columns: minmax(118px, 1fr) minmax(104px, auto) minmax(0, 2fr) minmax(0, 1.6fr); gap: 4px 12px; padding: 6px 2px; border-top: 1px solid var(--color-fio); }
+.acesso-juizo-linha > * { min-width: 0; overflow-wrap: anywhere; }
+.acesso-juizo-titulos { border-top: 0; padding-top: 0; font-weight: 600; color: var(--color-suave); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+.acesso-juizo-requisito { font-weight: 600; color: var(--color-tinta); }
+.acesso-juizo-fonte { color: var(--color-suave); }
+.acesso-julgamento { display: inline-flex; gap: 4px; align-items: center; border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
+.acesso-julgamento svg { width: 12px; height: 12px; stroke-width: 2.2; }
+.acesso-julgamento.atende { background: #e6f5ec; color: #1f6b43; }
+.acesso-julgamento.indicio { background: var(--color-comprador-fundo); color: var(--color-comprador); }
+.acesso-julgamento.indeterminado { background: var(--color-papel-2); color: var(--color-suave); }
+.acesso-julgamento.nao_atende { background: var(--color-alerta-fundo); color: var(--color-alerta); }
+
+.acesso-pergunta { display: grid; gap: 6px; font-size: 12px; }
+.acesso-pergunta > p { font-weight: 600; }
+.acesso-respostas { display: flex; flex-wrap: wrap; gap: 6px; }
+.acesso-respostas button { min-height: 32px; padding: 5px 11px; font-size: 12px; }
+.acesso-evidencia { display: grid; gap: 6px; }
+.acesso-evidencia label { font-size: 11px; }
+.acesso-evidencia button { justify-self: start; min-height: 32px; padding: 5px 12px; font-size: 12px; }
+
+.acesso-registrar { border: 1px dashed var(--color-fio-forte); border-radius: 12px; padding: 8px 12px; font-size: 12px; }
+.acesso-registrar summary { cursor: pointer; font-weight: 600; color: var(--color-comprador); }
+.acesso-registrar form { display: grid; gap: 8px; margin-top: 10px; }
+.acesso-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px 12px; }
+.acesso-campos label { display: grid; gap: 3px; font-size: 11px; font-weight: 600; }
+.acesso-campo-largo { grid-column: 1 / -1; }
+.acesso-registrar button { justify-self: start; }
+
+.acesso-caminhos, .acesso-canais, .acesso-oportunidades { display: grid; gap: 8px; font-size: 12px; line-height: 1.5; }
+.acesso-caminhos small, .acesso-canais small, .acesso-oportunidades small { display: block; font-size: 11px; color: var(--color-suave); }
+.acesso-caminhos ul { list-style: disc; padding-left: 18px; font-size: 11px; color: var(--color-alvo-tinta); }
+.acesso-canais a { display: inline-flex; gap: 5px; align-items: center; }
+.acesso-canais a svg { width: 12px; height: 12px; }
+
+.acesso-limites { font-size: 11px; color: var(--color-suave); }
+.acesso-limites summary { cursor: pointer; }
+.acesso-limites ul { list-style: disc; padding-left: 18px; margin-top: 4px; display: grid; gap: 2px; }
+
+/* O plano mora dentro do detalhe da pesquisa, que espaça as próprias listas; aqui o espaço é o do grid. */
+.acesso :is(ul, ol) { margin-top: 0; }
+.acesso, .acesso-blocos > section, .acesso-pessoa, .acesso-pessoa-cabeca > div, .acesso-passo { min-width: 0; }
+.acesso :is(p, small, b, a, li) { overflow-wrap: anywhere; }
+
+@media (max-width: 640px) {
+  .acesso { padding: 12px; }
+  .acesso-juizo-titulos { display: none; }
+  .acesso-juizo-linha { grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; }
+  .acesso-juizo-info, .acesso-juizo-fonte { grid-column: 1 / -1; }
+}

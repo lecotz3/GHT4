@@ -23,6 +23,13 @@ export async function montar(elemento) {
   };
 }
 
+/* Rotas acessórias que toda tela da pesquisa chama (memória do membro, registro da execução, verificação dos
+   monitoramentos vencidos): respondem vazio, salvo regra própria do teste, para que um pedido sem regra não fique
+   pendente (e não segure o processo até o prazo de 100 s do cliente). */
+const PADRAO = [{ metodo: 'GET', url: /\/api\/memoria$/, dados: () => ({ ativa: true, criterios: [] }) },
+  { metodo: 'GET', url: /\/eventos\?apos=\d+$/, dados: () => ({ eventos: [], ultimo: 0 }) },
+  { metodo: 'POST', url: /\/api\/monitoramentos\/verificar$/, dados: () => ({ verificados: 0, falhas: 0, emFalha: 0, emAndamento: 0, proximaTentativa: null }) }];
+
 /** fetch em que cada pedido espera a decisão do teste, ou responde na hora por regra. */
 export function servidor(regras) {
   const pedidos = [];
@@ -30,7 +37,7 @@ export function servidor(regras) {
     const p = { url: String(url), metodo: o.method ?? 'GET', corpo: o.body ? JSON.parse(o.body) : undefined, cabecalhos: o.headers ?? {},
       responder: (dados, status = 200) => resolve(new Response(JSON.stringify(dados), { status, headers: { 'content-type': 'application/json' } })) };
     pedidos.push(p);
-    const regra = regras.find((r) => r.metodo === p.metodo && r.url.test(p.url));
+    const regra = [...regras, ...PADRAO].find((r) => r.metodo === p.metodo && r.url.test(p.url));
     if (regra && !regra.segurar) p.responder(regra.dados(p), regra.status?.(p) ?? 200);
   });
   return pedidos;

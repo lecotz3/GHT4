@@ -11,6 +11,9 @@ import { z } from 'zod';
 import { ErroHttp } from '../app.mjs';
 import { registrar } from '../auditoria/registrar.mjs';
 import { criarMotorPesquisa, Filtros, ListaCriterios, ordenarItens } from '../pesquisa/motor.mjs';
+import { lembrarCriterios } from '../pesquisa/memoria.mjs';
+import { registrarEvento, lerEventos } from '../pesquisa/eventos.mjs';
+import { PedidoRevisao, ConflitoRevisao, revisarVeredito, desfazerRevisao, revisoesDoItem } from '../pesquisa/revisao.mjs';
 import { definirMonitoramento, verificarVencidos, situacaoFalhas, coberturaDe, publico as monitoramentoPublico } from '../pesquisa/monitoramento.mjs';
 
 const Id = z.string().uuid();
@@ -30,7 +33,17 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     if (!p) throw new ErroHttp(404, 'pesquisa_inexistente', 'Pesquisa não encontrada.');
     const c = (await tx.query('SELECT id,mandato_id,titulo FROM agente_conversas WHERE id=$1', [p.conversa_id])).rows[0];
     if (c.mandato_id) await req.exigirNoMandato(c.mandato_id, permissao);
+    await barrarConfidencial(req, c.mandato_id, tx);
     return { pesquisa: p, conversa: c, usuario: u };
+  }
+  /* Canal externo (a ponte MCP de ferramentas/mcp-ght4.mjs): o membro usa a pesquisa de dentro de
+     outro cliente de IA, que a casa não controla. Mandato confidencial não sai por esse canal: nem
+     aparece na lista, nem é lido, criado ou rodado por ele. */
+  const canalExterno = (req) => req.headers['x-ght4-canal'] === 'mcp';
+  async function barrarConfidencial(req, mandatoId, tx = db) {
+    if (!mandatoId || !canalExterno(req)) return;
+    const m = (await tx.query('SELECT confidencial FROM mandatos WHERE id=$1', [mandatoId])).rows[0];
+    if (m?.confidencial !== false) throw new ErroHttp(403, 'canal_externo_confidencial', 'Pesquisas de mandato confidencial não saem por canal externo. Use a interface do GHT4.');
   }
   const contagens = async (id) => (await db.query(`SELECT etapa,categoria,count(*)::int n FROM pesquisa_itens WHERE pesquisa_id=$1 GROUP BY 1,2`, [id])).rows
     .reduce((acc, r) => { acc.total += r.n; if (r.etapa === 'revisada') { acc.revisadas += r.n; acc[r.categoria] += r.n; } else acc.pendentes += r.n; return acc; },
@@ -89,7 +102,8 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
         (SELECT count(*)::int FROM pesquisa_itens i WHERE i.pesquisa_id=p.id AND i.etapa='revisada' AND i.categoria IN ('aderente','provavel')) AS boas
       FROM pesquisas_tese p JOIN agente_conversas c ON c.id=p.conversa_id LEFT JOIN mandatos m ON m.id=c.mandato_id
       WHERE p.usuario_id=$1 AND (c.mandato_id IS NULL OR $2 OR m.confidencial=FALSE OR c.mandato_id=ANY($3::uuid[]))
-      ORDER BY p.atualizado_em DESC LIMIT 30`, [u.id, u.papel === 'admin', (u.mandatos ?? []).map((m) => m.id)])).rows;
+        AND (NOT $4 OR c.mandato_id IS NULL OR m.confidencial=FALSE)
+      ORDER BY p.atualizado_em DESC LIMIT 30`, [u.id, u.papel === 'admin', (u.mandatos ?? []).map((m) => m.id), canalExterno(req)])).rows;
     return { pesquisas, ia: servicoIA ? { provedor: servicoIA.status.provedor, modelo: servicoIA.status.modelo, gratuito: servicoIA.status.gratuito } : null };
   });
 
@@ -110,11 +124,13 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
       return detalhar(existente);
     }
     if (p.mandatoId) await req.exigirNoMandato(p.mandatoId, 'agente.usar');
+    await barrarConfidencial(req, p.mandatoId);
     let conversa;
     if (p.conversaId) {
       conversa = (await db.query('SELECT * FROM agente_conversas WHERE id=$1 AND usuario_id=$2', [p.conversaId, u.id])).rows[0];
       if (!conversa) throw new ErroHttp(404, 'trabalho_inexistente', 'Trabalho não encontrado.');
       if (conversa.mandato_id) await req.exigirNoMandato(conversa.mandato_id, 'agente.usar');
+      await barrarConfidencial(req, conversa.mandato_id);
     } else {
       const titulo = `Pesquisa · ${resumirTexto(p.tese, 100)}`;
       conversa = await db.transaction(async (tx) => {
@@ -148,6 +164,8 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
         depois: { criterios: criterios.length, modo: proposta.modo } });
       return r;
     });
+    await registrarEvento(db, { pesquisaId: p.id, tipo: 'criterios', usuarioId: u.id, dados: { total: criterios.length,
+      cadastro: criterios.filter((c) => c.tipo === 'cadastro').length, pesquisa: criterios.filter((c) => c.tipo === 'pesquisa').length, modo: proposta.modo } }, req.log);
     return res.status(201).send(await detalhar(pesquisa));
   });
 
@@ -194,6 +212,7 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     const m = await definirMonitoramento(db, { pesquisaId: pesquisa.id, usuarioId: pesquisa.usuario_id, ativo, aprovadas, cobertura });
     await registrar(db, { usuarioId: usuario.id, mandatoId: conversa.mandato_id, entidade: 'pesquisa_tese', entidadeId: pesquisa.id,
       acao: ativo ? 'monitorar' : 'parar_monitoramento', depois: { ativo } });
+    await registrarEvento(db, { pesquisaId: pesquisa.id, tipo: 'monitoramento', usuarioId: usuario.id, dados: { ativo } }, req.log);
     return { monitoramento: monitoramentoPublico(m) };
   });
 
@@ -230,13 +249,51 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     return { vistas: r.rows.length };
   });
 
+  /* Registro da execução por cursor: a tela pede só os eventos depois do último que já mostrou. */
+  app.get('/api/pesquisas/:id/eventos', async (req) => {
+    const q = z.object({ apos: z.coerce.number().int().min(0).default(0), limite: z.coerce.number().int().min(1).max(200).default(100) }).strict().parse(req.query);
+    const { pesquisa } = await carregar(req, req.params.id);
+    return lerEventos(db, pesquisa.id, q);
+  });
+
   /* Item completo (justificativas, trechos citados, páginas lidas), pedido ao abrir a empresa. */
   app.get('/api/pesquisas/:id/itens/:empresaId', async (req) => {
     const empresaId = z.string().regex(/^cnpj\d{8}$/).parse(req.params.empresaId);
     const { pesquisa } = await carregar(req, req.params.id);
     const item = (await db.query(`SELECT ${ITENS} FROM pesquisa_itens WHERE pesquisa_id=$1 AND empresa_id=$2`, [pesquisa.id, empresaId])).rows[0];
     if (!item) throw new ErroHttp(404, 'item_inexistente', 'Empresa não encontrada nesta pesquisa.');
-    return { item: semAtributos(item) };
+    return { item: semAtributos(item), revisoes: await revisoesDoItem(db, pesquisa.id, empresaId) };
+  });
+
+  /* Revisão humana de um veredito de empresa já revisada (ver pesquisa/revisao.mjs): confirmar,
+     contestar ou deixar em aberto, com justificativa; desfazer devolve o veredito automático.
+     Cada mudança vira versão em `pesquisa_revisoes` e registro na auditoria, na mesma transação. */
+  const STATUS_REVISAO = { item_inexistente: 404, criterio_inexistente: 422 };
+  const comoHttp = (e) => { throw e instanceof ConflitoRevisao ? new ErroHttp(STATUS_REVISAO[e.codigo] ?? 409, e.codigo, e.message) : e; };
+  async function aplicarRevisao(req, acao, executar) {
+    const empresaId = z.string().regex(/^cnpj\d{8}$/).parse(req.params.empresaId);
+    const { pesquisa, conversa, usuario } = await carregar(req, req.params.id, 'agente.usar');
+    const feito = await db.transaction(async (tx) => {
+      const r = await executar(tx, { pesquisa, empresaId, usuario }).catch(comoHttp);
+      await registrar(tx, { usuarioId: usuario.id, mandatoId: conversa.mandato_id, entidade: 'pesquisa_item', entidadeId: `${pesquisa.id}:${empresaId}`, acao,
+        antes: { veredito: r.antes?.veredito ?? null, lastro: r.antes?.lastro ?? null, categoria: r.categoriaAntes },
+        depois: { veredito: r.depois.veredito, lastro: r.depois.lastro ?? null, categoria: r.item.categoria }, justificativa: r.depois.lastro === 'humano' ? r.depois.justificativa : null });
+      return r;
+    });
+    // As duas rotas validam `criterioId` no corpo antes de chegar aqui.
+    const criterio = pesquisa.criterios.find((c) => c.id === req.body.criterioId);
+    await registrarEvento(db, { pesquisaId: pesquisa.id, tipo: 'revisao_humana', usuarioId: usuario.id, dados: { acao: acao === 'revisar_veredito' ? 'revisar' : 'desfazer',
+      empresa: feito.item.empresa.nome, criterio: criterio?.texto ?? null, veredito: feito.depois.veredito, categoria: feito.item.categoria } }, req.log);
+    const item = (await db.query(`SELECT ${ITENS} FROM pesquisa_itens WHERE pesquisa_id=$1 AND empresa_id=$2`, [pesquisa.id, empresaId])).rows[0];
+    return { item: semAtributos(item), revisoes: await revisoesDoItem(db, pesquisa.id, empresaId) };
+  }
+  app.post('/api/pesquisas/:id/itens/:empresaId/revisao', async (req) => {
+    const pedido = PedidoRevisao.parse(req.body);
+    return aplicarRevisao(req, 'revisar_veredito', (tx, c) => revisarVeredito(tx, { ...c, pedido }));
+  });
+  app.post('/api/pesquisas/:id/itens/:empresaId/revisao/desfazer', async (req) => {
+    const { criterioId } = z.object({ criterioId: z.string().regex(/^[a-z0-9_-]{1,40}$/) }).strict().parse(req.body);
+    return aplicarRevisao(req, 'desfazer_revisao', (tx, c) => desfazerRevisao(tx, { ...c, criterioId }));
   });
 
   /* Edição do rascunho: critérios, recorte, frente, meta e limite de pesquisas no site. */
@@ -278,9 +335,11 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     let r;
     try { r = await motor.calcular(pesquisa); }
     catch { throw new ErroHttp(503, 'base_indisponivel', 'A base de empresas não está disponível agora. Tente novamente.'); }
+    let iniciouAgora = false;
     const nova = await db.transaction(async (tx) => {
       const atual = (await tx.query(`SELECT ${CAMPOS} FROM pesquisas_tese WHERE id=$1 FOR UPDATE`, [pesquisa.id])).rows[0];
       if (atual.estado !== 'rascunho') return atual;
+      iniciouAgora = true;
       // A versão garante que os critérios calculados são os que estão gravados.
       if (atual.versao !== versao) throw new ErroHttp(409, 'pesquisa_atualizada', 'A pesquisa mudou em outra aba. Reabra-a antes de iniciar.');
       await motor.gravarItens(tx, atual.id, r.itens);
@@ -291,6 +350,17 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
         depois: { aprovadasCadastro: r.funil.aprovadasCadastro, recorte: r.funil.recorte } });
       return salva;
     });
+    if (iniciouAgora) await registrarEvento(db, { pesquisaId: nova.id, tipo: 'funil', usuarioId: usuario.id, dados: { recorte: r.funil.recorte,
+      aprovadasCadastro: r.funil.aprovadasCadastro, comSite: r.funil.comSite, truncado: r.funil.truncado, estado: nova.estado, motivo: nova.motivo_estado } }, req.log);
+    // Memória do membro: os critérios confirmados ao iniciar, fora de mandato confidencial.
+    // É acessória: uma falha aqui não desfaz o início, só deixa de lembrar.
+    if (iniciouAgora) {
+      try {
+        const confidencial = conversa.mandato_id
+          ? (await db.query('SELECT confidencial FROM mandatos WHERE id=$1', [conversa.mandato_id])).rows[0]?.confidencial !== false : false;
+        if (!confidencial) await lembrarCriterios(db, usuario.id, nova.criterios);
+      } catch (erro) { req.log.warn({ codigo: erro.code ?? erro.name }, 'memória de critérios não gravada'); }
+    }
     return detalhar(nova);
   });
 
@@ -314,13 +384,21 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
       : await db.query(`SELECT execucao FROM pesquisas_tese WHERE id=$1 AND estado='em_andamento' AND execucao=$2`, [pesquisa.id, continuacao])).rows[0];
     if (!vigente) return parado();
     const { execucao } = vigente;
+    if (continuacao === undefined && execucao !== pesquisa.execucao) {
+      await registrarEvento(db, { pesquisaId: pesquisa.id, tipo: 'retomada', usuarioId: usuario.id, dados: { execucao, primeira: pesquisa.estado === 'pronta' } }, req.log);
+    }
     const r = await motor.avancar(pesquisa, usuario, { quantidade, execucao });
     // Revalida o escopo antes de gravar o estado: a sessão pode ter caído durante a leitura dos sites.
     await req.revalidarSessao();
     const { pesquisa: depois } = await carregar(req, pesquisa.id, 'agente.usar');
     // Só grava se ninguém pausou nem retomou em outra aba durante o lote: a decisão mais recente vale.
-    const salva = r.interrompida ? depois : (await db.query(`UPDATE pesquisas_tese SET estado=$2, motivo_estado=$3, atualizado_em=now(), versao=versao+1
-      WHERE id=$1 AND estado='em_andamento' AND execucao=$4 RETURNING ${CAMPOS}`, [depois.id, r.estado, r.motivo, execucao])).rows[0] ?? depois;
+    const gravada = r.interrompida ? null : (await db.query(`UPDATE pesquisas_tese SET estado=$2, motivo_estado=$3, atualizado_em=now(), versao=versao+1
+      WHERE id=$1 AND estado='em_andamento' AND execucao=$4 RETURNING ${CAMPOS}`, [depois.id, r.estado, r.motivo, execucao])).rows[0];
+    const salva = gravada ?? depois;
+    if (r.atualizados.length) await registrarEvento(db, { pesquisaId: pesquisa.id, tipo: 'lote', usuarioId: usuario.id, dados: { revisadas: r.atualizados.length,
+      empresas: r.atualizados.slice(0, 5).map((i) => ({ nome: i.empresa.nome, categoria: i.categoria, aderencia: i.aderencia })) } }, req.log);
+    if (gravada && ['pausada', 'concluida'].includes(gravada.estado)) await registrarEvento(db, { pesquisaId: pesquisa.id, usuarioId: usuario.id,
+      tipo: gravada.estado === 'pausada' ? 'pausa' : 'conclusao', dados: { motivo: gravada.motivo_estado, automatica: true } }, req.log);
     return { ...(await detalhar(salva)), atualizados: r.atualizados.map((i) => i.empresa_id), execucaoLote: execucao };
   });
 
@@ -332,25 +410,36 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     const r = (await db.query(`UPDATE pesquisas_tese SET estado='pausada', motivo_estado='Pausada por você.', versao=versao+1, atualizado_em=now()
       WHERE id=$1 AND estado IN ('pronta','em_andamento') AND ($2::int IS NULL OR (estado='em_andamento' AND execucao=$2::int)) RETURNING ${CAMPOS}`,
     [pesquisa.id, execucao ?? null])).rows[0];
+    // Sem ficha: a pessoa pausou. Com ficha: o laço da tela foi deixado (outra pesquisa aberta) e pausou a própria geração.
+    if (r) await registrarEvento(db, { pesquisaId: pesquisa.id, tipo: 'pausa', usuarioId: req.usuario?.id ?? null, dados: { motivo: r.motivo_estado, automatica: execucao !== undefined } }, req.log);
     return detalhar(r ?? (await db.query(`SELECT ${CAMPOS} FROM pesquisas_tese WHERE id=$1`, [pesquisa.id])).rows[0]);
   });
 
-  /* Nova rodada no mesmo trabalho, partindo dos critérios desta. A anterior fica no histórico. */
+  /* Nova rodada no mesmo trabalho, partindo dos critérios desta. A anterior fica no histórico.
+     `opcionais`: critérios que a nova rodada já recebe como opcionais (a sugestão de relaxamento
+     aceita pelo membro). Sem ele, os critérios seguem iguais aos da rodada anterior. */
   app.post('/api/pesquisas/:id/ajustar', async (req, res) => {
-    const { id } = z.object({ id: Id }).strict().parse(req.body);
+    const { id, opcionais } = z.object({ id: Id, opcionais: z.array(z.string().regex(/^[a-z0-9_-]{1,40}$/)).max(12).default([]) }).strict().parse(req.body);
     const { pesquisa, conversa, usuario } = await carregar(req, req.params.id, 'agente.usar');
     const existente = (await db.query(`SELECT ${CAMPOS} FROM pesquisas_tese WHERE id=$1`, [id])).rows[0];
     if (existente) {
       if (existente.anterior_id !== pesquisa.id || existente.usuario_id !== usuario.id) throw new ErroHttp(409, 'pesquisa_ja_existe', 'Este envio já foi usado. Atualize a página.');
       return detalhar(existente);
     }
+    const desconhecidos = opcionais.filter((o) => !pesquisa.criterios.some((c) => c.id === o));
+    if (desconhecidos.length) throw new ErroHttp(422, 'criterio_inexistente', 'Um dos critérios escolhidos não existe nesta pesquisa.');
+    // Só o peso muda: o resto do critério segue como foi gravado (sem revalidar pesquisas antigas).
+    const criterios = pesquisa.criterios.map((c) => (opcionais.includes(c.id) ? { ...c, obrigatorio: false } : c));
     const nova = await db.transaction(async (tx) => {
       const r = (await tx.query(`INSERT INTO pesquisas_tese (id,conversa_id,usuario_id,anterior_id,tese,frente,filtros,criterios,meta,limite_web,catalogo_hash,referencia,funil,modo,notas)
-        SELECT $2,conversa_id,usuario_id,id,tese,frente,filtros,criterios,meta,limite_web,catalogo_hash,referencia,'{}',modo,'[]' FROM pesquisas_tese WHERE id=$1
-        RETURNING ${CAMPOS}`, [pesquisa.id, id])).rows[0];
-      await registrar(tx, { usuarioId: usuario.id, mandatoId: conversa.mandato_id, entidade: 'pesquisa_tese', entidadeId: id, acao: 'ajustar', depois: { anterior: pesquisa.id } });
+        SELECT $2,conversa_id,usuario_id,id,tese,frente,filtros,$3::jsonb,meta,limite_web,catalogo_hash,referencia,'{}',modo,'[]' FROM pesquisas_tese WHERE id=$1
+        RETURNING ${CAMPOS}`, [pesquisa.id, id, JSON.stringify(criterios)])).rows[0];
+      await registrar(tx, { usuarioId: usuario.id, mandatoId: conversa.mandato_id, entidade: 'pesquisa_tese', entidadeId: id, acao: 'ajustar',
+        depois: { anterior: pesquisa.id, ...(opcionais.length ? { opcionais } : {}) } });
       return r;
     });
+    await registrarEvento(db, { pesquisaId: pesquisa.id, tipo: 'ajuste', usuarioId: usuario.id, dados: { nova: id, opcionais: opcionais.length } }, req.log);
+    await registrarEvento(db, { pesquisaId: id, tipo: 'criterios', usuarioId: usuario.id, dados: { origem: 'ajuste', anterior: pesquisa.id, total: criterios.length, opcionais: opcionais.length } }, req.log);
     return res.status(201).send(await detalhar(nova));
   });
 
@@ -373,13 +462,20 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
         evidencias: (i.vereditos[k]?.evidencias ?? []).map((ev) => ({ ...ev, ...(ev.url ? { lidaEm: lidaEm(i, ev.url) } : {}) })) })) }));
     const citadas = new Map();
     for (const a of avaliacoes) for (const c of a.criterios) for (const ev of c.evidencias) {
-      if (ev.url && !citadas.has(ev.url)) citadas.set(ev.url, { titulo: `Site · ${itens.find((i) => i.empresa_id === a.empresaId).empresa.nome}`, url: ev.url,
+      const humana = ev.fonte === 'Revisão da equipe';
+      if (ev.url && !citadas.has(ev.url)) citadas.set(ev.url, { titulo: `${humana ? 'Fonte da revisão humana' : 'Site'} · ${itens.find((i) => i.empresa_id === a.empresaId).empresa.nome}`, url: ev.url,
         referencia: ev.lidaEm ? `lida em ${ev.lidaEm.slice(0, 10).split('-').reverse().join('/')}` : ev.referencia,
-        descricao: 'Página pública citada como evidência na revisão por critério. Confira o trecho antes de usar.' });
+        descricao: humana ? 'Fonte informada por quem revisou o critério. Confira antes de usar.' : 'Página pública citada como evidência na revisão por critério. Confira o trecho antes de usar.' });
     }
     const sites = [...citadas.values()];
     const evidenciasTexto = avaliacoes.flatMap((a) => a.criterios.flatMap((c) => c.evidencias.filter((ev) => ev.trecho).slice(0, 1)
       .map((ev) => `${itens.find((i) => i.empresa_id === a.empresaId).empresa.nome} · ${c.texto}: "${resumirTexto(ev.trecho, 160)}" (${ev.url ?? ev.fonte})`))).slice(0, 40);
+    // Vereditos decididos por pessoa (revisão humana): quem, o quê e por quê, separados do automático.
+    const ROTULO_VEREDITO = { atende: 'confirmado', nao_atende: 'contestado', indeterminado: 'deixado em aberto' };
+    const revisoesHumanas = itens.flatMap((i) => pesquisa.criterios.flatMap((c, k) => {
+      const v = i.vereditos[k];
+      return v?.lastro === 'humano' ? [`${i.empresa.nome} · ${c.texto}: ${ROTULO_VEREDITO[v.veredito]} por ${v.revisao?.autor?.nome ?? 'membro da equipe'} — ${resumirTexto(v.justificativa ?? '', 200)}`] : [];
+    })).slice(0, 40);
     const resultado = {
       modo: 'pesquisa_por_tese', titulo: `Pesquisa por tese · ${empresas.length} ${empresas.length === 1 ? 'empresa' : 'empresas'}`,
       resumo: `Empresas escolhidas na pesquisa "${resumirTexto(pesquisa.tese, 160)}". Aderência calculada critério a critério; cada veredito traz a fonte. Ausência de evidência ficou como "?" e não como reprovação.`,
@@ -390,10 +486,12 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
         { titulo: 'Critérios da pesquisa', itens: pesquisa.criterios.map((c) => `${c.obrigatorio ? 'Obrigatório' : 'Opcional'} · ${c.texto} (${c.tipo === 'cadastro' ? 'cadastro' : 'fonte pública'})`) },
         { titulo: 'Aderência por empresa', itens: itens.map((i) => `${i.empresa.nome}: ${i.aderencia}% · ${ROTULO[i.categoria]} · ${pesquisa.criterios.map((c, k) => `${SIMBOLO[i.vereditos[k]?.veredito] ?? '?'} ${c.texto}`).join(' · ')}`) },
         ...(evidenciasTexto.length ? [{ titulo: 'Evidências citadas', itens: evidenciasTexto }] : []),
+        ...(revisoesHumanas.length ? [{ titulo: 'Decisões da equipe', itens: revisoesHumanas }] : []),
         { titulo: 'Antes de priorizar', itens: ['Confirme com a empresa os critérios marcados com "?" e "≈".', 'Cadastro e site não informam faturamento nem intenção de transação.'] },
       ],
       proximas: ['preparar_reuniao', 'mapear_acesso', 'registrar_passo'],
     };
+    let entregou = false;
     const salvo = await db.transaction(async (tx) => {
       const c = (await tx.query('SELECT * FROM agente_conversas WHERE id=$1 FOR UPDATE', [pesquisa.conversa_id])).rows[0];
       const corpoHash = createHash('sha256').update(JSON.stringify({ pesquisa: pesquisa.id, empresas: p.empresas })).digest('hex');
@@ -410,8 +508,10 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
       await tx.query('UPDATE pesquisas_tese SET turno_id=$2 WHERE id=$1', [pesquisa.id, turno.id]);
       await registrar(tx, { usuarioId: usuario.id, mandatoId: c.mandato_id, entidade: 'agente_conversa', entidadeId: c.id, acao: 'executar_tarefa',
         depois: { tarefa: 'pesquisar_tese', turno: turno.id, empresas: empresas.length }, runId: p.chave });
+      entregou = true;
       return { turno, conversa };
     });
+    if (entregou) await registrarEvento(db, { pesquisaId: pesquisa.id, tipo: 'entrega', usuarioId: usuario.id, dados: { empresas: empresas.length, turno: salvo.turno.id } }, req.log);
     return salvo;
   });
 }

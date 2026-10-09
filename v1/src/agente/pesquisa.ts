@@ -26,8 +26,20 @@ export const rotuloSubsetor = (s?: string) => !s || s === 'todos' ? 'todos os se
 export interface Evidencia { fonte: string; url?: string; trecho?: string; referencia?: string; campo?: string }
 /** Na lista (`resumido`) vêm só veredito, resumo e lastro; justificativa e evidências vêm com o item completo. */
 export interface VereditoCriterio {
-  veredito: Veredito; resumo: string; justificativa?: string; lastro: 'cadastro' | 'site' | 'ia' | 'pendente'
+  veredito: Veredito; resumo: string; justificativa?: string; lastro: 'cadastro' | 'site' | 'ia' | 'pendente' | 'humano'
   evidencias?: Evidencia[]; pendente?: boolean; modelo?: string
+  /** Revisão humana: quem decidiu, quando e com que fonte; `automatico` é o veredito que "desfazer" devolve. */
+  revisao?: { autor: { id: string; nome: string }; em: string; fonte?: { descricao: string; url?: string } }
+  automatico?: VereditoCriterio
+}
+/** Passo do registro da execução: `ator` diz se foi o agente (passo automático) ou uma pessoa. */
+export type TipoEvento = 'criterios' | 'funil' | 'retomada' | 'lote' | 'pausa' | 'conclusao' | 'revisao_humana' | 'ajuste' | 'entrega' | 'monitoramento'
+export interface EventoPesquisa { id: number; tipo: TipoEvento; dados: Record<string, unknown>; em: string; ator: 'agente' | 'pessoa'; autor: string | null }
+/** Uma versão da revisão humana de uma empresa (só cresce; desfazer é uma versão nova). */
+export interface RevisaoVeredito { id: number; criterioId: string; acao: 'revisar' | 'desfazer'; antes: VereditoCriterio; depois: VereditoCriterio; em: string; autor: string }
+export interface PedidoRevisao {
+  criterioId: string; veredito: 'atende' | 'nao_atende' | 'indeterminado'; justificativa: string
+  fonte?: { descricao: string; url?: string }; anterior: { veredito: Veredito; lastro: string | null }
 }
 export interface Funil {
   recorte: number; avaliadas: number; truncado: boolean; semAtributos: number; eliminadas: number
@@ -82,7 +94,12 @@ export const pesquisaApi = {
   verificarMonitoramentos: (repetir = false) => api<VerificacaoMonitores>('/api/monitoramentos/verificar', 'POST', repetir ? { repetir } : {}),
   marcarNovidadesVistas: (id: string, ateId?: number) => api<{ vistas: number }>(`/api/pesquisas/${id}/novidades/vistas`, 'POST', ateId ? { ateId } : {}),
   /** Item completo (justificativas, trechos citados, páginas lidas), ao abrir a empresa. */
-  item: (id: string, empresaId: string) => api<{ item: ItemPesquisa }>(`/api/pesquisas/${id}/itens/${empresaId}`),
+  item: (id: string, empresaId: string) => api<{ item: ItemPesquisa; revisoes?: RevisaoVeredito[] }>(`/api/pesquisas/${id}/itens/${empresaId}`),
+  /** Registro da execução por cursor: só os eventos depois de `apos`. */
+  eventos: (id: string, apos = 0) => api<{ eventos: EventoPesquisa[]; ultimo: number }>(`/api/pesquisas/${id}/eventos?apos=${apos}`),
+  /** Revisão humana de um critério de empresa já revisada; desfazer devolve o veredito automático. */
+  revisar: (id: string, empresaId: string, corpo: PedidoRevisao) => api<{ item: ItemPesquisa; revisoes: RevisaoVeredito[] }>(`/api/pesquisas/${id}/itens/${empresaId}/revisao`, 'POST', corpo),
+  desfazerRevisao: (id: string, empresaId: string, criterioId: string) => api<{ item: ItemPesquisa; revisoes: RevisaoVeredito[] }>(`/api/pesquisas/${id}/itens/${empresaId}/revisao/desfazer`, 'POST', { criterioId }),
   editar: (id: string, corpo: { versao: number; criterios?: Criterio[]; filtros?: Filtros; frente?: 'compra' | 'venda'; meta?: number; limiteWeb?: number }) => leve<DetalhePesquisa>(`/api/pesquisas/${id}`, 'PATCH', corpo),
   previa: (id: string, criterios: Criterio[], filtros: Filtros) => api<Previa>(`/api/pesquisas/${id}/previa`, 'POST', { criterios, filtros }),
   iniciar: (id: string, versao: number) => leve<DetalhePesquisa>(`/api/pesquisas/${id}/iniciar`, 'POST', { versao }),
@@ -90,8 +107,21 @@ export const pesquisaApi = {
   avancar: (id: string, quantidade = 2, execucao?: number) => leve<DetalhePesquisa>(`/api/pesquisas/${id}/avancar`, 'POST', execucao === undefined ? { quantidade } : { quantidade, execucao }),
   /** Sem `execucao`: pausa humana. Com ela: pausa automática que só vale para essa geração. */
   pausar: (id: string, execucao?: number) => leve<DetalhePesquisa>(`/api/pesquisas/${id}/pausar`, 'POST', execucao === undefined ? {} : { execucao }),
-  ajustar: (id: string, novo: string) => leve<DetalhePesquisa>(`/api/pesquisas/${id}/ajustar`, 'POST', { id: novo }),
+  /** `opcionais`: critérios que a nova rodada já recebe como opcionais (sugestão de relaxamento aceita). */
+  ajustar: (id: string, novo: string, opcionais: string[] = []) => leve<DetalhePesquisa>(`/api/pesquisas/${id}/ajustar`, 'POST', opcionais.length ? { id: novo, opcionais } : { id: novo }),
   registrar: (id: string, chave: string, empresas: string[]) => api<{ turno: { id: string }; conversa: { id: string } }>(`/api/pesquisas/${id}/registrar`, 'POST', { chave, empresas }),
+}
+
+/** Critério guardado na memória do membro: o que ele verifica, sem id nem trecho da tese. */
+export interface CriterioMemoria { chave: string; texto: string; tipo: 'cadastro' | 'pesquisa'; regra: Regra | null; obrigatorio: boolean; usos: number; ultimoUso: string }
+/** Memória pessoal: só a própria pessoa vê; `ativa` false = pausada (não grava, não apaga). */
+export interface Memoria { ativa: boolean; criterios: CriterioMemoria[] }
+
+export const memoriaApi = {
+  ler: () => api<Memoria>('/api/memoria'),
+  definir: (ativa: boolean) => api<Memoria>('/api/memoria', 'PUT', { ativa }),
+  esquecer: (chave: string) => api<Memoria>(`/api/memoria/criterios/${chave}`, 'DELETE'),
+  apagarTudo: () => api<Memoria>('/api/memoria/criterios', 'DELETE'),
 }
 
 export const ROTULO_CATEGORIA: Record<Categoria, string> = { aderente: 'Aderentes', provavel: 'Prováveis', a_confirmar: 'A confirmar', nao_aderente: 'Não aderentes' }

@@ -1,11 +1,12 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { IconeRede } from './IconeRede'
+import { PlanoAcesso } from './PlanoAcesso'
 import { ErroApi, type Usuario } from '../agente/api'
 import {
-  pesquisaApi, ATALHOS_CADASTRO, DESCRICAO_CATEGORIA, EXEMPLOS_TESE, ROTULO_CATEGORIA, ROTULO_VEREDITO,
-  type Categoria, type Criterio, type DetalhePesquisa, type Filtros, type Funil, type IAInfo, type ItemPesquisa, type Previa, type ResumoPesquisa, type Veredito, type Monitoramento, type InicialPesquisa, SUBSETORES_ALVO, SUBSETOR_ORIGINAL, rotuloSubsetor, TETO_VARREDURA,
+  pesquisaApi, memoriaApi, type Memoria, type CriterioMemoria, ATALHOS_CADASTRO, DESCRICAO_CATEGORIA, EXEMPLOS_TESE, ROTULO_CATEGORIA, ROTULO_VEREDITO,
+  type Categoria, type Criterio, type DetalhePesquisa, type Filtros, type Funil, type IAInfo, type ItemPesquisa, type Previa, type ResumoPesquisa, type Veredito, type VereditoCriterio, type RevisaoVeredito, type PedidoRevisao, type EventoPesquisa, type Monitoramento, type InicialPesquisa, SUBSETORES_ALVO, SUBSETOR_ORIGINAL, rotuloSubsetor, TETO_VARREDURA,
 } from '../agente/pesquisa'
-import { montarGrupos, paginasVazias, type Paginas } from '../agente/pesquisa-tela'
+import { montarGrupos, paginasVazias, sugerirRelaxamento, adicionarDaMemoria, sugestoesDaMemoria, PREFIXO_MEMORIA, descreverEvento, type Paginas, type Relaxamento } from '../agente/pesquisa-tela'
 import { criarFluxos, type Rascunho } from '../agente/pesquisa-fluxos'
 import '../agente/pesquisa.css'
 
@@ -82,6 +83,10 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
   const abrir = useCallback((id: string) => f.abrir(id), [f])
 
   useEffect(() => { void recarregarLista() }, [recarregarLista])
+  // Memória do membro: acessória. Recarrega ao trocar de pesquisa e quando ela é iniciada (é quando grava).
+  const [memoria, setMemoria] = useState<Memoria | null>(null)
+  useEffect(() => { let vivo = true; memoriaApi.ler().then((m) => { if (vivo) setMemoria(m) }).catch(() => {}); return () => { vivo = false } }, [detalhe?.pesquisa.id, detalhe?.pesquisa.estado])
+  const painelMemoria = <PainelMemoria memoria={memoria} aoMudar={setMemoria} />
   useEffect(() => {
     if (!inicial) return
     if (inicial.pesquisaId && inicial.novidadesAte) vistaPendente.current = { id: inicial.pesquisaId, ateId: inicial.novidadesAte }
@@ -131,7 +136,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
   }
   function revisar(ate: 'amostra' | 'meta') { if (detalhe) { setErro(''); void f.revisar(ate, detalhe) } }
   function ajustarLimites(campos: { meta?: number; limiteWeb?: number }) { if (detalhe) void f.ajustarLimites(detalhe, campos) }
-  function ajustar() { if (detalhe && !bloqueado) { setErro(''); void f.ajustar(detalhe) } }
+  function ajustar(opcionais: string[] = []) { if (detalhe && !bloqueado) { setErro(''); void f.ajustar(detalhe, opcionais) } }
   function registrar() { if (detalhe && selecionadas.size && !bloqueado) { setErro(''); void f.registrar(detalhe, selecionadas) } }
 
   function alternar(id: string, campo: 'obrigatorio') { setCriterios((cs) => cs.map((c) => c.id === id ? { ...c, [campo]: !c[campo] } : c)) }
@@ -143,6 +148,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
     setCriterios((cs) => [...cs, { id: `u_${Date.now().toString(36)}`, texto: texto.slice(0, 200), obrigatorio: true, tipo: 'pesquisa', regra: null, trecho: null, origem: 'usuario' }])
     setNovoCriterio('')
   }
+  function usarDaMemoria(m: CriterioMemoria) { setCriterios((cs) => adicionarDaMemoria(cs, m) ?? cs) }
   function adicionarCadastro() {
     const a = ATALHOS_CADASTRO.find((x) => x.campo === atalho)
     if (!a || criterios.length >= 12) return
@@ -188,7 +194,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
             .map(([n, t, d]) => <li key={n}><span>{n}</span><strong>{t}</strong><p>{d}</p></li>)}
         </ol>
       </section>
-      <Lateral lista={lista} ia={ia} aoAbrir={abrir} atual={null} />
+      <Lateral lista={lista} ia={ia} aoAbrir={abrir} atual={null} extra={painelMemoria} />
     </div>
   </main>
 
@@ -211,6 +217,8 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
         {aviso && <p role="status" className="pesquisa-aviso">{aviso}</p>}
 
         <FunilPesquisa funil={funil} revisadas={rascunho ? undefined : revisadas} boas={rascunho ? undefined : boas} meta={meta} calculando={calculando} temPesquisa={temPesquisa} />
+        {rascunho && funil && funil.aprovadasCadastro < meta && <SugestaoRelaxamento sugestoes={sugerirRelaxamento(criterios, funil, meta)} meta={meta} aprovadas={funil.aprovadasCadastro}
+          aoAplicar={(id) => alternar(id, 'obrigatorio')} desabilitado={calculando || !podeUsar} />}
 
         {rascunho ? <section className="agente-superficie pesquisa-criterios" aria-labelledby="titulo-criterios">
           <div className="agente-linha-titulo"><h3 id="titulo-criterios">Critérios desta pesquisa</h3><span>{p.modo === 'regras' ? 'Propostos por regras locais' : `Propostos com ${p.modo.replace('ia:', '')}`}</span></div>
@@ -224,7 +232,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
                   <p className="pesquisa-criterio-texto">{c.texto}</p>
                   <p className="pesquisa-criterio-meta">{c.tipo === 'cadastro' ? 'Cadastro RFB · sem custo' : 'Site oficial · evidência pública'}
                     {c.obrigatorio && !!elimina && <> · elimina {numero(elimina)}{volta ? <>; tornar opcional recupera <strong>{numero(volta)}</strong></> : null}</>}
-                    {c.trecho && <> · de “{c.trecho.slice(0, 60)}{c.trecho.length > 60 ? '…' : ''}”</>}</p>
+                    {c.trecho && <> · de “{c.trecho.slice(0, 60)}{c.trecho.length > 60 ? '…' : ''}”</>}{c.id.startsWith(PREFIXO_MEMORIA) && <> · da sua memória</>}</p>
                 </div>
                 <div className="pesquisa-segmentos pequeno" role="group" aria-label={`Peso de ${c.texto}`}>
                   <button type="button" aria-pressed={c.obrigatorio} onClick={() => !c.obrigatorio && alternar(c.id, 'obrigatorio')}>Obrigatório</button>
@@ -248,6 +256,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
               <button type="button" className="agente-btn-secundario" onClick={adicionarCadastro} disabled={!atalho}><IconeRede nome="documento" />Adicionar</button>
             </div>
           </div>
+          {memoria?.ativa && <SugestoesMemoria sugestoes={sugestoesDaMemoria(criterios, memoria.criterios)} aoUsar={usarDaMemoria} />}
           <details className="pesquisa-recorte"><summary>Recorte, meta e limite · {rotuloSubsetor(filtros.subsetor ?? SUBSETOR_ORIGINAL)} · {filtros.uf || 'todas as UFs'} · meta {meta} · até {limiteWeb} sites</summary>
             <div className="grid gap-4 sm:grid-cols-4">
               <label className="text-sm sm:col-span-4">Subsetor<select className="agente-input mt-1 w-full" value={filtros.subsetor ?? SUBSETOR_ORIGINAL} onChange={(e) => setFiltros({ ...filtros, subsetor: e.target.value })}>
@@ -278,9 +287,13 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
               <button className="agente-btn-secundario" onClick={() => void ajustar()} disabled={rodando || bloqueado || !podeUsar}><IconeRede nome="funil" />Ajustar critérios</button>
             </div>
           </section>
+          {p.estado === 'concluida' && boas < p.meta && !(detalhe?.contagens.pendentes ?? 0) && funilValido(p.funil) && <SugestaoRelaxamento rodada
+            sugestoes={sugerirRelaxamento(p.criterios, p.funil, p.meta)} meta={p.meta} aprovadas={p.funil.aprovadasCadastro} boas={boas}
+            aoAplicar={(id) => ajustar([id])} desabilitado={rodando || bloqueado || !podeUsar} />}
           <MonitorarTese pesquisaId={p.id} monitoramento={detalhe?.monitoramento ?? null} podeUsar={podeUsar}
             aoMudar={(m) => setDetalhe((d) => d && d.pesquisa.id === p.id ? { ...d, monitoramento: m } : d)} aoFalhar={falhou} />
           <Legenda criterios={p.criterios} />
+          <RegistroExecucao pesquisaId={p.id} marcador={`${p.versao}:${detalhe?.marca ?? ''}:${revisadas}`} />
           {entregue && <p role="status" className="pesquisa-aviso">{entregue.n} {entregue.n === 1 ? 'empresa enviada' : 'empresas enviadas'} ao trabalho. <button className="agente-link" onClick={() => aoAbrirTrabalho(entregue.conversaId)}>Abrir trabalho<IconeRede nome="seta" /></button></p>}
           <section className="pesquisa-resultados" aria-label="Empresas revisadas">
             {!revisadas && !rodando && <div className="agente-vazio-compacto agente-superficie"><IconeRede nome="alvo" /><p>Nenhuma empresa revisada ainda.</p><span>{total ? 'Clique em continuar para revisar a fila.' : 'Nenhuma empresa passou nos critérios de cadastro. Use “Ajustar critérios” e torne algum opcional.'}</span></div>}
@@ -299,9 +312,10 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
                     <td><button className="pesquisa-empresa" onClick={() => setAberto(aberto === i.empresa_id ? null : i.empresa_id)} aria-expanded={aberto === i.empresa_id}>
                       <strong>{i.empresa.nome}</strong><small>{i.empresa.cidade}/{i.empresa.uf}{i.site?.dominio ? ` · ${i.site.dominio}` : ''}</small></button></td>
                     <td><Aderencia valor={i.aderencia} /></td>
-                    {p.criterios.map((c, k) => <td key={c.id} data-c={`C${k + 1}`}><Simbolo v={i.vereditos[k]?.veredito ?? 'indeterminado'} titulo={`${ROTULO_VEREDITO[i.vereditos[k]?.veredito ?? 'indeterminado']}: ${i.vereditos[k]?.resumo ?? ''}`} dica={`${c.texto}: ${i.vereditos[k]?.resumo ?? ''}`} /></td>)}
+                    {p.criterios.map((c, k) => <td key={c.id} data-c={`C${k + 1}`}><Simbolo v={i.vereditos[k]?.veredito ?? 'indeterminado'} humano={i.vereditos[k]?.lastro === 'humano'} titulo={`${ROTULO_VEREDITO[i.vereditos[k]?.veredito ?? 'indeterminado']}${i.vereditos[k]?.lastro === 'humano' ? ', revisão humana' : ''}: ${i.vereditos[k]?.resumo ?? ''}`} dica={`${c.texto}: ${i.vereditos[k]?.resumo ?? ''}${i.vereditos[k]?.lastro === 'humano' ? ' (revisão humana)' : ''}`} /></td>)}
                   </tr>
-                  {aberto === i.empresa_id && <tr className="pesquisa-detalhe-linha"><td colSpan={3 + p.criterios.length}><Detalhe pesquisaId={p.id} item={i} criterios={p.criterios} aoExpirar={aoExpirar} /></td></tr>}
+                  {aberto === i.empresa_id && <tr className="pesquisa-detalhe-linha"><td colSpan={3 + p.criterios.length}><Detalhe pesquisaId={p.id} item={i} criterios={p.criterios} aoExpirar={aoExpirar}
+                    podeRevisar={podeUsar} aoRevisado={() => { if (detalhe) void f.recarregar(detalhe) }} /></td></tr>}
                 </Fragment>)}</tbody>
               </table></div></>}
               {g.restantes > 0 && g.offset < g.total && <button className="agente-link mt-2 text-xs" onClick={() => void mostrarMais(g.categoria, g.offset)} disabled={g.carregando || abrindo} aria-busy={g.carregando}>
@@ -317,9 +331,27 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
           </div>}
         </>}
       </div>
-      <Lateral lista={lista} ia={ia} aoAbrir={abrir} atual={p.id} />
+      <Lateral lista={lista} ia={ia} aoAbrir={abrir} atual={p.id} extra={painelMemoria} />
     </div>
   </main>
+}
+
+/** Sugestão de relaxamento, nunca automática. No rascunho, um clique torna o critério opcional e o funil
+ *  ao vivo recalcula; numa rodada concluída abaixo da meta, abre uma nova rodada com ele opcional. */
+function SugestaoRelaxamento({ sugestoes, meta, aprovadas, boas = 0, rodada = false, aoAplicar, desabilitado }: {
+  sugestoes: Relaxamento[]; meta: number; aprovadas: number; boas?: number; rodada?: boolean; aoAplicar: (id: string) => void; desabilitado: boolean
+}) {
+  if (!sugestoes.length) return null
+  return <section className="pesquisa-relaxar" aria-labelledby="titulo-relaxar">
+    <div className="pesquisa-relaxar-cabeca"><span className="agente-icone-bloco"><IconeRede nome="funil" /></span><div className="min-w-0">
+      <h3 id="titulo-relaxar">{rodada ? `A rodada terminou com ${numero(boas)} de ${numero(meta)} aderentes ou prováveis` : `Só ${numero(aprovadas)} ${aprovadas === 1 ? 'empresa passa' : 'empresas passam'} no cadastro para uma meta de ${numero(meta)}`}</h3>
+      <p>{rodada ? 'Uma nova rodada com um destes critérios opcional leva mais empresas à revisão. Esta rodada fica no histórico.' : 'Estes são os critérios que mais restringem.'} Como opcional, o critério deixa de eliminar empresas e continua contando na aderência.</p>
+    </div></div>
+    <ul>{sugestoes.map((s) => <li key={s.id}>
+      <div className="min-w-0"><strong>{s.texto}</strong><small>Opcional, recupera {numero(s.recupera)} {s.recupera === 1 ? 'empresa' : 'empresas'} · {numero(s.total)} no cadastro{s.basta ? ' · alcança a meta' : ''}</small></div>
+      <button type="button" className="agente-btn-secundario" onClick={() => aoAplicar(s.id)} disabled={desabilitado}>{rodada ? 'Nova rodada com ele opcional' : 'Tornar opcional'}</button>
+    </li>)}</ul>
+  </section>
 }
 
 function EstadoPill({ estado, rodando }: { estado: string; rodando: boolean }) {
@@ -355,8 +387,8 @@ function Legenda({ criterios }: { criterios: Criterio[] }) {
 
 /** Ícone do veredito. `titulo` é o que o leitor de tela ouve (vazio quando o texto visível ao lado já diz);
  *  `dica` é o balão para quem passa o mouse. */
-function Simbolo({ v, titulo, dica }: { v: Veredito; titulo: string; dica?: string }) {
-  return <span className={`pesquisa-simbolo ${v}`} title={dica ?? (titulo || undefined)}><IconeRede nome={ICONE[v]} />{titulo && <span className="sr-only">{titulo}</span>}</span>
+function Simbolo({ v, titulo, dica, humano = false }: { v: Veredito; titulo: string; dica?: string; humano?: boolean }) {
+  return <span className={`pesquisa-simbolo ${v}${humano ? ' humano' : ''}`} title={dica ?? (titulo || undefined)}><IconeRede nome={ICONE[v]} />{titulo && <span className="sr-only">{titulo}</span>}</span>
 }
 
 function Aderencia({ valor }: { valor: number }) {
@@ -400,9 +432,17 @@ function MonitorarTese({ pesquisaId, monitoramento: m, podeUsar, aoMudar, aoFalh
   </section>
 }
 
-/** A lista vem leve; ao abrir a empresa, busca o item completo (justificativas e trechos citados). */
-function Detalhe({ pesquisaId, item: resumo, criterios, aoExpirar }: { pesquisaId: string; item: ItemPesquisa; criterios: Criterio[]; aoExpirar: () => void }) {
+/** A lista vem leve; ao abrir a empresa, busca o item completo (justificativas e trechos citados).
+ *  Em empresa revisada, cada veredito aceita revisão humana (confirmar, contestar, deixar em aberto). */
+function Detalhe({ pesquisaId, item: resumo, criterios, aoExpirar, podeRevisar = false, aoRevisado }: {
+  pesquisaId: string; item: ItemPesquisa; criterios: Criterio[]; aoExpirar: () => void; podeRevisar?: boolean; aoRevisado?: () => void
+}) {
   const [completo, setCompleto] = useState<ItemPesquisa | null>(null)
+  const [revisoes, setRevisoes] = useState<RevisaoVeredito[]>([])
+  const [editando, setEditando] = useState<string | null>(null)
+  const [erroRevisao, setErroRevisao] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [acesso, setAcesso] = useState(false)
   // Sessão expirada vai ao fluxo de login do pai; a referência evita refazer a busca se o pai recriar a função.
   const expirar = useRef(aoExpirar)
   useEffect(() => { expirar.current = aoExpirar })
@@ -416,7 +456,7 @@ function Detalhe({ pesquisaId, item: resumo, criterios, aoExpirar }: { pesquisaI
     let vivo = true
     setCompleto(null); setFalha('')
     pesquisaApi.item(pesquisaId, empresaId)
-      .then((r) => { if (vivo) setCompleto(r.item) })
+      .then((r) => { if (vivo) { setCompleto(r.item); setRevisoes(r.revisoes ?? []) } })
       .catch((e) => {
         if (!vivo) return
         if (e instanceof ErroApi && e.status === 401) expirar.current()
@@ -427,6 +467,20 @@ function Detalhe({ pesquisaId, item: resumo, criterios, aoExpirar }: { pesquisaI
   const carregando = precisa && !completo && !falha
   const item = (precisa ? completo : null) ?? resumo
   const e = item.empresa
+  // A revisão humana pede o item completo (o veredito atual vai junto, para recusar se mudou em outra aba).
+  const revisavel = podeRevisar && item.etapa === 'revisada' && (!precisa || Boolean(completo))
+  const aplicarRevisao = async (acao: () => Promise<{ item: ItemPesquisa; revisoes: RevisaoVeredito[] }>) => {
+    setSalvando(true); setErroRevisao('')
+    try {
+      const r = await acao()
+      setCompleto(r.item); setRevisoes(r.revisoes); setEditando(null)
+      aoRevisado?.()
+    } catch (erro) {
+      if (erro instanceof ErroApi && erro.status === 401) expirar.current()
+      else setErroRevisao(mensagem(erro))
+    } finally { setSalvando(false) }
+  }
+  const textoCriterio = (id: string) => criterios.find((c) => c.id === id)?.texto ?? id
   return <div className="pesquisa-detalhe" aria-busy={carregando}>
     <div className="pesquisa-detalhe-cabeca">
       <div><strong>{e.razaoSocial}</strong><small>Raiz CNPJ {e.cnpjRaiz} · CNAE {e.cnaePrincipal}{e.dataAbertura ? ` · aberta em ${e.dataAbertura.split('-').reverse().join('/')}` : ''}</small></div>
@@ -445,13 +499,66 @@ function Detalhe({ pesquisaId, item: resumo, criterios, aoExpirar }: { pesquisaI
           {v.justificativa && <p className="pesquisa-justificativa">{v.justificativa}{v.lastro === 'ia' && v.modelo ? ` (julgado por ${v.modelo})` : ''}</p>}
           {(v.evidencias ?? []).filter((ev) => ev.trecho || ev.url).map((ev, n) => <blockquote key={n}>{ev.trecho && <p>“{ev.trecho}”</p>}{ev.url && <a href={ev.url} target="_blank" rel="noreferrer">{new URL(ev.url).pathname === '/' ? ev.url.replace(/^https?:\/\//, '') : ev.url.replace(/^https?:\/\/(www\.)?/, '')}<IconeRede nome="externo" /></a>}</blockquote>)}
           {v.lastro === 'cadastro' && v.evidencias?.[0] && <p className="pesquisa-fonte">{v.evidencias[0].fonte} · referência {v.evidencias[0].referencia}</p>}
+          {v.lastro === 'humano' && <p className="pesquisa-humano"><IconeRede nome="verificar" /><span>Revisão humana · {v.revisao?.autor.nome ?? 'equipe'}{v.revisao?.em ? ` · ${dataBr(v.revisao.em)}` : ''}
+            {v.revisao?.fonte ? ` · fonte: ${v.revisao.fonte.descricao}` : ''}. Travada: a revisão automática não altera esta decisão.</span></p>}
+          {revisavel && editando !== c.id && <div className="pesquisa-revisao-acoes">
+            <button type="button" className="agente-link text-xs" onClick={() => { setEditando(c.id); setErroRevisao('') }} disabled={salvando}>{v.lastro === 'humano' ? 'Rever decisão' : 'Revisar'}<span className="sr-only">: {c.texto}</span></button>
+            {v.lastro === 'humano' && <button type="button" className="agente-link text-xs" onClick={() => void aplicarRevisao(() => pesquisaApi.desfazerRevisao(pesquisaId, empresaId, c.id))} disabled={salvando}>
+              Desfazer<span className="sr-only"> a revisão de {c.texto}</span></button>}
+          </div>}
+          {revisavel && editando === c.id && <FormRevisao criterio={c} atual={v} salvando={salvando} erro={erroRevisao} aoCancelar={() => setEditando(null)}
+            aoSalvar={(corpo) => void aplicarRevisao(() => pesquisaApi.revisar(pesquisaId, empresaId, corpo))} />}
         </div>
       </li>
     })}</ul>
+    {erroRevisao && editando === null && <p className="pesquisa-alerta" role="alert">{erroRevisao}</p>}
+    {!!revisoes.length && <details className="pesquisa-historico"><summary>Histórico de revisões humanas ({revisoes.length})</summary>
+      <ol>{revisoes.map((r) => <li key={r.id}>{dataBr(r.em)} · {r.autor} {r.acao === 'revisar' ? 'revisou' : 'desfez a revisão de'} <b>{textoCriterio(r.criterioId)}</b>: {ROTULO_VEREDITO[r.antes.veredito] ?? '—'} → {ROTULO_VEREDITO[r.depois.veredito] ?? '—'}{r.acao === 'revisar' && r.depois.justificativa ? ` (“${r.depois.justificativa}”)` : ''}</li>)}</ol>
+    </details>}
+    <div className="pesquisa-revisao-acoes">
+      <button type="button" className="agente-link text-xs" aria-expanded={acesso} onClick={() => setAcesso((v) => !v)}>
+        <IconeRede nome="rede" />{acesso ? 'Fechar o plano de acesso' : 'Chegar a quem decide'}<span className="sr-only"> em {e.razaoSocial}</span></button>
+    </div>
+    {acesso && <PlanoAcesso empresaId={empresaId} pesquisaId={pesquisaId} aoExpirar={() => expirar.current()} />}
   </div>
 }
 
-function Lateral({ lista, ia, aoAbrir, atual }: { lista: ResumoPesquisa[]; ia: IAInfo | null; aoAbrir: (id: string) => void; atual: string | null }) {
+/** Decisão humana sobre um critério: veredito, justificativa obrigatória e fonte opcional. */
+function FormRevisao({ criterio, atual, salvando, erro, aoSalvar, aoCancelar }: {
+  criterio: Criterio; atual: VereditoCriterio; salvando: boolean; erro: string; aoSalvar: (corpo: PedidoRevisao) => void; aoCancelar: () => void
+}) {
+  const [veredito, setVeredito] = useState<PedidoRevisao['veredito']>(atual.veredito === 'indicio' ? 'atende' : atual.veredito)
+  const [justificativa, setJustificativa] = useState('')
+  const [fonte, setFonte] = useState('')
+  const [url, setUrl] = useState('')
+  const base = `rev-${criterio.id}`
+  const enviar = (e: FormEvent) => {
+    e.preventDefault()
+    if (justificativa.trim().length < 10) return
+    aoSalvar({ criterioId: criterio.id, veredito, justificativa: justificativa.trim(), anterior: { veredito: atual.veredito, lastro: atual.lastro ?? null },
+      ...(fonte.trim().length >= 3 ? { fonte: { descricao: fonte.trim(), ...(url.trim() ? { url: url.trim() } : {}) } } : {}) })
+  }
+  return <form className="pesquisa-revisao-form" onSubmit={enviar} aria-label={`Revisar: ${criterio.texto}`}>
+    <fieldset><legend>Sua decisão</legend>
+      {([['atende', 'Atende'], ['nao_atende', 'Não atende'], ['indeterminado', 'Sem evidência']] as const).map(([valor, rotulo]) =>
+        <label key={valor}><input type="radio" name={`${base}-veredito`} value={valor} checked={veredito === valor} onChange={() => setVeredito(valor)} />{rotulo}</label>)}
+    </fieldset>
+    <label htmlFor={`${base}-just`}>Justificativa <span className="text-suave">(obrigatória, vai para o histórico e para a entrega)</span></label>
+    <textarea id={`${base}-just`} className="agente-input" value={justificativa} onChange={(e) => setJustificativa(e.target.value)} maxLength={600} required minLength={10}
+      placeholder="Ex.: Confirmado em conversa com o diretor comercial em 05/10." autoFocus />
+    <div className="pesquisa-revisao-fonte">
+      <label>Fonte <span className="text-suave">(opcional)</span><input className="agente-input" value={fonte} onChange={(e) => setFonte(e.target.value)} maxLength={200} placeholder="Ex.: ata da reunião de 05/10" /></label>
+      <label>Endereço <span className="text-suave">(opcional)</span><input className="agente-input" type="url" value={url} onChange={(e) => setUrl(e.target.value)} maxLength={500} placeholder="https://" disabled={fonte.trim().length < 3} /></label>
+    </div>
+    {erro && <p role="alert" className="pesquisa-erro">{erro}</p>}
+    <div className="pesquisa-revisao-botoes">
+      <button className="agente-btn-primario" disabled={salvando || justificativa.trim().length < 10}>{salvando ? 'Salvando…' : 'Salvar decisão'}</button>
+      <button type="button" className="agente-btn-secundario" onClick={aoCancelar} disabled={salvando}>Cancelar</button>
+    </div>
+  </form>
+}
+
+function Lateral({ lista, ia, aoAbrir, atual, extra }: { lista: ResumoPesquisa[]; ia: IAInfo | null; aoAbrir: (id: string) => void; atual: string | null; extra?: ReactNode }) {
   return <aside className="pesquisa-lateral">
     <section className={`pesquisa-ia ${ia ? 'com-ia' : ''}`}>
       <span className="agente-icone-bloco"><IconeRede nome={ia ? 'brilho' : 'documento'} /></span>
@@ -466,5 +573,78 @@ function Lateral({ lista, ia, aoAbrir, atual }: { lista: ResumoPesquisa[]; ia: I
         <span className="pesquisa-recente-meta">{({ rascunho: 'Rascunho', pronta: 'Pronta', em_andamento: 'Em andamento', pausada: 'Pausada', concluida: 'Concluída' } as Record<string, string>)[r.estado]}{r.estado !== 'rascunho' ? ` · ${r.boas} aderentes` : ''} · {new Date(r.atualizado_em).toLocaleDateString('pt-BR')}</span>
       </button></li>)}</ul>
     </section>
+    {extra}
   </aside>
+}
+
+/** Critérios da memória que ainda não estão no rascunho: um clique acrescenta (nunca entram sozinhos). */
+function SugestoesMemoria({ sugestoes, aoUsar }: { sugestoes: CriterioMemoria[]; aoUsar: (m: CriterioMemoria) => void }) {
+  if (!sugestoes.length) return null
+  return <div className="pesquisa-memoria-sugestoes" role="group" aria-label="Critérios da sua memória">
+    <span>Da sua memória</span>
+    {sugestoes.map((m) => <button key={m.chave} type="button" onClick={() => aoUsar(m)} title={`Usado em ${m.usos} ${m.usos === 1 ? 'pesquisa' : 'pesquisas'}`}>
+      <IconeRede nome={m.tipo === 'cadastro' ? 'documento' : 'globo'} />{m.texto}<span className="sr-only">: acrescentar aos critérios</span></button>)}
+  </div>
+}
+
+/** O que o agente lembra desta pessoa: visível, pausável e apagável, como a memória do Lessie. */
+function PainelMemoria({ memoria, aoMudar }: { memoria: Memoria | null; aoMudar: (m: Memoria) => void }) {
+  const [confirmando, setConfirmando] = useState(false)
+  const [ocupado, setOcupado] = useState(false)
+  const [erro, setErro] = useState('')
+  const apagarTudo = useRef<HTMLButtonElement>(null)
+  if (!memoria) return null
+  const agir = async (acao: () => Promise<Memoria>) => {
+    setOcupado(true); setErro('')
+    try { aoMudar(await acao()) } catch (e) { setErro(mensagem(e)) } finally { setOcupado(false); setConfirmando(false) }
+  }
+  const n = memoria.criterios.length
+  return <section className="pesquisa-memoria" aria-labelledby="titulo-memoria">
+    <h3 id="titulo-memoria">Sua memória{memoria.ativa ? '' : ' · pausada'}</h3>
+    <p>O agente guarda os critérios que você confirma ao iniciar uma pesquisa e os sugere nas próximas. Só você vê. Trabalhos em mandato confidencial não entram.</p>
+    {n ? <details><summary>{n} {n === 1 ? 'critério guardado' : 'critérios guardados'}</summary>
+      <ul>{memoria.criterios.map((c) => <li key={c.chave}><span className="min-w-0"><span className="block truncate">{c.texto}</span><small>{c.usos} {c.usos === 1 ? 'uso' : 'usos'} · {c.tipo === 'cadastro' ? 'cadastro' : 'site'}</small></span>
+        <button type="button" onClick={() => void agir(() => memoriaApi.esquecer(c.chave))} disabled={ocupado} aria-label={`Esquecer ${c.texto}`} title="Esquecer"><IconeRede nome="lixo" /></button></li>)}</ul>
+    </details> : <p className="text-xs text-suave">Nada guardado ainda.</p>}
+    <div className="pesquisa-memoria-acoes">
+      <button type="button" className="agente-link text-xs" onClick={() => void agir(() => memoriaApi.definir(!memoria.ativa))} disabled={ocupado}>{memoria.ativa ? 'Pausar memória' : 'Retomar memória'}</button>
+      {n > 0 && (confirmando
+        ? <span role="group" aria-label="Apagar toda a memória?" onKeyDown={(e) => { if (e.key === 'Escape') { setConfirmando(false); apagarTudo.current?.focus() } }}>
+            <button type="button" className="is-perigo" onClick={() => void agir(memoriaApi.apagarTudo)} disabled={ocupado}>{ocupado ? 'Apagando…' : 'Apagar tudo'}</button>
+            <button type="button" onClick={() => { setConfirmando(false); setTimeout(() => apagarTudo.current?.focus(), 0) }} disabled={ocupado} autoFocus>Cancelar</button>
+          </span>
+        : <button type="button" ref={apagarTudo} className="agente-link text-xs" onClick={() => setConfirmando(true)} disabled={ocupado}>Apagar tudo</button>)}
+    </div>
+    {erro && <p role="alert" className="pesquisa-erro">{erro}</p>}
+  </section>
+}
+
+/** Registro da execução (o "o que o agente fez" do Lessie): passos tipados lidos por cursor, que
+ *  crescem a cada lote enquanto a revisão roda. Fechado por padrão; o mais recente primeiro. */
+function RegistroExecucao({ pesquisaId, marcador }: { pesquisaId: string; marcador: string }) {
+  const [eventos, setEventos] = useState<EventoPesquisa[]>([])
+  const ultimo = useRef(0)
+  const atual = useRef(pesquisaId)
+  if (atual.current !== pesquisaId) { atual.current = pesquisaId; ultimo.current = 0 }
+  useEffect(() => { setEventos([]) }, [pesquisaId])
+  useEffect(() => {
+    let vivo = true
+    const de = pesquisaId
+    pesquisaApi.eventos(de, ultimo.current).then((r) => {
+      if (!vivo || atual.current !== de || !r.eventos.length) return
+      ultimo.current = Math.max(ultimo.current, r.ultimo)
+      setEventos((es) => { const vistos = new Set(es.map((e) => e.id)); return [...es, ...r.eventos.filter((e) => !vistos.has(e.id))].slice(-200) })
+    }).catch(() => { /* registro é acessório: a falha não interrompe a pesquisa */ })
+    return () => { vivo = false }
+  }, [pesquisaId, marcador])
+  if (!eventos.length) return null
+  const hora = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return <details className="pesquisa-registro">
+    <summary>Registro da execução <small>{eventos.length} {eventos.length === 1 ? 'passo' : 'passos'}</small></summary>
+    <ol>{[...eventos].reverse().map((e) => <li key={e.id} className={e.ator}>
+      <span className="pesquisa-registro-quem">{e.ator === 'agente' ? 'Agente' : (e.autor ?? 'Equipe')}</span>
+      <span className="min-w-0">{descreverEvento(e)}</span>
+      <time dateTime={e.em}>{hora(e.em)}</time>
+    </li>)}</ol>
+  </details>
 }

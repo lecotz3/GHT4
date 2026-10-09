@@ -352,3 +352,32 @@ test('paginação: resposta nova antes da antiga; a antiga não desfaz nada', as
   const g = montarGrupos(h.tela.mostrado, h.tela.paginas).find((x) => x.categoria === 'provavel');
   assert.deepEqual([g.itens.map((i) => i.empresa_id), g.offset, g.carregando], [['nova'], 1, false]);
 });
+
+test('nova rodada com critério opcional: envia os opcionais e a chave muda com eles, não com a repetição', async () => {
+  const h = harness();
+  await abrir(h, 'A', { estado: 'concluida' });
+  const primeira = h.f.ajustar(h.tela.mostrado, ['idade']);
+  const p1 = await h.chamada('ajustar');
+  assert.deepEqual(p1.args.slice(0, 1), ['A']);
+  assert.deepEqual(p1.args[2], ['idade']);
+  p1.reject(new Error('rede'));
+  await primeira;
+  // Repetição do mesmo pedido: mesma chave (o servidor devolve a rodada já criada, se chegou a criar).
+  const repetida = h.f.ajustar(h.tela.mostrado, ['idade']);
+  const p2 = await h.chamada('ajustar');
+  assert.equal(p2.args[1], p1.args[1]);
+  p2.reject(new Error('rede'));
+  await repetida;
+  // Outros opcionais: outro pedido, outra chave. Sem opcionais, a chamada antiga de dois argumentos.
+  const outra = h.f.ajustar(h.tela.mostrado, ['filiais']);
+  const p3 = await h.chamada('ajustar');
+  assert.notEqual(p3.args[1], p1.args[1]);
+  p3.reject(new Error('rede'));
+  await outra;
+  const comum = h.f.ajustar(h.tela.mostrado);
+  const p4 = await h.chamada('ajustar');
+  assert.equal(p4.args.length, 2);
+  p4.resolve(det('B', { estado: 'rascunho' }));
+  await comum;
+  assert.equal(h.tela.mostrado.pesquisa.id, 'B');
+});

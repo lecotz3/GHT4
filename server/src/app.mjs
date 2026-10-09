@@ -25,6 +25,7 @@ import { consultarUm } from './db/cliente.mjs';
 import { registrarRotasDeTemplate } from './api/templates.mjs';
 import { registrarRotasDoAgente } from './api/agente.mjs';
 import { registrarPesquisas } from './api/pesquisas.mjs';
+import { registrarMemoria } from './api/memoria.mjs';
 import { criarCatalogo } from './agente/catalogo.mjs';
 import { registrarInstalacao } from './api/instalacao.mjs';
 import { registrarEquipe } from './api/equipe.mjs';
@@ -33,6 +34,7 @@ import { registrarRede } from './api/rede.mjs';
 import { registrarEmpresas } from './api/empresas.mjs';
 import { registrarInicio } from './api/inicio.mjs';
 import { registrarReconhecimento } from './api/reconhecimento.mjs';
+import { registrarAcesso } from './api/acesso.mjs';
 import { registrarImportacaoRede } from './api/rede-importacao.mjs';
 import { registrarAcervo } from './api/acervo.mjs';
 import { registrarDocumentos } from './api/documentos.mjs';
@@ -76,7 +78,7 @@ export function bancoIndisponivel(erro) {
 /** Única rota que não resolve a sessão: responde pelo banco, não pelo usuário. */
 const ROTA_SAUDE = '/api/saude';
 
-export async function criarApp(db, { logger = false, instalacaoInicial = false, catalogo, redigirIA = null, servicoIA = null, origemPublica = null, web = {} } = {}) {
+export async function criarApp(db, { logger = false, instalacaoInicial = false, catalogo, redigirIA = null, servicoIA = null, origemPublica = null, web = {}, sancoes } = {}) {
   // Um catálogo só para o agente, as empresas e a pesquisa por tese: o arquivo de origem é grande para ler mais de uma vez.
   catalogo ??= criarCatalogo();
   const app = Fastify({
@@ -201,12 +203,14 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
   await app.register(registrarInstalacao, { habilitada: instalacaoInicial });
   await app.register(registrarRotasDoAgente, { catalogo, redigirIA, servicoIA });
   await app.register(registrarPesquisas, { catalogo, servicoIA, web });
+  await app.register(registrarMemoria);
   await app.register(registrarEquipe);
   await app.register(registrarProspeccao);
   await app.register(registrarRede);
   await app.register(registrarEmpresas, { catalogo });
   await app.register(registrarInicio);
   await app.register(registrarReconhecimento);
+  await app.register(registrarAcesso, { catalogo, ...(sancoes ? { sancoes } : {}) });
   await app.register(registrarImportacaoRede);
   await app.register(registrarAcervo);
   await app.register(registrarDocumentos);

@@ -70,3 +70,47 @@ test('vigência: resposta de operação superada não troca a tela, e receber n�
   assert.equal(tela.vigente(entrega), false);
   assert.equal(tela.vigente(abrirB), false);
 });
+
+test('relaxamento sugerido: só obrigatórios que eliminam sozinhos, mais recuperação primeiro, empate no de menor prioridade', async () => {
+  const { sugerirRelaxamento } = await import('../v1/src/agente/pesquisa-tela.ts');
+  const c = (id, obrigatorio = true) => ({ id, texto: `Critério ${id}`, obrigatorio, tipo: 'cadastro', regra: { campo: 'idade_min', valor: 1 }, origem: 'regras' });
+  const criterios = [c('a'), c('b'), c('c', false), c('d'), c('e')];
+  const funil = { aprovadasCadastro: 7, exclusivas: { a: 5, b: 30, c: 99, d: 5, e: 0 } };
+  const s = sugerirRelaxamento(criterios, funil, 20);
+  // "c" é opcional (não elimina), "e" não elimina sozinho; "d" vem antes de "a" no empate (menor prioridade).
+  assert.deepEqual(s.map((x) => [x.id, x.recupera, x.total, x.basta]), [['b', 30, 37, true], ['d', 5, 12, false], ['a', 5, 12, false]]);
+  assert.equal(sugerirRelaxamento(criterios, funil, 20, 1).length, 1);
+  assert.deepEqual(sugerirRelaxamento(criterios, {}, 20), [], 'funil de rascunho ainda sem cálculo');
+  assert.deepEqual(sugerirRelaxamento(criterios, null, 20), []);
+});
+
+test('memória no rascunho: mesmo critério não repete, regra do mesmo campo é substituída e os limites valem', async () => {
+  const { adicionarDaMemoria, sugestoesDaMemoria, mesmoCriterio } = await import('../v1/src/agente/pesquisa-tela.ts');
+  const cad = (id, campo, valor) => ({ id, texto: `${campo} ${valor}`, obrigatorio: true, tipo: 'cadastro', regra: { campo, valor }, trecho: null, origem: 'regras' });
+  const pes = (id, texto) => ({ id, texto, obrigatorio: true, tipo: 'pesquisa', regra: null, trecho: null, origem: 'regras' });
+  const mem = (chave, c) => ({ chave: chave.padEnd(32, '0'), texto: c.texto, tipo: c.tipo, regra: c.regra, obrigatorio: c.obrigatorio, usos: 3, ultimoUso: '' });
+  const lista = [cad('idade', 'idade_min', 15), pes('rep', 'Representem fabricantes multinacionais')];
+  assert.ok(mesmoCriterio(pes('x', 'Representem  FABRICANTES multinacionais'), lista[1]), 'texto normalizado');
+  assert.equal(adicionarDaMemoria(lista, mem('a', cad('y', 'idade_min', 15))), null, 'a mesma regra não entra de novo');
+  const trocada = adicionarDaMemoria(lista, mem('b', cad('y', 'idade_min', 20)));
+  assert.deepEqual(trocada.map((c) => [c.id.slice(0, 4), c.regra?.valor ?? null]), [['rep', null], ['mem_', 20]], 'regra do mesmo campo é substituída');
+  assert.equal(trocada[1].origem, 'usuario');
+  assert.match(trocada[1].id, /^mem_[a-f0-9b]{12}$/);
+  const cinco = [1, 2, 3, 4, 5].map((n) => pes(`p${n}`, `Critério de site ${n}`));
+  assert.equal(adicionarDaMemoria(cinco, mem('c', pes('z', 'Outro critério de site'))), null, 'no máximo 5 de pesquisa');
+  const sugestoes = sugestoesDaMemoria(lista, [mem('a', cad('y', 'idade_min', 15)), mem('d', pes('w', 'Laboratório próprio'))]);
+  assert.deepEqual(sugestoes.map((m) => m.texto), ['Laboratório próprio']);
+});
+
+test('registro da execução: frase de cada passo, sem depender de React', async () => {
+  const { descreverEvento } = await import('../v1/src/agente/pesquisa-tela.ts');
+  const f = (tipo, dados) => descreverEvento({ tipo, dados });
+  assert.equal(f('criterios', { total: 4, cadastro: 3, pesquisa: 1, modo: 'regras' }), '4 critérios propostos por regras locais: 3 de cadastro e 1 de site.');
+  assert.equal(f('criterios', { origem: 'ajuste', total: 4, opcionais: 1 }), 'Nova rodada a partir da anterior, com 4 critérios (1 tornado opcional).');
+  assert.equal(f('funil', { recorte: 725, aprovadasCadastro: 93 }), 'Funil cadastral: 93 de 725 empresas passaram.');
+  assert.equal(f('lote', { revisadas: 2, empresas: [{ nome: 'Alfa', categoria: 'provavel' }, { nome: 'Beta', categoria: 'a_confirmar' }] }), '2 empresas revisadas: Alfa (provável), Beta (a confirmar).');
+  assert.equal(f('pausa', { motivo: 'O provedor gratuito pediu uma pausa.', automatica: true }), 'Pausada pelo agente: O provedor gratuito pediu uma pausa.');
+  assert.equal(f('revisao_humana', { acao: 'revisar', criterio: 'Laboratório próprio', empresa: 'Alfa', veredito: 'nao_atende' }), 'Revisou “Laboratório próprio” em Alfa: não atende.');
+  assert.equal(f('entrega', { empresas: 1 }), '1 empresa levada ao trabalho.');
+  assert.equal(f('monitoramento', { ativo: false }), 'Monitoramento semanal desligado.');
+});

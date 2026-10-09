@@ -45,6 +45,19 @@
 .pesquisa-funil-etapa:last-child .pesquisa-funil-trilho > span { background: var(--color-marca); }
 .pesquisa-funil-nota { font-size: 10px; color: var(--color-suave); line-height: 1.4; }
 
+/* Sugestão de relaxamento: no laranja-fundo da marca, porque pede uma decisão do membro. */
+.pesquisa-relaxar { background: var(--color-alvo-fundo); border: 1px solid var(--color-alvo-fio); border-radius: 16px; padding: 16px 18px; }
+.pesquisa-relaxar-cabeca { display: flex; gap: 12px; align-items: flex-start; }
+.pesquisa-relaxar-cabeca .agente-icone-bloco { width: 36px; height: 36px; background: white; color: var(--color-alvo-tinta); flex-shrink: 0; }
+.pesquisa-relaxar-cabeca svg { width: 18px; }
+.pesquisa-relaxar h3 { font-size: 14px; font-weight: 600; }
+.pesquisa-relaxar p { font-size: 12px; line-height: 1.6; color: var(--color-tinta-2); margin-top: 3px; }
+.pesquisa-relaxar ul { display: grid; gap: 8px; margin-top: 12px; }
+.pesquisa-relaxar li { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: white; border: 1px solid var(--color-alvo-fio); border-radius: 12px; padding: 10px 12px; }
+.pesquisa-relaxar li strong { display: block; font-size: 13px; font-weight: 600; }
+.pesquisa-relaxar li small { display: block; font-size: 11px; color: var(--color-suave); margin-top: 2px; }
+.pesquisa-relaxar .agente-btn-secundario { min-height: 36px; padding: 7px 12px; font-size: 12px; }
+
 .pesquisa-criterios { padding: 22px; }
 .pesquisa-notas { display: grid; gap: 8px; margin-bottom: 16px; }
 .pesquisa-notas li { display: flex; gap: 9px; font-size: 12px; line-height: 1.6; color: var(--color-alvo-tinta); background: var(--color-alvo-fundo); border-radius: 10px; padding: 9px 12px; }
@@ -88,6 +101,18 @@
 .pesquisa-legenda > p { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; color: var(--color-suave); }
 .pesquisa-legenda > p > span { display: inline-flex; gap: 6px; align-items: center; }
 
+/* Registro da execução: passos do agente e decisões da equipe, o mais recente primeiro. */
+.pesquisa-registro { background: white; border: 1px solid var(--color-fio); border-radius: 14px; padding: 12px 16px; font-size: 12px; }
+.pesquisa-registro summary { font-weight: 600; font-size: 12px; }
+.pesquisa-registro summary small { font-weight: 400; color: var(--color-suave); margin-left: 6px; }
+.pesquisa-registro ol { display: grid; gap: 2px; margin-top: 10px; max-height: 320px; overflow-y: auto; }
+.pesquisa-registro li { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 6px 8px; border-radius: 8px; line-height: 1.5; }
+.pesquisa-registro li.pessoa { background: var(--color-comprador-fundo); }
+.pesquisa-registro-quem { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--color-suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pesquisa-registro li.pessoa .pesquisa-registro-quem { color: var(--color-comprador); }
+.pesquisa-registro time { font-size: 10px; color: var(--color-suave); white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) { .pesquisa-registro li { grid-template-columns: 1fr auto; } .pesquisa-registro-quem { grid-column: 1 / -1; } }
+
 .pesquisa-resultados { display: grid; gap: 14px; }
 .pesquisa-grupo { background: white; border: 1px solid var(--color-fio); border-radius: 16px; overflow: hidden; }
 .pesquisa-grupo > summary { display: flex; align-items: baseline; gap: 9px; padding: 14px 18px !important; font-size: 14px; font-weight: 600; flex-wrap: wrap; list-style: none; }
@@ -118,6 +143,25 @@
 .pesquisa-simbolo.indicio { background: var(--color-comprador-fundo); color: var(--color-comprador); }
 .pesquisa-simbolo.indeterminado { background: var(--color-papel-2); color: var(--color-suave); }
 .pesquisa-simbolo.nao_atende { background: var(--color-alerta-fundo); color: var(--color-alerta); }
+/* Revisão humana: o contorno no símbolo marca a decisão travada de uma pessoa. */
+.pesquisa-simbolo.humano { box-shadow: inset 0 0 0 1.5px currentColor; }
+.pesquisa-humano { display: flex; gap: 7px; align-items: flex-start; margin-top: 6px; font-size: 11px; line-height: 1.5; color: var(--color-comprador); background: var(--color-comprador-fundo); border-radius: 8px; padding: 6px 9px; }
+.pesquisa-humano svg { width: 14px; height: 14px; margin-top: 1px; flex: none; }
+.pesquisa-revisao-acoes { display: flex; gap: 14px; margin-top: 6px; }
+.pesquisa-revisao-form { margin-top: 10px; display: grid; gap: 8px; background: white; border: 1px solid var(--color-fio); border-radius: 12px; padding: 12px 14px; font-size: 12px; }
+.pesquisa-revisao-form fieldset { display: flex; flex-wrap: wrap; gap: 6px 16px; border: 0; padding: 0; margin: 0; }
+.pesquisa-revisao-form legend { font-weight: 600; margin-bottom: 4px; width: 100%; }
+.pesquisa-revisao-form fieldset label { display: inline-flex; gap: 6px; align-items: center; }
+.pesquisa-revisao-form textarea { min-height: 64px; padding: 8px 10px; }
+.pesquisa-revisao-fonte { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pesquisa-revisao-fonte label { display: grid; gap: 4px; }
+.pesquisa-revisao-fonte input { padding: 6px 10px; }
+.pesquisa-revisao-botoes { display: flex; gap: 8px; flex-wrap: wrap; }
+.pesquisa-revisao-botoes button { min-height: 36px; padding: 7px 14px; font-size: 12px; }
+.pesquisa-historico { margin-top: 14px; font-size: 11px; color: var(--color-tinta-2); }
+.pesquisa-historico ol { display: grid; gap: 4px; margin-top: 6px; padding-left: 4px; }
+@media (max-width: 760px) { .pesquisa-revisao-fonte { grid-template-columns: 1fr; } }
+
 .pesquisa-detalhe-linha > td { background: #fbfcfd; padding: 0 !important; }
 .pesquisa-detalhe { padding: 16px 18px 18px 44px; }
 .pesquisa-detalhe-cabeca { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
@@ -148,6 +192,27 @@
 .pesquisa-recente.is-atual { background: var(--color-comprador-fundo); border-color: var(--color-comprador-fio); }
 .pesquisa-recente-tese { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12px; font-weight: 500; line-height: 1.5; }
 .pesquisa-recente-meta { display: block; font-size: 10px; color: var(--color-suave); margin-top: 4px; }
+
+/* Memória do membro: sugestões no editor e painel na lateral (ver, pausar, apagar). */
+.pesquisa-memoria-sugestoes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
+.pesquisa-memoria-sugestoes > span { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--color-alvo-tinta); margin-right: 4px; }
+.pesquisa-memoria-sugestoes button { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--color-tinta-2); background: white; border: 1px dashed var(--color-fio-forte); border-radius: 999px; padding: 5px 10px; }
+.pesquisa-memoria-sugestoes button:hover { border-color: var(--color-comprador-fio); background: var(--color-comprador-fundo); color: var(--color-comprador); }
+.pesquisa-memoria-sugestoes svg { width: 13px; height: 13px; }
+.pesquisa-memoria { border-top: 1px solid var(--color-fio); padding-top: 18px; }
+.pesquisa-memoria h3 { font-size: 13px; font-weight: 600; }
+.pesquisa-memoria > p { font-size: 11px; line-height: 1.6; color: var(--color-suave); margin-top: 6px; }
+.pesquisa-memoria details { margin-top: 10px; font-size: 12px; }
+.pesquisa-memoria ul { display: grid; gap: 4px; margin-top: 6px; }
+.pesquisa-memoria li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; border-radius: 8px; background: white; border: 1px solid var(--color-fio); }
+.pesquisa-memoria li small { display: block; font-size: 10px; color: var(--color-suave); margin-top: 1px; }
+.pesquisa-memoria li button { padding: 5px; border-radius: 7px; color: var(--color-suave); flex: none; }
+.pesquisa-memoria li button:hover:not(:disabled) { color: var(--color-alerta); background: var(--color-alerta-fundo); }
+.pesquisa-memoria li svg { width: 15px; }
+.pesquisa-memoria-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 12px; }
+.pesquisa-memoria-acoes [role=group] { display: inline-flex; gap: 4px; }
+.pesquisa-memoria-acoes [role=group] button { padding: 5px 10px; font-size: 11px; font-weight: 600; border: 1px solid var(--color-fio); border-radius: 8px; background: white; }
+.pesquisa-memoria-acoes [role=group] button.is-perigo { color: white; background: var(--color-alerta); border-color: var(--color-alerta); }
 
 @media (max-width: 1100px) {
   .pesquisa-layout { grid-template-columns: 1fr; }
