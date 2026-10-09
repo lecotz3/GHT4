@@ -3460,3 +3460,183 @@ STATUS: AGUARDANDO REVIEW
 - **Falha ao guardar:** confirmar que a falha ao guardar não derruba a busca.
 
 STATUS: AGUARDANDO REVIEW
+
+# REVIEW DO CODEX
+
+## Rodada 19 — Varredura paginada e transição de cobertura (09/10/2026)
+
+**Escopo:** implementação `4e12016`, diário em `b70f987`. Durante a revisão, o repositório avançou até `e429018c7d063126ed1b42a6aff84606ddc21ccf`, com as Rodadas 20–24. Seus registros foram lidos, mas essas cinco entregas ainda não receberam revisão independente de código e testes. Este parecer não as aprova. A lógica de transição abaixo permanece igual no HEAD atual. Worktree inicialmente limpo; somente este parecer foi acrescentado pelo Codex.
+
+## CRÍTICOS
+
+1. **[P2] A transição `ampliada` absorve uma empresa realmente nova para o monitor sem aviso.** Em `server/src/pesquisa/monitoramento.mjs:177`, `baseHistorica` recupera todas as aprovadas na publicação da pesquisa original. Em `:189`–`:195`, qualquer ampliação de cobertura incorpora esses IDs como conhecidos antes de calcular as novidades. Porém, ter atendido à pesquisa original não prova que a empresa atendia à tese na ativação do monitor, nem que estava fora da porção já monitorada.
+
+   **Reprodução independente:** rotas reais via `app.inject`, autenticação de teste, PGlite descartável, três publicações importadas e páginas de duas empresas. Na publicação de agosto, Alfa, Beta e Gama atendem ao critério de idade; a pesquisa guarda Alfa e Beta. Na publicação de setembro, Gama passa a se chamar `A Gama` e tem abertura corrigida para 2020: a primeira página efetivamente ordenada pelo SQL contém Gama e Alfa, mas Gama não atende à tese. O monitor é ativado sem Gama nas conhecidas; a cobertura é ajustada para representar o monitor antigo parcial (2 de 3). Em outubro, Gama continua nessa primeira página e sua abertura volta a 1990, passando a atender à tese depois da ativação. A verificação retorna sucesso, cobertura 3/3, `transicao: 'ampliada'`, `totalNovas: 0` e nenhum aviso; Gama é persistida nas conhecidas. Uma segunda verificação também não recupera a novidade. A ordem das páginas e a ausência inicial de Gama nas conhecidas foram verificadas no ensaio, não presumidas pela ordem do arquivo de entrada.
+
+   **Correção necessária:** só absorver silenciosamente empresas cuja presença na base anterior possa ser comprovada. A publicação da pesquisa não substitui uma referência da ativação/última cobertura do monitor. Para monitores antigos sem informação suficiente para distinguir expansão de cobertura de mudança de elegibilidade, tratar candidatas desconhecidas como `a conferir`, preservando os IDs já conhecidos. Não incorporar indiscriminadamente todas as aprovadas históricas. Acrescentar regressão com três publicações, reordenação e elegibilidade verdadeira → falsa na ativação → verdadeira na ampliação.
+
+## IMPORTANTES
+
+- Os testes de transição precisam variar também a elegibilidade entre pesquisa e ativação, não apenas acrescentar IDs ao catálogo. O caso acima atravessa importação, ordenação SQL, ativação, verificação e persistência; um teste isolado de diferença entre conjuntos não cobre esse contrato.
+- Rodadas 20–24 permanecem **pendentes de revisão**, especialmente autorização por canal/mandato, memória pessoal, revisão humana e os novos fluxos do find. O resultado desta rodada não certifica o HEAD inteiro.
+
+## OPCIONAIS
+
+- Documentar separadamente a versão da pesquisa, a referência da base do monitor e a cobertura avaliada; são informações distintas e o histórico atual evidencia o risco de tratá-las como equivalentes.
+
+## DISCORDÂNCIAS
+
+- Não concordo que usar a publicação original na transição só possa produzir excesso declarado de avisos. O ensaio reproduz o contrário: uma novidade na porção já acompanhada desaparece definitivamente. A reconstrução precisa ser conservadora também contra falsos negativos.
+
+## APROVADO
+
+- Paginação por chave no catálogo SQL, fixação do hash entre páginas e rejeição de mudança de hash/total durante a varredura; manutenção da cobertura explícita quando há teto.
+- Preservação dos testes de reserva/falha da Rodada 18, incluindo o ensaio agora versionado em que A perde a reserva para B e não pode liberar a reserva de B nem apagar a falha.
+- Validação local selecionada iniciada em `b70f987`: **85 testes passaram, 2 de PostgreSQL real foram deliberadamente pulados, nenhuma falha**. Foram executados os testes de catálogo SQL, monitoramento, pesquisa, reserva PostgreSQL e componentes/integração de monitoramento e pesquisa. TypeScript e lint também terminaram com exit 0. Isso não substitui a revisão das alterações concorrentes das Rodadas 20–24.
+- O ensaio adicional do bloqueador foi confirmado no HEAD `e429018`, sem banco remoto, provedor de IA ou alteração de código funcional. Não foram repetidos CI completo nem testes de produção. PGlite não valida concorrência entre conexões PostgreSQL reais; a janela residual de autorização e o ensaio humano com NVDA continuam como limitações já registradas, não novos bloqueadores desta rodada.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Claude deve corrigir a reconstrução da base na ampliação e versionar a regressão integrada acima, preservando paginação, cobertura parcial, avisos já conhecidos e fencing da reserva. Depois, solicitar nova revisão dessa correção. As Rodadas 20–24 devem ser revisadas separadamente; seu avanço não encerra este achado. Rodadas 14 e 18 continuam aprovadas dentro dos respectivos escopos.
+
+**STATUS: REQUER ALTERAÇÕES**
+
+# REVIEW DO CODEX
+
+## Rodada 21 — Encontrar quem decide (09/10/2026)
+
+**Escopo desta revisão solicitada pelo usuário:** Rodadas 21 a 24, última registrada. Implementações `c544958`, `39d2753`, `000f3ec` e `e429018`, confrontadas com o diário e com o código vigente em `e429018c7d063126ed1b42a6aff84606ddc21ccf`. O parecer anterior da Rodada 19 foi preservado; a Rodada 20 não recebe aprovação integral por estes testes de integração.
+
+**Validação comum aos quatro pareceres:** 125 testes existentes passaram, sem falhas ou pulos: 40 de find, nomes, pesquisa no find, memória, vínculo CNPJ, plano e rede; mais 85 de pesquisa, catálogos, ativação da rede e componentes/fluxos da pesquisa. TypeScript (`tsc -b --pretty false`) e lint passaram. Houve avisos de `act(...)` nos testes existentes de `PesquisaTese`, sem falha de asserção. Ensaios adicionais em memória e com DOM real reproduziram os achados abaixo. Não foi executado CI completo, banco remoto, provedor de IA, deploy ou alteração funcional. Os ensaios usam PGlite e intercalações controladas, não múltiplas conexões PostgreSQL de produção; não houve nova inspeção visual em navegador nem ensaio NVDA.
+
+## CRÍTICOS
+
+1. **[P2] A busca em lote perde caminhos válidos quando o intermediário também é alvo.** `server/src/encontrar/buscar.mjs:175` entrega pessoas de várias empresas de uma vez a `caminhosNoGrafo`. Em `server/src/rede/caminhos.mjs:213`, encontrar um alvo no primeiro salto executa `continue` e impede procurar o segundo salto. Reproduzido com Casa → pessoa da Alfa → pessoa da Delta, ambas as ligações com apresentação aceita: buscar só a Delta pelo CNPJ retorna caminho de dois saltos e grupo `forte`; buscar as distribuidoras juntas retorna a mesma Delta sem caminho, grupo `revisar`, dizendo que ninguém foi perguntado. Ampliar o universo não pode apagar um caminho existente. Registrar o alvo intermediário sem encerrar a expansão, preservando limite de saltos, prevenção de ciclos e recusas. Adicionar teste de equivalência entre busca individual e lote com intermediário também pertencente ao conjunto de alvos.
+
+2. **[P2] Um cargo negado vira alternativa positiva e aprova a pessoa explicitamente excluída pelo pedido.** `server/src/encontrar/pedido.mjs:74`–`:83` extrai cargos sem observar negação e depois apaga o trecho do texto. Reproduzido pela API: `Quem decide nas distribuidoras, sem gerentes` vira `Quem decide a venda ou Gerência`; uma gerente recebe grupo `forte`, embora a própria linha informativa diga que não decide a venda. Também `CFOs exceto CEOs` inclui as duas senioridades. Tratar negação no papel e preservar a exigência original; se não houver suporte seguro, devolver ambiguidade/revisão explícita sem afirmar atendimento. Não transferir o `sem`/`exceto` restante para a interpretação do setor da empresa.
+
+## IMPORTANTES
+
+- A área do cargo é descartada com nota, mas o cartão pode continuar afirmando que todas as exigências foram conferidas. Para pedidos como gerência comercial, o nível de gerência sozinho não comprova a área. Recomendo registrar essa exigência como pendente, em vez de uma nota apenas sobre ampliação da busca.
+- Os testes atuais cobrem caminhos com intermediário externo, mas não a mudança de conjunto de alvos no mesmo grafo. A extração de função foi mecânica; a nova forma de chamá-la não é semanticamente equivalente.
+
+## OPCIONAIS
+
+- Oferecer continuação dos grupos e das lacunas. Os tetos de exibição são informados, mas estreitar por empresa/cargo não permite necessariamente alcançar pessoas além do teto dentro da mesma empresa e cargo.
+
+## DISCORDÂNCIAS
+
+- Não concordo com tratar a composição em lote como validada apenas porque os testes antigos de caminhos passaram. O resultado depende do conjunto de alvos, como o ensaio demonstrou.
+- Negação não pode ser convertida em uma alternativa positiva, mesmo num leitor sem IA.
+
+## APROVADO
+
+- Fonte e pertencimento à empresa participam do juízo; falta de evidência não vira reprovação automática. Separação entre confirmação da relação e disponibilidade de apresentação é adequada.
+- Rotas exigem leitura da rede, recusam o canal MCP para pessoas e não retornam campos estruturados de telefone/e-mail. Consulta reutiliza o grafo e verifica restrições do espaço ativo.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Corrigir expansão do grafo e negação de cargos, com regressões integradas pelos mesmos pedidos acima. Preservar o comportamento individual, a recusa de intermediação e a filtragem de pontas inativas.
+
+**STATUS: REQUER ALTERAÇÕES**
+
+# REVIEW DO CODEX
+
+## Rodada 22 — Nome, município e vínculo ao CNPJ (09/10/2026)
+
+## CRÍTICOS
+
+1. **[P2] Município negado ou alternativo vira filtro obrigatório positivo, alterando também a pesquisa por tese.** Em `server/src/pesquisa/criterios.mjs:327` e `:438`–`:440`, cada município reconhecido é convertido em `Sede em ...`, sem levar em conta negação ou alternativa. Ensaios: `Distribuidoras fora de Campinas` e `Distribuidoras exceto em Campinas` geram sede obrigatória em Campinas. Na API do find, o primeiro pedido deixa apenas a empresa de Campinas nos critérios e exclui as de fora. `Distribuidoras em Campinas ou em Osasco` gera duas regras obrigatórias simultâneas, impossíveis para uma única sede; sem repetir `em`, apenas Campinas permanece e Osasco é descartada com nota. Não basta avisar que a segunda cidade não foi interpretada quando a primeira já eliminou alternativas válidas. Implementar a lógica de exclusão/união ou manter a expressão como exigência não resolvida, sem filtro cadastral destrutivo. Cobrir find e pesquisa por tese, pois o leitor é compartilhado.
+
+## IMPORTANTES
+
+- `resolverNomes` e `empresasParecidas` consultam no máximo 500 candidatos e aplicam a comparação final em memória (`server/src/encontrar/nomes.mjs:116` e `:162`), sem propagar a incompletude da consulta. Convém paginar/fixar a publicação ou executar a correspondência completa no catálogo; do contrário, nome inexistente, total de homônimos e ranking são conclusões sobre uma amostra, não sobre todo o catálogo.
+- Versionar testes de negação e alternativas de municípios junto dos casos já existentes de produto único, plural de trading e nomes próprios. Esta é uma regressão de regra compartilhada, não apenas um detalhe da tela nova.
+
+## OPCIONAIS
+
+- Exibir a origem da sugestão de vínculo e conservar a confirmação manual; a fonte do cargo não comprova por si só a identidade da empresa homônima.
+
+## DISCORDÂNCIAS
+
+- O limite documentado de escolher a primeira cidade não é suficiente para preservar o pedido com `ou`. Uma aproximação pode ser apresentada como pendência; não deve excluir automaticamente empresas expressamente pedidas.
+
+## APROVADO
+
+- Vínculo altera apenas `empresa_id`, preserva contatos, trava a pessoa durante a atualização, confere versão, valida empresa no catálogo e registra auditoria. Não há associação automática por nome.
+- Manter `rede.editar` tanto na sugestão orientada à edição quanto na confirmação é coerente com o fluxo atual; não há necessidade de ampliar a permissão para concluir esta rodada.
+- CNPJ fora do catálogo não amplia silenciosamente a busca comum. Filtro de pessoas sem CNPJ e atualização do resumo estão cobertos pelos testes selecionados.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Corrigir o reconhecimento de municípios considerando o contexto lógico da expressão. Reexecutar os testes do leitor compartilhado e incluir os quatro exemplos acima antes de pedir aprovação.
+
+**STATUS: REQUER ALTERAÇÕES**
+
+# REVIEW DO CODEX
+
+## Rodada 23 — Find na pesquisa e escopo dos planos (09/10/2026)
+
+## CRÍTICOS
+
+1. **[P1] Abrir o plano a partir do find perde a pesquisa e deixa de aplicar o bloqueio do mandato como restrição ativa.** `v1/src/componentes/EncontrarPessoas.tsx:223` e `:248` montam `PlanoAcesso` só com `empresaId`, apesar de o componente aceitar `pesquisaId`. Ensaio no DOM real confirmou GETs `/api/acesso/cnpj11111111` e `/api/acesso/cnpj44444444`, sem pesquisa, tanto no cartão quanto na lacuna. Ensaio integrado com pesquisa ligada a mandato e restrição ativa: o find coloca a pessoa em `excluido`; o plano com `?pesquisaId=...` retorna `passo.acao='nao_contatar'`; o plano aberto sem esse parâmetro usa o espaço pessoal e retorna outro próximo passo (`cadastrar_casa` no cenário reproduzido). O aviso de outro espaço não equivale ao bloqueio do trabalho. Também se perdem o cadastro e o site guardados na pesquisa. Propagar o ID da pesquisa por todos os cartões/lacunas até `PlanoAcesso`, inclusive no cadastro de decisor que o plano já sabe contextualizar. Testar o pedido HTTP completo e a permanência de `nao_contatar`, não apenas a faixa da tela.
+
+## IMPORTANTES
+
+- Dentro da pesquisa, `server/src/encontrar/buscar.mjs:122` escolhe diretamente `recorteDaPesquisa` e não passa por `resolverNomes`. Nome/CNPJ no novo pedido não recebe o mesmo tratamento da busca comum. Definir e testar a interseção com as empresas da pesquisa ou avisar explicitamente que esse refinamento não é suportado; evitar prometer que todo o pedido continua valendo por cima.
+- O corte de pessoas evita falsas lacunas, mas a consulta consome o teto também com pessoas de empresas já reprovadas pelos critérios. Considerar consultar apenas `nosCriterios`, preservando uma contagem separada se necessária. Não transformar uma amostra vazia por teto em afirmação de que a casa não mapeou ninguém.
+
+## OPCIONAIS
+
+- Manter a medição local como referência de implementação, não como validação do tempo em produção. A leitura de avisos e grafo deve continuar sendo medida com cardinalidade realista e latência do banco.
+
+## DISCORDÂNCIAS
+
+- A autorização e o escopo da rota de busca não bastam se a próxima ação da interface troca silenciosamente de contexto. O contexto deve acompanhar todo o percurso pesquisa → find → plano → registro.
+
+## APROVADO
+
+- A rota exige dono da pesquisa, leitura do agente e autorização no mandato; provável fica como indício. A categoria consultada é a persistida no item, portanto incorpora a revisão humana que recalcula essa categoria.
+- Avisos de outros espaços respeitam o usuário/mandatos visíveis e não expõem espaço pessoal alheio nos testes. A restrição do espaço ativo decide o grupo na API.
+- Paginação fixa a publicação e confronta hash/total; o corte por última empresa lida é conservador e evita afirmar ausência de pessoas não avaliadas. O aumento do teto não é tratado como garantia de cobertura ilimitada.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Priorizar a propagação de `pesquisaId` no plano e sua regressão integrada com restrição ativa. Cobrir cartão, lacuna, consulta do plano e registro de decisor. Depois alinhar os refinamentos do pedido dentro da pesquisa.
+
+**STATUS: REQUER ALTERAÇÕES**
+
+# REVIEW DO CODEX
+
+## Rodada 24 — Memória das buscas (09/10/2026)
+
+## CRÍTICOS
+
+1. **[P2] Uma gravação em voo pode repor o histórico depois de pausa e exclusão confirmadas.** `server/src/encontrar/memoria.mjs:29` lê `memoriaAtiva` separadamente do INSERT em `:31`. Ensaio com PGlite e barreira controlada depois da leitura: uma busca repetida lê preferência ativa; outra ação executa `PUT /api/memoria {ativa:false}` e `DELETE /api/encontrar/memoria`, ambos concluídos, com resposta `{ativa:false,buscas:[]}`; ao liberar a gravação antiga, o histórico volta a conter o pedido, ainda com `ativa:false`. Não houve retomada nem pedido novo depois da exclusão. Coordenar a persistência com pausa/apagamento por usuário, usando bloqueio de controle ou geração invalidada pelas ações de privacidade. Uma transação só no INSERT/limpeza não basta se a preferência e o apagamento continuarem fora do mesmo protocolo. Versionar essa intercalação, inclusive com duas abas.
+
+## IMPORTANTES
+
+- Os testes existentes verificam pausa e exclusão sequenciais, não gravações já admitidas. A mesma preferência serve à memória de critérios; qualquer correção compartilhada precisa preservar os dois consumidores e evitar ordem de locks divergente.
+- `lerMemoria` na tela ignora qualquer erro, inclusive 401. Recomendo manter a memória como auxiliar sem esconder expiração de sessão; falha transitória pode apenas omitir o painel, mas 401 deve seguir o tratamento já usado na busca e exclusão.
+
+## OPCIONAIS
+
+- Corrigir o comentário da rota que ainda diz que a busca não grava nada: desde esta rodada há persistência opcional de pedido e contagens.
+
+## DISCORDÂNCIAS
+
+- Pausa e apagamento confirmados não devem ser desfeitos por uma gravação que já leu a preferência antiga. O controle precisa valer no ponto de persistência, não apenas no começo da função.
+
+## APROVADO
+
+- `agente.ler` para ler/apagar a própria memória é apropriado: não devolve a rede atual nem aceita ID de outro usuário. Escopo pessoal, auditoria sem conteúdo do pedido, limite de histórico e exclusão de buscas vinculadas à pesquisa são coerentes.
+- Falha de persistência não derruba a busca: além de conferir o `try/catch`, o ensaio removeu apenas a tabela de memória no banco descartável, manteve a preferência ativa e confirmou HTTP 200 no find. Não foi alterado banco real.
+- A migração nova possui chave composta por usuário e busca, restrições básicas e índice para ordenação por uso. Não foi modificada.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Serializar/inutilizar gravações antigas ao pausar ou apagar e acrescentar teste integrado com a ordem descrita. Preservar o caráter auxiliar da memória: indisponibilidade ao guardar deve continuar sem derrubar o resultado da busca.
+
+**STATUS: REQUER ALTERAÇÕES**
+
+**Ponto de acompanhamento:** Rodadas 21, 22, 23 e 24 revisadas e requerendo alterações pelos achados acima; Rodada 19 mantém seu bloqueador de transição de cobertura; Rodada 20 ainda não tem parecer integral. Rodadas 14 e 18 seguem aprovadas em seus escopos. HEAD verificado `e429018`; nenhuma alteração funcional feita pelo Codex. Próxima prioridade do builder: contexto de restrição da Rodada 23, caminhos/negações das Rodadas 21–22, consistência da memória da Rodada 24 e o bloqueador já registrado da Rodada 19.
