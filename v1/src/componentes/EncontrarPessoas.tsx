@@ -33,10 +33,11 @@ export function EncontrarPessoas({ aoPesquisar, aoExpirar, pesquisa = null, aoSa
   // Um plano aberto por vez: chave `pessoa:<id>` ou `lacuna:<empresaId>`.
   const [plano, setPlano] = useState<string | null>(null)
   const pedidoAtual = useRef(0)
-  // Memória das buscas: auxiliar. Falha ao ler não atrapalha o find; a lista só não aparece.
+  // Memória das buscas: auxiliar. Falha ao ler não atrapalha o find, a lista só não aparece;
+  // sessão expirada, sim, vai para o login, como na busca.
   const [memoria, setMemoria] = useState<MemoriaBuscas | null>(null)
   const [esquecendo, setEsquecendo] = useState('')
-  const lerMemoria = () => { encontrarApi.memoria().then(setMemoria, () => {}) }
+  const lerMemoria = () => { encontrarApi.memoria().then(setMemoria, (falha) => { if (falha instanceof ErroApi && falha.status === 401) aoExpirar() }) }
   useEffect(lerMemoria, [])
   async function esquecer(chave: string | null) {
     if (esquecendo) return

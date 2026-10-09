@@ -13,7 +13,7 @@
 import { z } from 'zod';
 import { ErroHttp } from '../app.mjs';
 import { registrar } from '../auditoria/registrar.mjs';
-import { lerMemoria } from '../pesquisa/memoria.mjs';
+import { lerMemoria, travarMemoria } from '../pesquisa/memoria.mjs';
 
 export async function registrarMemoria(app) {
   const { db } = app;
@@ -24,6 +24,7 @@ export async function registrarMemoria(app) {
     const u = req.exigir('agente.ler');
     const { ativa } = z.object({ ativa: z.boolean() }).strict().parse(req.body);
     await db.transaction(async (tx) => {
+      await travarMemoria(tx, u.id);
       await tx.query(`INSERT INTO memoria_preferencias (usuario_id, ativa) VALUES ($1,$2)
         ON CONFLICT (usuario_id) DO UPDATE SET ativa=EXCLUDED.ativa, atualizado_em=now()`, [u.id, ativa]);
       await registrar(tx, { usuarioId: u.id, entidade: 'memoria', entidadeId: u.id, acao: ativa ? 'retomar_memoria' : 'pausar_memoria', depois: { ativa } });
@@ -35,6 +36,7 @@ export async function registrarMemoria(app) {
     const u = req.exigir('agente.ler');
     const chave = z.string().regex(/^[a-f0-9]{32}$/).parse(req.params.chave);
     await db.transaction(async (tx) => {
+      await travarMemoria(tx, u.id);
       const r = await tx.query('DELETE FROM memoria_criterios WHERE usuario_id=$1 AND chave=$2 RETURNING chave', [u.id, chave]);
       if (!r.rows.length) throw new ErroHttp(404, 'memoria_inexistente', 'Este critério já não está na sua memória.');
       await registrar(tx, { usuarioId: u.id, entidade: 'memoria', entidadeId: u.id, acao: 'esquecer_criterio', depois: { apagados: 1 } });
@@ -45,6 +47,7 @@ export async function registrarMemoria(app) {
   app.delete('/api/memoria/criterios', async (req) => {
     const u = req.exigir('agente.ler');
     await db.transaction(async (tx) => {
+      await travarMemoria(tx, u.id);
       const r = await tx.query('DELETE FROM memoria_criterios WHERE usuario_id=$1 RETURNING chave', [u.id]);
       await registrar(tx, { usuarioId: u.id, entidade: 'memoria', entidadeId: u.id, acao: 'apagar_memoria', depois: { apagados: r.rows.length } });
     });

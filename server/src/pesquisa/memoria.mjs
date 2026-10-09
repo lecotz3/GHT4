@@ -35,17 +35,32 @@ export async function memoriaAtiva(db, usuarioId) {
   return r ? r.ativa : true;
 }
 
+/**
+ * Guardar, pausar e apagar a memória de uma pessoa passam por esta trava, como primeira coisa da
+ * transação: uma gravação que já leu "ativa" termina antes da pausa ou da exclusão, e a exclusão a
+ * leva junto; nunca depois, repondo o que foi apagado. Serve às buscas e aos critérios, que dividem
+ * a preferência. Uma trava só, e da transação: a ordem não diverge e o pooler do Supabase a solta no
+ * fim da transação.
+ */
+export async function travarMemoria(tx, usuarioId) {
+  await tx.query("SELECT pg_advisory_xact_lock(hashtextextended('memoria:' || $1::text, 0))", [usuarioId]);
+}
+
 /** Grava os critérios de uma pesquisa iniciada. Devolve quantos entraram (0 com a memória pausada). */
 export async function lembrarCriterios(db, usuarioId, criterios) {
-  if (!criterios?.length || !(await memoriaAtiva(db, usuarioId))) return 0;
+  if (!criterios?.length) return 0;
   const linhas = [...new Map(criterios.map((c) => [chaveDoCriterio(c), guardavel(c)])).entries()];
-  await db.query(`INSERT INTO memoria_criterios (usuario_id, chave, criterio)
-      SELECT $1, x.chave, x.criterio FROM jsonb_to_recordset($2::jsonb) AS x(chave text, criterio jsonb)
-    ON CONFLICT (usuario_id, chave) DO UPDATE SET usos=memoria_criterios.usos+1, ultimo_uso=now(), criterio=EXCLUDED.criterio`,
-  [usuarioId, JSON.stringify(linhas.map(([chave, criterio]) => ({ chave, criterio })))]);
-  await db.query(`DELETE FROM memoria_criterios WHERE usuario_id=$1 AND chave IN (
-      SELECT chave FROM memoria_criterios WHERE usuario_id=$1 ORDER BY usos DESC, ultimo_uso DESC OFFSET $2)`, [usuarioId, MAX_MEMORIA]);
-  return linhas.length;
+  return db.transaction(async (tx) => {
+    await travarMemoria(tx, usuarioId);
+    if (!(await memoriaAtiva(tx, usuarioId))) return 0;
+    await tx.query(`INSERT INTO memoria_criterios (usuario_id, chave, criterio)
+        SELECT $1, x.chave, x.criterio FROM jsonb_to_recordset($2::jsonb) AS x(chave text, criterio jsonb)
+      ON CONFLICT (usuario_id, chave) DO UPDATE SET usos=memoria_criterios.usos+1, ultimo_uso=now(), criterio=EXCLUDED.criterio`,
+    [usuarioId, JSON.stringify(linhas.map(([chave, criterio]) => ({ chave, criterio })))]);
+    await tx.query(`DELETE FROM memoria_criterios WHERE usuario_id=$1 AND chave IN (
+        SELECT chave FROM memoria_criterios WHERE usuario_id=$1 ORDER BY usos DESC, ultimo_uso DESC OFFSET $2)`, [usuarioId, MAX_MEMORIA]);
+    return linhas.length;
+  });
 }
 
 /** O que a pessoa vê da própria memória: mais usados primeiro. */

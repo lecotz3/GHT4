@@ -74,3 +74,22 @@ test('componente: memória pausada avisa que buscas novas não ficam guardadas',
     assert.match(document.querySelector('.encontrar-memoria').textContent, /Sua memória está pausada: buscas novas não ficam guardadas/);
   } finally { await t.desmontar(); }
 });
+
+test('componente: sessão expirada ao ler a memória vai para o login; outra falha só esconde a lista', async () => {
+  const expiradas = [];
+  servidor([{ metodo: 'GET', url: /\/api\/encontrar\/memoria$/, dados: () => ({ erro: 'sessao_expirada', mensagem: 'Entre de novo.' }), status: () => 401 }]);
+  let t = await montar(React.createElement(EncontrarPessoas, { aoPesquisar: () => {}, aoExpirar: () => expiradas.push(1) }));
+  try {
+    await esperar(); await esperar();
+    assert.deepEqual(expiradas, [1], '401 segue o tratamento da busca');
+  } finally { await t.desmontar(); }
+
+  servidor([{ metodo: 'GET', url: /\/api\/encontrar\/memoria$/, dados: () => ({ erro: 'falha', mensagem: 'Indisponível.' }), status: () => 503 }]);
+  t = await montar(React.createElement(EncontrarPessoas, { aoPesquisar: () => {}, aoExpirar: () => expiradas.push(2) }));
+  try {
+    await esperar(); await esperar();
+    assert.deepEqual(expiradas, [1], 'falha passageira não derruba a sessão');
+    assert.equal(document.querySelector('.encontrar-memoria'), null);
+    assert.equal(document.querySelector('[role="alert"]'), null, 'nem vira erro na tela: a memória é auxiliar');
+  } finally { await t.desmontar(); }
+});

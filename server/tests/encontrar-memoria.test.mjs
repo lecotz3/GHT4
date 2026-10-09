@@ -7,7 +7,8 @@ import path from 'node:path';
 import { criarApp } from '../src/app.mjs';
 import { criarCatalogo } from '../src/agente/catalogo.mjs';
 import { bancoDeTeste, criarUsuario } from './ajuda.mjs';
-import { lembrarBusca, MAX_BUSCAS } from '../src/encontrar/memoria.mjs';
+import { lembrarBusca, lerBuscas, MAX_BUSCAS } from '../src/encontrar/memoria.mjs';
+import { lembrarCriterios, lerMemoria } from '../src/pesquisa/memoria.mjs';
 
 /* Rodada 24: memória das buscas do find. Pessoal, visível, apagável e pausável como a
    memória de critérios; guarda o pedido e as contagens, nunca as pessoas. */
@@ -102,4 +103,53 @@ test('memória das buscas: guarda o pedido, soma usos, respeita pausa e pesquisa
   m = await memoria();
   assert.equal(m.buscas.length, MAX_BUSCAS);
   assert.ok(!m.buscas.some((b) => b.pedido === 'Pedido de teste número 0'), 'a mais antiga saiu');
+});
+
+/* Banco que segura a gravação logo depois de ler a preferência: é a janela em que a pessoa pausa e
+   apaga em outra aba. A gravação já admitida não pode repor o que foi apagado. */
+function comBarreira(base) {
+  let leu, liberar;
+  const leitura = new Promise((r) => { leu = r; });
+  const barreira = new Promise((r) => { liberar = r; });
+  const envolver = (alvo) => ({
+    query: async (sql, ...resto) => {
+      const r = await alvo.query(sql, ...resto);
+      if (/SELECT ativa FROM memoria_preferencias/.test(sql)) { leu(); await barreira; }
+      return r;
+    },
+    transaction: (corpo) => alvo.transaction((tx) => corpo(envolver(tx))),
+  });
+  return { db: envolver(base), leitura, liberar: () => liberar() };
+}
+
+test('pausa e exclusão confirmadas não são desfeitas por uma gravação em voo (buscas e critérios)', async (t) => {
+  const { db, usuario } = await montar(t);
+  const socio = await usuario('socio@teste.local', 'socio', 'Helena Sócia');
+  const resumo = { forte: 1, revisar: 0, excluido: 0, lacunas: 0 };
+
+  const b = comBarreira(db);
+  const gravando = lembrarBusca(b.db, socio.id, 'Quem decide nas distribuidoras de SP', resumo);
+  await b.leitura;
+  const pausa = socio.chamar('PUT', '/api/memoria', { ativa: false });
+  const apaga = socio.chamar('DELETE', '/api/encontrar/memoria');
+  await new Promise((r) => setTimeout(r, 30));
+  b.liberar();
+  await gravando;
+  assert.equal((await pausa).statusCode, 200);
+  assert.equal((await apaga).statusCode, 200);
+  assert.deepEqual(await lerBuscas(db, socio.id), { ativa: false, buscas: [] });
+
+  // A mesma preferência serve à memória de critérios: o mesmo protocolo vale para ela.
+  assert.equal((await socio.chamar('PUT', '/api/memoria', { ativa: true })).statusCode, 200);
+  const c = comBarreira(db);
+  const criterios = lembrarCriterios(c.db, socio.id, [{ texto: 'Mais de 20 anos', tipo: 'cadastro', regra: { campo: 'idade_min', valor: 20 }, obrigatorio: true }]);
+  await c.leitura;
+  const pausa2 = socio.chamar('PUT', '/api/memoria', { ativa: false });
+  const apaga2 = socio.chamar('DELETE', '/api/memoria/criterios');
+  await new Promise((r) => setTimeout(r, 30));
+  c.liberar();
+  await criterios;
+  assert.equal((await pausa2).statusCode, 200);
+  assert.equal((await apaga2).statusCode, 200);
+  assert.deepEqual(await lerMemoria(db, socio.id), { ativa: false, criterios: [] });
 });

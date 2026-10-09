@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { normalizar } from '../agente/catalogo.mjs';
-import { memoriaAtiva } from '../pesquisa/memoria.mjs';
+import { memoriaAtiva, travarMemoria } from '../pesquisa/memoria.mjs';
 
 /* =============================================================================
  *  GHT4 · memória das buscas do "encontrar quem decide"
@@ -24,16 +24,19 @@ export const chaveDaBusca = (pedido) => createHash('sha256')
 /** O que fica do resultado: as contagens, para a lista dizer o que a busca trouxe da última vez. */
 export const resumoDaBusca = (r) => ({ forte: r.funil.forte, revisar: r.funil.revisar, excluido: r.funil.excluido, lacunas: r.lacunas.total });
 
-/** Guarda o pedido feito. Devolve false com a memória pausada. */
+/** Guarda o pedido feito. Devolve false com a memória pausada. A trava é a da pausa e da exclusão. */
 export async function lembrarBusca(db, usuarioId, pedido, resumo) {
-  if (!(await memoriaAtiva(db, usuarioId))) return false;
   const texto = pedido.replace(/\s+/g, ' ').trim();
-  await db.query(`INSERT INTO memoria_buscas (usuario_id, chave, pedido, resumo) VALUES ($1,$2,$3,$4)
-    ON CONFLICT (usuario_id, chave) DO UPDATE SET usos=memoria_buscas.usos+1, ultimo_uso=now(), pedido=EXCLUDED.pedido, resumo=EXCLUDED.resumo`,
-  [usuarioId, chaveDaBusca(texto), texto, JSON.stringify(resumo)]);
-  await db.query(`DELETE FROM memoria_buscas WHERE usuario_id=$1 AND chave IN (
-      SELECT chave FROM memoria_buscas WHERE usuario_id=$1 ORDER BY ultimo_uso DESC, chave OFFSET $2)`, [usuarioId, MAX_BUSCAS]);
-  return true;
+  return db.transaction(async (tx) => {
+    await travarMemoria(tx, usuarioId);
+    if (!(await memoriaAtiva(tx, usuarioId))) return false;
+    await tx.query(`INSERT INTO memoria_buscas (usuario_id, chave, pedido, resumo) VALUES ($1,$2,$3,$4)
+      ON CONFLICT (usuario_id, chave) DO UPDATE SET usos=memoria_buscas.usos+1, ultimo_uso=now(), pedido=EXCLUDED.pedido, resumo=EXCLUDED.resumo`,
+    [usuarioId, chaveDaBusca(texto), texto, JSON.stringify(resumo)]);
+    await tx.query(`DELETE FROM memoria_buscas WHERE usuario_id=$1 AND chave IN (
+        SELECT chave FROM memoria_buscas WHERE usuario_id=$1 ORDER BY ultimo_uso DESC, chave OFFSET $2)`, [usuarioId, MAX_BUSCAS]);
+    return true;
+  });
 }
 
 /** O que a pessoa vê: as mais recentes primeiro. */

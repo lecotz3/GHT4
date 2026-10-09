@@ -3,13 +3,15 @@ import { ErroHttp } from '../app.mjs';
 import { registrar } from '../auditoria/registrar.mjs';
 import { encontrarPessoas, CATEGORIAS_DA_PESQUISA } from '../encontrar/buscar.mjs';
 import { lembrarBusca, lerBuscas, resumoDaBusca } from '../encontrar/memoria.mjs';
+import { travarMemoria } from '../pesquisa/memoria.mjs';
 
 /* =============================================================================
  *  GHT4 · rota do "encontrar quem decide" (ver encontrar/buscar.mjs)
  * -----------------------------------------------------------------------------
  *  Ler exige `rede.ler`, como o plano de acesso: a resposta traz nomes de
  *  pessoas de terceiros. Pelo mesmo motivo não sai pelo canal externo (ponte
- *  MCP), e a resposta não fica em cache. É leitura: não grava nada.
+ *  MCP), e a resposta não fica em cache. Não grava pessoa nem rede; com a memória ligada,
+ *  guarda o pedido e as contagens do resultado (abaixo).
  *
  *  Com `pesquisaId`, a busca fica nas empresas aderentes e prováveis de uma
  *  pesquisa por tese do próprio membro, com a mesma autorização do plano de
@@ -75,6 +77,7 @@ export async function registrarEncontrar(app, { catalogo }) {
     const u = req.exigir('agente.ler');
     const chave = z.string().regex(/^[a-f0-9]{32}$/).parse(req.params.chave);
     await db.transaction(async (tx) => {
+      await travarMemoria(tx, u.id);
       const r = await tx.query('DELETE FROM memoria_buscas WHERE usuario_id=$1 AND chave=$2 RETURNING chave', [u.id, chave]);
       if (!r.rows.length) throw new ErroHttp(404, 'memoria_inexistente', 'Esta busca já não está na sua memória.');
       await registrar(tx, { usuarioId: u.id, entidade: 'memoria', entidadeId: u.id, acao: 'esquecer_busca', depois: { apagados: 1 } });
@@ -86,6 +89,7 @@ export async function registrarEncontrar(app, { catalogo }) {
   app.delete('/api/encontrar/memoria', async (req, res) => {
     const u = req.exigir('agente.ler');
     await db.transaction(async (tx) => {
+      await travarMemoria(tx, u.id);
       const r = await tx.query('DELETE FROM memoria_buscas WHERE usuario_id=$1 RETURNING chave', [u.id]);
       await registrar(tx, { usuarioId: u.id, entidade: 'memoria', entidadeId: u.id, acao: 'apagar_buscas', depois: { apagados: r.rows.length } });
     });
