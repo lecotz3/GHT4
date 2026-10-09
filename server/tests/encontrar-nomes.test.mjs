@@ -200,3 +200,36 @@ test('nome entre aspas e com abreviatura ainda é nome', () => {
   assert.deepEqual(trechos('Quem decide na "Química Alfa", com mais de 20 anos'), ['quimica alfa'], 'a vírgula e a aspa fecham o nome');
   assert.deepEqual(trechos("Diretores da 'Alfa'"), ['alfa'], 'a aspa de fechamento não gruda no nome');
 });
+
+test('município negado ou em alternativa não vira sede obrigatória (tese e find)', async (t) => {
+  const regras = (tese, opcoes) => interpretarTese(tese, { referencia: REF, ...opcoes });
+  const municipios = new Set(['campinas', 'osasco', 'sorocaba', 'santos', 'niteroi']);
+  const sede = (texto) => regras(texto, { municipios }).criterios.filter((c) => /^municipio/.test(c.regra?.campo ?? ''));
+  const confere = (c, cidade) => verificarCadastro(c.regra, { cidade, uf: 'SP' }, REF).veredito;
+
+  for (const texto of ['Distribuidoras fora de Campinas', 'Distribuidoras exceto em Campinas']) {
+    const r = regras(texto, { municipios });
+    assert.deepEqual(r.criterios.map((c) => [c.texto, c.regra?.campo, c.regra?.valor]), [['Sede fora de Campinas', 'municipio_fora', ['Campinas']]], texto);
+    assert.equal(confere(r.criterios[0], 'CAMPINAS'), 'nao_atende');
+    assert.equal(confere(r.criterios[0], 'SANTOS'), 'atende');
+  }
+  for (const texto of ['Distribuidoras em Campinas ou em Osasco', 'Distribuidoras em Campinas ou Osasco']) {
+    const [c, ...resto] = sede(texto);
+    assert.deepEqual([c.texto, c.regra.campo, c.regra.valor, resto.length], ['Sede em Campinas ou Osasco', 'municipios', ['Campinas', 'Osasco'], 0], texto);
+    assert.equal(confere(c, 'OSASCO'), 'atende');
+    assert.equal(confere(c, 'SANTOS'), 'nao_atende');
+  }
+  assert.deepEqual(sede('Distribuidoras em Campinas, Osasco e Sorocaba').map((c) => c.texto), ['Sede em Campinas, Osasco ou Sorocaba']);
+  assert.deepEqual(sede('Distribuidoras em Campinas e com mais de 20 anos').map((c) => c.regra.valor), ['Campinas'], '"e com" não é outra cidade');
+  assert.deepEqual(interpretarPedido('Quem decide nas distribuidoras fora de Campinas', { municipios }).criterios.map((c) => c.regra?.campo), ['municipio_fora']);
+
+  const { usuario } = await montar(t);
+  const socio = await usuario('socio@teste.local', 'socio', 'Helena Sócia');
+  const buscar = async (pedido) => { const r = await socio.chamar('POST', '/api/encontrar', { pedido }); assert.equal(r.statusCode, 200, r.body); return r.json(); };
+  let r = await buscar('Quem decide nas distribuidoras fora de Campinas');
+  assert.deepEqual(r.leitura.criterios.map((c) => c.texto), ['Sede fora de Campinas']);
+  assert.equal(r.funil.nosCriterios, 2, 'Santos e Niterói');
+  r = await buscar('Quem decide nas distribuidoras em Campinas ou em Santos');
+  assert.deepEqual(r.leitura.criterios.map((c) => c.texto), ['Sede em Campinas ou Santos']);
+  assert.equal(r.funil.nosCriterios, 3);
+});

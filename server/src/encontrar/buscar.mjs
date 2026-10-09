@@ -1,4 +1,4 @@
-import { LIMITE_RECORTE, LIMITE_VARREDURA } from '../agente/catalogo.mjs';
+import { LIMITE_RECORTE, lerRecorte } from '../agente/catalogo.mjs';
 import { lerGrafo, caminhosNoGrafo, LIMITACAO_GRAFO } from '../rede/caminhos.mjs';
 import { respostasPorPessoa } from '../acesso/plano.mjs';
 import { interpretarPedido } from './pedido.mjs';
@@ -35,20 +35,6 @@ export const LACUNAS_EXIBIDAS = 30;
 
 /** Erro com código, para a rota traduzir sem confundir com falha de programa. */
 const falha = (codigo, mensagem, causa) => Object.assign(new Error(mensagem), { codigo, causa });
-
-/* O recorte inteiro, em páginas na mesma publicação (a primeira fixa o hash, como em
-   `aprovadasCadastro` do motor da pesquisa): uma importação no meio não mistura versões. */
-async function lerRecorte(catalogo, filtros, { pagina: tamanho = LIMITE_RECORTE, maximo = LIMITE_VARREDURA } = {}) {
-  let pagina = await catalogo.recorte(filtros, { limite: tamanho });
-  const { total, hash } = pagina;
-  const empresas = [...pagina.empresas];
-  while (pagina.proximo != null && pagina.empresas.length && empresas.length < maximo) {
-    pagina = await catalogo.recorte(filtros, { hash, apos: pagina.proximo, limite: tamanho });
-    if (!pagina || pagina.hash !== hash || pagina.total !== total) throw new Error('A publicação do catálogo mudou durante a busca.');
-    empresas.push(...pagina.empresas);
-  }
-  return { empresas, total, truncado: pagina.proximo != null, referencia: pagina.referencia ?? null, fonte: pagina.fonte };
-}
 
 /* Restrições de contato dos outros espaços que o membro vê viram aviso, como no plano de acesso
    (`situacaoDaEmpresa` em api/empresas.mjs, mesma visibilidade): a do espaço do trabalho (`escopo`)

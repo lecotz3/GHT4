@@ -34,6 +34,9 @@ const NOME_IBAMA = { industria: 'indústria química', transporte: 'transporte d
 export const REGRAS = {
   uf: z.array(Uf).min(1).max(27),
   municipio: z.string().trim().min(2).max(60),
+  // Sede em qualquer um ("em Campinas ou Osasco") e sede fora de todos ("fora de Campinas").
+  municipios: z.array(z.string().trim().min(2).max(60)).min(2).max(10),
+  municipio_fora: z.array(z.string().trim().min(2).max(60)).min(1).max(10),
   atua_em_uf: z.array(Uf).min(1).max(27),
   idade_min: z.number().int().min(1).max(150),
   idade_max: z.number().int().min(1).max(150),
@@ -105,6 +108,11 @@ export function verificarCadastro(regra, empresa, referencia) {
   if (campo === 'uf') {
     const ok = valor.includes(empresa.uf);
     return v(ok ? 'atende' : 'nao_atende', `Sede em ${empresa.uf}`, `A sede cadastral fica em ${empresa.cidade}/${empresa.uf}.`, 'uf', referencia);
+  }
+  if (campo === 'municipios' || campo === 'municipio_fora') {
+    const na = valor.some((x) => normalizar(empresa.cidade) === normalizar(x));
+    const ok = campo === 'municipios' ? na : !na;
+    return v(ok ? 'atende' : 'nao_atende', `Sede em ${empresa.cidade}/${empresa.uf}`, `Município cadastral da sede: ${empresa.cidade}.`, 'municipio', referencia);
   }
   if (campo === 'municipio') {
     const ok = normalizar(empresa.cidade) === normalizar(valor);
@@ -321,30 +329,57 @@ const NOMES_REGIAO = new Set(['sul', 'norte', 'sudeste', 'nordeste', 'centro-oes
  * Município sem "cidade de" ("distribuidoras em Campinas"), pela lista de municípios onde o
  * catálogo tem empresa. Depois de "em" vale também em minúsculas; depois de "no/na/de/do/da",
  * só com inicial maiúscula. Com inicial maiúscula, o nome tem de ser inteiro: "na Serra Gaúcha"
- * não é Serra. Nome de estado continua estado. Devolve [{ ini, fim, nome }] (posições no texto,
- * da preposição ao fim do nome).
+ * não é Serra. Nome de estado continua estado.
+ *
+ * Uma lista ("em Campinas, Osasco ou em Sorocaba", com "ou" ou "e") é um lugar só, qualquer um
+ * deles: uma sede não fica em duas cidades. Negação logo antes ("fora de Campinas", "exceto em
+ * Campinas") pede a sede fora delas. Devolve [{ ini, fim, nomes, negado }] (posições no texto, da
+ * negação ou da preposição ao fim do último nome).
  */
+const NEGACAO_LUGAR = /(?:^|[\s,;(])(fora|exceto|menos|nao|salvo|excluindo|tirando|sem ser)\s+$/;
 function municipiosCitados(original, n, municipios) {
   const tokens = [...n.matchAll(/[a-z][a-z'-]*/g)].map((m) => ({ t: m[0], ini: m.index, fim: m.index + m[0].length }));
   const maiuscula = (k) => { const c = original[tokens[k].ini]; return c !== c.toLowerCase(); };
   const colado = (k) => /^\s+$/.test(n.slice(tokens[k - 1].fim, tokens[k].ini));
+  // O município que começa no token k, com até seis palavras: o índice da última, ou -1.
+  const nomeEm = (k) => {
+    for (let j = Math.min(tokens.length - 1, k + 5); j >= k; j--) {
+      if ([...Array(j - k)].some((_, x) => !colado(k + 1 + x))) continue;
+      const nome = tokens.slice(k, j + 1).map((x) => x.t).join(' ');
+      if (!municipios.has(nome) || NOMES_UF.some(([uf]) => uf === nome) || NOMES_REGIAO.has(nome)) continue;
+      // Nome com maiúscula seguido de outra palavra com maiúscula: é parte de um nome maior.
+      return maiuscula(k) && j + 1 < tokens.length && colado(j + 1) && maiuscula(j + 1) ? -1 : j;
+    }
+    return -1;
+  };
   const achados = [];
   for (let i = 0; i < tokens.length - 1; i++) {
     if (!/^(?:em|no|na|de|do|da)$/.test(tokens[i].t) || !colado(i + 1)) continue;
     if (tokens[i].t !== 'em' && !maiuscula(i + 1)) continue;
-    for (let j = Math.min(tokens.length - 1, i + 6); j > i; j--) {
-      if ([...Array(j - i - 1)].some((_, k) => !colado(i + 2 + k))) continue;
-      const nome = tokens.slice(i + 1, j + 1).map((x) => x.t).join(' ');
-      if (!municipios.has(nome) || NOMES_UF.some(([uf]) => uf === nome) || NOMES_REGIAO.has(nome)) continue;
-      // Nome com maiúscula seguido de outra palavra com maiúscula: é parte de um nome maior.
-      if (maiuscula(i + 1) && j + 1 < tokens.length && colado(j + 1) && maiuscula(j + 1)) break;
-      achados.push({ ini: tokens[i].ini, fim: tokens[j].fim, nome: original.slice(tokens[i + 1].ini, tokens[j].fim) });
-      i = j;
-      break;
+    let ultimo = nomeEm(i + 1);
+    if (ultimo < 0) continue;
+    const nomes = [original.slice(tokens[i + 1].ini, tokens[ultimo].fim)];
+    for (;;) {
+      let k = ultimo + 1;
+      if (k >= tokens.length) break;
+      const entre = n.slice(tokens[ultimo].fim, tokens[k].ini);
+      if (/^(?:ou|e)$/.test(tokens[k].t) && /^\s*,?\s*$/.test(entre)) k++;
+      else if (!/^\s*,\s*$/.test(entre)) break;
+      const preposicao = k < tokens.length && /^(?:em|no|na)$/.test(tokens[k].t);
+      if (preposicao) k++;
+      if (k >= tokens.length || !(preposicao && tokens[k - 1].t === 'em') && !maiuscula(k)) break;
+      const fim = nomeEm(k);
+      if (fim < 0) break;
+      nomes.push(original.slice(tokens[k].ini, tokens[fim].fim));
+      ultimo = fim;
     }
+    const negacao = n.slice(Math.max(0, tokens[i].ini - 16), tokens[i].ini).match(NEGACAO_LUGAR);
+    achados.push({ ini: negacao ? tokens[i].ini - negacao[0].replace(/^[\s,;(]/, '').length : tokens[i].ini, fim: tokens[ultimo].fim, nomes, negado: Boolean(negacao) });
+    i = ultimo;
   }
   return achados;
 }
+const listaDe = (nomes, conjuncao) => nomes.length < 2 ? nomes[0] : `${nomes.slice(0, -1).join(', ')} ${conjuncao} ${nomes.at(-1)}`;
 
 /**
  * @param {string} tese
@@ -431,13 +466,21 @@ export function interpretarTese(tese, { referencia, municipios } = {}) {
     const uf = NOMES_UF.find(([nome]) => nome === m[2].trim());
     if (uf && !/cidade|municipio/.test(m[1])) continue; // "sede em São Paulo" é ambíguo: tratado como estado abaixo, com nota
     // "Cidade de São Paulo"/"cidade do Rio de Janeiro": município da capital, dentro do seu estado.
+    const negacao = n.slice(Math.max(0, m.index - 16), m.index).match(NEGACAO_LUGAR);
+    if (negacao) {
+      const ini = m.index - negacao[0].replace(/^[\s,;(]/, '').length;
+      adicionar(Object.assign([n.slice(ini, m.index + m[0].length)], { index: ini }), `Sede fora de ${maiuscula(nomeOriginal)}`, { campo: 'municipio_fora', valor: [nomeOriginal] });
+      continue;
+    }
     if (uf) ufs.add(uf[1]);
     adicionar(m, `Sede em ${maiuscula(nomeOriginal)}`, { campo: 'municipio', valor: nomeOriginal });
   }
   if (municipios?.size) {
     for (const c of municipiosCitados(original, n, municipios)) {
       if (usados.some(([a, b]) => c.ini < b && c.fim > a)) continue;
-      adicionar(Object.assign([n.slice(c.ini, c.fim)], { index: c.ini }), `Sede em ${maiuscula(c.nome)}`, { campo: 'municipio', valor: c.nome });
+      const nomes = c.nomes.map(maiuscula);
+      const regra = c.negado ? { campo: 'municipio_fora', valor: c.nomes } : nomes.length > 1 ? { campo: 'municipios', valor: c.nomes } : { campo: 'municipio', valor: c.nomes[0] };
+      adicionar(Object.assign([n.slice(c.ini, c.fim)], { index: c.ini }), c.negado ? `Sede fora de ${listaDe(nomes, 'e')}` : `Sede em ${listaDe(nomes, 'ou')}`, regra);
     }
   }
   for (const m of todos(/\b(?:regiao |no |na |do |da )?(sudeste|nordeste|centro[- ]oeste|sul|norte)\b(?! de)/g)) {

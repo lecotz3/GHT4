@@ -1,4 +1,4 @@
-import { normalizar } from '../agente/catalogo.mjs';
+import { normalizar, lerRecorte } from '../agente/catalogo.mjs';
 import { NOMES_UF, UFS } from '../pesquisa/criterios.mjs';
 
 /* =============================================================================
@@ -15,7 +15,6 @@ import { NOMES_UF, UFS } from '../pesquisa/criterios.mjs';
 export const MAX_EMPRESAS_POR_NOME = 20;
 const MAX_CANDIDATOS = 3;
 const MAX_PALAVRAS = 6;
-const LIMITE_CONSULTA = 500;
 
 /* Palavras que não identificam uma empresa sozinhas: tipo, setor, forma jurídica. */
 const COMUNS = new Set(('quimica quimicas quimico quimicos distribuidora distribuidoras distribuidor distribuidores distribuicao '
@@ -106,17 +105,19 @@ export async function resolverNomes(catalogo, candidatos) {
     // Começa dentro de um nome já aceito ("Alfa do Brasil" → "do Brasil"): não é outro nome.
     if (nomes.some((x) => x.empresas.length && c.ini >= x.ini && c.ini < x.fim)) continue;
     if (c.cnpj) {
-      const r = await catalogo.recorte({ busca: c.cnpj, incluirPossiveis: true }, { limite: LIMITE_CONSULTA });
+      const r = await lerRecorte(catalogo, { busca: c.cnpj, incluirPossiveis: true });
       referencia ??= r.referencia ?? null;
       const empresas = r.empresas.filter((e) => e.cnpjRaiz === c.cnpj);
       nomes.push({ ini: c.ini, fim: c.fim, empresas, motivo: empresas.length ? null : 'fora', maiuscula: true, cnpj: true });
       continue;
     }
     const chave = c.palavras.map((x) => x.t).filter(identifica).sort((a, b) => b.length - a.length)[0];
-    const r = await catalogo.recorte({ busca: chave, incluirPossiveis: true }, { limite: LIMITE_CONSULTA });
+    const r = await lerRecorte(catalogo, { busca: chave, incluirPossiveis: true });
     referencia ??= r.referencia ?? null;
     const palavrasDe = new Map(r.empresas.map((e) => [e.id, new Set(normalizar(`${e.nome} ${e.razaoSocial ?? ''}`).split(/[^a-z0-9&]+/))]));
-    let achado = null, demais = false;
+    // Leitura parada no teto: concluir "não existe" ou "é só esta" seria falar de uma amostra.
+    let achado = null, demais = r.truncado;
+    if (!demais)
     procura: for (const soAsQueIdentificam of [false, true]) {
       for (let k = c.palavras.length; k >= 1; k--) {
         const prefixo = c.palavras.slice(0, k);
@@ -150,7 +151,7 @@ export async function empresasParecidas(catalogo, texto, { limite = 8 } = {}) {
   const digitos = String(texto ?? '').replace(/\D/g, '');
   if (/^\s*[\d./-]+\s*$/.test(String(texto ?? '')) && (digitos.length === 14 || digitos.length === 8)) {
     const raiz = digitos.slice(0, 8);
-    const r = await catalogo.recorte({ busca: raiz, incluirPossiveis: true }, { limite: LIMITE_CONSULTA });
+    const r = await lerRecorte(catalogo, { busca: raiz, incluirPossiveis: true });
     const empresas = r.empresas.filter((e) => e.cnpjRaiz === raiz);
     return { empresas, total: empresas.length, identifica: true };
   }
@@ -159,7 +160,7 @@ export async function empresasParecidas(catalogo, texto, { limite = 8 } = {}) {
   const identificam = palavras.filter(identifica).filter((w) => !FORMA_JURIDICA.test(w));
   if (!identificam.length) return { empresas: [], total: 0, identifica: false };
   const chave = [...identificam].sort((a, b) => b.length - a.length)[0];
-  const r = await catalogo.recorte({ busca: chave, incluirPossiveis: true }, { limite: LIMITE_CONSULTA });
+  const r = await lerRecorte(catalogo, { busca: chave, incluirPossiveis: true });
   const alvo = palavras.filter((w) => !CONECTORES.test(w) && !FORMA_JURIDICA.test(w));
   const semForma = (s) => normalizar(s).replace(/[^a-z0-9&]+/g, ' ').split(' ').filter((w) => w && !FORMA_JURIDICA.test(w)).join(' ');
   const pontuadas = [];

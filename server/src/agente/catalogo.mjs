@@ -23,6 +23,21 @@ const ARQUIVO_IBAMA = fileURLToPath(new URL('../../../data-ibama.js', import.met
  *  `LIMITE_VARREDURA`; acima disso grava cobertura parcial. */
 export const LIMITE_RECORTE = 10000;
 export const LIMITE_VARREDURA = 100000;
+
+/* O recorte inteiro, em páginas na mesma publicação (a primeira fixa o hash, como em
+   `aprovadasCadastro` do motor da pesquisa): uma importação no meio não mistura versões.
+   `truncado` diz que parou no `maximo`, e quem conclui sobre o catálogo tem de dizer isso. */
+export async function lerRecorte(catalogo, filtros, { pagina: tamanho = LIMITE_RECORTE, maximo = LIMITE_VARREDURA } = {}) {
+  let pagina = await catalogo.recorte(filtros, { limite: tamanho });
+  const { total, hash } = pagina;
+  const empresas = [...pagina.empresas];
+  while (pagina.proximo != null && pagina.empresas.length && empresas.length < maximo) {
+    pagina = await catalogo.recorte(filtros, { hash, apos: pagina.proximo, limite: tamanho });
+    if (!pagina || pagina.hash !== hash || pagina.total !== total) throw new Error('A publicação do catálogo mudou durante a busca.');
+    empresas.push(...pagina.empresas);
+  }
+  return { empresas, total, truncado: pagina.proximo != null, referencia: pagina.referencia ?? null, fonte: pagina.fonte };
+}
 /** Página pedida: até `LIMITE_RECORTE` empresas, depois do cursor `apos` (inteiro ≥ 0) se houver. */
 export function validarPagina(apos, limite) {
   if (!Number.isInteger(limite) || limite < 1 || limite > LIMITE_RECORTE || (apos !== null && (!Number.isInteger(apos) || apos < 0))) {

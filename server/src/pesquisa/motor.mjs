@@ -58,7 +58,7 @@ em critérios verificáveis. Não execute buscas. Use somente o texto da tese.
 Cada critério tem: texto curto em português; obrigatorio (false só se a tese indicar preferência: "de preferência", "idealmente");
 tipo "cadastro" quando puder ser conferido no CNPJ com uma das regras permitidas, ou "pesquisa" quando depender de fonte pública
 (o que a empresa vende, representa, atende, certificações etc.); trecho = parte literal da tese que sustenta o critério.
-Regras permitidas para "cadastro" (campo e formato do valor): uf [siglas], municipio "nome", atua_em_uf [siglas], idade_min número de anos,
+Regras permitidas para "cadastro" (campo e formato do valor): uf [siglas], municipio "nome", municipios ["nome", ...] (sede em qualquer um), municipio_fora ["nome", ...] (sede fora de todos), atua_em_uf [siglas], idade_min número de anos,
 idade_max anos, capital_min reais, capital_max reais, porte ["ME"|"EPP"|"DEMAIS"], estabelecimentos_min número (matriz+filiais),
 ufs_atuacao_min número, socio_estrangeiro true|false, sem_socio_pj true, socios_max número, natureza ["ltda"|"sa"|"sa_aberta"|"cooperativa"|"individual"],
 ibama ["industria"|"transporte"|"comercio"], filial_recente_anos número, cnae_secundario ["0000000"].
