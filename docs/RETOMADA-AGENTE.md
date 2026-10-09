@@ -4,7 +4,37 @@ Atualizado em 9 de outubro de 2026 (checkpoint anterior: 8 de outubro). Branch d
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodadas 19 e 20 publicadas: o que faltava do Lessie e "chegar a quem decide" (09/10/2026)
+## COMECE AQUI — Rodada 21 pronta, sem commit: "encontrar quem decide", o /find do agente (09/10/2026)
+
+**Estado:**
+- **Na `main`:** até a Rodada 20 e a §10 do estudo do Lessie (`9bae022`).
+- **Rodada 21:** feita e validada na árvore de trabalho, **sem commit**. Commit e publicação esperam o pedido explícito do usuário. O registro completo está no [AI_COLLAB.md](../AI_COLLAB.md).
+  - **Seção nova "Encontrar quem decide":** o membro escreve o pedido em linguagem natural ("quem decide nas distribuidoras de SP que a casa conhece").
+    - O agente separa o papel, o acesso e a empresa; a empresa usa o mesmo intérprete da tese.
+    - Procura entre as pessoas que a casa já mapeou: quadro estatutário, listas da equipe e quem foi registrado com a fonte.
+    - Separa o resultado em "Atendem", "Para revisar" e "Fora do pedido", com o juízo linha a linha e o caminho pela rede.
+  - **"Onde falta quem decide":** empresas que se encaixam sem ninguém que sirva. O plano de acesso abre ali mesmo, para registrar quem decide.
+  - **Sem migração:** é uma leitura do que já existe. Rota `POST /api/encontrar` (`rede.ler`, recusa canal externo, sem contato pessoal).
+  - **Alteração cuidadosa:** `caminhosDeAcesso` foi partido em `lerGrafo` e `caminhosNoGrafo`, coberto pelos testes de rede e de plano.
+- **Arquivos fora do git:** `brag-output/` e as capturas do ensaio, que ficam no scratchpad da sessão.
+
+**Validação:** `npm run ci` exit 0. Lint, build, raiz **128/128**, servidor **296** + 2 pulados sem URL, dados. Ensaio `node ferramentas/ensaio-encontrar.mjs` e visual a 1440 px e 390 px sem rolagem horizontal.
+
+### Próximos passos, em ordem
+
+1. **Rodada 21:**
+   - commitar e publicar a pedido do usuário;
+   - pedir a revisão do Codex ("PARA O CODEX" no diário).
+2. **Encher a rede, que é o que limita o find:**
+   - importar o quadro societário estatutário (`npm run rede:verificar` e o roteiro de `docs/ATIVACAO-REDE-GHT4.md`);
+   - registrar quem decide pelas lacunas.
+3. **Melhorias do find, se o uso pedir:**
+   - salvar buscas e lembrar pedidos (como a memória da pesquisa);
+   - aceitar pessoa só com o nome da organização, por correspondência com o catálogo;
+   - ler cidade sem "cidade de" e produto de uma palavra, o que melhora também a tese.
+4. **Lessie logado:** extensão do Claude no Chrome conectada à mesma conta, ou a CLI ou o MCP oficial autorizado pelo usuário (§10.5 do estudo).
+
+## Checkpoint anterior — Rodadas 19 e 20 publicadas: o que faltava do Lessie e "chegar a quem decide" (09/10/2026)
 
 **Estado:**
 - **Na `main`, publicado a pedido do usuário em 09/10/2026:** Rodadas 19 e 20 (`c630112`, avanço rápido a partir desta branch).

@@ -3148,3 +3148,104 @@ STATUS: AGUARDANDO REVIEW
 - Rever a revisão humana (0028) e o registro de eventos (0029), que ainda não passaram por revisão.
 
 STATUS: AGUARDANDO REVIEW
+
+---
+
+## RODADA 21 — Encontrar quem decide: o "/find" do agente (09/10/2026) — Claude (builder)
+
+**Contexto:** pedido do usuário: "comece a implementar o find no meu agente". O fluxo do `/find` do Lessie vem da §10 de `PESQUISA-LESSIE-AI.md`, lida na documentação pública da skill e da CLI do Lessie: pedido literal, busca, triagem em bom, ambíguo e ruim, revisão profunda só do ambíguo e desbloqueio pago de contato. No GHT4 a origem das pessoas segue as decisões da casa:
+- quadro societário público no recorte estatutário (18/09);
+- listas compartilhadas pela equipe;
+- quem alguém da casa registrou com a fonte.
+
+Nada de LinkedIn, base de pessoas comprada ou contato pessoal (§5.3).
+
+**Escopo:**
+- **Adições:** módulo `server/src/encontrar/` (pedido, triagem e busca), rota `POST /api/encontrar`, seção "Encontrar quem decide" no menu, ensaio `ferramentas/ensaio-encontrar.mjs` e testes.
+- **Alterações em código existente:**
+  - `rede/caminhos.mjs`: `caminhosDeAcesso` foi partido em `lerGrafo` e `caminhosNoGrafo`, para ler o grafo uma vez e servir várias empresas. Mudança mecânica, coberta pelos 48 testes de rede, plano de acesso e catálogo, que passaram sem ajuste.
+  - Registro da rota em `app.mjs`.
+  - Item novo no menu e uma pergunta no guia (`EstruturaAgente.tsx`).
+  - A seção em `Agente.tsx`.
+- **Sem mudança em:** migração, catálogo e hash da publicação.
+
+### Feito
+
+1. **Leitura do pedido** (`encontrar/pedido.mjs`, sem IA). O pedido tem três partes:
+   - **Papel:** quem decide a venda, ou cargos da escala da rede (CFO, CEO e presidente, conselho, diretoria, liderança, gerência).
+     - "Diretores" inclui presidente e financeiro, com nota.
+     - A área do cargo ("gerentes comerciais") acompanha o papel, também com nota.
+   - **Acesso:** "que a casa conhece" (a casa chega) e "com apresentação viável" (introdução). "De preferência" o torna opcional.
+   - **Empresa:** o resto vai inteiro para `interpretarTese`.
+     - Sócio, dono e controlador que descrevem a empresa ("sem sócio estrangeiro", "até 3 sócios", "empresas de dono") ficam com a tese.
+     - Critério de pesquisa feito só de tipo de empresa e do subsetor do recorte ("de fabricantes de tintas") não vira critério, com nota.
+   - **Sem cargo no pedido:** procura quem decide, com nota.
+2. **Triagem** (`encontrar/triagem.mjs`).
+   - O juízo de cada pessoa reaproveita `juizoDoDecisor` (decide a venda, cargo com fonte, pertence à empresa, a casa chega até ela) e soma os critérios da empresa, conferidos com `verificarCadastro`.
+   - Cada linha diz se é obrigatória.
+   - **Grupos:**
+     - **forte:** tudo atende;
+     - **revisar:** nada reprovado, algum indício ou sem evidência;
+     - **excluído:** algum obrigatório reprovado, ou "não contatar" no espaço do membro.
+   - Sem evidência nunca vira "não atende".
+   - Critério que só o site responde marca `pedePesquisa`. A tela oferece rodar a pesquisa por tese com a parte do pedido que descreve a empresa, que é a "revisão profunda" do GHT4.
+3. **Busca** (`encontrar/buscar.mjs`, síncrona: cadastro e rede já estão no banco).
+   - Lê a primeira página do recorte (até 10 mil empresas) e confere os critérios uma vez por empresa.
+   - Lê as pessoas do mercado ligadas a CNPJ dessas empresas (até 5 mil).
+   - Lê as restrições do espaço do membro e o grafo da rede uma vez só, e julga cada pessoa.
+   - **Funil:** recorte → nos critérios → com alguém mapeado → pessoas → atendem.
+   - **Lacunas:** empresas nos critérios, sem restrição, em que ninguém mapeado serve ao pedido. É o caminho de recall: abrir o plano e registrar quem decide.
+   - Sem telefone nem e-mail, da rede ou do cadastro.
+4. **Rota** `POST /api/encontrar`:
+   - exige `rede.ler`;
+   - recusa o canal externo (`X-GHT4-Canal: mcp`, 403);
+   - responde com `no-store`;
+   - não grava nada.
+5. **Tela "Encontrar quem decide":**
+   - pedido com exemplos;
+   - "Como li o pedido" (quem, acesso, recorte, critérios da empresa e observações);
+   - funil;
+   - grupos "Atendem", "Para revisar" e "Fora do pedido" (este recolhido);
+   - cartão com o caminho, as pendências ou o motivo, o juízo em grade com papéis de tabela (as linhas informativas marcadas) e o plano de acesso aberto no próprio cartão, um por vez;
+   - "Onde falta quem decide", com o plano para registrar.
+
+### Validação
+
+- **`npm run ci`, exit 0:**
+  - lint (oxlint, 0 diagnósticos);
+  - build com checagem de tipos;
+  - raiz **128/128** (3 novos);
+  - servidor **296** e 2 pulados sem URL de PostgreSQL (2 novos);
+  - dados e paleta.
+- **Testes novos:**
+  - `server/tests/encontrar.test.mjs`:
+    - leitura do pedido;
+    - fluxo com catálogo de arquivo real: triagem, critério de idade, caminho confirmado, introdução, cargo de lista compartilhada, critério do site, restrição só no espaço de quem marcou, canal externo, 422, e nenhum contato da rede ou do cadastro na resposta.
+  - `tests/encontrar-componente.test.mjs`: pedido, grupos, juízo, plano no cartão e na lacuna (um por vez), passagem à pesquisa por tese só com a parte da empresa, 401 e 503.
+- **Ensaio** `node ferramentas/ensaio-encontrar.mjs` (e `--interface`): banco em memória, seis empresas e cinco pessoas fictícias.
+- **Ensaio visual** com playwright e Chrome local a 1440 px e 390 px, sem rolagem horizontal. O único erro de console é o 401 esperado de `/api/eu` antes do login.
+  - O ensaio pegou a seta própria do app (`summary::before`) caindo numa linha separada no grupo recolhido.
+  - O título do grupo virou inline.
+
+### Limites
+
+- **Quantas pessoas a casa já mapeou:** só elas entram. Sem o quadro estatutário importado e sem registros, o resultado é quase todo "Onde falta quem decide", e isso é o esperado.
+- **Primeira página do recorte (10 mil):** teses amplas com possíveis passam disso, e a busca avisa.
+- **Pessoa só com o nome da organização,** sem vínculo com o CNPJ, não entra. A busca avisa.
+- **Interpretação da tese, herdada e não mudada nesta rodada:**
+  - produto de uma palavra só ("distribuidoras de solventes") não vira critério;
+  - "tradings" no plural não aciona o subsetor de distribuição;
+  - "em Campinas" sem "cidade de" vira texto de pesquisa.
+- **A busca não fica salva:** não há histórico nem memória de pedidos.
+
+### PARA O CODEX
+
+- Rever a partição de `caminhosDeAcesso` em `lerGrafo` e `caminhosNoGrafo`: o comportamento deve ser idêntico, inclusive o retorno antecipado sem arestas e o aviso de limite.
+- Rever a triagem:
+  - o papel com "decide ou cargo" (qualquer um basta);
+  - a introdução rebaixando relação confirmada a indício;
+  - o critério do site obrigatório levando a "revisar".
+- Rever o escopo da restrição (só o espaço do membro, como no plano aberto sem pesquisa) e se pessoas de empresas fora dos critérios devem ficar só na contagem.
+- Rever as regras de papel contra os usos de sócio, dono e controlador que descrevem a empresa.
+
+STATUS: AGUARDANDO REVIEW
