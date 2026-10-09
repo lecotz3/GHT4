@@ -51,7 +51,9 @@ const vencida = (repetir, t = '') => `((${t}reservada_ate IS NULL OR ${t}reserva
   AND (${t}proxima_em<=now() OR (${repetir}::boolean AND ${t}falha_em IS NOT NULL AND ${t}falha_em<=now()-${REPETIR_APOS})))`;
 
 /** Cobertura de uma varredura: quantas empresas do recorte foram de fato avaliadas. */
-export const coberturaDe = (funil) => ({ recorte: funil.recorte, avaliadas: funil.avaliadas, completa: !funil.truncado && funil.avaliadas >= funil.recorte });
+export const coberturaDe = (funil, hash = null) => ({ recorte: funil.recorte, avaliadas: funil.avaliadas, completa: !funil.truncado && funil.avaliadas >= funil.recorte,
+  // A publicação avaliada: é a referência quando a cobertura parcial se amplia (ver baseAmpliada).
+  ...(hash ? { hash } : {}) });
 
 /**
  * Liga ou desliga. Ligar grava a linha de base: todas as empresas que atendem ao cadastro
@@ -81,7 +83,8 @@ export async function definirMonitoramento(db, { pesquisaId, usuarioId, ativo, a
 /** O estado público do monitoramento, para o detalhe da pesquisa. */
 export const publico = (m) => m ? { ativo: m.ativo, verificadoEm: m.verificado_em, proximaEm: m.proxima_em,
   falhaEm: m.falha_em ?? null, emAndamento: Boolean(m.reservada_ate && new Date(m.reservada_ate) > new Date()),
-  cobertura: m.cobertura ?? null, ultimoResultado: m.ultimo_resultado ?? null } : null;
+  cobertura: m.cobertura ? semHash(m.cobertura) : null, ultimoResultado: m.ultimo_resultado ?? null } : null;
+const semHash = ({ hash, ...cobertura }) => cobertura; // oxlint-disable-line no-unused-vars
 
 const ESCOPO = `(c.mandato_id IS NULL OR $2 OR m.confidencial=FALSE OR c.mandato_id=ANY($3::uuid[]))`;
 const DA_PESSOA = `monitoramentos_tese t JOIN pesquisas_tese p ON p.id=t.pesquisa_id JOIN agente_conversas c ON c.id=p.conversa_id
@@ -152,8 +155,8 @@ const devolver = (db, m) => db.query('UPDATE monitoramentos_tese SET reservada_a
  *   tiveram corte (todas as aprovadas foram gravadas); a linha de base já está completa e o
  *   regime é o normal;
  * - `historica`: houve corte de itens ou o funil da pesquisa foi truncado (só a primeira página
- *   do recorte foi avaliada); as aprovadas naquela publicação, varrida inteira, entram na linha
- *   de base sem aviso, e o que aprova agora e não aprovava lá é novidade real;
+ *   do recorte foi avaliada); a linha de base está incompleta e não há como reconstruí-la (ver
+ *   `conferirPelaPesquisa`);
  * - `incerta`: a publicação não está disponível (catálogo em arquivo, outra versão). Nada é
  *   absorvido em silêncio: as candidatas viram aviso marcado "a conferir", porque podem já
  *   atender desde antes de o monitoramento ser ligado.
@@ -162,37 +165,53 @@ const devolver = (db, m) => db.query('UPDATE monitoramentos_tese SET reservada_a
  */
 async function baseLegada(motor, pesquisa) {
   const f = pesquisa.funil ?? {};
-  if (!f.truncado && Number.isInteger(f.aprovadasCadastro) && f.aprovadasCadastro <= (f.armazenadas ?? MAX_ITENS)) return { origem: 'pesquisa', ids: [] };
-  return baseHistorica(motor, pesquisa, 'historica');
+  if (!f.truncado && Number.isInteger(f.aprovadasCadastro) && f.aprovadasCadastro <= (f.armazenadas ?? MAX_ITENS)) return { origem: 'pesquisa', absorver: [] };
+  return conferirPelaPesquisa(motor, pesquisa, 'historica');
 }
 
 /*
- * Monitor com cobertura parcial (ligado antes da varredura paginada, quando a verificação só lia
- * a primeira página do recorte, ou acima do teto da varredura): a linha de base só tem as
- * aprovadas da parte avaliada. Quando a verificação passa a avaliar mais do recorte, as aprovadas
- * da parte nova que já existiam não são novidade, e as que chegaram depois são. A referência é a
- * mesma do legado com corte: as aprovadas na publicação da pesquisa entram na linha de base sem
- * aviso (`ampliada`); sem essa publicação, as candidatas viram "a conferir" (`incerta`).
+ * Linha de base incompleta sem a publicação que o monitor avaliou (legado com corte, ou cobertura
+ * gravada antes de guardar o hash). Atender na publicação da PESQUISA não prova que a empresa
+ * atendia quando o monitor avaliou: ela pode ter estado além da parte avaliada (não é novidade)
+ * ou ter deixado de atender e voltado (é). Achado do Codex na Rodada 19: absorver essas em
+ * silêncio perdia a segunda. Nada é absorvido: quem atendia na publicação da pesquisa vira aviso
+ * "a conferir", e quem não atendia, aviso comum. Sem a publicação da pesquisa, todas ficam
+ * "a conferir" (`incerta`).
  */
-async function baseHistorica(motor, pesquisa, origem) {
+async function conferirPelaPesquisa(motor, pesquisa, origem) {
   const ref = await motor.aprovadasCadastro(pesquisa, { hash: pesquisa.catalogo_hash });
-  return ref ? { origem, ids: ref.empresas.map((e) => e.id) } : { origem: 'incerta', ids: [] };
+  return ref ? { origem, absorver: [], conferir: new Set(ref.empresas.map((e) => e.id)) } : { origem: 'incerta', absorver: [], conferir: 'todas' };
+}
+
+/*
+ * Cobertura parcial que se amplia (acima do teto da varredura, ou gravada antes da leitura em
+ * páginas): a linha de base só tem as aprovadas da parte avaliada. A referência é a publicação
+ * que o monitor avaliou da última vez (`cobertura.hash`), varrida inteira: quem atendia nela e
+ * não está nas conhecidas estava além da parte avaliada, já existia, e entra sem aviso; o que
+ * atende agora e não atendia nela é novidade real (`ampliada`). Sem essa publicação, ou com a
+ * varredura dela também no teto, `conferirPelaPesquisa`.
+ */
+async function baseAmpliada(motor, pesquisa, anterior) {
+  const ref = anterior.hash ? await motor.aprovadasCadastro(pesquisa, { hash: anterior.hash }) : null;
+  if (ref && !ref.funil.truncado) return { origem: 'ampliada', absorver: ref.empresas.map((e) => e.id) };
+  return conferirPelaPesquisa(motor, pesquisa, 'ampliada');
 }
 
 /* Cálculo fora de qualquer transação: o recorte é uma consulta grande (ver motor.calcular).
    Todas as aprovadas, sem o corte de itens da pesquisa; o teto da varredura vira cobertura. */
 async function calcular(db, motor, m) {
   const pesquisa = (await db.query('SELECT * FROM pesquisas_tese WHERE id=$1', [m.pesquisa_id])).rows[0];
-  const { funil, empresas } = await motor.aprovadasCadastro(pesquisa);
-  const cobertura = coberturaDe(funil);
+  const { funil, empresas, hash } = await motor.aprovadasCadastro(pesquisa);
+  const cobertura = coberturaDe(funil, hash);
   const anterior = m.cobertura;
   const ampliou = anterior?.completa === false && (cobertura.completa || cobertura.avaliadas > anterior.avaliadas);
-  const transicao = anterior == null ? await baseLegada(motor, pesquisa) : ampliou ? await baseHistorica(motor, pesquisa, 'ampliada') : null;
+  const transicao = anterior == null ? await baseLegada(motor, pesquisa) : ampliou ? await baseAmpliada(motor, pesquisa, anterior) : null;
   const antes = new Set(m.conhecidas);
-  const conhecidas = new Set([...antes, ...(transicao?.ids ?? [])]);
-  const novas = empresas.filter((e) => !conhecidas.has(e.id));
-  const aConferir = transicao?.origem === 'incerta';
-  const incorporar = [...new Set([...(transicao?.ids ?? []), ...novas.map((e) => e.id)])].filter((id) => !antes.has(id));
+  const conhecidas = new Set([...antes, ...(transicao?.absorver ?? [])]);
+  const aConferir = (e) => transicao?.conferir === 'todas' || Boolean(transicao?.conferir?.has(e.id));
+  const novas = empresas.filter((e) => !conhecidas.has(e.id)).map((e) => (aConferir(e) ? { ...e, aConferir: true } : e));
+  const conferir = novas.filter((e) => e.aConferir).length;
+  const incorporar = [...new Set([...(transicao?.absorver ?? []), ...novas.map((e) => e.id)])].filter((id) => !antes.has(id));
   const ultimo = (await db.query(MAIOR_EVENTO)).rows[0].n;
   // Eventos de todo o conjunto monitorado: a linha de base (com as descobertas anteriores),
   // os itens da pesquisa e as novas de agora. Só o evento mais recente de cada empresa.
@@ -207,21 +226,21 @@ async function calcular(db, motor, m) {
       ORDER BY a.id, ev.id DESC`, [monitoradas, m.ultimo_evento, ultimo, m.pesquisa_id])).rows;
   const resultado = {
     verificadoEm: new Date().toISOString(), totalNovas: novas.length, totalEventos: eventos.length, cobertura,
-    ...(transicao ? { transicao: transicao.origem } : {}), ...(aConferir ? { aConferir: novas.length } : {}),
+    ...(transicao ? { transicao: transicao.origem } : {}), ...(conferir ? { aConferir: conferir } : {}),
     novas: novas.slice(0, NOMES_NO_RESULTADO).map((e) => ({ id: e.id, nome: e.nome, aderencia: e.aderencia })),
     eventos: eventos.slice(0, NOMES_NO_RESULTADO).map((e) => ({ id: e.empresa_id, nome: e.nome, rotulo: e.descricao })),
   };
-  return { cobertura, novas, eventos, incorporar, ultimo, resultado, aConferir };
+  return { cobertura, novas, eventos, incorporar, ultimo, resultado };
 }
 
-async function gravar(db, m, { cobertura, novas, eventos, incorporar, ultimo, resultado, aConferir }) {
+async function gravar(db, m, { cobertura, novas, eventos, incorporar, ultimo, resultado }) {
   return db.transaction(async (tx) => {
     // Só quem tem a ficha vigente grava, e só com o monitoramento ainda ligado.
     const atual = (await tx.query('SELECT ativo, execucao FROM monitoramentos_tese WHERE pesquisa_id=$1 FOR UPDATE', [m.pesquisa_id])).rows[0];
     if (!atual?.ativo || atual.execucao !== m.execucao) return { pesquisaId: m.pesquisa_id, descartada: true };
     const linhas = [
-      ...novas.map((e) => ({ empresa_id: e.id, tipo: 'nova', empresa: { id: e.id, nome: e.nome, cidade: e.cidade, uf: e.uf, ...(aConferir ? { aConferir: true } : {}) },
-        detalhe: `Aderência ${e.aderencia}%${aConferir ? ' · a conferir: pode já atender desde antes do monitoramento' : ''}` })),
+      ...novas.map((e) => ({ empresa_id: e.id, tipo: 'nova', empresa: { id: e.id, nome: e.nome, cidade: e.cidade, uf: e.uf, ...(e.aConferir ? { aConferir: true } : {}) },
+        detalhe: `Aderência ${e.aderencia}%${e.aConferir ? ' · a conferir: pode já atender desde antes do monitoramento' : ''}` })),
       ...eventos.map((e) => ({ empresa_id: e.empresa_id, tipo: 'evento', empresa: { id: e.empresa_id, nome: e.nome }, detalhe: e.descricao })),
     ];
     // Tudo é gravado, em lotes: a linha de base nunca passa por cima de algo não avisado.

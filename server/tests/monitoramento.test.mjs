@@ -409,7 +409,8 @@ test('monitor legado com corte: empresa que já existia e só passou a atender n
   const corrigida = BASE.map((l) => (l[0] === 'cnpj22222222' ? linha('22222222', 'Beta Química', '1990-01-01') : l));
   const { db, chamar } = await legado(t, { cortada: true, linhas: corrigida });
   assert.equal((await chamar('POST', '/api/monitoramentos/verificar')).json().verificados, 1);
-  assert.deepEqual((await novasGravadas(db)).map((x) => [x.empresa_id, x.conferir]), [['cnpj22222222', null]], 'Gama absorvida; Beta, que passou a atender, vira aviso');
+  assert.deepEqual((await novasGravadas(db)).map((x) => [x.empresa_id, x.conferir]), [['cnpj22222222', null], ['cnpj33333333', 'true']],
+    'Beta, que passou a atender, vira aviso; Gama, que atendia na pesquisa além do corte, fica "a conferir"');
 });
 
 test('monitor legado sem corte: a linha de base já estava completa; empresa nova de publicação posterior vira aviso', async (t) => {
@@ -423,11 +424,11 @@ test('monitor legado sem corte: a linha de base já estava completa; empresa nov
   assert.equal((await novasGravadas(db)).length, 1, 'regime normal depois: sem repetição');
 });
 
-test('monitor legado com corte: a publicação da pesquisa reconstrói a linha de base; só a empresa realmente nova vira aviso', async (t) => {
+test('monitor legado com corte: nada é absorvido; quem atendia na publicação da pesquisa fica "a conferir", e a realmente nova vira aviso', async (t) => {
   const { db, chamar, id, estado } = await legado(t, { cortada: true });
   assert.equal((await chamar('POST', '/api/monitoramentos/verificar')).json().verificados, 1);
-  assert.deepEqual((await novasGravadas(db)).map((x) => [x.empresa_id, x.conferir]), [['cnpj44444444', null]],
-    'Gama aprovava na publicação da pesquisa (estava além do corte): absorvida; Delta chegou depois: aviso');
+  assert.deepEqual((await novasGravadas(db)).map((x) => [x.empresa_id, x.conferir]), [['cnpj33333333', 'true'], ['cnpj44444444', null]],
+    'Gama aprovava na publicação da pesquisa (além do corte), mas pode ter deixado de atender e voltado: a conferir; Delta chegou depois: aviso');
   const m = (await chamar('GET', `/api/pesquisas/${id}`)).json().monitoramento;
   assert.equal(m.ultimoResultado.transicao, 'historica');
   assert.ok(m.cobertura, 'daqui em diante, regime normal');
@@ -447,25 +448,25 @@ test('monitor legado com corte e sem a publicação da pesquisa: nada é absorvi
   assert.deepEqual([item.novas, item.aConferir], [2, 2]);
 });
 
-test('monitor legado com funil truncado e sem corte de itens: a linha de base não estava completa; a publicação da pesquisa a reconstrói', async (t) => {
+test('monitor legado com funil truncado e sem corte de itens: a linha de base não estava completa; quem atendia na publicação da pesquisa fica "a conferir"', async (t) => {
   const { db, chamar, id } = await legado(t, { truncada: true });
   assert.equal((await chamar('POST', '/api/monitoramentos/verificar')).json().verificados, 1);
-  assert.deepEqual((await novasGravadas(db)).map((x) => [x.empresa_id, x.conferir]), [['cnpj44444444', null]],
-    'Gama estava além da página avaliada pela pesquisa: absorvida; Delta chegou depois: aviso');
+  assert.deepEqual((await novasGravadas(db)).map((x) => [x.empresa_id, x.conferir]), [['cnpj33333333', 'true'], ['cnpj44444444', null]],
+    'Gama estava além da página avaliada pela pesquisa: a conferir; Delta chegou depois: aviso');
   assert.equal((await chamar('GET', `/api/pesquisas/${id}`)).json().monitoramento.ultimoResultado.transicao, 'historica');
 });
 
-test('monitor com cobertura parcial de antes da leitura em páginas: ao cobrir o recorte inteiro, quem já existia além do corte não vira aviso; só a realmente nova', async (t) => {
+test('monitor com cobertura parcial gravada sem a publicação: ao cobrir o recorte inteiro, quem atendia na pesquisa fica "a conferir"; a realmente nova vira aviso', async (t) => {
   const { db, chamar, id, vencer, estado } = await legado(t, { cobertura: { recorte: 3, avaliadas: 1, completa: false } });
   assert.equal((await chamar('POST', '/api/monitoramentos/verificar')).json().verificados, 1);
-  assert.deepEqual((await novasGravadas(db)).map((x) => [x.empresa_id, x.conferir]), [['cnpj44444444', null]],
-    'Gama aprovava na publicação da pesquisa, além da parte avaliada: absorvida; Delta chegou depois: aviso');
+  assert.deepEqual((await novasGravadas(db)).map((x) => [x.empresa_id, x.conferir]), [['cnpj33333333', 'true'], ['cnpj44444444', null]],
+    'Gama aprovava na publicação da pesquisa, além da parte avaliada: a conferir; Delta chegou depois: aviso');
   const m = (await chamar('GET', `/api/pesquisas/${id}`)).json().monitoramento;
   assert.equal(m.ultimoResultado.transicao, 'ampliada');
   assert.deepEqual(m.cobertura, { recorte: 4, avaliadas: 4, completa: true });
   assert.deepEqual((await estado()).conhecidas, ['cnpj11111111', 'cnpj33333333', 'cnpj44444444']);
   await vencer(); await chamar('POST', '/api/monitoramentos/verificar');
-  assert.equal((await novasGravadas(db)).length, 1, 'regime normal depois: sem repetição');
+  assert.equal((await novasGravadas(db)).length, 2, 'regime normal depois: sem repetição');
   assert.equal((await chamar('GET', `/api/pesquisas/${id}`)).json().monitoramento.ultimoResultado.transicao, undefined);
 });
 
@@ -647,4 +648,47 @@ test('monitoramento: mais de um lote de novidades; falha no segundo lote desfaz 
   await verificarVencidos(db, motor, usuario);
   assert.equal(await novidades('nova'), 501, 'dois lotes gravados');
   assert.ok((await estado()).conhecidas.includes('cnpj60000500'));
+});
+
+/* Achado do Codex na Rodada 19: atender na publicação da pesquisa não prova que a empresa atendia
+   quando o monitor avaliou pela última vez. Agosto: Alfa e Gama atendem. Setembro: Gama deixa de
+   atender (abertura corrigida para 2020) e Delta já atende; o monitor de setembro só avaliou a Alfa.
+   Outubro: Gama volta a atender, e Zeta chega. */
+async function gamaVaiEVolta(t, { comHash }) {
+  const ctx = await monitorada(t);
+  const { db, chamar, id, vencer } = ctx;
+  const setembro = [linha('11111111', 'Alfa Química', '1990-01-01'), linha('22222222', 'Beta Química', '2020-01-01'),
+    linha('33333333', 'Gama Química', '2020-01-01'), linha('44444444', 'Delta Química', '1995-01-01')];
+  await importarCatalogo(db, { texto: fonte('2026-09', setembro), versaoRegras: 'teste' });
+  await vencer();
+  assert.equal((await chamar('POST', '/api/monitoramentos/verificar')).json().verificados, 1);
+  const hashSetembro = (await db.query('SELECT cobertura FROM monitoramentos_tese WHERE pesquisa_id=$1', [id])).rows[0].cobertura.hash;
+  assert.match(hashSetembro ?? '', /^[0-9a-f]{16,}$/, 'a verificação guarda a publicação que avaliou');
+  // O monitor de setembro, parcial: só a Alfa foi avaliada; nada foi avisado.
+  await db.query('DELETE FROM monitoramento_novidades WHERE pesquisa_id=$1', [id]);
+  await db.query('UPDATE monitoramentos_tese SET conhecidas=$2, cobertura=$3::jsonb WHERE pesquisa_id=$1',
+    [id, ['cnpj11111111'], JSON.stringify({ recorte: 4, avaliadas: 1, completa: false, ...(comHash ? { hash: hashSetembro } : {}) })]);
+  await importarCatalogo(db, { texto: fonte('2026-10', [...setembro.map((l) => (l[0] === 'cnpj33333333' ? linha('33333333', 'Gama Química', '1988-01-01') : l)),
+    linha('88888888', 'Zeta Química', '1960-01-01')]), versaoRegras: 'teste' });
+  await vencer();
+  assert.equal((await chamar('POST', '/api/monitoramentos/verificar')).json().verificados, 1);
+  return ctx;
+}
+
+test('cobertura ampliada com a publicação da última verificação: quem voltou a atender é novidade; quem já atendia além da parte avaliada é absorvida', async (t) => {
+  const { db, chamar, id, estado } = await gamaVaiEVolta(t, { comHash: true });
+  assert.deepEqual((await novasGravadas(db)).map((x) => [x.empresa_id, x.conferir]), [['cnpj33333333', null], ['cnpj88888888', null]],
+    'Gama não atendia em setembro: aviso; Delta já atendia em setembro, além da Alfa: absorvida; Zeta chegou: aviso');
+  const r = (await chamar('GET', `/api/pesquisas/${id}`)).json().monitoramento;
+  assert.deepEqual([r.ultimoResultado.transicao, r.ultimoResultado.totalNovas, r.ultimoResultado.aConferir], ['ampliada', 2, undefined]);
+  assert.deepEqual(r.cobertura, { recorte: 5, avaliadas: 5, completa: true }, 'o hash fica no servidor');
+  assert.deepEqual((await estado()).conhecidas, ['cnpj11111111', 'cnpj33333333', 'cnpj44444444', 'cnpj88888888']);
+});
+
+test('cobertura ampliada sem a publicação da última verificação: nada é absorvido; quem atendia na pesquisa fica "a conferir"', async (t) => {
+  const { db, chamar, id } = await gamaVaiEVolta(t, { comHash: false });
+  assert.deepEqual((await novasGravadas(db)).map((x) => [x.empresa_id, x.conferir]), [['cnpj33333333', 'true'], ['cnpj44444444', null], ['cnpj88888888', null]],
+    'Gama atendia na pesquisa: pode ter estado além da parte avaliada ou ter voltado a atender; Delta e Zeta não estavam na pesquisa');
+  const r = (await chamar('GET', `/api/pesquisas/${id}`)).json().monitoramento.ultimoResultado;
+  assert.deepEqual([r.transicao, r.totalNovas, r.aConferir], ['ampliada', 3, 1]);
 });

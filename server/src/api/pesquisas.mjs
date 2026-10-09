@@ -204,7 +204,7 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     const ligado = (await db.query('SELECT ativo FROM monitoramentos_tese WHERE pesquisa_id=$1', [pesquisa.id])).rows[0]?.ativo;
     if (ativo && !ligado) {
       // Fora da transação: o recorte é uma consulta grande.
-      try { const r = await motor.aprovadasCadastro(pesquisa); aprovadas = r.empresas.map((e) => e.id); cobertura = coberturaDe(r.funil); }
+      try { const r = await motor.aprovadasCadastro(pesquisa); aprovadas = r.empresas.map((e) => e.id); cobertura = coberturaDe(r.funil, r.hash); }
       catch { throw new ErroHttp(503, 'base_indisponivel', 'A base de empresas não está disponível agora. Tente novamente.'); }
       await req.revalidarSessao();
       await carregar(req, pesquisa.id, 'agente.usar');
