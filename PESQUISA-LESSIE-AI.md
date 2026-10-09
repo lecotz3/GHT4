@@ -335,3 +335,79 @@ Os itens da §5.1 e da §5.2 que faltavam depois da §7, mais as fontes gratuita
 | Bases pagas de pessoas e empresas | **Fontes gratuitas por CNPJ**: sanções do CEIS e do CNEP (CGU) como diligência no plano de acesso; só pessoa jurídica do catálogo e só os campos da sanção. A CVM já entra pelo `importar-cvm.mjs` e, no plano, como canal de RI da companhia aberta | `ferramentas/importar-sancoes.mjs`, `data-sancoes.js`, `server/src/empresas/sancoes.mjs` |
 
 Ficou de fora, de propósito: sanção como **critério** da pesquisa. Exigiria levar a lista para os atributos do catálogo e para o hash da publicação, o que invalidaria pesquisas em andamento a cada atualização da lista. Como diligência lida na hora, a lista se atualiza sem mexer em pesquisa nenhuma.
+
+---
+
+## 10. O `/find` por dentro, pela documentação pública do próprio Lessie (09/10/2026)
+
+> Terceira passada, sem login: a extensão do Claude no Chrome continuou desconectada. O Lessie
+> publica uma **skill e uma CLI para agentes** que chamam o mesmo servidor do `/find`, e a
+> documentação delas descreve o fluxo, as respostas e o custo de cada passo. Lido de forma
+> estática, numa pasta temporária fora do repositório, **sem instalar nem executar nada**:
+> - repositório `github.com/LessieAI/lessie-skill`, commit `d42b4a5913d4` (01/07/2026), skill `people-search` 2.5.0;
+> - pacotes npm `@lessie/cli` 0.11.0 (só um lançador de binário por plataforma) e `@lessie/mcp-server` 0.1.4 (procurador OAuth; os esquemas das ferramentas ficam no servidor).
+>
+> Uma chamada `initialize` sem credencial a `app.lessie.ai/mcp-server/mcp` devolveu 401, e a
+> investigação parou ali. Nenhuma conta foi criada e nenhum crédito foi gasto.
+
+**Legenda desta seção:** **[doc]** documentação pública do próprio Lessie · **[3º]** análise
+de terceiros, com data · **[inf]** e **[?]** como no topo.
+
+### 10.1 O fluxo, passo a passo [doc]
+
+1. **Desambiguar a empresa antes de buscar.** Domínio errado desperdiça os 20 créditos da busca.
+   O caminho é `web-search` → `enrich-org` → pedido com `"(dominio.com)"`.
+2. **`find_people`:**
+   - **Entrada:** o pedido em linguagem natural, **literal**, sem parafrasear termos de nicho.
+   - **Escolhas do agente remoto:** as fontes (B2B, KOL ou web), as palavras-chave e a hora de parar.
+   - **Teto:** 3 chamadas de ferramenta e 60 s por pedido. `target_count` de 1 a 100 (padrão 30) é o sinal de parada, e não há paginação.
+   - **Resposta:** `search_id`, `people`, `total_found`, `after_hard_filter`, `strategy_used` (`"hybrid"`), `checkpoints_used`, `sources_used` e `points_deducted` (20).
+   - **Teto atingido:** a resposta traz `partial: true` com `timeout_reason: "wall_clock_60s"`.
+3. **Triagem pelo próprio agente.**
+   - O que é obviamente bom fica, e o que é obviamente ruim sai.
+   - Só o **ambíguo** vai à revisão profunda.
+   - Antes da revisão, o resultado é mostrado agrupado em "forte · precisa de revisão · excluído", para o usuário ajustar os critérios.
+4. **`review_people` é o "Match Judgment" da §8.2.**
+   - Recebe checkpoints `{key, title, description, category}`, com `category` em `company`, `school`, `career` ou `other`.
+   - Faz pesquisa web por pessoa: 1 a 3 minutos e 1 crédito cada.
+   - Com zero resultados, não se revisa: relaxa-se o pedido.
+5. **Desbloqueio de contato.**
+   - Na busca, o e-mail vem mascarado (`****@dominio.com`).
+   - `unlock_emails` custa 3 créditos e `unlock_phones` custa 8, por pessoa nova.
+   - É idempotente por usuário entre buscas: quem já foi desbloqueado sai de graça.
+   - `non_unlockable`, `failed` e `not_in_search` não são cobrados. E-mail e telefone são cobrados em separado.
+   - Telefone pelo identificador só resolve LinkedIn, via ContactOut.
+6. **Regra que o Lessie impõe ao agente:** confirmar o custo antes de cada ação que gasta crédito e relatar o gasto depois de cada turno.
+
+### 10.2 O que aparece antes de pagar
+
+- **Pela API [doc]:** a busca custa 20 créditos fixos. Cada pessoa vem com nome, LinkedIn, setor, cargo e empresa, mais a indicação de que há e-mail ou telefone, com o e-mail mascarado.
+- **No app web [3º, ai-deck.app, 06/05/2026, preços "atuais em agosto de 2026"]:** iniciar a tarefa e ver as correspondências parciais não custa nada. Ver um candidato com correspondência completa custa 2 créditos, o e-mail 3 e o telefone 8.
+- Isso responde em parte à §8.3. A ordem é tarefa → parciais de graça → candidato completo → contato.
+- **[?]** Continua sem confirmação se a tela mostra o custo antes do clique.
+
+### 10.3 Fontes e "warm intro"
+
+- **Fontes [doc]:** bases profissionais "baseadas no LinkedIn", redes sociais no modo KOL e ContactOut para telefone. O FAQ fala em mais de 20 fontes (LinkedIn, Crunchbase, AngelList, G2); terceiros falam em mais de 100. Como cada julgamento é calculado continua no servidor **[?]**.
+- **"Warm intro" [inf]:** nenhuma das ferramentas documentadas trata de rede, apresentação ou caminho por conhecidos. A expressão só aparece no marketing, como "e-mails verificados para warm intros".
+  - No Lessie, "warm intro" é e-mail frio para endereço verificado.
+  - Os **caminhos da rede** do GHT4, com confirmação do titular, não têm equivalente lá.
+
+### 10.4 O que pode servir ao GHT4 (candidatos, nada implementado nesta passada)
+
+| No Lessie | Ideia para o GHT4 |
+|---|---|
+| Triagem antes da revisão profunda, com o grupo "precisa de revisão" mostrado antes de gastar | Só a pesquisa no site oficial custa (tempo e cota de IA). Mostrar quantas empresas o cadastro já decide e quantas pedem o site, antes do lote |
+| `partial: true` com o motivo | Já existe: o funil marca `truncado` e a tela diz "limitado às primeiras 10 mil" |
+| Custo anunciado antes da ação | Não há crédito no GHT4, mas a cota diária de IA (`GHT4_IA_REVISOES_DIA`) pode aparecer antes de rodar o lote |
+| Checkpoints com categoria | Já existe: cada critério da tese tem `tipo`: `cadastro` ou `pesquisa` (site oficial) |
+| Desbloqueio pago de contato pessoal | **Não adotar**, como na §8.4 |
+
+### 10.5 O que só se vê logado, e os dois caminhos
+
+Faltam a tela real, a ordem visual dos cartões e se o custo aparece antes do clique. Há dois caminhos, ambos com a conta do próprio usuário:
+1. **Extensão do Claude no Chrome conectada à mesma conta do Claude Code.** Ela observa o `/find` no navegador em que o usuário já está logado.
+2. **A CLI ou o MCP oficial do Lessie, autorizado pelo próprio usuário no navegador.**
+   - `lessie tools` lista os esquemas reais das ferramentas, e a listagem não aparece na tabela de custos.
+   - Uma busca de verdade custa 20 créditos e só roda com o sim explícito do usuário.
+   - Instalar a CLI executa um binário de terceiro nesta máquina, e essa decisão é do usuário.

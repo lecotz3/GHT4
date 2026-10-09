@@ -4,11 +4,13 @@ Atualizado em 9 de outubro de 2026 (checkpoint anterior: 8 de outubro). Branch d
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodada 20 commitada na branch: o que faltava do Lessie e "chegar a quem decide" (09/10/2026)
+## COMECE AQUI — Rodadas 19 e 20 publicadas: o que faltava do Lessie e "chegar a quem decide" (09/10/2026)
 
 **Estado:**
-- **Rodada 19:** commitada na branch (`4e12016`, `b70f987`); a publicação na `main` segue aguardando o pedido do usuário.
-- **Rodada 20:** commitada na branch a pedido do usuário (`8e45f46`, código; mais o commit de docs com este ponto de retomada). A publicação na `main` espera o pedido explícito do usuário. O registro completo está no [AI_COLLAB.md](../AI_COLLAB.md); o que veio do Lessie está em `PESQUISA-LESSIE-AI.md` (§8 e §9).
+- **Na `main`, publicado a pedido do usuário em 09/10/2026:** Rodadas 19 e 20 (`c630112`, avanço rápido a partir desta branch).
+  - Deploy de produção no ar logo depois do push: `/api/memoria` e `/api/acesso/:id` passaram de 404 para 401 sem sessão, e `/api/saude` responde `ok:true`.
+  - O build só publica depois do `preparar-banco`, o que indica que as migrações 0027–0029 rodaram no Supabase. O log da Vercel não foi aberto.
+- **Rodada 20** (`8e45f46` e `c630112`): o registro completo está no [AI_COLLAB.md](../AI_COLLAB.md); o que veio do Lessie está em `PESQUISA-LESSIE-AI.md` (§8 a §10).
   - **Pesquisa por tese:**
     - sugestão de relaxamento e nova rodada com o critério opcional;
     - memória do membro (0027);
@@ -30,12 +32,12 @@ Atualizado em 9 de outubro de 2026 (checkpoint anterior: 8 de outubro). Branch d
 ### Próximos passos, em ordem
 
 1. **Rodada 20:**
-   - publicar na `main` (junto com a 19) a pedido do usuário;
    - pedir a revisão do Codex (itens em "PARA O CODEX" no diário);
-   - conferir no deploy se `data-sancoes.js` chega à função da Vercel. Pré-conferido em 09/10 com o `@vercel/nft` 0.29.4 (o rastreador da Vercel), rodado fora do repositório sobre `api/[...path].mjs`: o arquivo entra pelo `new URL(..., import.meta.url)`, igual a `data-quimicos.js` e `data-ibama.js`, e o `vercel.json` não precisa mudar. Falta só confirmar no deploy real: o plano de acesso deve mostrar a diligência com `consultada: true`. Se vier `false`, acrescentar o arquivo a `includeFiles`.
-2. **Lessie logado:** observar o `/find` com a extensão do Claude no Chrome conectada à conta do usuário.
-   - Ordem das telas, o que aparece antes dos créditos.
-   - Atualizar a §8 com o que for observado.
+   - conferir em produção, logado, se `data-sancoes.js` chega à função da Vercel. Pré-conferido em 09/10 com o `@vercel/nft` 0.29.4 (o rastreador da Vercel), rodado fora do repositório sobre `api/[...path].mjs`: o arquivo entra pelo `new URL(..., import.meta.url)`, igual a `data-quimicos.js` e `data-ibama.js`, e o `vercel.json` não precisa mudar. Falta só confirmar no deploy real: o plano de acesso deve mostrar a diligência com `consultada: true`. Se vier `false`, acrescentar o arquivo a `includeFiles`.
+2. **Lessie logado:** a §10 de `PESQUISA-LESSIE-AI.md` já tem o fluxo e o custo de cada passo, pela documentação pública da skill e da CLI do Lessie.
+   - Falta só o que exige login: a tela real e se o custo aparece antes do clique.
+   - Caminhos (§10.5): a extensão do Claude no Chrome conectada à mesma conta do Claude Code, ou a CLI ou o MCP oficial do Lessie autorizado pelo usuário.
+   - Uma busca custa 20 créditos e só roda com o sim do usuário.
 3. **Atualizar as sanções:** `node ferramentas/importar-sancoes.mjs` baixa o dia mais recente; `--ensaio` só conta. Sanção como critério da pesquisa é outra rodada, porque pediria atributo no catálogo.
 4. **Itens que continuam valendo da Rodada 19:**
    - ensaio com NVDA por uma pessoa;
