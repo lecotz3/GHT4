@@ -241,3 +241,97 @@ Implementado no código, sem custo de dados nem de IA:
 | Resultado vira ação | "Levar para o trabalho" cria um resultado comum, que segue para seleção, reunião, caminho de acesso e oportunidade | `POST /api/pesquisas/:id/registrar` |
 
 Diferenças deliberadas em relação ao Lessie: nada de contato automático; ausência de evidência nunca vira reprovação; a IA só pode citar trecho que existe literalmente na página lida; camada gratuita não recebe documento confidencial; o site é lido respeitando robots.txt e só em endereço público.
+
+---
+
+## 8. O `/find` e a chegada à pessoa (08/10/2026)
+
+> Segunda passada com o REA, focada em `https://app.lessie.ai/find`: como o produto mostra a
+> pessoa certa dentro da empresa e como chega até ela. A rota exige login (o REA observou o
+> redirecionamento para `/login` e o desafio Cloudflare Turnstile); **não se criou conta, não se
+> contornou o desafio e não se entrou com conta alguma**. A extensão do Claude no Chrome, que
+> permitiria observar o app logado com a conta do usuário, não estava conectada nesta sessão.
+> Tudo abaixo vem do bundle público, lido de forma estática, sem executar o JavaScript.
+> O `main.8635114d.js` continua com o mesmo SHA-256 da §0 (`f57383ed6e11…71490f26dd`):
+> é a mesma versão do app.
+
+**Evidências REA desta passada:**
+
+| Evidence ID | O que contém |
+|---|---|
+| `ev_2820bc77d021…715c1b12` | Cenário de navegador em `/find`: redireciona para `/login`, com Turnstile |
+| `ev_67c066fff6ca…a04816f73bb` | `analyze-web-bundle` do app: 20 scripts, rotas e endpoints (cobertura parcial, sem source maps) |
+| `ev_22239f471eb2…2c060e34b` | `analyze-javascript-application` sobre os 5 bundles públicos (`main`, `1602`, `8282`, `6787`, `7288`) |
+
+### 8.1 Rotas e chamadas ligadas à pessoa [obs]
+
+- Rotas do cliente: `/find`, `/find/:id`, `/mylist` ("Minha lista"), `/network`, `/linkedin`,
+  `/email`, `/whatsapp`, `/process` (histórico de campanhas), `/goals`, `/task`, `/inbox`.
+- Perfil: `POST /api/profile/summary`, `/api/profile/profile`, `/api/profile/translate-evidence`,
+  `/api/profile/batch_status`, `/api/person/contact_status`.
+- Contato pago: `POST /api/email/unlock_person_info`; o roteador de paywall classifica qualquer
+  URL com `unlock_person_info` como gatilho `unlock_email`.
+- Lista e grupos: `/api/network/person/add`, `/api/network/export/`, `/api/network/precheck_export`.
+- Mensagens: `email-api/personalized-email/batch-generate`, `regenerate-by-person`,
+  `update-by-id`; tarefas com horário (`email-api/task/*`), follow-up (`email-api/followup/*`),
+  convite do LinkedIn com nota e "polir" (`/api/linkedin-invitation/polish`), WhatsApp.
+- Checkpoint de revisão: `sourcing-api/conversation/v1/review_checkpoint/new` e `/delete`.
+
+### 8.2 O que a tela mostra [obs, pelos textos da interface]
+
+- **"Match Judgment"** (`profile.evidence_chain`): para cada pessoa, uma tabela com as colunas
+  **Requirement · Judgment · Candidate info · Source** (`profile.checkpoint_*`), e o selo
+  **Matched / Mismatched**. Acompanham resumo de IA, experiência, formação e atividade recente.
+- **Contato**: botões **"Check email"** e **"Check telephone"**. Cada um consome créditos
+  ("Unlock email address", "Unlock phone number", "Contact enrichment"), e o estado do
+  contato fica `locked` / `unlocked` [inf, pelo código que monta o cartão].
+- **Minha lista**: a pessoa é salva em grupos e passa por **Saved → Contacted → In touch**.
+- **Checkpoint**: "Deep reasoning is required"; o membro acrescenta um critério novo e escolhe
+  aplicá-lo às **10 primeiras pessoas** ou a **todas as da lista**.
+- **Critérios**: obrigatório/opcional, com a regra "devolve primeiro os melhores e relaxa os
+  critérios de menor prioridade quando a busca fica estreita demais" (confirma a §2).
+- **Envio seguro**: fila com cota diária, intervalo aleatório e faixas por maturidade da conta
+  ("conta com menos de 100 conexões: 2 convites / 3 envios por dia"), pausa ao sinal de restrição.
+- **"Warm intro"**: aparece só nos textos da animação de marketing ("31 têm apresentação calorosa
+  pela sua rede"). Não há rota nem tela que a sustente no bundle: **[?]** se existe de fato.
+
+### 8.3 Desconhecidos [?]
+
+- De que bases vêm as pessoas e como cada julgamento é calculado: roda no servidor.
+- Se o "warm intro" é funcionalidade real ou só peça de marketing.
+- O fluxo logado em uso real (ordem das telas, o que aparece antes de pagar créditos).
+  Fica para uma passada com a extensão do Chrome conectada e a conta do próprio usuário.
+
+### 8.4 O que foi levado para o GHT4: "Chegar a quem decide"
+
+| No Lessie | No GHT4 | Onde |
+|---|---|---|
+| Match Judgment por pessoa (requisito · julgamento · informação · fonte) | **Juízo do decisor**: decide a venda · cargo com fonte · pertence a esta empresa · a casa chega até ela, com os vereditos da pesquisa (atende, indício, sem evidência, não atende) | `server/src/acesso/plano.mjs` |
+| Pessoas vindas de bases compradas | **Estrutura de decisão pelo cadastro** (natureza jurídica, quantos sócios, sócio PJ ou no exterior) diz *que tipo* de pessoa decide; *quem* é a pessoa entra pelo **caminho de recall**: alguém da casa registra, com a fonte obrigatória | `POST /api/acesso/:empresaId/decisores` |
+| Saved / Contacted / In touch | Passada de reconhecimento ("você conhece?") direto no plano, caminhos da rede com confirmação do titular e a etapa da oportunidade na carteira | `GET /api/acesso/:empresaId`, `PlanoAcesso.tsx` |
+| "Check email / telephone" pago | **Não adotado.** Canal institucional: site oficial, página de contato e página institucional que a pesquisa leu; RI na CVM para companhia aberta. Telefone e e-mail do cadastro não aparecem | `canaisInstitucionais()` |
+| E-mail personalizado + fila de envio | **Rascunho para revisão**, com as regras da casa (sem mandato, tese ou valores; nada é enviado) | `proximoPasso()` |
+| LinkedIn e WhatsApp | **Não adotado** (§5.3) | — |
+
+O próximo passo é um só, na ordem em que se trabalha: restrição de contato encerra; sem ninguém
+mapeado, descobrir quem decide; com caminho, usá-lo (falar direto, pedir apresentação ou usar a
+porta de entrada); sem caminho e com perguntas pendentes, perguntar à casa; só com a apuração
+completa, a abordagem institucional. Faixa etária de sócio não entra em nada disso: o produto se
+proíbe de inferir sucessão pela idade.
+
+---
+
+## 9. Segunda leva levada para o GHT4 (08/10/2026)
+
+Os itens da §5.1 e da §5.2 que faltavam depois da §7, mais as fontes gratuitas por CNPJ:
+
+| Mecanismo do Lessie | Como ficou no GHT4 | Onde |
+|---|---|---|
+| "Relaxa primeiro os critérios de menor prioridade" | **Sugestão de relaxamento**, sem automatismo: o obrigatório que mais elimina sozinho aparece com quantas empresas voltariam; no rascunho vira opcional com um clique, e na pesquisa concluída abaixo da meta abre uma **nova rodada** com ele opcional (a anterior fica no histórico) | `sugerirRelaxamento()`, `POST /api/pesquisas/:id/ajustar` (`opcionais`) |
+| Memória visível e apagável | **Memória do membro**: critérios que ele usa voltam como sugestão no rascunho; tela para pausar, esquecer um ou apagar tudo. Pesquisa de mandato confidencial não alimenta a memória | migração `0027`, `/api/memoria`, `pesquisa/memoria.mjs` |
+| Resultado versionado com edição humana travada | **Revisão humana do veredito**: confirmar, contestar ou deixar em aberto, com justificativa obrigatória; a revisão automática não sobrescreve; desfazer devolve o veredito automático; histórico só cresce; a entrega leva o bloco "Decisões da equipe" | migração `0028`, `pesquisa/revisao.mjs` |
+| Fluxo de eventos tipados (`agent`, `criteria`, `card`…) | **Registro da execução** por eventos gravados e lidos por cursor (a hospedagem serverless não mantém SSE): critérios, funil, lotes, pausas, revisões humanas, ajustes, entregas, monitoramento, cada um com o ator (agente ou pessoa) | migração `0029`, `GET /api/pesquisas/:id/eventos` |
+| Plataforma aberta ("MCP / CLI / SDK") | **Ponte MCP** com 8 ferramentas da pesquisa por tese, com a conta do membro. Não entrega, não revisa e não lê pessoas; mandato confidencial é recusado pelo servidor no canal externo | `ferramentas/mcp-ght4.mjs`, `docs/runbooks/mcp-ght4.md` |
+| Bases pagas de pessoas e empresas | **Fontes gratuitas por CNPJ**: sanções do CEIS e do CNEP (CGU) como diligência no plano de acesso; só pessoa jurídica do catálogo e só os campos da sanção. A CVM já entra pelo `importar-cvm.mjs` e, no plano, como canal de RI da companhia aberta | `ferramentas/importar-sancoes.mjs`, `data-sancoes.js`, `server/src/empresas/sancoes.mjs` |
+
+Ficou de fora, de propósito: sanção como **critério** da pesquisa. Exigiria levar a lista para os atributos do catálogo e para o hash da publicação, o que invalidaria pesquisas em andamento a cada atualização da lista. Como diligência lida na hora, a lista se atualiza sem mexer em pesquisa nenhuma.

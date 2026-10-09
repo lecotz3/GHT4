@@ -1,10 +1,48 @@
 # Retomada da implementação do agente GHT4
 
-Atualizado em 7 de outubro de 2026 (checkpoint anterior: 22 de setembro). Branch de trabalho: `feat/agente-rodada-4` (não publicada; ver abaixo). A instalação usa Vercel e Supabase; todo push na `main` publica em produção, e o build de produção (`ferramentas/build-vercel.mjs`) roda `preparar-banco.mjs`: migrações, reimportação do catálogo e dos eventos.
+Atualizado em 9 de outubro de 2026 (checkpoint anterior: 8 de outubro). Branch de trabalho: `feat/agente-rodada-4` (não publicada; ver abaixo). A instalação usa Vercel e Supabase; todo push na `main` publica em produção, e o build de produção (`ferramentas/build-vercel.mjs`) roda `preparar-banco.mjs`: migrações, reimportação do catálogo e dos eventos.
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodadas 12–18 publicadas, 18 aprovada; Rodada 19 pronta (08/10/2026)
+## COMECE AQUI — Rodada 20 commitada na branch: o que faltava do Lessie e "chegar a quem decide" (09/10/2026)
+
+**Estado:**
+- **Rodada 19:** commitada na branch (`4e12016`, `b70f987`); a publicação na `main` segue aguardando o pedido do usuário.
+- **Rodada 20:** commitada na branch a pedido do usuário (`8e45f46`, código; mais o commit de docs com este ponto de retomada). A publicação na `main` espera o pedido explícito do usuário. O registro completo está no [AI_COLLAB.md](../AI_COLLAB.md); o que veio do Lessie está em `PESQUISA-LESSIE-AI.md` (§8 e §9).
+  - **Pesquisa por tese:**
+    - sugestão de relaxamento e nova rodada com o critério opcional;
+    - memória do membro (0027);
+    - revisão humana travada do veredito (0028);
+    - registro da execução por eventos (0029).
+  - **Chegar a quem decide:** plano de acesso por empresa, aberto do detalhe da pesquisa.
+    - Mostra a estrutura de decisão pelo cadastro e o juízo por pessoa com fonte.
+    - Pergunta "você conhece?" no próprio plano e mostra os caminhos da rede.
+    - Mostra o canal institucional, a diligência de sanções e o próximo passo com rascunho; nada é enviado.
+    - **Caminho de recall:** quem decide é registrado por alguém da casa, com a fonte (`POST /api/acesso/:empresaId/decisores`).
+  - **Ponte MCP:** `ferramentas/mcp-ght4.mjs`. Mandato confidencial é recusado pelo servidor no canal externo, e o plano de acesso não sai por ele.
+  - **Sanções CEIS/CNEP da CGU:** `ferramentas/importar-sancoes.mjs` gera `data-sancoes.js`, só com pessoa jurídica do catálogo. Diligência lida na hora, fora do hash do catálogo.
+- **Arquivos fora do git:**
+  - `brag-output/` (vídeo do /brag);
+  - o cache do REA, que fica no scratchpad da sessão.
+
+**Validação:** `npm run ci` completo, exit 0, repetido em 09/10 antes do commit. Lint, build, raiz **125/125**, servidor **294** + 2 pulados sem URL, dados. Ensaio visual a 1440 px e 390 px com dados fictícios.
+
+### Próximos passos, em ordem
+
+1. **Rodada 20:**
+   - publicar na `main` (junto com a 19) a pedido do usuário;
+   - pedir a revisão do Codex (itens em "PARA O CODEX" no diário);
+   - conferir no deploy se `data-sancoes.js` chega à função da Vercel. Pré-conferido em 09/10 com o `@vercel/nft` 0.29.4 (o rastreador da Vercel), rodado fora do repositório sobre `api/[...path].mjs`: o arquivo entra pelo `new URL(..., import.meta.url)`, igual a `data-quimicos.js` e `data-ibama.js`, e o `vercel.json` não precisa mudar. Falta só confirmar no deploy real: o plano de acesso deve mostrar a diligência com `consultada: true`. Se vier `false`, acrescentar o arquivo a `includeFiles`.
+2. **Lessie logado:** observar o `/find` com a extensão do Claude no Chrome conectada à conta do usuário.
+   - Ordem das telas, o que aparece antes dos créditos.
+   - Atualizar a §8 com o que for observado.
+3. **Atualizar as sanções:** `node ferramentas/importar-sancoes.mjs` baixa o dia mais recente; `--ensaio` só conta. Sanção como critério da pesquisa é outra rodada, porque pediria atributo no catálogo.
+4. **Itens que continuam valendo da Rodada 19:**
+   - ensaio com NVDA por uma pessoa;
+   - observar o tempo da varredura completa no Supabase;
+   - paginar o funil da pesquisa.
+
+## Checkpoint anterior — Rodadas 12–18 publicadas, 18 aprovada; Rodada 19 pronta (08/10/2026)
 
 **Estado:**
 - **Na `main`, publicado a pedido do usuário:** até a Rodada 18.

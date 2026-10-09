@@ -3053,3 +3053,98 @@ A medição foi local, não em produção; no Supabase, cada página soma a lat�
 - Rever a transição `ampliada`, o legado truncado e os textos da tela.
 
 STATUS: AGUARDANDO REVIEW
+
+---
+
+## RODADA 20 — O que faltava do Lessie, e chegar a quem decide (08–09/10/2026) — Claude (builder)
+
+**Contexto:** dois pedidos do usuário. Primeiro, "fazer tudo que tinha planejado que falta" depois da análise do Lessie com o REA (`PESQUISA-LESSIE-AI.md`, §5), sem pedir permissão para adições e com cuidado nas alterações. Depois, "investigar o `/find` do Lessie para finalmente implementar como chegar na pessoa da empresa do deal". A segunda investigação está em `PESQUISA-LESSIE-AI.md`, §8: o `/find` exige login, não se criou conta nem se contornou o desafio do Cloudflare, e a extensão do Chrome não conectou nesta sessão. Tudo veio do bundle público, por análise estática (Evidence IDs na §8).
+
+**Escopo:** só adições, mais quatro alterações mínimas em código existente: registro de rotas em `app.mjs`, a trava de canal externo em `api/pesquisas.mjs`, o botão do plano no detalhe da pesquisa e as respostas padrão do harness de DOM. Três migrações novas (0027–0029). Nenhuma mudança no catálogo nem no hash da publicação.
+
+### Feito
+
+1. **Sugestão de relaxamento** (`sugerirRelaxamento`). O obrigatório que mais elimina sozinho aparece com quantas empresas voltariam.
+   - No rascunho, vira opcional com um clique.
+   - Na pesquisa concluída abaixo da meta, `POST /ajustar` com `opcionais` abre uma nova rodada; a anterior fica no histórico.
+2. **Memória do membro** (migração 0027, `/api/memoria`).
+   - Critérios usados voltam como sugestão.
+   - Tela para pausar, esquecer um ou apagar tudo; a auditoria registra só contagens.
+   - Pesquisa de mandato confidencial não alimenta a memória.
+3. **Revisão humana do veredito** (migração 0028, `pesquisa/revisao.mjs`).
+   - Confirmar, contestar ou deixar em aberto, com justificativa obrigatória e a versão vista na tela (recusa se mudou).
+   - A revisão automática não sobrescreve a decisão; desfazer devolve o automático.
+   - O histórico só cresce (triggers append-only), e a entrega leva "Decisões da equipe".
+4. **Registro da execução** (migração 0029, `GET /api/pesquisas/:id/eventos`). Eventos gravados e lidos por cursor, porque a hospedagem serverless não mantém SSE.
+   - Cobre critérios, funil, retomada, lotes, pausas, conclusão, revisão humana, ajuste, entrega e monitoramento, com o ator de cada passo.
+   - A gravação é best-effort: falha no registro não derruba a ação.
+5. **Chegar a quem decide** (`server/src/acesso/plano.mjs`, `api/acesso.mjs`, `PlanoAcesso.tsx`), aberto de cada empresa da pesquisa. Os quatro blocos do plano:
+   - **Quem decide:** a estrutura do cadastro (natureza jurídica, quantos sócios, sócio PJ ou no exterior) diz que tipo de pessoa decide, sem nome e sem idade.
+   - **Juízo por pessoa,** no formato do "Match Judgment" do Lessie (requisito · julgamento · informação · fonte): decide a venda, cargo com fonte, pertence a esta empresa, a casa chega até ela.
+   - **"Você conhece?"** direto no plano, pela rota da passada de reconhecimento.
+   - **Caminhos** da rede, canal institucional (site, página de contato e página institucional que a pesquisa leu, RI na CVM) e o próximo passo com rascunho para revisão.
+
+   O registro de quem decide também está no plano:
+   - **Caminho de recall:** `POST /api/acesso/:empresaId/decisores`, com a fonte obrigatória. Exige `rede.editar` e recusa homônimo na mesma empresa.
+   - **O que fica de fora:** telefone e e-mail do cadastro e qualquer envio.
+
+   O próximo passo segue a ordem de trabalho:
+   - restrição de contato encerra;
+   - sem ninguém mapeado, descobrir quem decide;
+   - sem membros na rede, cadastrar a casa;
+   - com caminho, falar direto, pedir apresentação ou usar a porta de entrada;
+   - com perguntas pendentes, perguntar à casa;
+   - só com a apuração completa, abordagem institucional.
+6. **Ponte MCP** (`ferramentas/mcp-ght4.mjs`, `docs/runbooks/mcp-ght4.md`). Stdio, sem dependências, com a conta do membro.
+   - Oito ferramentas: listar, pesquisar tese, ajustar critérios, iniciar, revisar lote, resultado, evidências e registro.
+   - Não entrega, não faz revisão humana e não lê pessoas.
+   - **Trava no servidor:** pedido com `X-GHT4-Canal: mcp` não lista, não lê, não cria nem roda pesquisa de mandato confidencial (`403 canal_externo_confidencial`). O plano de acesso recusa o canal externo em qualquer caso.
+7. **Fontes gratuitas por CNPJ: sanções** (`ferramentas/importar-sancoes.mjs`, `data-sancoes.js`, `server/src/empresas/sancoes.mjs`).
+   - CEIS e CNEP da CGU, referência 2026-10-08: 278 registros de 151 empresas do catálogo.
+   - 9.144 registros de pessoa física foram descartados na leitura; do resto, só ficam os campos da sanção.
+   - Cada registro sai como vigente, encerrado ou sem data final, sem palpite.
+   - Entra no plano como diligência e como alerta no próximo passo, sem bloquear.
+   - Fica fora do catálogo e do hash da publicação.
+8. **Harness de DOM:**
+   - `POST /api/monitoramentos/verificar` ganhou resposta padrão.
+   - Dois arquivos de teste (acessibilidade e Meu dia) seguravam o processo por 100 s cada no prazo do cliente.
+   - A suíte da raiz caiu de cerca de 102 s para 2,8 s.
+
+### Validação
+
+- **`npm run ci` em partes, exit 0 em todas:**
+  - lint (oxlint, 0 diagnósticos);
+  - build;
+  - raiz **125/125**;
+  - servidor **294** e 2 pulados sem URL de PostgreSQL;
+  - dados e paleta.
+- **Testes novos:**
+  - `server/tests/acesso.test.mjs` e `sancoes.test.mjs`;
+  - `server/tests/mcp.test.mjs`: fluxo completo contra servidor local, mandato confidencial recusado e protocolo por stdio;
+  - `tests/acesso-componente.test.mjs`;
+  - um caso novo em `pesquisa-componente`;
+  - quatro casos em `server/tests/pesquisa.test.mjs` (relaxamento em nova rodada, memória, revisão humana, registro).
+- **Ensaio visual** com playwright e Chrome local, banco em memória, dados fictícios e sites simulados, a 1440 px e 390 px, sem rolagem horizontal.
+  - O ensaio pegou as regras de `tr/td` da tabela de resultados (inclusive as do celular) vazando para o juízo.
+  - O juízo virou grade com papéis de tabela.
+
+### Limites
+
+- **Lessie logado:** não observado. Fica para uma passada com a extensão do Chrome conectada na conta do usuário.
+- **Quem decide, nas 93% das empresas sem cargo estatutário no quadro:** depende de alguém da casa registrar. O produto não descobre nomes; é a decisão da casa de 18/09.
+- **Sanção como critério da pesquisa:** não entrou. Exigiria atributo do catálogo e hash da publicação.
+- **`data-sancoes.js` em produção:** a Vercel inclui explicitamente só as migrações. Se o rastreamento de arquivos não levar a lista, o plano diz "não carregada". Conferir no próximo deploy, ou acrescentar o arquivo a `includeFiles`.
+- **Ponte MCP:** guarda a senha no ambiente do cliente MCP; não há token de API dedicado.
+
+### PARA O CODEX
+
+- Rever o plano de acesso:
+  - a ordem do próximo passo;
+  - o juízo quando a casa respondeu só em parte;
+  - a recusa de homônimo;
+  - o escopo da restrição (o do trabalho da pesquisa ou o do membro).
+- Rever a trava de canal externo em `carregar()`, na criação e na lista de `api/pesquisas.mjs`.
+- Rever o importador de sanções: leitor de ZIP pelo diretório central e descarte de pessoa física antes de ler os demais campos.
+- Rever a revisão humana (0028) e o registro de eventos (0029), que ainda não passaram por revisão.
+
+STATUS: AGUARDANDO REVIEW
