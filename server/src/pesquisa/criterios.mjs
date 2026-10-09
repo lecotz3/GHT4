@@ -225,7 +225,7 @@ export function consolidar(criterios, vereditos) {
 
 /* ---- interpretação local da tese (sem IA) ------------------------------- */
 
-const NOMES_UF = [['distrito federal', 'DF'], ['mato grosso do sul', 'MS'], ['mato grosso', 'MT'], ['minas gerais', 'MG'],
+export const NOMES_UF = [['distrito federal', 'DF'], ['mato grosso do sul', 'MS'], ['mato grosso', 'MT'], ['minas gerais', 'MG'],
   ['rio grande do norte', 'RN'], ['rio grande do sul', 'RS'], ['rio de janeiro', 'RJ'], ['espirito santo', 'ES'],
   ['santa catarina', 'SC'], ['sao paulo', 'SP'], ['parana', 'PR'], ['pernambuco', 'PE'], ['paraiba', 'PB'], ['piaui', 'PI'],
   ['alagoas', 'AL'], ['amapa', 'AP'], ['amazonas', 'AM'], ['bahia', 'BA'], ['ceara', 'CE'], ['goias', 'GO'],
@@ -261,7 +261,7 @@ const maiuscula = (s) => s.charAt(0).toUpperCase() + s.slice(1);
  */
 /* Palavras que identificam cada subsetor acionável (texto normalizado, sem acento). */
 const SUBSETOR_POR_PALAVRA = [
-  ['Distribuição e trading químico', /\b(distribuidor\w*|distribuicao|trading|revendedor\w*|atacadist\w*)\b/],
+  ['Distribuição e trading químico', /\b(distribuidor\w*|distribuicao|tradings?|revendedor\w*|atacadist\w*)\b/],
   ['Especialidades e aditivos', /\b(especialidades? quimicas?|aditivos?)\b/],
   ['Tintas, vernizes e revestimentos', /\b(tintas?|vernizes?|revestimentos?)\b/],
   ['Domissanitários e produtos de limpeza', /\b(domissanitari\w*|produtos? de limpeza|saneantes?)\b/],
@@ -305,8 +305,53 @@ function tiposCoordenados(n) {
 /* Alternativa entre produtos ou tipos ("resinas ou tintas", "e/ou", "nem"): depois do distribuidor,
    impede ler as menções seguintes como "produto vendido". */
 const ALTERNATIVA = /\bou\b|\/|\bnem\b/;
+/* "Distribuidoras de solventes": um produto só, logo depois do tipo de empresa, também descreve a
+   tese (antes o trecho caía por ter uma palavra só). Vale só nesse molde e com a palavra em
+   minúsculas: nome próprio ("de Campinas") não é produto. */
+const PRODUTO_DO_TIPO = /\b(?:distribuidor\w*|distribuicao|trading\w*|revendedor\w*|atacadist\w*|importador\w*|fabric\w*|produtor\w*|industri\w*|empresas?)\s+(?:de|do|da|dos|das)\s+(?:produtos?\s+)?([a-z]{4,})\b/;
+function produtoDoTipo(p, pn, palavras) {
+  if (palavras.length !== 1 || /^produtos?$/.test(palavras[0])) return false;
+  const m = PRODUTO_DO_TIPO.exec(pn);
+  if (m?.[1] !== palavras[0]) return false;
+  const inicial = p[m.index + m[0].length - m[1].length];
+  return inicial === inicial.toLowerCase();
+}
+const NOMES_REGIAO = new Set(['sul', 'norte', 'sudeste', 'nordeste', 'centro-oeste', 'centro oeste']);
+/**
+ * Município sem "cidade de" ("distribuidoras em Campinas"), pela lista de municípios onde o
+ * catálogo tem empresa. Depois de "em" vale também em minúsculas; depois de "no/na/de/do/da",
+ * só com inicial maiúscula. Com inicial maiúscula, o nome tem de ser inteiro: "na Serra Gaúcha"
+ * não é Serra. Nome de estado continua estado. Devolve [{ ini, fim, nome }] (posições no texto,
+ * da preposição ao fim do nome).
+ */
+function municipiosCitados(original, n, municipios) {
+  const tokens = [...n.matchAll(/[a-z][a-z'-]*/g)].map((m) => ({ t: m[0], ini: m.index, fim: m.index + m[0].length }));
+  const maiuscula = (k) => { const c = original[tokens[k].ini]; return c !== c.toLowerCase(); };
+  const colado = (k) => /^\s+$/.test(n.slice(tokens[k - 1].fim, tokens[k].ini));
+  const achados = [];
+  for (let i = 0; i < tokens.length - 1; i++) {
+    if (!/^(?:em|no|na|de|do|da)$/.test(tokens[i].t) || !colado(i + 1)) continue;
+    if (tokens[i].t !== 'em' && !maiuscula(i + 1)) continue;
+    for (let j = Math.min(tokens.length - 1, i + 6); j > i; j--) {
+      if ([...Array(j - i - 1)].some((_, k) => !colado(i + 2 + k))) continue;
+      const nome = tokens.slice(i + 1, j + 1).map((x) => x.t).join(' ');
+      if (!municipios.has(nome) || NOMES_UF.some(([uf]) => uf === nome) || NOMES_REGIAO.has(nome)) continue;
+      // Nome com maiúscula seguido de outra palavra com maiúscula: é parte de um nome maior.
+      if (maiuscula(i + 1) && j + 1 < tokens.length && colado(j + 1) && maiuscula(j + 1)) break;
+      achados.push({ ini: tokens[i].ini, fim: tokens[j].fim, nome: original.slice(tokens[i + 1].ini, tokens[j].fim) });
+      i = j;
+      break;
+    }
+  }
+  return achados;
+}
 
-export function interpretarTese(tese, { referencia } = {}) {
+/**
+ * @param {string} tese
+ * @param {{ referencia?: string, municipios?: Set<string> }} [opcoes] `municipios`: nomes
+ *   normalizados (`normalizarMunicipio`) das sedes do catálogo. Sem eles, cidade só com "cidade de".
+ */
+export function interpretarTese(tese, { referencia, municipios } = {}) {
   const original = String(tese || '').slice(0, 2000);
   const n = normalizarMesmoTamanho(original);
   const usados = [];
@@ -388,6 +433,12 @@ export function interpretarTese(tese, { referencia } = {}) {
     // "Cidade de São Paulo"/"cidade do Rio de Janeiro": município da capital, dentro do seu estado.
     if (uf) ufs.add(uf[1]);
     adicionar(m, `Sede em ${maiuscula(nomeOriginal)}`, { campo: 'municipio', valor: nomeOriginal });
+  }
+  if (municipios?.size) {
+    for (const c of municipiosCitados(original, n, municipios)) {
+      if (usados.some(([a, b]) => c.ini < b && c.fim > a)) continue;
+      adicionar(Object.assign([n.slice(c.ini, c.fim)], { index: c.ini }), `Sede em ${maiuscula(c.nome)}`, { campo: 'municipio', valor: c.nome });
+    }
   }
   for (const m of todos(/\b(?:regiao |no |na |do |da )?(sudeste|nordeste|centro[- ]oeste|sul|norte)\b(?! de)/g)) {
     if (!/regiao|no |na |do |da /.test(m[0])) continue;
@@ -511,7 +562,15 @@ export function interpretarTese(tese, { referencia } = {}) {
     const p = bruto.replace(/\s+/g, ' ').trim();
     const pn = normalizarMesmoTamanho(p);
     const palavras = pn.split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !GENERICAS.has(w));
-    if (palavras.length < 2) continue;
+    if (palavras.length < 2 && !produtoDoTipo(p, pn, palavras)) {
+      // Nome próprio solto no meio do trecho ("em Osasco") não some sem aviso.
+      const onde = palavras.length === 1 ? pn.search(new RegExp(`\\b${palavras[0]}\\b`)) : -1;
+      const solto = onde > 0 ? p.slice(onde, onde + palavras[0].length) : '';
+      if (solto && solto[0] !== solto[0].toLowerCase()) {
+        notas.push(`"${solto}" não virou critério. Se for a cidade da sede, escreva "cidade de ${solto}".`);
+      }
+      continue;
+    }
     const texto = maiuscula(p.slice(pn.match(CONECTORES)?.[0]?.length ?? 0)
       .replace(/(?:\s+(?:e|ou|que|com|de|da|do|das|dos|em|a|o))+\s*$/i, '').replace(/^[\s,:-]+|[\s,:-]+$/g, '')).slice(0, 200);
     if (texto.length < 6) continue;

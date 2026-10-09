@@ -2,6 +2,7 @@ import { LIMITE_RECORTE } from '../agente/catalogo.mjs';
 import { lerGrafo, caminhosNoGrafo, LIMITACAO_GRAFO } from '../rede/caminhos.mjs';
 import { respostasPorPessoa } from '../acesso/plano.mjs';
 import { interpretarPedido } from './pedido.mjs';
+import { resolverNomes } from './nomes.mjs';
 import { avaliarEmpresa, julgarPessoa, ordenar, GRUPOS } from './triagem.mjs';
 
 /* =============================================================================
@@ -32,16 +33,38 @@ export const LACUNAS_EXIBIDAS = 30;
 /** Erro com código, para a rota traduzir sem confundir com falha de programa. */
 const falha = (codigo, mensagem, causa) => Object.assign(new Error(mensagem), { codigo, causa });
 
+/* Empresas citadas pelo nome são o recorte inteiro: subsetor e "possíveis" não as tiram (quem
+   cita o nome sabe qual quer); a UF citada ainda vale, com nota quando tira alguma. */
+function recortePeloNome(leitura, referencia) {
+  const citadas = new Map();
+  for (const n of leitura.empresas) for (const e of n.empresas) citadas.set(e.id, e);
+  const ufs = leitura.recorte.uf ? leitura.recorte.uf.split(',') : [];
+  const empresas = [...citadas.values()].filter((e) => !ufs.length || ufs.includes(e.uf));
+  if (empresas.length < citadas.size) {
+    const fora = [...citadas.values()].filter((e) => !empresas.includes(e)).map((e) => `${e.nome} (${e.uf})`);
+    leitura.notas.push(`${fora.join(', ')} ${fora.length === 1 ? 'fica' : 'ficam'} fora do recorte: o pedido cita ${ufs.join(', ')}.`);
+  }
+  return { empresas, total: empresas.length, truncado: false, referencia, fonte: 'Receita Federal · CNPJ' };
+}
+
 /**
  * @param {object} db
  * @param {{recorte: Function}} catalogo
  * @param {{texto: string, usuario: {id: string}}} pedido
  */
 export async function encontrarPessoas(db, catalogo, { texto, usuario }) {
-  const leitura = interpretarPedido(texto);
+  // Sem a lista de municípios, cidade continua pedindo "cidade de" (como na pesquisa por tese).
+  const municipios = await Promise.resolve(catalogo.municipios?.()).catch(() => null) ?? null;
+  let leitura = interpretarPedido(texto, { municipios });
   let recorte;
-  try { recorte = await catalogo.recorte(leitura.recorte, { limite: LIMITE_RECORTE }); }
-  catch (e) { throw falha('catalogo_indisponivel', 'O catálogo não pôde ser consultado. Tente novamente.', e); }
+  try {
+    if (leitura.candidatos.length) {
+      const { nomes, referencia } = await resolverNomes(catalogo, leitura.candidatos);
+      leitura = interpretarPedido(texto, { municipios, nomes });
+      if (leitura.empresas.length) recorte = recortePeloNome(leitura, referencia);
+    }
+    recorte ??= await catalogo.recorte(leitura.recorte, { limite: LIMITE_RECORTE });
+  } catch (e) { throw falha('catalogo_indisponivel', 'O catálogo não pôde ser consultado. Tente novamente.', e); }
   const referencia = recorte.referencia ?? null;
 
   // Critérios da empresa, uma vez por empresa. Reprovada num obrigatório, a empresa sai antes das pessoas.
@@ -57,7 +80,6 @@ export async function encontrarPessoas(db, catalogo, { texto, usuario }) {
     'Só entram pessoas que a casa já mapeou: o quadro societário público no recorte estatutário, as listas compartilhadas pela equipe e quem alguém da casa registrou com a fonte. O GHT4 não compra base de pessoas nem lê LinkedIn.',
     'Telefone e e-mail não aparecem: a conversa começa pelo caminho da rede ou pelo canal institucional do plano de acesso.',
     'Critério que o cadastro não responde fica "sem evidência" e manda a pessoa para revisão; a pesquisa por tese procura a resposta no site oficial.',
-    'Pessoa cadastrada só com o nome da organização, sem vínculo com o CNPJ, não entra: vincule-a à empresa na tela Rede.',
   ];
   if (recorte.truncado) limitacoes.push(`O recorte tem ${recorte.total.toLocaleString('pt-BR')} empresas e esta busca leu as primeiras ${LIMITE_RECORTE.toLocaleString('pt-BR')}. Cite UF ou subsetor no pedido para cobrir todas.`);
   if (linhas.length > LIMITE_PESSOAS) {
@@ -82,10 +104,12 @@ export async function encontrarPessoas(db, catalogo, { texto, usuario }) {
     if (!porAlvo.has(c.alvo.id)) porAlvo.set(c.alvo.id, []);
     porAlvo.get(c.alvo.id).push(c);
   }
-  const [respostas, membros] = await Promise.all([
+  const [respostas, membros, semCnpj] = await Promise.all([
     respostasPorPessoa(db, avaliadas.map((p) => p.id)),
     db.query("SELECT count(*)::int AS n FROM rede_pessoas WHERE lado = 'ght4' AND ativo").then((r) => r.rows[0].n),
+    db.query("SELECT count(*)::int AS n FROM rede_pessoas WHERE lado = 'mercado' AND ativo AND empresa_id IS NULL").then((r) => r.rows[0].n),
   ]);
+  if (semCnpj) limitacoes.push(`${semCnpj.toLocaleString('pt-BR')} ${semCnpj === 1 ? 'pessoa da rede está' : 'pessoas da rede estão'} só com o nome da organização e não ${semCnpj === 1 ? 'entra' : 'entram'} em nenhuma busca. Em Relacionamentos › Pessoas nas empresas, use "Vincular ao CNPJ".`);
 
   const julgadas = avaliadas.map((p) => {
     const { empresa, avaliacao } = empresas.get(p.empresa_id);
@@ -112,7 +136,9 @@ export async function encontrarPessoas(db, catalogo, { texto, usuario }) {
   const contagem = Object.fromEntries(GRUPOS.map((g) => [g, grupos[g].length]));
   return {
     leitura: { pedido: leitura.pedido, tese: leitura.tese, papel: leitura.papel, acesso: leitura.acesso, recorte: leitura.recorte,
-      criterios: leitura.criterios.map(({ id, texto, obrigatorio, tipo }) => ({ id, texto, obrigatorio, tipo })), notas: leitura.notas },
+      criterios: leitura.criterios.map(({ id, texto, obrigatorio, tipo }) => ({ id, texto, obrigatorio, tipo })), notas: leitura.notas,
+      empresas: leitura.empresas.map(({ trecho, empresas }) => ({ trecho,
+        empresas: empresas.map(({ id, nome, cidade, uf }) => ({ id, nome, cidade: cidade ?? null, uf: uf ?? null })) })) },
     funil: {
       recorte: recorte.total, lidas: recorte.empresas.length, truncado: Boolean(recorte.truncado),
       nosCriterios: nosCriterios.length, comPessoas: new Set(avaliadas.map((p) => p.empresa_id)).size,

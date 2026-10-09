@@ -13,11 +13,11 @@ import {
 const conflito = () => new ErroHttp(409, 'registro_atualizado', 'Este registro mudou. Reabra a rede antes de salvar.');
 const semPessoa = () => new ErroHttp(404, 'pessoa_inexistente', 'Pessoa não encontrada na rede.');
 
-const CAMPOS = `id,lado,nome,cargo,senioridade,organizacao,empresa_id,usuario_id,
+export const CAMPOS = `id,lado,nome,cargo,senioridade,organizacao,empresa_id,usuario_id,
   email,telefone,linkedin,observacoes,ativo,versao,criado_em,atualizado_em,origem,origem_referencia`;
 const VINCULO = 'id,pessoa_a_id,pessoa_b_id,tipo,forca,periodo,evidencia,disposicao,confirmado_em,ativo,versao';
 
-const publicar = (linha, usuario) => filtrarMembroDaRede({
+export const publicar = (linha, usuario) => filtrarMembroDaRede({
   id: linha.id, lado: linha.lado, nome: linha.nome, cargo: linha.cargo,
   senioridade: linha.senioridade, organizacao: linha.organizacao,
   senioridadeRotulo: senioridadeDe(linha.senioridade).rotulo,
@@ -76,6 +76,7 @@ export async function registrarRede(app) {
         (SELECT count(*)::int FROM rede_pessoas p LEFT JOIN usuarios u ON u.id=p.usuario_id AND u.ativo
           WHERE p.ativo AND p.lado='ght4' AND u.id IS NULL) AS "membrosSemConta",
         (SELECT count(*)::int FROM rede_pessoas WHERE ativo AND lado='mercado' AND senioridade='outro') AS "cargosRevisar",
+        (SELECT count(*)::int FROM rede_pessoas WHERE ativo AND lado='mercado' AND empresa_id IS NULL) AS "semCnpj",
         (SELECT count(*)::int FROM rede_reconhecimentos r
           JOIN rede_pessoas g ON g.id=r.pessoa_ght4_id AND g.ativo AND g.lado='ght4'
           JOIN rede_pessoas a ON a.id=r.pessoa_alvo_id AND a.ativo AND a.lado='mercado') AS respondidas
@@ -98,6 +99,8 @@ export async function registrarRede(app) {
       lado: z.enum(['ght4', 'mercado', 'externo']).optional(),
       busca: z.string().trim().max(120).default(''),
       empresaId: EmpresaId.optional(),
+      // Só quem ainda não está ligado a um CNPJ do catálogo (e por isso não entra no find).
+      semEmpresa: z.enum(['1']).optional(),
       limite: z.coerce.number().int().min(1).max(200).default(60),
       offset: z.coerce.number().int().min(0).max(1000000).default(0),
     }).parse(req.query);
@@ -107,10 +110,11 @@ export async function registrarRede(app) {
         WHERE ativo
           AND ($1::text IS NULL OR lado = $1)
           AND ($2::text IS NULL OR empresa_id = $2)
+          AND (NOT $6::boolean OR empresa_id IS NULL)
           AND ($3 = '' OR organizacao_normalizada LIKE '%' || $3 || '%'
                OR nome_normalizado LIKE '%' || $3 || '%' OR lower(nome) LIKE '%' || $3 || '%' OR lower(cargo) LIKE '%' || $3 || '%')
         ORDER BY lado, nome, id LIMIT $4 OFFSET $5`,
-      [q.lado ?? null, q.empresaId ?? null, termo, q.limite + 1, q.offset])).rows;
+      [q.lado ?? null, q.empresaId ?? null, termo, q.limite + 1, q.offset, q.semEmpresa === '1'])).rows;
     res.header('Cache-Control', 'no-store');
     return { pessoas: linhas.slice(0,q.limite).map((l) => publicar(l, u)),
       proximoOffset: linhas.length > q.limite ? q.offset + q.limite : null };

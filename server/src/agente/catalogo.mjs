@@ -119,6 +119,13 @@ export function criarCatalogo({ arquivo = ARQUIVO, arquivoIbama = ARQUIVO_IBAMA 
       };
     },
     async obter(id) { return (await carregar()).empresas.find((e) => e.id === id) ?? null; },
+    /** Municípios das sedes no catálogo, normalizados: o leitor da tese reconhece "em Campinas"
+     *  sem "cidade de" só quando há empresa do catálogo nessa cidade. */
+    async municipios() {
+      const base = await carregar();
+      base.municipios ??= new Set(base.empresas.map((e) => normalizarMunicipio(e.cidade)).filter(Boolean));
+      return base.municipios;
+    },
     /** Universo de uma pesquisa por tese: cartão + atributos públicos, na ordem do catálogo, em
      *  páginas. `truncado`: há mais depois desta página; `proximo`: o `apos` da seguinte (aqui, a
      *  posição no recorte). O arquivo guarda só a versão atual: `hash` de outra versão devolve `null`. */

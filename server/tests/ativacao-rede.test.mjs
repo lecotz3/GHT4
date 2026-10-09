@@ -131,7 +131,7 @@ test('painel conta pares distintos, respeita recusas e ignora pessoas inativas n
   const alvo=await pessoa({lado:'mercado',nome:'Diretora do painel',organizacao:empresa.nome,empresaId:empresa.id});
   await pessoa({lado:'ght4',nome:'Participante sem conta'});
   const resumo=async()=>{const r=await admin.chamar('GET','/api/rede');assert.equal(r.statusCode,200,r.body);return r.json().resumo};
-  assert.deepEqual(await resumo(),{confirmadas:0,pendentes:0,bloqueadas:0,membrosSemConta:1,cargosRevisar:1,respondidas:0,perguntasPossiveis:2});
+  assert.deepEqual(await resumo(),{confirmadas:0,pendentes:0,bloqueadas:0,membrosSemConta:1,cargosRevisar:1,semCnpj:0,respondidas:0,perguntasPossiveis:2});
   for (const [tipo,disposicao] of [['trabalharam_juntos','conheco'],['formacao','nao_confirmado']]) {
     const r=await admin.chamar('POST','/api/rede/vinculos',{id:randomUUID(),pessoaAId:casa.id,pessoaBId:alvo.id,tipo,disposicao,forca:'indireta',evidencia:'Evidência sintética para testar o painel.'});
     assert.equal(r.statusCode,201,r.body);

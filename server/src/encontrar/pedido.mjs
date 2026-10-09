@@ -1,5 +1,6 @@
 import { interpretarTese } from '../pesquisa/criterios.mjs';
 import { senioridadeDe } from '../rede/contratos.mjs';
+import { candidatosANome, MAX_EMPRESAS_POR_NOME } from './nomes.mjs';
 
 /* =============================================================================
  *  GHT4 · leitura do pedido de "encontrar quem decide"
@@ -51,11 +52,16 @@ export const ACESSO_ROTULO = Object.freeze({ com_caminho: 'A casa chega até ela
 /**
  * Lê o pedido. Sem papel no texto, procura quem decide a venda, com nota.
  *
+ * Empresa pelo nome em duas leituras: a primeira devolve os `candidatos` (trechos que parecem
+ * nome ou CNPJ); quem chama os confere no catálogo (`resolverNomes`) e lê de novo com `nomes`.
+ * Na segunda, o trecho aceito sai da tese e as empresas voltam em `empresas`.
+ *
+ * @param {{ referencia?: string, municipios?: Set<string>|null, nomes?: object[]|null }} [opcoes]
  * @returns {{ pedido: string, papel: {decide: boolean, senioridades: string[], rotulo: string, padrao: boolean, trechos: string[]},
  *   acesso: {exigido: 'com_caminho'|'introducao'|null, obrigatorio: boolean, trecho: string|null},
- *   recorte: object, criterios: object[], notas: string[] }}
+ *   recorte: object, criterios: object[], notas: string[], candidatos: object[], empresas: {trecho: string, empresas: object[]}[] }}
  */
-export function interpretarPedido(texto, { referencia } = {}) {
+export function interpretarPedido(texto, { referencia, municipios = null, nomes = null } = {}) {
   const original = String(texto || '').slice(0, 2000);
   const n = mesmoTamanho(original);
   const usados = [];
@@ -97,6 +103,22 @@ export function interpretarPedido(texto, { referencia } = {}) {
     }
   }
 
+  // Empresa pelo nome: o pedido propõe, o catálogo confirma (nomes.mjs).
+  const candidatos = nomes ? [] : candidatosANome(original, n, livre, municipios);
+  const empresas = [], semEmpresa = [];
+  for (const nome of nomes ?? []) {
+    if (!livre(nome.ini, nome.fim)) continue;
+    const trecho = original.slice(nome.ini, nome.fim);
+    if (nome.cnpj || nome.empresas.length) {
+      usados.push([nome.ini, nome.fim]);
+      empresas.push({ trecho, empresas: nome.empresas });
+    } else semEmpresa.push(trecho);
+    if (nome.cnpj && !nome.empresas.length) notas.push(`O CNPJ ${trecho.replace(/^cnpj(?:\s+raiz)?\s*:?\s*/i, '')} não está no catálogo de químicos da GHT4.`);
+    else if (nome.empresas.length > 1) notas.push(`"${trecho}" corresponde a ${nome.empresas.length} empresas do catálogo; todas entram na busca.`);
+    else if (nome.motivo === 'demais') notas.push(`"${trecho}" corresponde a mais de ${MAX_EMPRESAS_POR_NOME} empresas do catálogo e foi lido como descrição. Use o nome completo ou o CNPJ.`);
+    else if (nome.motivo === 'fora' && nome.maiuscula) notas.push(`"${trecho}" não corresponde a uma empresa do catálogo de químicos e foi lido como descrição. Confira a grafia ou use o CNPJ.`);
+  }
+
   const padrao = !decide && !senioridades.size;
   if (padrao) {
     decide = true;
@@ -111,10 +133,13 @@ export function interpretarPedido(texto, { referencia } = {}) {
   const restoN = mesmoTamanho(resto);
   for (const m of restoN.matchAll(PALAVRAS_DA_PESSOA)) resto = resto.slice(0, m.index) + ' '.repeat(m[0].length) + resto.slice(m.index + m[0].length);
   const textoDaEmpresa = resto.replace(/\s+/g, ' ').replace(/^[\s,;:.-]+|[\s,;:-]+$/g, '').trim();
-  const tese = interpretarTese(textoDaEmpresa, { referencia });
+  const tese = interpretarTese(textoDaEmpresa, { referencia, municipios });
   // A nota de "não identifiquei critérios" fala da tese; aqui o pedido pode ser só sobre a pessoa.
   // A tela do find não tem o seletor "Recorte" da pesquisa: o subsetor muda pelo próprio pedido.
-  const notasTese = tese.notas.filter((x) => !/^Não identifiquei critérios/.test(x))
+  // Palavra solta de um nome que o catálogo não achou já tem a nota do nome.
+  const doNome = (x) => semEmpresa.some((t) => t.includes(x.match(/^"([^"]+)" não virou critério/)?.[1] ?? '\u0000'));
+  // Com a empresa citada pelo nome, o subsetor não recorta nada (buscar.mjs): as notas dele saem.
+  const notasTese = tese.notas.filter((x) => !/^Não identifiquei critérios/.test(x) && !doNome(x) && !(empresas.length && /subsetor/.test(x)))
     .map((x) => x.replace(/\s*(?:Troque|Escolha um) em "Recorte"[^.]*\./, ' Para outro subsetor, cite-o no pedido.'));
   if (tese.frente) notas.push(`"Frente de ${tese.frente}" não muda quem decide: a busca é a mesma para compra e venda.`);
   /* "De fabricantes de tintas", com o recorte já em Tintas, não pede site nenhum: o recorte
@@ -135,6 +160,8 @@ export function interpretarPedido(texto, { referencia } = {}) {
     // A parte do pedido que descreve a empresa: é o que segue para a pesquisa por tese.
     tese: textoDaEmpresa,
     notas: [...new Set([...notas, ...notasTese])],
+    candidatos,
+    empresas,
   };
 }
 

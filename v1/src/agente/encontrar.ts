@@ -31,6 +31,8 @@ export interface LeituraPedido {
   recorte: { uf: string; subsetor: string; cnae: string; incluirPossiveis: boolean }
   criterios: { id: string; texto: string; obrigatorio: boolean; tipo: 'cadastro' | 'pesquisa' }[]
   notas: string[]
+  /** Empresas citadas pelo nome ou CNPJ e confirmadas no catálogo: quando há, são o recorte inteiro. */
+  empresas?: { trecho: string; empresas: { id: string; nome: string; cidade: string | null; uf: string | null }[] }[]
 }
 export interface FunilEncontrar {
   recorte: number; lidas: number; truncado: boolean; nosCriterios: number; comPessoas: number

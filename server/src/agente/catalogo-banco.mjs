@@ -25,7 +25,19 @@ const SQL_SINAIS = `current_date::text
 // Uma consulta SQL fixa o snapshot para contagem e página, mesmo durante importações.
 // Os filtros são parâmetros; '%' e '_' em um nome não se tornam curingas SQL.
 export function criarCatalogoBanco(db) {
+  let municipiosDaPublicacao = null;
   return {
+    /** Municípios das sedes na publicação vigente, normalizados (ver catalogo.mjs). Guardados por
+     *  publicação: a lista só muda quando o catálogo é reimportado. */
+    async municipios() {
+      const atual = (await db.query('SELECT snapshot_id FROM catalogo_controle WHERE id=TRUE')).rows[0]?.snapshot_id;
+      if (!atual) return new Set();
+      if (municipiosDaPublicacao?.snapshot !== atual) {
+        const { rows } = await db.query('SELECT DISTINCT cidade FROM catalogo_registros WHERE snapshot_id=$1', [atual]);
+        municipiosDaPublicacao = { snapshot: atual, nomes: new Set(rows.map((r) => normalizarMunicipio(r.cidade)).filter(Boolean)) };
+      }
+      return municipiosDaPublicacao.nomes;
+    },
     async buscar({ busca = '', uf = '', municipio = '', comEvento = false, ordem = 'enquadramento', incluirPossiveis = false, limite = 12, offset = 0, catalogoHash, cnae = '', subsetor } = {}) {
       if (!Number.isInteger(limite) || limite < 0 || limite > 1000 || !Number.isInteger(offset) || offset < 0) throw new Error('Paginação inválida.');
       const escopo = escopoSubsetores(subsetor);

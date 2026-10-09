@@ -50,7 +50,7 @@ export function EncontrarPessoas({ aoPesquisar, aoExpirar }: { aoPesquisar: (tes
     <section className="pesquisa-compositor encontrar-compositor" aria-labelledby="titulo-encontrar">
       <span className="agente-sobretitulo">Encontrar quem decide</span>
       <h2 id="titulo-encontrar">Diga quem você procura.</h2>
-      <p className="pesquisa-sub">Cargo, empresa e, se quiser, só quem a casa alcança. O agente procura entre as pessoas que a GHT4 já mapeou: o quadro societário público, as listas da equipe e quem alguém da casa registrou com a fonte. Cada pessoa vem com o juízo de cada exigência e o caminho pela rede.</p>
+      <p className="pesquisa-sub">Cargo, empresa (descrita, pelo nome ou pelo CNPJ) e, se quiser, só quem a casa alcança. O agente procura entre as pessoas que a GHT4 já mapeou: o quadro societário público, as listas da equipe e quem alguém da casa registrou com a fonte. Cada pessoa vem com o juízo de cada exigência e o caminho pela rede.</p>
       <form onSubmit={buscar} className="pesquisa-caixa">
         <label htmlFor="pedido-encontrar" className="sr-only">Quem você procura</label>
         <textarea id="pedido-encontrar" value={pedido} onChange={(e) => setPedido(e.target.value)} maxLength={2000} disabled={buscando}
@@ -83,12 +83,16 @@ export function EncontrarPessoas({ aoPesquisar, aoExpirar }: { aoPesquisar: (tes
 /** Como o pedido foi lido: papel, acesso, recorte e critérios da empresa, com as notas. */
 function Leitura({ r }: { r: ResultadoEncontrar }) {
   const l = r.leitura
-  const recorte = [l.recorte.subsetor && l.recorte.subsetor !== 'todos' ? l.recorte.subsetor : 'Todos os setores-alvo', l.recorte.uf || null, l.recorte.cnae ? `CNAE ${l.recorte.cnae}` : null].filter(Boolean).join(' · ')
+  const citadas = (l.empresas ?? []).flatMap((n) => n.empresas)
+  const recorte = citadas.length ? ['Só as empresas citadas', l.recorte.uf || null].filter(Boolean).join(' · ')
+    : [l.recorte.subsetor && l.recorte.subsetor !== 'todos' ? l.recorte.subsetor : 'Todos os setores-alvo', l.recorte.uf || null, l.recorte.cnae ? `CNAE ${l.recorte.cnae}` : null].filter(Boolean).join(' · ')
   return <section className="agente-superficie encontrar-leitura" aria-labelledby="titulo-leitura">
     <h3 id="titulo-leitura">Como li o pedido</h3>
     <dl>
       <div><dt>Quem</dt><dd>{l.papel.rotulo}{l.papel.padrao && <small> (o pedido não disse o cargo)</small>}</dd></div>
       <div><dt>Acesso</dt><dd>{l.acesso.exigido ? `${ACESSO_PEDIDO[l.acesso.exigido]}${l.acesso.obrigatorio ? '' : ' (de preferência)'}` : 'Qualquer um; o caminho aparece quando existe'}</dd></div>
+      {(l.empresas ?? []).length > 0 && <div><dt>Empresa</dt><dd>{citadas.length ? <ul className="encontrar-criterios">{citadas.map((e) => <li key={e.id}>
+        {e.nome}<small>{e.cidade ? `${e.cidade}${e.uf ? `/${e.uf}` : ''}` : 'catálogo'}</small></li>)}</ul> : 'Nenhuma do catálogo com esse CNPJ'}</dd></div>}
       <div><dt>Recorte</dt><dd>{recorte}</dd></div>
       <div><dt>Na empresa</dt><dd>{l.criterios.length ? <ul className="encontrar-criterios">{l.criterios.map((c) => <li key={c.id} className={c.obrigatorio ? '' : 'is-opcional'}>
         {c.texto}<small>{c.tipo === 'pesquisa' ? 'site oficial' : 'cadastro'}{c.obrigatorio ? '' : ' · opcional'}</small></li>)}</ul> : 'Nenhum critério além do recorte'}</dd></div>

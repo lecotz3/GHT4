@@ -61,6 +61,13 @@ try {
   assert.deepEqual(r.grupos.forte.map((p) => p.nome).sort(), ['Carla Mendes (fictícia)', 'Rui Teixeira (fictício)']);
   assert.equal(r.grupos.forte.find((p) => p.nome.startsWith('Carla')).caminho.categoria, 'introducao_viavel');
   assert.ok(r.lacunas.empresas.some((l) => l.empresa.id === 'cnpj90000004'), 'Insumos Paulista: ninguém mapeado');
+  // Rodada 22: empresa pelo nome e pessoa só com o nome da organização, à espera do vínculo ao CNPJ.
+  const peloNome = await chamar('POST', '/api/encontrar', { pedido: 'Quem decide na Química Aurora' });
+  assert.deepEqual(peloNome.grupos.forte.map((p) => p.nome), ['Carla Mendes (fictícia)']);
+  const semCnpj = (await chamar('POST', '/api/rede/pessoas', { id: randomUUID(), lado: 'mercado', nome: 'Davi Lopes (fictício)', cargo: 'Diretor financeiro',
+    senioridade: 'cfo', organizacao: 'Aurora Química Ltda.' })).pessoa;
+  const sugestoes = await chamar('GET', `/api/rede/pessoas/${semCnpj.id}/empresas-sugeridas`);
+  assert.equal(sugestoes.empresas[0]?.id, 'cnpj90000001', 'a Química Aurora é a sugestão mais parecida');
   if (interface_) {
     console.log(`Ensaio visual isolado em ${host}. PID ${process.pid}. Conta socio@teste.local; senha exclusivamente sintética: ${senha}`);
     await new Promise((resolve) => { process.once('SIGTERM', resolve); process.once('SIGINT', resolve); });

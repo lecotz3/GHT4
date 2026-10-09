@@ -2,20 +2,21 @@ import { motion, useReducedMotion } from 'motion/react'
 import { IconeRede } from './IconeRede'
 
 export type AbaRede = 'visao' | 'ght4' | 'mercado' | 'externo' | 'reconhecimento' | 'importacao'
-export type ResumoRede = { confirmadas: number; pendentes: number; bloqueadas: number; membrosSemConta: number; cargosRevisar: number; respondidas: number; perguntasPossiveis: number }
+export type ResumoRede = { confirmadas: number; pendentes: number; bloqueadas: number; membrosSemConta: number; cargosRevisar: number; semCnpj: number; respondidas: number; perguntasPossiveis: number }
 type Totais = { ght4: number; mercado: number; externo: number; vinculos: number }
 const numero = (n: number) => n.toLocaleString('pt-BR')
 
 export function VisaoGeralRede({ totais, resumo, podeEditar, aoNavegar, aoAgente }: {
-  totais: Totais; resumo: ResumoRede; podeEditar: boolean; aoNavegar: (aba: AbaRede) => void; aoAgente: () => void
+  totais: Totais; resumo: ResumoRede; podeEditar: boolean; aoNavegar: (aba: AbaRede, opcoes?: { semCnpj?: boolean }) => void; aoAgente: () => void
 }) {
   const reduzir = useReducedMotion()
   const pendentes = Math.max(0, resumo.perguntasPossiveis - resumo.respondidas)
   const progresso = resumo.perguntasPossiveis ? Math.min(100, Math.round(100 * resumo.respondidas / resumo.perguntasPossiveis)) : 0
-  const sugestoes: { titulo: string; descricao: string; aba: AbaRede; acao: string }[] = []
+  const sugestoes: { titulo: string; descricao: string; aba: AbaRede; acao: string; semCnpj?: boolean }[] = []
   if (!totais.ght4 || resumo.membrosSemConta) sugestoes.push({ titulo: !totais.ght4 ? 'Comece pelas pessoas da casa' : 'Conecte os membros às suas contas', descricao: !totais.ght4 ? 'Cadastre quem participa do piloto para dar início à rede.' : `${numero(resumo.membrosSemConta)} membro(s) precisam de uma conta ativa vinculada para responder por si.`, aba: 'ght4', acao: podeEditar ? 'Organizar equipe' : 'Ver participantes' })
   if (!totais.mercado) sugestoes.push({ titulo: 'Traga os primeiros contatos', descricao: 'Uma seleção autorizada já permite começar. Revise a prévia antes de compartilhar.', aba: 'importacao', acao: podeEditar ? 'Preparar importação' : 'Ver lotes' })
   if (pendentes) sugestoes.push({ titulo: 'Faça uma rodada por empresa', descricao: `${numero(pendentes)} perguntas entre membros e pessoas das empresas ainda não foram respondidas. Escolha uma empresa prioritária para começar.`, aba: 'reconhecimento', acao: 'Reconhecer pessoas' })
+  if (resumo.semCnpj && podeEditar) sugestoes.push({ titulo: 'Ligue as pessoas ao CNPJ', descricao: `${numero(resumo.semCnpj)} pessoa(s) estão só com o nome da organização e não aparecem em Encontrar quem decide. O agente sugere a empresa pelo nome escrito; você confere e liga.`, aba: 'mercado', acao: 'Ligar ao CNPJ', semCnpj: true })
   if (resumo.cargosRevisar && podeEditar) sugestoes.push({ titulo: 'Revise quem tem poder de decisão', descricao: `${numero(resumo.cargosRevisar)} pessoa(s) estão sem nível de decisão definido. Confirme o cargo atual antes de priorizar.`, aba: 'mercado', acao: 'Revisar cadastros' })
   if (!sugestoes.length) sugestoes.push({ titulo: 'Mantenha as relações atuais', descricao: 'Revise as respostas quando houver mudança de cargo, empresa ou disponibilidade para apresentar.', aba: 'reconhecimento', acao: 'Revisar reconhecimento' })
 
@@ -53,7 +54,7 @@ export function VisaoGeralRede({ totais, resumo, podeEditar, aoNavegar, aoAgente
     <div className="grid items-start gap-5 xl:grid-cols-[1.45fr_1fr]">
       <section className="overflow-hidden rounded-xl border border-fio bg-papel" aria-labelledby="rede-sugestoes">
         <div className="border-b border-fio px-5 py-4"><h3 id="rede-sugestoes" className="font-semibold">Próximos passos sugeridos</h3><p className="mt-1 text-xs text-suave">A partir do estado atual da rede.</p></div>
-        <ol className="divide-y divide-fio">{sugestoes.slice(0, 3).map((s, i) => <li key={s.titulo} className="flex gap-3 p-5"><span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-papel-2 text-xs font-semibold text-suave">{i + 1}</span><div className="min-w-0"><h4 className="text-sm font-semibold">{s.titulo}</h4><p className="mt-1.5 text-xs leading-relaxed text-suave">{s.descricao}</p><button className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-comprador hover:underline" onClick={() => aoNavegar(s.aba)}>{s.acao}<IconeRede nome="seta" className="size-4" /></button></div></li>)}</ol>
+        <ol className="divide-y divide-fio">{sugestoes.slice(0, 3).map((s, i) => <li key={s.titulo} className="flex gap-3 p-5"><span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-papel-2 text-xs font-semibold text-suave">{i + 1}</span><div className="min-w-0"><h4 className="text-sm font-semibold">{s.titulo}</h4><p className="mt-1.5 text-xs leading-relaxed text-suave">{s.descricao}</p><button className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-comprador hover:underline" onClick={() => aoNavegar(s.aba, s.semCnpj ? { semCnpj: true } : undefined)}>{s.acao}<IconeRede nome="seta" className="size-4" /></button></div></li>)}</ol>
       </section>
       <div className="space-y-5">
         <section className="rounded-xl border border-fio bg-papel p-5" aria-labelledby="rede-cobertura">

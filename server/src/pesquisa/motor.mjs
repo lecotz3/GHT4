@@ -231,7 +231,9 @@ export function criarMotorPesquisa({ db, catalogo, servicoIA = null, web = {}, l
     },
     /** Proposta inicial de critérios: IA (validada) com as regras locais como base e reserva. */
     async propor(tese, { referencia, execucao } = {}) {
-      const local = interpretarTese(tese, { referencia });
+      // Sem a lista de municípios (catálogo fora do ar), cidade continua pedindo "cidade de".
+      const municipios = await Promise.resolve(catalogo.municipios?.()).catch(() => null);
+      const local = interpretarTese(tese, { referencia, municipios });
       if (!servicoIA || !execucao) return { ...local, modo: 'regras' };
       try {
         const r = await servicoIA.estruturar({ instrucoes: INSTRUCOES_TESE, dados: { tese }, execucao: { ...execucao, corpoHash: hash({ tese }) } });

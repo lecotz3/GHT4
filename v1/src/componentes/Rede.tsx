@@ -6,6 +6,7 @@ import { VinculosRede } from './VinculosRede'
 import { empresaDoCsv } from '../agente/csv-rede'
 import { IconeRede } from './IconeRede'
 import { VisaoGeralRede, type AbaRede, type ResumoRede } from './VisaoGeralRede'
+import { VincularCnpj } from './VincularCnpj'
 
 const campo = 'w-full rounded-ficha border border-fio-forte bg-papel px-3 py-2.5 text-sm focus:outline-comprador'
 const botao = 'rounded-ficha bg-tinta px-4 py-2.5 text-sm font-semibold text-papel disabled:opacity-50'
@@ -57,7 +58,11 @@ export function Rede({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpirar:
   const [contas,setContas] = useState<{id:string;nome:string;email:string}[]>([])
   const [proximoOffset,setProximoOffset] = useState<number|null>(null)
   const [mostrarCadastro, setMostrarCadastro] = useState(false)
+  // Pessoas sem CNPJ não entram no find: a lista pode mostrar só elas, e cada uma se liga ao catálogo.
+  const [semCnpj, setSemCnpj] = useState(false)
+  const [vincular, setVincular] = useState('')
   const requisicao = useRef(0)
+  const filtroCnpj = semCnpj && lado === 'mercado' ? '&semEmpresa=1' : ''
   const formulario = useRef<HTMLFormElement>(null)
 
   const falhou = useCallback((e: unknown) => {
@@ -71,7 +76,7 @@ export function Rede({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpirar:
     try {
       const [e, p] = await Promise.all([
         api<Estado>('/api/rede'),
-        cadastro ? api<{ pessoas: PessoaRede[]; proximoOffset:number|null }>(`/api/rede/pessoas?lado=${lado}&busca=${encodeURIComponent(busca)}`) : Promise.resolve({ pessoas: [], proximoOffset: null }),
+        cadastro ? api<{ pessoas: PessoaRede[]; proximoOffset:number|null }>(`/api/rede/pessoas?lado=${lado}&busca=${encodeURIComponent(busca)}${filtroCnpj}`) : Promise.resolve({ pessoas: [], proximoOffset: null }),
       ])
       if (n !== requisicao.current) return
       setEstado(e); setPessoas(p.pessoas); setErro('')
@@ -81,17 +86,18 @@ export function Rede({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpirar:
         if (n === requisicao.current) setContas(c.contas)
       }
     } catch (e) { if (n === requisicao.current) falhou(e) } finally { if (n === requisicao.current) setCarregando(false) }
-  }, [lado, busca, cadastro, falhou])
+  }, [lado, busca, cadastro, falhou, filtroCnpj])
 
   const invalidar = useCallback(() => { requisicao.current++ }, [])
   useEffect(() => { void carregar(); return invalidar }, [aba, carregar, invalidar])
   useEffect(() => { if (mostrarCadastro) formulario.current?.focus() }, [mostrarCadastro, editar])
 
-  function navegar(proxima: AbaRede) {
+  function navegar(proxima: AbaRede, opcoes?: { semCnpj?: boolean }) {
     if (ocupado || proxima === aba) return
     requisicao.current++
     setAba(proxima); setBusca(''); setPessoas([]); setProximoOffset(null)
     setLigar(null); setEditar(null); setForm(vazio); setVerVinculos(''); setMostrarCadastro(false); setErro(''); setAviso('')
+    setSemCnpj(Boolean(opcoes?.semCnpj)); setVincular('')
   }
 
   async function cadastrar(e: FormEvent) {
@@ -113,7 +119,7 @@ export function Rede({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpirar:
   }
 
   async function mais() { if(proximoOffset===null||ocupado)return;const n = requisicao.current;setOcupado(true);try{
-    const p=await api<{pessoas:PessoaRede[];proximoOffset:number|null}>(`/api/rede/pessoas?lado=${lado}&busca=${encodeURIComponent(busca)}&offset=${proximoOffset}`)
+    const p=await api<{pessoas:PessoaRede[];proximoOffset:number|null}>(`/api/rede/pessoas?lado=${lado}&busca=${encodeURIComponent(busca)}${filtroCnpj}&offset=${proximoOffset}`)
     if (n === requisicao.current) { setPessoas(ps=>[...ps,...p.pessoas]);setProximoOffset(p.proximoOffset) }
   }catch(e){falhou(e)}finally{setOcupado(false)} }
   async function desativar(p:PessoaRede) { setOcupado(true);try{
@@ -208,23 +214,25 @@ export function Rede({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpirar:
       {editar&&<><button type="button" className={`${secundario} ml-2`} disabled={ocupado} onClick={()=>{setEditar(null);setForm(vazio)}}>Cancelar edição</button><button type="button" className={`${secundario} ml-2`} disabled={ocupado} onClick={()=>void desativar(editar)}>Retirar pessoa dos caminhos</button></>}
     </form>}
 
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-fio bg-papel p-3"><label className="flex min-w-0 flex-1 items-center gap-2 pl-1 text-suave"><IconeRede nome="busca" /><input className="w-full min-w-0 bg-transparent p-2 text-sm text-tinta" value={busca} disabled={ocupado} onChange={e => { requisicao.current++; setBusca(e.target.value); setPessoas([]); setCarregando(true) }} placeholder="Buscar nome, cargo ou empresa" maxLength={120} aria-label="Filtrar a rede" /></label><span className="px-2 text-xs text-suave" role="status">{carregando ? 'Atualizando…' : `${pessoas.length} pessoa(s) nesta lista`}</span></div>
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-fio bg-papel p-3"><label className="flex min-w-0 flex-1 items-center gap-2 pl-1 text-suave"><IconeRede nome="busca" /><input className="w-full min-w-0 bg-transparent p-2 text-sm text-tinta" value={busca} disabled={ocupado} onChange={e => { requisicao.current++; setBusca(e.target.value); setPessoas([]); setCarregando(true) }} placeholder="Buscar nome, cargo ou empresa" maxLength={120} aria-label="Filtrar a rede" /></label>{doMercado && (semCnpj || estado.resumo.semCnpj > 0) && <button className={`${secundario} ${semCnpj ? 'bg-papel-2 font-semibold' : ''}`} aria-pressed={semCnpj} disabled={ocupado} title="Quem está só com o nome da organização não aparece em Encontrar quem decide" onClick={() => { requisicao.current++; setSemCnpj((v) => !v); setPessoas([]); setVincular(''); setCarregando(true) }}>Sem CNPJ ({estado.resumo.semCnpj.toLocaleString('pt-BR')})</button>}<span className="px-2 text-xs text-suave" role="status">{carregando ? 'Atualizando…' : `${pessoas.length} pessoa(s) nesta lista`}</span></div>
     <section className="space-y-3" aria-label="Pessoas da rede" aria-busy={carregando}>
       {!carregando && !pessoas.length && <div className="rounded-xl border border-dashed border-fio-forte p-8 text-center"><IconeRede nome="pessoas" className="mx-auto mb-3 size-8 text-suave" /><p className="text-sm text-suave">
         {busca ? 'Nenhuma pessoa corresponde a este filtro.'
+          : semCnpj && doMercado ? 'Todas as pessoas das empresas estão ligadas a um CNPJ do catálogo.'
           : daCasa ? 'Ninguém da GHT4 cadastrado ainda. Sem isso, nenhum caminho pode começar.'
             : doMercado ? 'Nenhuma pessoa de empresa cadastrada ainda. Comece por quem você já conhece.'
               : 'Nenhum intermediário cadastrado. Entram aqui as pessoas que fazem a ponte sem ser da casa nem da empresa-alvo.'}
-      </p>{busca && <button className={`${secundario} mt-4`} onClick={() => setBusca('')}>Limpar busca</button>}</div>}
+      </p>{busca && <button className={`${secundario} mt-4`} onClick={() => setBusca('')}>Limpar busca</button>}
+      {!busca && semCnpj && doMercado && <button className={`${secundario} mt-4`} onClick={() => { requisicao.current++; setSemCnpj(false); setCarregando(true) }}>Ver todas as pessoas</button>}</div>}
       {pessoas.map((p) => <article key={p.id} className="rounded-xl border border-fio bg-papel p-4 transition hover:border-fio-forte">
         <div className="flex flex-wrap items-start gap-3">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-papel-2 text-sm font-semibold text-tinta-2" aria-hidden="true">{p.nome.split(' ').filter(Boolean).slice(0,2).map(n => n[0]).join('')}</span>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-[12rem] flex-1">
             <p className="text-sm font-semibold">{p.nome}{p.cargo ? ` · ${p.cargo}` : ''}</p>
             <p className="mt-1 text-xs text-suave">
               {daCasa ? 'GHT4' : p.organizacao || 'Organização não informada'}
               {doMercado && ` · ${p.senioridadeRotulo}`}
-              {p.empresaId ? ` · ${p.empresaId}` : ''}
+              {p.empresaId ? ` · ${p.empresaId}` : doMercado ? ' · sem CNPJ: não aparece em Encontrar quem decide' : ''}
             </p>
             <p className="mt-1 text-xs text-suave">
               {p.camposOmitidos.length
@@ -236,10 +244,12 @@ export function Rede({ aoVoltar, aoExpirar }: { aoVoltar: () => void; aoExpirar:
           {estado?.podeEditar && <button className={secundario} onClick={() => { setLigar(ligar?.id === p.id ? null : p); setAviso('') }} disabled={ocupado}>
             {ligar?.id === p.id ? 'Fechar' : 'Registrar vínculo'}
           </button>}
+          {estado?.podeEditar && doMercado && !p.empresaId && <button className={secundario} aria-expanded={vincular === p.id} disabled={ocupado} onClick={() => { setVincular(vincular === p.id ? '' : p.id); setAviso('') }}>{vincular === p.id ? 'Fechar' : 'Ligar ao CNPJ'}</button>}
           <button className={secundario} onClick={()=>setVerVinculos(verVinculos===p.id?'':p.id)} disabled={ocupado}>Ver vínculos</button>
           {estado?.podeEditar&&<button className={secundario} disabled={ocupado} onClick={()=>{setEditar(p);setMostrarCadastro(true);setForm({nome:p.nome,cargo:p.cargo,senioridade:p.senioridade,organizacao:p.organizacao,empresaId:p.empresaId??'',email:p.email??'',telefone:p.telefone??'',linkedin:p.linkedin??'',observacoes:p.observacoes??'',usuarioId:p.usuarioId??''})}}>Editar cadastro</button>}
         </div>
         {p.origemReferencia&&<p className="mt-2 text-xs text-suave">Fonte: {p.origemReferencia}</p>}
+        {vincular === p.id && <VincularCnpj pessoa={p} aoFalhar={falhou} aoLigar={(texto) => { setVincular(''); setAviso(texto); void carregar() }} />}
         {verVinculos===p.id&&estado&&<VinculosRede pessoaId={p.id} disposicoes={estado.disposicoes} forcas={estado.forcas} aoFalhar={falhou} aoMudar={()=>void carregar()}/>}
         {ligar?.id === p.id && estado && <FormularioVinculo pessoa={p} estado={estado} aoFalhar={falhou}
           aoSalvar={(texto) => { setLigar(null); setAviso(texto); void carregar() }} />}
