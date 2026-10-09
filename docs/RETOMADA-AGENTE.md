@@ -4,7 +4,32 @@ Atualizado em 9 de outubro de 2026 (checkpoint anterior: 8 de outubro). Branch d
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodada 23 publicada: find dentro da pesquisa por tese, avisos de outros espaços e o catálogo inteiro (09/10/2026)
+## COMECE AQUI — Rodada 25: achados do Codex corrigidos; rede pronta para gravar, falta a credencial do banco (09/10/2026)
+
+**Estado:**
+- **Na `main`:** tudo publicado, cada correção num commit (`716fd6a`, `f5a0a3d`, `ee3b9ce`, `2dd04f7`, `0bafdce` e os importantes da Rodada 23). Registro no [AI_COLLAB.md](../AI_COLLAB.md), Rodada 25, com "PARA O CODEX".
+- **Achados do parecer `36b24de`:** os seis críticos corrigidos, com regressão (P1 da Rodada 23; caminho em lote e cargo negado da 21; município da 22; memória em voo da 24; cobertura ampliada da 19), mais os importantes. Ficaram dois opcionais: continuação dos grupos (21) e origem da sugestão de vínculo (22).
+- **Lessie logado:** feito pela extensão do Chrome, sem crédito: §11 do [PESQUISA-LESSIE-AI.md](../PESQUISA-LESSIE-AI.md).
+- **Rede (passo 2), nesta máquina:**
+  - `.cache/quadro-societario-2026-08.js` reconstruído (10 MB, 35.690 empresas). `npm run rede:ensaio`: **8.736** dirigentes (ceo 1.925, conselho 721, diretoria 6.090), nada gravado.
+  - CLI da Vercel logado (conta `leonardoleal2202-1688`, time `leoleal11`), pasta vinculada ao `ght-4` e `server/.env.local` trazido de produção.
+  - **Bloqueio:** a Vercel entrega vazios os valores sensíveis (`POSTGRES_URL`, `POSTGRES_PASSWORD`). A linha `DATABASE_URL=` no fim do `server/.env.local` espera a connection string do Supabase (Connect → Transaction pooler, com a senha), colada pelo usuário.
+  - `GHT4_ADMIN_SENHA_REDEFINIR` já não está nas variáveis de produção.
+
+**Validação:** `npm run ci` exit 0 a cada commit; o último, raiz 139/139 e servidor 312 + 2 pulados.
+
+### Próximos passos, em ordem
+
+1. **Gravar os 8.736 dirigentes**, assim que o `DATABASE_URL` estiver preenchido:
+   - `node --env-file=server/.env.local ferramentas/verificar-prontidao-rede.mjs --conectar`;
+   - `node --env-file=server/.env.local ferramentas/importar-quadro-societario.mjs --arquivo=.cache/quadro-societario-2026-08.js --confirmo-a-decisao-lgpd --destino=HOST:PORTA/BANCO`, com o destino que o verificador mostrar;
+   - conferir: criadas + atualizadas = 8.736, e a auditoria `rede_quadro_societario` com `cargos_estatutarios`.
+2. **Revisão do Codex:** a Rodada 25, e a Rodada 20 inteira.
+3. **Ativar a casa** (pessoas reais, pelo usuário): convites na tela Equipe, membros na Rede, listas CSV autorizadas e a passada de reconhecimento. Depois, "Ligar ao CNPJ" para quem veio só com o nome.
+4. **Aceite em produção** (Etapa 3): os onze pedidos, com contas de sócio e de analista; anotar o tempo.
+5. **Etapa 4:** IA opcional para pedidos ambíguos. Candidatos da §11.6 do estudo do Lessie: um requisito por papel ("CEO e RH"), com a cobertura de cada um, e conflito de cargo único na mesma empresa.
+
+## Checkpoint anterior — Rodada 23 publicada: find dentro da pesquisa por tese, avisos de outros espaços e o catálogo inteiro (09/10/2026)
 
 **Estado:**
 - **Na `main`:** Rodadas 21 a 23. Desde 09/10/2026, cada rodada pronta é commitada e publicada na `main` por fast-forward, por autorização do usuário ("pode continuar commitando e publicando tudo").

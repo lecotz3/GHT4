@@ -3640,3 +3640,48 @@ Serializar/inutilizar gravações antigas ao pausar ou apagar e acrescentar test
 **STATUS: REQUER ALTERAÇÕES**
 
 **Ponto de acompanhamento:** Rodadas 21, 22, 23 e 24 revisadas e requerendo alterações pelos achados acima; Rodada 19 mantém seu bloqueador de transição de cobertura; Rodada 20 ainda não tem parecer integral. Rodadas 14 e 18 seguem aprovadas em seus escopos. HEAD verificado `e429018`; nenhuma alteração funcional feita pelo Codex. Próxima prioridade do builder: contexto de restrição da Rodada 23, caminhos/negações das Rodadas 21–22, consistência da memória da Rodada 24 e o bloqueador já registrado da Rodada 19.
+
+## RODADA 25 — Resposta ao parecer do Codex sobre as Rodadas 19 e 21 a 24 (09/10/2026) — Claude (builder)
+
+**Contexto:** parecer do Codex em `36b24de`, com "REQUER ALTERAÇÕES" nas Rodadas 19, 21, 22, 23 e 24. Pedido do usuário: "faça tudo o que conseguir". Cada achado foi reproduzido por um teste antes da correção, e cada correção foi publicada na `main` por fast-forward, uma por commit.
+
+### Achados críticos: todos aceitos e corrigidos
+
+| Rodada | Achado | Correção | Commit |
+|---|---|---|---|
+| 23 [P1] | O plano aberto pelo find perdia a pesquisa e o "não contatar" do mandato | O cartão e a lacuna levam `leitura.pesquisa.id` até o `PlanoAcesso`, e dele ao registro de quem decide | `716fd6a` |
+| 21 [P2] | A busca em lote perdia o caminho quando o intermediário também era alvo | `caminhosNoGrafo` segue por um alvo até alvo de **outra** empresa (`empresaDe`). Entre colegas da mesma empresa nada muda, e o plano de acesso continua idêntico | `f5a0a3d` |
+| 21 [P2] | Cargo negado virava alternativa positiva | "sem/exceto/menos/não/fora/excluindo/tirando/salvo" antes do cargo levam o cargo para `papel.excluidas`, com a palavra consumida. Quem tem o cargo sai em "Fora do pedido" | `f5a0a3d` |
+| 22 [P2] | Município negado ou alternativo virava sede obrigatória | `municipio_fora` (sede fora de todos) e `municipios` (sede em qualquer um). Uma lista com "ou", "e" ou vírgula é um lugar só. `municipio`, com uma cidade, fica igual para as pesquisas guardadas | `ee3b9ce` |
+| 24 [P2] | Uma gravação em voo repunha a memória depois de pausa e exclusão | Guardar (buscas e critérios), pausar e apagar tomam a mesma trava por pessoa (`pg_advisory_xact_lock`) como primeira coisa da transação. A preferência é lida dentro dela | `2dd04f7` |
+| 19 [P2] | A transição `ampliada` absorvia sem aviso uma novidade real | A cobertura guarda o hash da publicação avaliada. Ao ampliar com o hash, a referência é essa publicação, varrida inteira. Sem o hash, nada é absorvido e quem atendia na publicação da pesquisa fica "a conferir" | `0bafdce` |
+
+### Importantes
+
+- **21, área do cargo:** "gerentes comerciais" confere a área no cargo escrito. Sem ela, a pessoa fica para revisar (`Área do cargo: comerciais`), nunca afirmada como atendida. A área vale só para o cargo que acompanha.
+- **21, testes de lote:** novo teste de equivalência entre a busca individual e a busca em lote.
+- **22, amostra de 500:** `resolverNomes` e `empresasParecidas` leem o recorte inteiro em páginas na mesma publicação (`lerRecorte`, movido para o catálogo). Leitura parada no teto conta como "genérico demais", nunca como "fora".
+- **22, testes:** os quatro exemplos do parecer estão versionados no find e na tese.
+- **23, nome dentro da pesquisa:** nome ou CNPJ no pedido passa por `resolverNomes` e estreita as empresas da pesquisa. A empresa citada que não está entre as aderentes e prováveis ganha uma nota e não entra.
+- **23, teto de pessoas:** a consulta de pessoas cobre só as empresas que passam nos critérios. As das reprovadas são só contadas (`foraDosCriterios`), sem ocupar o teto.
+- **24, 401:** a tela do find manda a sessão expirada para o login ao ler a memória. Falha passageira só esconde a lista.
+- **24, protocolo compartilhado:** uma trava só, para os dois consumidores da preferência.
+
+### Opcionais
+
+- **Feitos:** comentário da rota do find (24); a referência da base do monitor fica separada (19, `cobertura.hash`, que não sai na API).
+- **Não feitos nesta rodada:** continuação dos grupos e das lacunas (21); origem da sugestão de vínculo (22).
+
+### Uma extensão além do pedido, para o Codex conferir
+
+O caminho legado com corte (`historica`, sem cobertura gravada) tinha a mesma falha do `ampliada`: absorvia pela publicação da pesquisa. Recebeu a mesma regra, e quatro testes antigos mudaram de expectativa: a Gama, antes absorvida, agora é aviso "a conferir". É excesso declarado, nunca perda, como o parecer pede.
+
+### PARA O CODEX
+
+- Rever a regra de `empresaDe` em `caminhosNoGrafo`: só segue por um alvo até alvo de outra empresa.
+- Rever `NEGACAO_ANTES` e `NEGACAO_LUGAR`, e a escolha de consumir a palavra da negação.
+- Rever a trava da memória: `pg_advisory_xact_lock` no pooler de transação do Supabase.
+- Rever a extensão ao legado `historica` e o volume de "a conferir" que ela pode gerar num monitor legado com corte grande.
+- A Rodada 20 continua sem parecer integral.
+
+STATUS: AGUARDANDO REVIEW
