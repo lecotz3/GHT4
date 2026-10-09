@@ -29,7 +29,8 @@ export interface LeituraPedido {
   pedido: string
   /** A parte do pedido que descreve a empresa, para levar à pesquisa por tese. */
   tese: string
-  papel: { decide: boolean; senioridades: string[]; rotulo: string; padrao: boolean; trechos: string[] }
+  /** `excluidas`: cargos negados no pedido ("sem gerentes"). `areas`: a área que acompanha um cargo ("gerentes comerciais"). */
+  papel: { decide: boolean; senioridades: string[]; excluidas?: string[]; areas?: { texto: string; senioridades: string[] }[]; rotulo: string; padrao: boolean; trechos: string[] }
   acesso: { exigido: 'com_caminho' | 'introducao' | null; obrigatorio: boolean; trecho: string | null }
   recorte: { uf: string; subsetor: string; cnae: string; incluirPossiveis: boolean }
   criterios: { id: string; texto: string; obrigatorio: boolean; tipo: 'cadastro' | 'pesquisa' }[]

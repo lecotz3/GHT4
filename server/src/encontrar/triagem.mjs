@@ -34,10 +34,12 @@ export function avaliarEmpresa(empresa, criterios, referencia) {
     estrutura: estruturaDeDecisao(empresa.atributos ?? null, referencia) };
 }
 
-/** O papel pedido: cargos da escala, quem decide, ou os dois (qualquer um basta). */
+/** O papel pedido: cargos da escala, quem decide, ou os dois (qualquer um basta). Cargo negado reprova. */
 function linhaDoPapel(p, papel, decisao) {
-  if (!papel.senioridades.length) return { ...decisao, obrigatorio: true };
   const s = senioridadeDe(p.senioridade);
+  if ((papel.excluidas ?? []).includes(s.id)) return { requisito: `Cargo fora do pedido (${s.rotulo})`, julgamento: 'nao_atende',
+    informacao: `${s.rotulo}${p.cargo ? ` · ${p.cargo}` : ''}`, fonte: decisao.fonte, obrigatorio: true };
+  if (!papel.senioridades.length) return { ...decisao, obrigatorio: true };
   const rotulo = papel.senioridades.map((x) => senioridadeDe(x).rotulo).join(', ');
   const noCargo = papel.senioridades.includes(s.id);
   const julgamento = noCargo || (papel.decide && decisao.julgamento === 'atende') ? 'atende'
@@ -45,6 +47,18 @@ function linhaDoPapel(p, papel, decisao) {
       : papel.decide && decisao.julgamento === 'indicio' ? 'indicio' : 'nao_atende';
   return { requisito: `${papel.decide ? 'Decide a venda ou ' : ''}Cargo: ${rotulo}`, julgamento,
     informacao: `${s.rotulo}${p.cargo ? ` · ${p.cargo}` : ''}`, fonte: decisao.fonte, obrigatorio: true };
+}
+
+/* A área do cargo ("gerentes comerciais") não está na escala da rede: atende quando o cargo escrito
+   a traz, e fica sem evidência quando não traz, nunca reprovada (o cargo pode só estar resumido). */
+const palavras = (t) => String(t ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+const raiz = (w) => w.length <= 3 ? w : w.slice(0, Math.max(4, Math.min(6, w.length - 1)));
+function linhaDaArea(p, area) {
+  const doCargo = palavras(p.cargo);
+  const pedidas = palavras(area).filter((w) => !/^(?:de|da|do|das|dos|com|e)$/.test(w));
+  const traz = pedidas.length > 0 && pedidas.every((w) => doCargo.some((c) => w.length <= 3 ? c === w : c.startsWith(raiz(w))));
+  return { requisito: `Área do cargo: ${area}`, julgamento: traz ? 'atende' : 'indeterminado', obrigatorio: true, fonte: null,
+    informacao: traz ? `O cargo registrado traz a área: ${p.cargo}.` : `O cargo registrado (${p.cargo || 'sem cargo escrito'}) não diz a área.` };
 }
 
 /**
@@ -59,7 +73,7 @@ export function julgarPessoa(p, ctx, leitura) {
   const base = juizoDoDecisor(p, { empresaId: ctx.empresa.id, cnpjRaiz: ctx.empresa.cnpjRaiz, estrutura: ctx.avaliacao.estrutura,
     caminho: ctx.caminho, incompletos: ctx.incompletos, respostas: ctx.respostas, negativas: ctx.negativas, membros: ctx.membros });
   const [decisao, fonteDoCargo, pertence, casa] = base.juizo;
-  const linhas = [linhaDoPapel(p, leitura.papel, decisao)];
+  const linhas = [linhaDoPapel(p, leitura.papel, decisao), ...(leitura.papel.areas ?? []).filter((a) => a.senioridades.includes(senioridadeDe(p.senioridade).id)).map((a) => linhaDaArea(p, a.texto))];
   if (leitura.papel.senioridades.length) linhas.push({ ...decisao, obrigatorio: false });
   linhas.push({ ...fonteDoCargo, obrigatorio: true }, { ...pertence, obrigatorio: true }, ...ctx.avaliacao.linhas);
 

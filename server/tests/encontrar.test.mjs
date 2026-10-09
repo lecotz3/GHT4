@@ -184,3 +184,78 @@ test('encontrar quem decide: triagem, caminho, introdução, lacunas e restriç�
   assert.equal((await socio.chamar('POST', '/api/encontrar', { pedido: ' ' })).statusCode, 422);
   assert.equal((await socio.chamar('POST', '/api/encontrar', { pedido: 'Quem decide', extra: 1 })).statusCode, 422);
 });
+
+test('busca em lote não perde o caminho que passa por outro alvo (Casa → Alfa → Delta)', async (t) => {
+  const { db, usuario } = await montar(t);
+  const socio = await usuario('socio@teste.local', 'socio', 'Helena Sócia');
+  const buscar = async (pedido) => {
+    const r = await socio.chamar('POST', '/api/encontrar', { pedido });
+    assert.equal(r.statusCode, 200, r.body);
+    return r.json();
+  };
+  const eu = randomUUID(), ivo = randomUUID(), rita = randomUUID();
+  assert.equal((await socio.chamar('POST', '/api/rede/pessoas', { id: eu, lado: 'ght4', nome: 'Helena Sócia', usuarioId: socio.id })).statusCode, 201);
+  for (const [id, nome, empresaId] of [[ivo, 'Ivo Ramos', 'cnpj11111111'], [rita, 'Rita Melo', 'cnpj44444444']]) await db.query(
+    `INSERT INTO rede_pessoas (id,lado,nome,nome_normalizado,cargo,senioridade,organizacao,organizacao_normalizada,empresa_id,origem,criado_por)
+     VALUES ($1,'mercado',$2,lower($2),'Diretor-presidente','ceo','x','x',$3,'cadastro_publico',$4)`, [id, nome, empresaId, socio.id]);
+  const ligar = (x, y) => { const [a, b] = [x, y].sort(); return db.query(
+    `INSERT INTO rede_vinculos (id,pessoa_a_id,pessoa_b_id,tipo,forca,evidencia,disposicao,criado_por)
+     VALUES ($1,$2,$3,'trabalharam_juntos','direta','Trabalharam juntos','posso_apresentar',$4)`, [randomUUID(), a, b, socio.id]); };
+  await ligar(eu, ivo);
+  await ligar(ivo, rita);
+
+  const daRita = (r) => [...r.grupos.forte, ...r.grupos.revisar, ...r.grupos.excluido].find((p) => p.nome === 'Rita Melo');
+  const sozinha = daRita(await buscar('Quem decide na Delta Química que a casa conhece'));
+  assert.equal(sozinha.grupo, 'forte');
+  assert.equal(sozinha.caminho.saltos, 2);
+  assert.match(sozinha.caminho.rota, /Helena Sócia → Ivo Ramos .*→ Rita Melo/);
+
+  // Em lote, Ivo também é alvo: a ligação até ele não pode encerrar a busca que chega à Rita.
+  const lote = await buscar('Quem decide nas distribuidoras de SP que a casa conhece');
+  const emLote = daRita(lote);
+  assert.equal(emLote.grupo, 'forte', JSON.stringify(emLote?.pendencias));
+  assert.deepEqual({ saltos: emLote.caminho.saltos, rota: emLote.caminho.rota, categoria: emLote.caminho.categoria },
+    { saltos: sozinha.caminho.saltos, rota: sozinha.caminho.rota, categoria: sozinha.caminho.categoria }, 'o mesmo caminho da busca individual');
+  const doIvo = lote.grupos.forte.find((p) => p.nome === 'Ivo Ramos');
+  assert.equal(doIvo?.caminho.saltos, 1, 'e o intermediário segue com o próprio caminho direto');
+});
+
+test('cargo negado sai do pedido, e a área do cargo vira exigência', async (t) => {
+  // Leitura: "sem gerentes" e "exceto CEOs" excluem; nada de "sem" sobrando para a tese.
+  const semGerentes = interpretarPedido('Quem decide nas distribuidoras, sem gerentes');
+  assert.equal(semGerentes.papel.decide, true);
+  assert.deepEqual(semGerentes.papel.senioridades, []);
+  assert.deepEqual(semGerentes.papel.excluidas, ['gerencia']);
+  assert.match(semGerentes.papel.rotulo, /^Quem decide a venda, exceto Gerência/);
+  assert.doesNotMatch(semGerentes.tese, /\bsem\b/);
+  const cfo = interpretarPedido('CFOs exceto CEOs');
+  assert.deepEqual(cfo.papel.senioridades, ['cfo']);
+  assert.deepEqual(cfo.papel.excluidas, ['ceo']);
+  assert.deepEqual(interpretarPedido('Diretores, menos os CFOs').papel.senioridades.sort(), ['ceo', 'diretoria']);
+  assert.deepEqual(interpretarPedido('Gerentes comerciais de distribuidoras').papel.areas, [{ texto: 'comerciais', senioridades: ['gerencia'] }]);
+
+  const { db, usuario } = await montar(t);
+  const socio = await usuario('socio@teste.local', 'socio', 'Helena Sócia');
+  const buscar = async (pedido) => {
+    const r = await socio.chamar('POST', '/api/encontrar', { pedido });
+    assert.equal(r.statusCode, 200, r.body);
+    return r.json();
+  };
+  for (const [nome, cargo, senioridade] of [['Gil Souza', 'Gerente comercial', 'gerencia'], ['Lia Reis', 'Gerente de compras', 'gerencia'], ['Caio Dias', 'Diretor-presidente', 'ceo']]) await db.query(
+    `INSERT INTO rede_pessoas (id,lado,nome,nome_normalizado,cargo,senioridade,organizacao,organizacao_normalizada,empresa_id,origem,criado_por)
+     VALUES ($1,'mercado',$2,lower($2),$3,$4,'x','x','cnpj11111111','cadastro_publico',$5)`, [randomUUID(), nome, cargo, senioridade, socio.id]);
+  const grupoDe = (r, nome) => [...r.grupos.forte, ...r.grupos.revisar, ...r.grupos.excluido].find((p) => p.nome === nome);
+
+  let r = await buscar('Quem decide nas distribuidoras de SP, sem gerentes');
+  for (const nome of ['Gil Souza', 'Lia Reis']) {
+    assert.equal(grupoDe(r, nome).grupo, 'excluido', nome);
+    assert.match(grupoDe(r, nome).motivo, /^Cargo fora do pedido \(Gerência\)/);
+  }
+  assert.equal(grupoDe(r, 'Caio Dias').grupo, 'forte');
+
+  r = await buscar('Gerentes comerciais das distribuidoras de SP');
+  assert.equal(grupoDe(r, 'Gil Souza').grupo, 'forte', 'o cargo registrado traz a área');
+  const lia = grupoDe(r, 'Lia Reis');
+  assert.equal(lia.grupo, 'revisar', 'a área não está no cargo: não se afirma que atende');
+  assert.deepEqual(lia.pendencias, ['Área do cargo: comerciais']);
+});

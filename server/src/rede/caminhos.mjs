@@ -191,8 +191,14 @@ export async function lerGrafo(db) {
 /**
  * Caminhos até `alvos` (linhas de `rede_pessoas`) no grafo de `lerGrafo`, do
  * mais apresentável ao menos. Alvos de empresas diferentes podem ir juntos.
+ *
+ * Um alvo no primeiro salto já é a porta de entrada da própria empresa, e a
+ * busca não segue por ele até um colega. Segue, sim, até alvo de outra empresa:
+ * pôr a Alfa no mesmo pedido não pode apagar o caminho Casa → Alfa → Delta que a
+ * busca só da Delta encontra. `empresaDe` diz a empresa de cada pessoa; sem ele,
+ * todos os alvos contam como uma empresa só, que é a busca do plano de acesso.
  */
-export function caminhosNoGrafo({ pessoas, vizinhos }, alvos, usuario = null) {
+export function caminhosNoGrafo({ pessoas, vizinhos }, alvos, usuario = null, { empresaDe = () => null } = {}) {
   const daCasa = [...pessoas.values()].filter((p) => p.lado === 'ght4');
   const idsAlvo = new Set(alvos.map((a) => a.id));
   const brutos = [];
@@ -210,12 +216,14 @@ export function caminhosNoGrafo({ pessoas, vizinhos }, alvos, usuario = null) {
     for (const passo1 of vizinhos.get(origem.id) ?? []) {
       const meio = pessoas.get(passo1.outro);
       if (!meio) continue;
-      if (idsAlvo.has(meio.id)) { registrar([origem, meio], [passo1.aresta]); continue; }
+      const meioAlvo = idsAlvo.has(meio.id);
+      if (meioAlvo) registrar([origem, meio], [passo1.aresta]);
       if (MAXIMO_LIGACOES < 2) continue;
       for (const passo2 of vizinhos.get(meio.id) ?? []) {
         const fim = pessoas.get(passo2.outro);
         // Nem voltar para a origem, nem contar a mesma pessoa duas vezes.
         if (!fim || fim.id === origem.id || fim.id === meio.id || !idsAlvo.has(fim.id)) continue;
+        if (meioAlvo && empresaDe(meio) === empresaDe(fim)) continue;
         registrar([origem, meio, fim], [passo1.aresta, passo2.aresta]);
       }
     }

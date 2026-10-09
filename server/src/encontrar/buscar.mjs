@@ -172,7 +172,7 @@ export async function encontrarPessoas(db, catalogo, { texto, usuario, pesquisa 
   if (avaliadas.length) {
     const grafo = await lerGrafo(db);
     if (grafo.truncado) limitacoes.push(LIMITACAO_GRAFO);
-    if (grafo.arestas.length) caminhos = caminhosNoGrafo(grafo, avaliadas.filter((p) => !restricoes.has(p.empresa_id)), usuario);
+    if (grafo.arestas.length) caminhos = caminhosNoGrafo(grafo, avaliadas.filter((p) => !restricoes.has(p.empresa_id)), usuario, { empresaDe: (p) => p.empresa_id });
   }
   const porAlvo = new Map();
   for (const c of caminhos) {

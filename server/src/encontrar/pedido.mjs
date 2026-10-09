@@ -37,6 +37,10 @@ const PAPEIS = [
 const USO_DA_EMPRESA_DEPOIS = /^\s*(?:e?s?\s*)?(?:estrangeir|pessoas? juridic|pj\b|capitalista|comanditad|minoritari)/;
 const USO_DA_EMPRESA_ANTES = /(?:\bate|\bsem|\bnenhum|\bmaximo|\bmais de|\bmenos de|\bpor|\bde|\bdos?|\bdas?|\b\d+)\s+$/;
 
+/* Cargo negado ("sem gerentes", "exceto CEOs", "menos os CFOs") sai do pedido, com a palavra
+   da negação: nem vira alternativa positiva, nem sobra um "sem" para o intérprete da tese. */
+const NEGACAO_ANTES = /(?:^|[\s,;(])(?:sem|exceto|menos|nao|nem|fora|excluindo|tirando|salvo)\s+(?:(?:os|as|o|a)\s+)?$/;
+
 const AREA_DO_CARGO = /^\s+(?:comerciai?s|comercial|industriai?s|industrial|tecnic[oa]s?|juridic[oa]s?|administrativ[oa]s?|operaciona(?:l|is)|de (?:vendas|compras|operacoes|marketing|rh|recursos humanos|suprimentos|logistica|produtos?|novos negocios|negocios|qualidade|tecnologia|ti|inovacao|planejamento|estrategia|relacoes com investidores))\b/;
 
 /* Acesso pela rede da casa. "Introdução" pede mais que "alcança": o titular aceitou apresentar. */
@@ -68,6 +72,8 @@ export function interpretarPedido(texto, { referencia, municipios = null, nomes 
   const livre = (ini, fim) => !usados.some(([a, b]) => ini < b && fim > a);
   const notas = [];
   const senioridades = new Set();
+  const excluidas = new Set();
+  const areas = [];
   let decide = false;
   const trechos = [];
 
@@ -77,7 +83,14 @@ export function interpretarPedido(texto, { referencia, municipios = null, nomes 
       if (!livre(ini, fim)) continue;
       if (papel.decide && /socio|dono|controlador|acionista/.test(m[0])
         && (USO_DA_EMPRESA_DEPOIS.test(n.slice(fim, fim + 30)) || USO_DA_EMPRESA_ANTES.test(n.slice(Math.max(0, ini - 14), ini)))) continue;
-      // A área do cargo ("gerentes comerciais") acompanha o papel: a escala da rede é por nível.
+      const negacao = papel.decide ? null : n.slice(Math.max(0, ini - 20), ini).match(NEGACAO_ANTES);
+      if (negacao) {
+        usados.push([ini - negacao[0].replace(/^[\s,;(]/, '').length, fim]);
+        papel.senioridades.forEach((s) => excluidas.add(s));
+        continue;
+      }
+      // A área do cargo ("gerentes comerciais") acompanha o papel: a rede guarda o nível, e a área
+      // é conferida no cargo escrito de cada pessoa (triagem.mjs).
       const area = papel.decide ? null : n.slice(fim).match(AREA_DO_CARGO);
       const ate = fim + (area ? area[0].length : 0);
       usados.push([ini, ate]);
@@ -85,9 +98,12 @@ export function interpretarPedido(texto, { referencia, municipios = null, nomes 
       if (papel.decide) decide = true;
       else papel.senioridades.forEach((s) => senioridades.add(s));
       if (papel.nota) notas.push(papel.nota);
-      if (area) notas.push(`A área do cargo ("${original.slice(fim, ate).trim()}") não está no cadastro da rede: a busca usa o nível do cargo.`);
+      if (area) areas.push({ texto: original.slice(fim, ate).trim(), senioridades: papel.senioridades });
     }
   }
+  for (const s of excluidas) senioridades.delete(s);
+  if (excluidas.size) notas.push(`Fora do pedido: ${[...excluidas].map((s) => senioridadeDe(s).rotulo).join(', ')}. Quem tem esse cargo vai para "Fora do pedido".`);
+  if (areas.length) notas.push(`A área do cargo (${areas.map((a) => `"${a.texto}"`).join(', ')}) não está no cadastro da rede: é conferida no cargo escrito de cada pessoa, e quem não a tem fica para revisar.`);
 
   let acesso = { exigido: null, obrigatorio: false, trecho: null };
   for (const a of ACESSOS) {
@@ -125,7 +141,8 @@ export function interpretarPedido(texto, { referencia, municipios = null, nomes 
     notas.push('O pedido não diz o cargo: procurei quem decide a venda, pela estrutura societária de cada empresa. Quem só influencia aparece para revisão.');
   }
   const rotulos = [...senioridades].map((s) => senioridadeDe(s).rotulo);
-  const rotulo = [decide ? 'Quem decide a venda' : null, ...rotulos].filter(Boolean).join(' ou ');
+  const exceto = excluidas.size ? `, exceto ${[...excluidas].map((s) => senioridadeDe(s).rotulo).join(', ')}` : '';
+  const rotulo = [decide ? 'Quem decide a venda' : null, ...rotulos].filter(Boolean).join(' ou ') + exceto;
 
   // O resto é a empresa: apaga papel, acesso e palavras da pessoa, e lê como tese.
   let resto = '';
@@ -153,7 +170,7 @@ export function interpretarPedido(texto, { referencia, municipios = null, nomes 
 
   return {
     pedido: original,
-    papel: { decide, senioridades: [...senioridades], rotulo, padrao, trechos },
+    papel: { decide, senioridades: [...senioridades], excluidas: [...excluidas], areas, rotulo, padrao, trechos },
     acesso,
     recorte: tese.filtros,
     criterios,
