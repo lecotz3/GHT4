@@ -43,6 +43,17 @@
 .encontrar-escopo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; padding: 10px 14px; border-radius: 12px; background: var(--color-comprador-fundo); color: var(--color-comprador); font-size: 13px; }
 .encontrar-escopo svg { width: 18px; flex: none; }
 .encontrar-escopo span { flex: 1 1 16rem; min-width: 0; }
+/* Memória das buscas: repetir um pedido com um clique, esquecer um ou todos. */
+.encontrar-memoria { margin-top: 16px; display: grid; gap: 8px; }
+.encontrar-memoria-cabeca { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.encontrar-memoria h3 { font-size: 13px; font-weight: 600; }
+.encontrar-memoria ul { display: grid; gap: 6px; }
+.encontrar-memoria li { display: flex; align-items: stretch; gap: 6px; min-width: 0; }
+.encontrar-memoria-pedido { flex: 1; min-width: 0; text-align: left; display: grid; gap: 2px; padding: 8px 12px; border: 1px solid var(--color-fio); border-radius: 10px; background: white; font-size: 13px; overflow-wrap: anywhere; }
+.encontrar-memoria-pedido:hover { border-color: var(--color-fio-forte); }
+.encontrar-memoria-pedido small { font-size: 11px; color: var(--color-suave); }
+.encontrar-memoria-esquecer { flex: none; width: 36px; display: grid; place-items: center; border: 1px solid var(--color-fio); border-radius: 10px; background: white; color: var(--color-suave); }
+.encontrar-memoria-esquecer svg { width: 16px; }
 
 .encontrar-pessoas, .encontrar-lacunas { display: grid; gap: 10px; }
 .encontrar-pessoa, .encontrar-lacuna { border: 1px solid var(--color-fio); border-radius: 14px; background: white; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }

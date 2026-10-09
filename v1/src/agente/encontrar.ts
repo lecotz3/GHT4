@@ -52,8 +52,29 @@ export interface ResultadoEncontrar {
   membros: number; referencia: string | null; fonte: string; limitacoes: string[]
 }
 
+/** Um pedido guardado na memória do membro, com as contagens do último resultado. */
+export interface BuscaLembrada {
+  chave: string; pedido: string; usos: number; ultimoUso: string
+  resumo: { forte?: number; revisar?: number; excluido?: number; lacunas?: number }
+}
+export interface MemoriaBuscas { ativa: boolean; buscas: BuscaLembrada[] }
+
 export const encontrarApi = {
   buscar: (pedido: string, pesquisaId?: string) => api<ResultadoEncontrar>('/api/encontrar', 'POST', pesquisaId ? { pedido, pesquisaId } : { pedido }),
+  memoria: () => api<MemoriaBuscas>('/api/encontrar/memoria'),
+  esquecer: (chave: string) => api<MemoriaBuscas>(`/api/encontrar/memoria/${chave}`, 'DELETE'),
+  apagarTodas: () => api<MemoriaBuscas>('/api/encontrar/memoria', 'DELETE'),
+}
+
+/** O que a busca lembrada trouxe da última vez, em poucas palavras. */
+export function resumoDaLembrada(b: BuscaLembrada): string {
+  const r = b.resumo, partes: string[] = []
+  if (r.forte !== undefined) partes.push(`${r.forte.toLocaleString('pt-BR')} ${r.forte === 1 ? 'atende' : 'atendem'}`)
+  if (r.revisar) partes.push(`${r.revisar.toLocaleString('pt-BR')} para revisar`)
+  if (r.lacunas) partes.push(`${r.lacunas.toLocaleString('pt-BR')} ${r.lacunas === 1 ? 'lacuna' : 'lacunas'}`)
+  partes.push(new Date(b.ultimoUso).toLocaleDateString('pt-BR'))
+  if (b.usos > 1) partes.push(`${b.usos} vezes`)
+  return partes.join(' · ')
 }
 
 export const ROTULO_GRUPO: Record<Grupo, { titulo: string; descricao: string }> = {

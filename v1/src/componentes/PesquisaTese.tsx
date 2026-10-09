@@ -604,7 +604,7 @@ function PainelMemoria({ memoria, aoMudar }: { memoria: Memoria | null; aoMudar:
   const n = memoria.criterios.length
   return <section className="pesquisa-memoria" aria-labelledby="titulo-memoria">
     <h3 id="titulo-memoria">Sua memória{memoria.ativa ? '' : ' · pausada'}</h3>
-    <p>O agente guarda os critérios que você confirma ao iniciar uma pesquisa e os sugere nas próximas. Só você vê. Trabalhos em mandato confidencial não entram.</p>
+    <p>O agente guarda os critérios que você confirma ao iniciar uma pesquisa e os sugere nas próximas. Só você vê. Trabalhos em mandato confidencial não entram. Pausar vale também para as buscas de Encontrar quem decide, que se apagam lá.</p>
     {n ? <details><summary>{n} {n === 1 ? 'critério guardado' : 'critérios guardados'}</summary>
       <ul>{memoria.criterios.map((c) => <li key={c.chave}><span className="min-w-0"><span className="block truncate">{c.texto}</span><small>{c.usos} {c.usos === 1 ? 'uso' : 'usos'} · {c.tipo === 'cadastro' ? 'cadastro' : 'site'}</small></span>
         <button type="button" onClick={() => void agir(() => memoriaApi.esquecer(c.chave))} disabled={ocupado} aria-label={`Esquecer ${c.texto}`} title="Esquecer"><IconeRede nome="lixo" /></button></li>)}</ul>

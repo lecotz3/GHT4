@@ -14,6 +14,7 @@ Atualizado em 9 de outubro de 2026 (checkpoint anterior: 8 de outubro). Branch d
   - **Medição:** `node ferramentas/medir-encontrar.mjs` usa o catálogo real e 8.736 dirigentes sintéticos; o pior pedido levou 0,16 s. Por isso a melhoria de desempenho não entrou.
   - **O catálogo inteiro e o quadro inteiro:** o recorte é lido em páginas (antes parava nas 10 mil primeiras empresas) e as pessoas vão até 20 mil (antes 5 mil). Empresa sem avaliar não vira mais "ninguém mapeado".
   - **Nome de empresa com aspas, inicial e "&":** agora é reconhecido.
+- **Rodada 24 (mesmo dia):** memória das buscas do find, "Suas buscas recentes" (migração `0030_memoria_buscas`). Na Etapa 4 falta só a IA opcional para pedidos ambíguos.
 - **Arquivos fora do git:** `brag-output/` e as capturas do ensaio, que ficam no scratchpad da sessão.
 
 **Validação:** `npm run ci` exit 0. Lint 0, build com tipos, raiz **134/134**, servidor **305** (303 passam, 2 pulados sem URL), dados. Ensaio e visual a 1440 px e 390 px sem rolagem horizontal.

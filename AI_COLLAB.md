@@ -3442,3 +3442,21 @@ STATUS: AGUARDANDO REVIEW
 - Rever o corte por `empresa_id >= última lida`: é conservador e também tira das lacunas a última empresa, mesmo quando ela foi lida inteira.
 
 STATUS: AGUARDANDO REVIEW
+
+## RODADA 24 — Find: memória das buscas (09/10/2026) — Claude (builder)
+
+**Contexto:** pedido do usuário: "continue". Item de prioridade baixa da Etapa 4 do roteiro: histórico e memória das buscas.
+
+**Feito:**
+- **Guarda:** migração `0030_memoria_buscas` e `server/src/encontrar/memoria.mjs`. Cada busca feita fora de uma pesquisa guarda o pedido e as contagens do último resultado, nunca as pessoas.
+- **Regras:** as mesmas da memória de critérios. A memória é pessoal e pausável pela mesma preferência, com teto de 30 buscas. O mesmo pedido em outra grafia soma usos.
+- **Rotas** (`agente.ler`): `GET /api/encontrar/memoria`, `DELETE /api/encontrar/memoria/:chave` e `DELETE /api/encontrar/memoria`. A auditoria registra quanto foi apagado, sem o texto.
+- **Tela:** "Suas buscas recentes" no find, para repetir com um clique, esquecer uma ou apagar todas, com aviso quando a memória está pausada. O painel da memória da pesquisa e o guia citam as buscas.
+- **Validação:** `npm run ci` exit 0. Raiz **137/137**, servidor **304** e 2 pulados. Testes novos: `server/tests/encontrar-memoria.test.mjs` e `tests/encontrar-memoria-componente.test.mjs`. Visual a 1440 px e 390 px.
+
+### PARA O CODEX
+
+- **Permissão de leitura:** confirmar que ler e apagar a memória exigindo `agente.ler` (e não `rede.ler`) está certo.
+- **Falha ao guardar:** confirmar que a falha ao guardar não derruba a busca.
+
+STATUS: AGUARDANDO REVIEW

@@ -5,7 +5,7 @@ import { ErroApi } from '../agente/api'
 import { ROTULO_JULGAMENTO, type Julgamento } from '../agente/acesso'
 import {
   encontrarApi, GRUPOS, ROTULO_GRUPO, ACESSO_PEDIDO, EXEMPLOS_ENCONTRAR, resumoResultado, ondeEsta,
-  type Grupo, type PessoaEncontrada, type ResultadoEncontrar, type Lacuna, type PesquisaDoFind,
+  resumoDaLembrada, type Grupo, type PessoaEncontrada, type ResultadoEncontrar, type Lacuna, type PesquisaDoFind, type MemoriaBuscas,
 } from '../agente/encontrar'
 import '../agente/pesquisa.css'
 import '../agente/acesso.css'
@@ -33,6 +33,19 @@ export function EncontrarPessoas({ aoPesquisar, aoExpirar, pesquisa = null, aoSa
   // Um plano aberto por vez: chave `pessoa:<id>` ou `lacuna:<empresaId>`.
   const [plano, setPlano] = useState<string | null>(null)
   const pedidoAtual = useRef(0)
+  // Memória das buscas: auxiliar. Falha ao ler não atrapalha o find; a lista só não aparece.
+  const [memoria, setMemoria] = useState<MemoriaBuscas | null>(null)
+  const [esquecendo, setEsquecendo] = useState('')
+  const lerMemoria = () => { encontrarApi.memoria().then(setMemoria, () => {}) }
+  useEffect(lerMemoria, [])
+  async function esquecer(chave: string | null) {
+    if (esquecendo) return
+    setEsquecendo(chave ?? 'todas')
+    try { setMemoria(chave ? await encontrarApi.esquecer(chave) : await encontrarApi.apagarTodas()) }
+    catch (falha) { if (falha instanceof ErroApi && falha.status === 401) aoExpirar(); else setErro(mensagem(falha)) }
+    finally { setEsquecendo('') }
+  }
+
   // Vindo da pesquisa, o pedido começa pronto: o recorte já são as empresas dela.
   useEffect(() => {
     pedidoAtual.current++
@@ -40,15 +53,17 @@ export function EncontrarPessoas({ aoPesquisar, aoExpirar, pesquisa = null, aoSa
     if (pesquisa) setPedido((p) => p.trim() ? p : 'Quem decide')
   }, [pesquisa?.id]) // oxlint-disable-line react-hooks/exhaustive-deps
 
-  async function buscar(e?: FormEvent) {
+  async function buscar(e?: FormEvent, repetido?: string) {
     e?.preventDefault()
-    const texto = pedido.trim()
+    const texto = (repetido ?? pedido).trim()
     if (texto.length < 3 || buscando) return
+    if (repetido) setPedido(repetido)
     const n = ++pedidoAtual.current
     setBuscando(true); setErro(''); setPlano(null)
     try {
       const r = await encontrarApi.buscar(texto, pesquisa?.id)
       if (n === pedidoAtual.current) setResultado(r)
+      if (!pesquisa) lerMemoria()
     } catch (falha) {
       if (falha instanceof ErroApi && falha.status === 401) aoExpirar()
       else if (n === pedidoAtual.current) setErro(mensagem(falha))
@@ -79,6 +94,16 @@ export function EncontrarPessoas({ aoPesquisar, aoExpirar, pesquisa = null, aoSa
       {!resultado && <div className="pesquisa-exemplos" aria-label="Exemplos de pedido">
         {EXEMPLOS_ENCONTRAR.map((x) => <button key={x.rotulo} type="button" onClick={() => setPedido(x.texto)} disabled={buscando}><span>{x.rotulo}</span>{x.texto}</button>)}
       </div>}
+      {!resultado && !pesquisa && memoria && (memoria.buscas.length > 0 || !memoria.ativa) && <section className="encontrar-memoria" aria-labelledby="titulo-memoria-buscas">
+        <div className="encontrar-memoria-cabeca"><h3 id="titulo-memoria-buscas">Suas buscas recentes</h3>
+          {memoria.buscas.length > 0 && <button type="button" className="agente-link text-xs" onClick={() => void esquecer(null)} disabled={Boolean(esquecendo) || buscando}>{esquecendo === 'todas' ? 'Apagando…' : 'Apagar todas'}</button>}</div>
+        {!memoria.ativa && <p className="pesquisa-fonte">Sua memória está pausada: buscas novas não ficam guardadas. Retome em Pesquisar por tese, no painel "Sua memória".</p>}
+        <ul>{memoria.buscas.map((b) => <li key={b.chave}>
+          <button type="button" className="encontrar-memoria-pedido" onClick={() => void buscar(undefined, b.pedido)} disabled={buscando}>{b.pedido}<small>{resumoDaLembrada(b)}</small></button>
+          <button type="button" className="encontrar-memoria-esquecer" aria-label={`Esquecer a busca: ${b.pedido}`} title="Esquecer esta busca" onClick={() => void esquecer(b.chave)} disabled={Boolean(esquecendo) || buscando}><IconeRede nome="fechar" /></button>
+        </li>)}</ul>
+        <p className="pesquisa-fonte">Só você vê esta lista. Fica o pedido e quantas pessoas ele trouxe, nunca os nomes.</p>
+      </section>}
     </section>
 
     {resultado && <div className="encontrar-resultado" aria-busy={buscando}>

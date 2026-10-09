@@ -27,6 +27,7 @@ export async function montar(elemento) {
    monitoramentos vencidos): respondem vazio, salvo regra própria do teste, para que um pedido sem regra não fique
    pendente (e não segure o processo até o prazo de 100 s do cliente). */
 const PADRAO = [{ metodo: 'GET', url: /\/api\/memoria$/, dados: () => ({ ativa: true, criterios: [] }) },
+  { metodo: 'GET', url: /\/api\/encontrar\/memoria$/, dados: () => ({ ativa: true, buscas: [] }) },
   { metodo: 'GET', url: /\/eventos\?apos=\d+$/, dados: () => ({ eventos: [], ultimo: 0 }) },
   { metodo: 'POST', url: /\/api\/monitoramentos\/verificar$/, dados: () => ({ verificados: 0, falhas: 0, emFalha: 0, emAndamento: 0, proximaTentativa: null }) }];
 

@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { ErroHttp } from '../app.mjs';
+import { registrar } from '../auditoria/registrar.mjs';
 import { encontrarPessoas, CATEGORIAS_DA_PESQUISA } from '../encontrar/buscar.mjs';
+import { lembrarBusca, lerBuscas, resumoDaBusca } from '../encontrar/memoria.mjs';
 
 /* =============================================================================
  *  GHT4 · rota do "encontrar quem decide" (ver encontrar/buscar.mjs)
@@ -12,6 +14,11 @@ import { encontrarPessoas, CATEGORIAS_DA_PESQUISA } from '../encontrar/buscar.mj
  *  Com `pesquisaId`, a busca fica nas empresas aderentes e prováveis de uma
  *  pesquisa por tese do próprio membro, com a mesma autorização do plano de
  *  acesso aberto a partir da pesquisa (`agente.ler`, e o mandato da conversa).
+ *
+ *  Memória das buscas (encontrar/memoria.mjs): o pedido feito fora de uma pesquisa fica
+ *  guardado para repetir, se a memória do membro estiver ligada. Ler e apagar exigem só
+ *  `agente.ler`, como a memória de critérios: quem perdeu o acesso à rede ainda vê e apaga o
+ *  que ficou. A auditoria registra que algo foi apagado e quanto, nunca o texto do pedido.
  * ========================================================================== */
 
 const Pedido = z.object({
@@ -49,7 +56,40 @@ export async function registrarEncontrar(app, { catalogo }) {
       if (e?.codigo === 'catalogo_indisponivel') throw new ErroHttp(503, 'base_indisponivel', e.message);
       throw e;
     }
+    // Guardar o pedido não pode derrubar a busca: sem memória, a pessoa só redigita.
+    if (!pesquisa) {
+      try { await lembrarBusca(db, u.id, pedido, resumoDaBusca(resultado)); }
+      catch (e) { req.log?.warn?.({ err: e }, 'memória das buscas indisponível'); }
+    }
     res.header('Cache-Control', 'no-store');
     return resultado;
+  });
+
+  app.get('/api/encontrar/memoria', async (req, res) => {
+    const u = req.exigir('agente.ler');
+    res.header('Cache-Control', 'no-store');
+    return lerBuscas(db, u.id);
+  });
+
+  app.delete('/api/encontrar/memoria/:chave', async (req, res) => {
+    const u = req.exigir('agente.ler');
+    const chave = z.string().regex(/^[a-f0-9]{32}$/).parse(req.params.chave);
+    await db.transaction(async (tx) => {
+      const r = await tx.query('DELETE FROM memoria_buscas WHERE usuario_id=$1 AND chave=$2 RETURNING chave', [u.id, chave]);
+      if (!r.rows.length) throw new ErroHttp(404, 'memoria_inexistente', 'Esta busca já não está na sua memória.');
+      await registrar(tx, { usuarioId: u.id, entidade: 'memoria', entidadeId: u.id, acao: 'esquecer_busca', depois: { apagados: 1 } });
+    });
+    res.header('Cache-Control', 'no-store');
+    return lerBuscas(db, u.id);
+  });
+
+  app.delete('/api/encontrar/memoria', async (req, res) => {
+    const u = req.exigir('agente.ler');
+    await db.transaction(async (tx) => {
+      const r = await tx.query('DELETE FROM memoria_buscas WHERE usuario_id=$1 RETURNING chave', [u.id]);
+      await registrar(tx, { usuarioId: u.id, entidade: 'memoria', entidadeId: u.id, acao: 'apagar_buscas', depois: { apagados: r.rows.length } });
+    });
+    res.header('Cache-Control', 'no-store');
+    return lerBuscas(db, u.id);
   });
 }
