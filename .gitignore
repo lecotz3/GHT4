@@ -22,3 +22,4 @@ ferramentas/.cache-cnpj/
 .env
 .env.*
 !.env.example
+.vercel

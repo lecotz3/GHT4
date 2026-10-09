@@ -3,7 +3,7 @@
    Componentes reais (TSX transpilado), DOM do jsdom e fetch controlado. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { React, montar, servidor, botao, clicar, esperar, responder } from './apoio/dom.mjs';
+import { React, dom, montar, servidor, botao, clicar, esperar, responder } from './apoio/dom.mjs';
 
 const { PesquisaTese } = await import('../v1/src/componentes/PesquisaTese.tsx');
 const { EncontrarPessoas } = await import('../v1/src/componentes/EncontrarPessoas.tsx');
@@ -36,22 +36,23 @@ test('pesquisa por tese: "Quem decide nestas empresas" leva a pesquisa ao find',
   } finally { await t.desmontar(); }
 });
 
+const empresa = (id, nome) => ({ id, nome, cidade: 'Campinas', uf: 'SP', subsetor: null });
+const RESULTADO = {
+  leitura: { pedido: 'Quem decide', tese: '', papel: { decide: true, senioridades: [], rotulo: 'Quem decide a venda', padrao: false, trechos: ['Quem decide'] },
+    acesso: { exigido: null, obrigatorio: false, trecho: null }, recorte: { uf: '', subsetor: 'todos', cnae: '', incluirPossiveis: false }, criterios: [], notas: [],
+    empresas: [], pesquisa: { id: PESQUISA_ID, tese: 'Distribuidoras com mais de 20 anos', empresas: 2, categorias: ['aderente', 'provavel'] } },
+  funil: { recorte: 2, lidas: 2, truncado: false, nosCriterios: 2, comPessoas: 1, pessoas: 1, foraDosCriterios: 0, forte: 1, revisar: 0, excluido: 0 },
+  grupos: {
+    forte: [{ id: 'p1', nome: 'Carlos Nunes', cargo: 'Sócio-administrador', senioridade: 'ceo', senioridadeRotulo: 'CEO ou presidente', origem: 'manual',
+      empresa: empresa('cnpj11111111', 'Alfa Química'), posicao: { id: 'decide', rotulo: 'Decide a venda' }, grupo: 'forte', motivo: null, pendencias: [], pedePesquisa: false,
+      juizo: [{ requisito: 'Na pesquisa por tese', julgamento: 'atende', informacao: 'Aderente (aderência 100%)', fonte: 'Pesquisa por tese do GHT4', obrigatorio: true }],
+      caminho: null, respostas: { respostas: 0, negativas: 0 }, avisos: [AVISO] }],
+    revisar: [], excluido: [] },
+  lacunas: { total: 1, ninguemMapeado: 1, empresas: [{ empresa: empresa('cnpj44444444', 'Delta Química'), mapeadas: 0, estrutura: 'Leitura da estrutura.', pendentes: 1, avisos: [AVISO] }] },
+  membros: 1, referencia: '2026-08', fonte: 'Receita Federal · CNPJ', limitacoes: [],
+};
+
 test('find dentro da pesquisa: recorte da pesquisa, pedido pronto, avisos e volta a todas as empresas', async () => {
-  const empresa = (id, nome) => ({ id, nome, cidade: 'Campinas', uf: 'SP', subsetor: null });
-  const RESULTADO = {
-    leitura: { pedido: 'Quem decide', tese: '', papel: { decide: true, senioridades: [], rotulo: 'Quem decide a venda', padrao: false, trechos: ['Quem decide'] },
-      acesso: { exigido: null, obrigatorio: false, trecho: null }, recorte: { uf: '', subsetor: 'todos', cnae: '', incluirPossiveis: false }, criterios: [], notas: [],
-      empresas: [], pesquisa: { id: PESQUISA_ID, tese: 'Distribuidoras com mais de 20 anos', empresas: 2, categorias: ['aderente', 'provavel'] } },
-    funil: { recorte: 2, lidas: 2, truncado: false, nosCriterios: 2, comPessoas: 1, pessoas: 1, foraDosCriterios: 0, forte: 1, revisar: 0, excluido: 0 },
-    grupos: {
-      forte: [{ id: 'p1', nome: 'Carlos Nunes', cargo: 'Sócio-administrador', senioridade: 'ceo', senioridadeRotulo: 'CEO ou presidente', origem: 'manual',
-        empresa: empresa('cnpj11111111', 'Alfa Química'), posicao: { id: 'decide', rotulo: 'Decide a venda' }, grupo: 'forte', motivo: null, pendencias: [], pedePesquisa: false,
-        juizo: [{ requisito: 'Na pesquisa por tese', julgamento: 'atende', informacao: 'Aderente (aderência 100%)', fonte: 'Pesquisa por tese do GHT4', obrigatorio: true }],
-        caminho: null, respostas: { respostas: 0, negativas: 0 }, avisos: [AVISO] }],
-      revisar: [], excluido: [] },
-    lacunas: { total: 1, ninguemMapeado: 1, empresas: [{ empresa: empresa('cnpj44444444', 'Delta Química'), mapeadas: 0, estrutura: 'Leitura da estrutura.', pendentes: 1, avisos: [AVISO] }] },
-    membros: 1, referencia: '2026-08', fonte: 'Receita Federal · CNPJ', limitacoes: [],
-  };
   const pedidos = servidor([{ metodo: 'POST', url: /\/api\/encontrar$/, segurar: true }]);
   const saidas = [];
   const t = await montar(React.createElement(EncontrarPessoas, { aoPesquisar: () => {}, aoExpirar: () => {},
@@ -74,3 +75,57 @@ test('find dentro da pesquisa: recorte da pesquisa, pedido pronto, avisos e volt
     assert.deepEqual(saidas, [1]);
   } finally { await t.desmontar(); }
 });
+
+// Plano montado só com o que o PlanoAcesso lê.
+const plano = (id, nome, passo) => ({
+  empresa: { id, nome, razaoSocial: nome, cnpjRaiz: id.slice(4), cidade: 'Campinas', uf: 'SP', subsetor: null },
+  estrutura: { conhecida: true, natureza: 'ltda', naturezaRotulo: 'sociedade limitada', socios: 2, sociosPj: 0, socioEstrangeiro: false,
+    leitura: 'Leitura da estrutura.', sinais: [], fonte: 'Cadastro CNPJ' },
+  canais: [], caminhos: [], restricoesOutras: [], oportunidades: [], limitacoes: [],
+  restricao: passo.acao === 'nao_contatar' ? { ativa: true, categoria: 'nao_contatar', motivo: 'Em negociação com outro assessor.' } : null,
+  eu: { naRede: true, pessoaId: 'p-eu' }, podeRegistrar: true,
+  tiposFonte: [{ id: 'conhecimento_da_casa', rotulo: 'Conhecimento da casa' }], senioridades: [{ id: 'ceo', rotulo: 'CEO ou presidente' }],
+  pessoas: [], cobertura: { membros: 1, perguntasPossiveis: 0, perguntasPendentes: 0, respostas: 0, situacao: 'nao_mapeada', apuracaoCompleta: false },
+  passo: { rascunhos: [], regras: [], ...passo },
+});
+const digitar = (el, valor) => React.act(async () => {
+  Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set.call(el, valor);
+  el.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+});
+
+test('find dentro da pesquisa: o plano do cartão e o da lacuna levam a pesquisa, até o registro de quem decide', async () => {
+  const pedidos = servidor([
+    { metodo: 'POST', url: /\/api\/encontrar$/, segurar: true },
+    { metodo: 'GET', url: /\/api\/acesso\/cnpj11111111/,
+      dados: () => plano('cnpj11111111', 'Alfa Química', { acao: 'nao_contatar', titulo: 'Não contatar', texto: 'Restrição ativa no mandato.' }) },
+    { metodo: 'GET', url: /\/api\/acesso\/cnpj44444444/,
+      dados: () => plano('cnpj44444444', 'Delta Química', { acao: 'registrar_decisor', titulo: 'Descubra quem decide', texto: 'Ninguém desta empresa está na rede ainda.' }) },
+    { metodo: 'POST', url: /\/api\/acesso\/cnpj44444444\/decisores$/, segurar: true },
+  ]);
+  const t = await montar(React.createElement(EncontrarPessoas, { aoPesquisar: () => {}, aoExpirar: () => {},
+    pesquisa: { id: PESQUISA_ID, tese: 'Distribuidoras com mais de 20 anos', boas: 2 } }));
+  try {
+    await esperar();
+    await clicar(botao(/^Encontrar/));
+    await responder(pedidos.find((p) => p.metodo === 'POST'), RESULTADO);
+    await esperar();
+    const planos = () => pedidos.filter((p) => p.metodo === 'GET' && p.url.includes('/api/acesso/')).map((p) => { const u = new URL(p.url, 'http://127.0.0.1'); return u.pathname + u.search; });
+
+    await clicar(botao(/Plano de acesso$/));
+    await esperar();
+    assert.deepEqual(planos(), [`/api/acesso/cnpj11111111?pesquisaId=${PESQUISA_ID}`], 'o cartão abre o plano no contexto da pesquisa');
+    assert.match(document.querySelector('.acesso').textContent, /Não contatar/, 'a restrição do mandato continua valendo no plano');
+
+    await clicar(botao(/^Abrir o plano e registrar quem decide/));
+    await esperar();
+    assert.deepEqual(planos().slice(1), [`/api/acesso/cnpj44444444?pesquisaId=${PESQUISA_ID}`], 'a lacuna também');
+    const [nome, cargo, descricao] = document.querySelector('form[aria-label="Registrar quem decide"]').querySelectorAll('input');
+    await digitar(nome, 'Marta Lima');
+    await digitar(cargo, 'Diretora');
+    await digitar(descricao, 'Conversa com a diretora em 05/10');
+    await clicar(botao(/^Registrar$/));
+    const registro = pedidos.find((p) => p.url.endsWith('/decisores'));
+    assert.equal(registro.corpo.pesquisaId, PESQUISA_ID, 'quem decide é registrado no contexto da pesquisa');
+  } finally { await t.desmontar(); }
+});
+

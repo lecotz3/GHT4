@@ -173,7 +173,7 @@ function GrupoPessoas({ grupo, r, plano, aoPlano, aoExpirar, aoPesquisar }: {
   const lista = <>
     {grupo === 'revisar' && pessoas.some((p) => p.pedePesquisa) && <p className="pesquisa-alerta encontrar-dica">
       Algumas exigências só o site oficial responde. <button type="button" className="agente-link" onClick={aoPesquisar}>Rodar a pesquisa por tese com este pedido<IconeRede nome="seta" /></button></p>}
-    <ul className="encontrar-pessoas">{pessoas.map((p) => <CartaoPessoa key={p.id} p={p} aberto={plano === `pessoa:${p.id}`} aoPlano={() => aoPlano(`pessoa:${p.id}`)} aoExpirar={aoExpirar} />)}</ul>
+    <ul className="encontrar-pessoas">{pessoas.map((p) => <CartaoPessoa key={p.id} p={p} pesquisaId={r.leitura.pesquisa?.id} aberto={plano === `pessoa:${p.id}`} aoPlano={() => aoPlano(`pessoa:${p.id}`)} aoExpirar={aoExpirar} />)}</ul>
     {total > pessoas.length && <p className="pesquisa-fonte">Mostrando {numero(pessoas.length)} de {numero(total)}. Estreite o pedido para ver as demais.</p>}
   </>
   const titulo = <><span className={`encontrar-grupo-marca ${grupo}`} aria-hidden="true" />{rotulo.titulo}<span className="encontrar-grupo-n">{numero(total)}</span></>
@@ -187,7 +187,8 @@ function GrupoPessoas({ grupo, r, plano, aoPlano, aoExpirar, aoPesquisar }: {
   </section>
 }
 
-function CartaoPessoa({ p, aberto, aoPlano, aoExpirar }: { p: PessoaEncontrada; aberto: boolean; aoPlano: () => void; aoExpirar: () => void }) {
+/** `pesquisaId`: a busca foi feita dentro de uma pesquisa por tese, e o plano segue nela (mandato, cadastro e site guardados). */
+function CartaoPessoa({ p, pesquisaId, aberto, aoPlano, aoExpirar }: { p: PessoaEncontrada; pesquisaId?: string; aberto: boolean; aoPlano: () => void; aoExpirar: () => void }) {
   const [juizo, setJuizo] = useState(false)
   const idJuizo = `juizo-${p.id}`
   return <li className={`encontrar-pessoa ${p.grupo}`}>
@@ -220,7 +221,7 @@ function CartaoPessoa({ p, aberto, aoPlano, aoExpirar }: { p: PessoaEncontrada; 
         <span role="cell" className="acesso-juizo-fonte">{j.fonte ?? '—'}</span>
       </div>)}
     </div>}
-    {aberto && <PlanoAcesso empresaId={p.empresa.id} aoExpirar={aoExpirar} />}
+    {aberto && <PlanoAcesso empresaId={p.empresa.id} pesquisaId={pesquisaId} aoExpirar={aoExpirar} />}
   </li>
 }
 
@@ -231,12 +232,12 @@ function Lacunas({ r, plano, aoPlano, aoExpirar }: { r: ResultadoEncontrar; plan
   return <section className="encontrar-grupo lacunas" aria-labelledby="titulo-lacunas">
     <header><h3 id="titulo-lacunas"><span className="encontrar-grupo-marca lacuna" aria-hidden="true" />Onde falta quem decide<span className="encontrar-grupo-n">{numero(l.total)}</span></h3>
       <small>{l.ninguemMapeado === l.total ? 'Empresas que se encaixam no pedido sem ninguém mapeado.' : `Empresas que se encaixam no pedido: ${numero(l.ninguemMapeado)} sem ninguém mapeado, as demais sem alguém que sirva ao pedido.`} Abra o plano e registre quem decide, com a fonte.</small></header>
-    <ul className="encontrar-lacunas">{l.empresas.map((x) => <ItemLacuna key={x.empresa.id} x={x} aberto={plano === `lacuna:${x.empresa.id}`} aoPlano={() => aoPlano(`lacuna:${x.empresa.id}`)} aoExpirar={aoExpirar} />)}</ul>
+    <ul className="encontrar-lacunas">{l.empresas.map((x) => <ItemLacuna key={x.empresa.id} x={x} pesquisaId={r.leitura.pesquisa?.id} aberto={plano === `lacuna:${x.empresa.id}`} aoPlano={() => aoPlano(`lacuna:${x.empresa.id}`)} aoExpirar={aoExpirar} />)}</ul>
     {l.total > l.empresas.length && <p className="pesquisa-fonte">Mostrando {numero(l.empresas.length)} de {numero(l.total)}.</p>}
   </section>
 }
 
-function ItemLacuna({ x, aberto, aoPlano, aoExpirar }: { x: Lacuna; aberto: boolean; aoPlano: () => void; aoExpirar: () => void }) {
+function ItemLacuna({ x, pesquisaId, aberto, aoPlano, aoExpirar }: { x: Lacuna; pesquisaId?: string; aberto: boolean; aoPlano: () => void; aoExpirar: () => void }) {
   return <li className="encontrar-lacuna">
     <div className="encontrar-pessoa-cabeca">
       <div><b>{x.empresa.nome}</b><small>{[x.empresa.cidade && `${x.empresa.cidade}/${x.empresa.uf}`, x.empresa.subsetor].filter(Boolean).join(' · ')}</small></div>
@@ -245,6 +246,6 @@ function ItemLacuna({ x, aberto, aoPlano, aoExpirar }: { x: Lacuna; aberto: bool
     <p className="acesso-leitura">{x.estrutura}</p>
     {(x.avisos ?? []).map((a) => <p key={a} className="pesquisa-alerta encontrar-aviso">{a}</p>)}
     <div className="encontrar-acoes"><button type="button" className="agente-link" aria-expanded={aberto} onClick={aoPlano}><IconeRede nome="alvo" />{aberto ? 'Fechar o plano de acesso' : 'Abrir o plano e registrar quem decide'}</button></div>
-    {aberto && <PlanoAcesso empresaId={x.empresa.id} aoExpirar={aoExpirar} />}
+    {aberto && <PlanoAcesso empresaId={x.empresa.id} pesquisaId={pesquisaId} aoExpirar={aoExpirar} />}
   </li>
 }
