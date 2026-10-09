@@ -17,10 +17,13 @@ export interface PessoaEncontrada {
   juizo: LinhaEncontrada[]
   caminho: { rota: string; categoria: string; categoriaRotulo: string; saltos: number } | null
   respostas: { respostas: number; negativas: number }
+  /** Restrição de contato em outro espaço visível: não muda o grupo, pede conversa antes de abordar. */
+  avisos?: string[]
 }
 export interface Lacuna {
   empresa: { id: string; nome: string; cidade: string | null; uf: string | null; subsetor: string | null }
   mapeadas: number; estrutura: string; pendentes: number
+  avisos?: string[]
 }
 export interface LeituraPedido {
   pedido: string
@@ -33,7 +36,11 @@ export interface LeituraPedido {
   notas: string[]
   /** Empresas citadas pelo nome ou CNPJ e confirmadas no catálogo: quando há, são o recorte inteiro. */
   empresas?: { trecho: string; empresas: { id: string; nome: string; cidade: string | null; uf: string | null }[] }[]
+  /** Busca feita dentro de uma pesquisa por tese: as aderentes e prováveis dela são o recorte. */
+  pesquisa?: { id: string; tese: string; empresas: number; categorias: string[] } | null
 }
+/** A pesquisa por tese em que o find procura ("quem decide nas aderentes"). */
+export interface PesquisaDoFind { id: string; tese: string; boas: number }
 export interface FunilEncontrar {
   recorte: number; lidas: number; truncado: boolean; nosCriterios: number; comPessoas: number
   pessoas: number; foraDosCriterios: number; forte: number; revisar: number; excluido: number
@@ -46,7 +53,7 @@ export interface ResultadoEncontrar {
 }
 
 export const encontrarApi = {
-  buscar: (pedido: string) => api<ResultadoEncontrar>('/api/encontrar', 'POST', { pedido }),
+  buscar: (pedido: string, pesquisaId?: string) => api<ResultadoEncontrar>('/api/encontrar', 'POST', pesquisaId ? { pedido, pesquisaId } : { pedido }),
 }
 
 export const ROTULO_GRUPO: Record<Grupo, { titulo: string; descricao: string }> = {

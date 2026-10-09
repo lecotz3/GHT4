@@ -17,8 +17,10 @@ const mensagem = (e: unknown) => e instanceof Error ? e.message : 'Não foi poss
 const numero = (n: number | undefined) => (n ?? 0).toLocaleString('pt-BR')
 const funilValido = (f: DetalhePesquisa['pesquisa']['funil']): f is Funil => typeof (f as Funil).recorte === 'number'
 
-export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTrabalho, aoExpirar }: {
+export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTrabalho, aoExpirar, aoEncontrar }: {
   usuario: Usuario
+  /** "Quem decide nestas empresas": abre o find só nas aderentes e prováveis desta pesquisa. */
+  aoEncontrar?: (p: { id: string; tese: string; boas: number }) => void
   inicial: InicialPesquisa | null
   aoConsumirInicial: () => void
   aoAbrirTrabalho: (conversaId: string) => void
@@ -285,6 +287,7 @@ export function PesquisaTese({ usuario, inicial, aoConsumirInicial, aoAbrirTraba
               {p.estado === 'concluida' && (detalhe?.contagens.pendentes ?? 0) > 0 && <button className="agente-btn-secundario" onClick={() => void ajustarLimites({ meta: p.meta + 10 })} disabled={rodando || bloqueado}>Ampliar meta (+10)</button>}
               {p.estado === 'pausada' && /Limite de/.test(p.motivo_estado || '') && <button className="agente-btn-secundario" onClick={() => void ajustarLimites({ limiteWeb: p.limite_web + 40 })} disabled={rodando || bloqueado}>Ler mais 40 sites</button>}
               <button className="agente-btn-secundario" onClick={() => void ajustar()} disabled={rodando || bloqueado || !podeUsar}><IconeRede nome="funil" />Ajustar critérios</button>
+              {aoEncontrar && boas > 0 && <button className="agente-btn-secundario" onClick={() => aoEncontrar({ id: p.id, tese: p.tese, boas })} disabled={rodando}><IconeRede nome="pessoas" />Quem decide nestas empresas</button>}
             </div>
           </section>
           {p.estado === 'concluida' && boas < p.meta && !(detalhe?.contagens.pendentes ?? 0) && funilValido(p.funil) && <SugestaoRelaxamento rodada

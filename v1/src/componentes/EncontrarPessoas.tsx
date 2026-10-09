@@ -1,11 +1,11 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { IconeRede } from './IconeRede'
 import { PlanoAcesso } from './PlanoAcesso'
 import { ErroApi } from '../agente/api'
 import { ROTULO_JULGAMENTO, type Julgamento } from '../agente/acesso'
 import {
   encontrarApi, GRUPOS, ROTULO_GRUPO, ACESSO_PEDIDO, EXEMPLOS_ENCONTRAR, resumoResultado, ondeEsta,
-  type Grupo, type PessoaEncontrada, type ResultadoEncontrar, type Lacuna,
+  type Grupo, type PessoaEncontrada, type ResultadoEncontrar, type Lacuna, type PesquisaDoFind,
 } from '../agente/encontrar'
 import '../agente/pesquisa.css'
 import '../agente/acesso.css'
@@ -21,7 +21,11 @@ const ICONE: Record<Julgamento, 'certo' | 'aproximado' | 'duvida' | 'xis'> = { a
 const numero = (n: number) => n.toLocaleString('pt-BR')
 const ORIGEM: Record<string, string> = { cadastro_publico: 'Quadro societário público', importacao: 'Lista da equipe', manual: 'Registrado pela casa' }
 
-export function EncontrarPessoas({ aoPesquisar, aoExpirar }: { aoPesquisar: (tese: string) => void; aoExpirar: () => void }) {
+export function EncontrarPessoas({ aoPesquisar, aoExpirar, pesquisa = null, aoSairDaPesquisa }: {
+  aoPesquisar: (tese: string) => void; aoExpirar: () => void
+  /** Dentro de uma pesquisa por tese, a busca fica nas aderentes e prováveis dela. */
+  pesquisa?: PesquisaDoFind | null; aoSairDaPesquisa?: () => void
+}) {
   const [pedido, setPedido] = useState('')
   const [resultado, setResultado] = useState<ResultadoEncontrar | null>(null)
   const [buscando, setBuscando] = useState(false)
@@ -29,6 +33,12 @@ export function EncontrarPessoas({ aoPesquisar, aoExpirar }: { aoPesquisar: (tes
   // Um plano aberto por vez: chave `pessoa:<id>` ou `lacuna:<empresaId>`.
   const [plano, setPlano] = useState<string | null>(null)
   const pedidoAtual = useRef(0)
+  // Vindo da pesquisa, o pedido começa pronto: o recorte já são as empresas dela.
+  useEffect(() => {
+    pedidoAtual.current++
+    setResultado(null); setErro(''); setPlano(null); setBuscando(false)
+    if (pesquisa) setPedido((p) => p.trim() ? p : 'Quem decide')
+  }, [pesquisa?.id]) // oxlint-disable-line react-hooks/exhaustive-deps
 
   async function buscar(e?: FormEvent) {
     e?.preventDefault()
@@ -37,7 +47,7 @@ export function EncontrarPessoas({ aoPesquisar, aoExpirar }: { aoPesquisar: (tes
     const n = ++pedidoAtual.current
     setBuscando(true); setErro(''); setPlano(null)
     try {
-      const r = await encontrarApi.buscar(texto)
+      const r = await encontrarApi.buscar(texto, pesquisa?.id)
       if (n === pedidoAtual.current) setResultado(r)
     } catch (falha) {
       if (falha instanceof ErroApi && falha.status === 401) aoExpirar()
@@ -51,6 +61,10 @@ export function EncontrarPessoas({ aoPesquisar, aoExpirar }: { aoPesquisar: (tes
       <span className="agente-sobretitulo">Encontrar quem decide</span>
       <h2 id="titulo-encontrar">Diga quem você procura.</h2>
       <p className="pesquisa-sub">Cargo, empresa (descrita, pelo nome ou pelo CNPJ) e, se quiser, só quem a casa alcança. O agente procura entre as pessoas que a GHT4 já mapeou: o quadro societário público, as listas da equipe e quem alguém da casa registrou com a fonte. Cada pessoa vem com o juízo de cada exigência e o caminho pela rede.</p>
+      {pesquisa && <p className="encontrar-escopo" role="note">
+        <IconeRede nome="alvo" /><span>Nas empresas da pesquisa <b>“{pesquisa.tese}”</b>: {numero(pesquisa.boas)} {pesquisa.boas === 1 ? 'aderente ou provável' : 'aderentes ou prováveis'}.</span>
+        {aoSairDaPesquisa && <button type="button" className="agente-link" onClick={aoSairDaPesquisa} disabled={buscando}>Procurar em todas as empresas</button>}
+      </p>}
       <form onSubmit={buscar} className="pesquisa-caixa">
         <label htmlFor="pedido-encontrar" className="sr-only">Quem você procura</label>
         <textarea id="pedido-encontrar" value={pedido} onChange={(e) => setPedido(e.target.value)} maxLength={2000} disabled={buscando}
@@ -84,14 +98,16 @@ export function EncontrarPessoas({ aoPesquisar, aoExpirar }: { aoPesquisar: (tes
 function Leitura({ r }: { r: ResultadoEncontrar }) {
   const l = r.leitura
   const citadas = (l.empresas ?? []).flatMap((n) => n.empresas)
-  const recorte = citadas.length ? ['Só as empresas citadas', l.recorte.uf || null].filter(Boolean).join(' · ')
+  const recorte = l.pesquisa ? ['Só as empresas da pesquisa', l.recorte.uf || null].filter(Boolean).join(' · ')
+    : citadas.length ? ['Só as empresas citadas', l.recorte.uf || null].filter(Boolean).join(' · ')
     : [l.recorte.subsetor && l.recorte.subsetor !== 'todos' ? l.recorte.subsetor : 'Todos os setores-alvo', l.recorte.uf || null, l.recorte.cnae ? `CNAE ${l.recorte.cnae}` : null].filter(Boolean).join(' · ')
   return <section className="agente-superficie encontrar-leitura" aria-labelledby="titulo-leitura">
     <h3 id="titulo-leitura">Como li o pedido</h3>
     <dl>
       <div><dt>Quem</dt><dd>{l.papel.rotulo}{l.papel.padrao && <small> (o pedido não disse o cargo)</small>}</dd></div>
       <div><dt>Acesso</dt><dd>{l.acesso.exigido ? `${ACESSO_PEDIDO[l.acesso.exigido]}${l.acesso.obrigatorio ? '' : ' (de preferência)'}` : 'Qualquer um; o caminho aparece quando existe'}</dd></div>
-      {(l.empresas ?? []).length > 0 && <div><dt>Empresa</dt><dd>{citadas.length ? <ul className="encontrar-criterios">{citadas.map((e) => <li key={e.id}>
+      {l.pesquisa && <div><dt>Empresa</dt><dd>{l.pesquisa.empresas === 1 ? 'A aderente ou provável' : `As ${numero(l.pesquisa.empresas)} aderentes e prováveis`} da pesquisa “{l.pesquisa.tese}”</dd></div>}
+      {!l.pesquisa && (l.empresas ?? []).length > 0 && <div><dt>Empresa</dt><dd>{citadas.length ? <ul className="encontrar-criterios">{citadas.map((e) => <li key={e.id}>
         {e.nome}<small>{e.cidade ? `${e.cidade}${e.uf ? `/${e.uf}` : ''}` : 'catálogo'}</small></li>)}</ul> : 'Nenhuma do catálogo com esse CNPJ'}</dd></div>}
       <div><dt>Recorte</dt><dd>{recorte}</dd></div>
       <div><dt>Na empresa</dt><dd>{l.criterios.length ? <ul className="encontrar-criterios">{l.criterios.map((c) => <li key={c.id} className={c.obrigatorio ? '' : 'is-opcional'}>
@@ -161,6 +177,7 @@ function CartaoPessoa({ p, aberto, aoPlano, aoExpirar }: { p: PessoaEncontrada; 
       ? <><IconeRede nome="rede" /><span><b>{p.caminho.categoriaRotulo}:</b> {p.caminho.rota}</span></>
       : <><IconeRede nome="duvida" /><span>{p.grupo === 'excluido' && p.motivo?.startsWith('Não contatar') ? 'Nenhum caminho sugerido: restrição ativa.' : 'Sem caminho pela rede até agora.'}</span></>}</p>
     {p.motivo && <p className="encontrar-motivo">{p.motivo}</p>}
+    {(p.avisos ?? []).map((a) => <p key={a} className="pesquisa-alerta encontrar-aviso">{a}</p>)}
     {p.pendencias.length > 0 && <p className="encontrar-pendencias">A revisar: {p.pendencias.join(' · ')}</p>}
     <div className="encontrar-acoes">
       <button type="button" className="agente-link" aria-expanded={juizo} aria-controls={idJuizo} onClick={() => setJuizo(!juizo)}>{juizo ? 'Esconder o juízo' : 'Ver o juízo'}</button>
@@ -201,6 +218,7 @@ function ItemLacuna({ x, aberto, aoPlano, aoExpirar }: { x: Lacuna; aberto: bool
       <span className="acesso-posicao">{x.mapeadas ? `${x.mapeadas} mapeada${x.mapeadas === 1 ? '' : 's'}, nenhuma serve` : 'Ninguém mapeado'}</span>
     </div>
     <p className="acesso-leitura">{x.estrutura}</p>
+    {(x.avisos ?? []).map((a) => <p key={a} className="pesquisa-alerta encontrar-aviso">{a}</p>)}
     <div className="encontrar-acoes"><button type="button" className="agente-link" aria-expanded={aberto} onClick={aoPlano}><IconeRede nome="alvo" />{aberto ? 'Fechar o plano de acesso' : 'Abrir o plano e registrar quem decide'}</button></div>
     {aberto && <PlanoAcesso empresaId={x.empresa.id} aoExpirar={aoExpirar} />}
   </li>

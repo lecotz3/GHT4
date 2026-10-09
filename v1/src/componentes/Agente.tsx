@@ -12,6 +12,7 @@ import { EstruturaAgente, GuiaDeUso, type SecaoAgente } from './EstruturaAgente'
 import { InicioAgente } from './InicioAgente'
 import { PesquisaTese } from './PesquisaTese'
 import { EncontrarPessoas } from './EncontrarPessoas'
+import type { PesquisaDoFind } from '../agente/encontrar'
 import { EscolherEmpresaAgente } from './EscolherEmpresaAgente'
 import { IconeRede } from './IconeRede'
 import { SeletorUfs } from './SeletorUfs'
@@ -43,6 +44,8 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
   const [trabalhoExterno, setTrabalhoExterno] = useState<string | null>(null)
   const [pesquisaInicial, setPesquisaInicial] = useState<InicialPesquisa | null>(null)
   const consumirPesquisa = useCallback(() => setPesquisaInicial(null), [])
+  // "Quem decide nestas empresas", vindo de uma pesquisa por tese: o find procura só nas aderentes dela.
+  const [pesquisaDoFind, setPesquisaDoFind] = useState<PesquisaDoFind | null>(null)
   const conviteInicial = useRef(convite)
   const aoExpirar = useCallback(() => { setUsuario(null); setSecao('inicio'); setCrm(null); setFase('login'); setErro('Sua sessão expirou. Faça login para retomar seus trabalhos.') }, [])
 
@@ -82,11 +85,14 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
   function navegar(s: SecaoAgente) {
     if (secao === 'equipe' && s !== 'equipe') setVersaoEquipe(v => v + 1)
     if (s === 'crm') setCrm({ id: null })
+    // Pelo menu, o find procura em todas as empresas; o recorte da pesquisa vem só pelo botão dela.
+    if (s === 'encontrar') setPesquisaDoFind(null)
     setSecao(s)
     window.scrollTo({ top: 0, behavior: 'instant' })
   }
   function abrirCrm(id: string) { setCrm({ id }); setSecao('crm'); window.scrollTo({ top: 0, behavior: 'instant' }) }
   function pesquisar(inicial: InicialPesquisa) { setPesquisaInicial(inicial); navegar('pesquisa') }
+  function encontrarNaPesquisa(p: PesquisaDoFind) { navegar('encontrar'); setPesquisaDoFind(p) }
 
   if (usuario && !convite) return <FichaContexto.Provider value={setFicha}><EstruturaAgente usuario={usuario} secao={secao} aoNavegar={navegar} aoSair={() => void sair()} saindo={ocupado}>
     {erro && <p role="alert" className="mx-5 mt-3 text-sm text-alerta">{erro}</p>}
@@ -94,8 +100,8 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
     {secao === 'rede' && <Rede aoExpirar={aoExpirar} aoVoltar={() => navegar('agente')} />}
     {secao === 'crm' && <Oportunidades key={crm?.id ?? 'lista'} inicialId={crm?.id ?? null} aoVoltar={() => navegar('agente')} aoExpirar={aoExpirar} aoAbrirTrabalho={(id) => { setTrabalhoExterno(id); navegar('agente') }} />}
     {secao === 'ajuda' && <GuiaDeUso aoNavegar={navegar} aoExplorar={aoExplorar} />}
-    {secao === 'encontrar' && <EncontrarPessoas aoPesquisar={(tese) => pesquisar({ tese })} aoExpirar={aoExpirar} />}
-    {secao === 'pesquisa' && <PesquisaTese usuario={usuario} inicial={pesquisaInicial} aoConsumirInicial={consumirPesquisa} aoAbrirTrabalho={(id) => { setTrabalhoExterno(id); navegar('agente') }} aoExpirar={aoExpirar} />}
+    {secao === 'encontrar' && <EncontrarPessoas aoPesquisar={(tese) => pesquisar({ tese })} aoExpirar={aoExpirar} pesquisa={pesquisaDoFind} aoSairDaPesquisa={() => setPesquisaDoFind(null)} />}
+    {secao === 'pesquisa' && <PesquisaTese usuario={usuario} inicial={pesquisaInicial} aoConsumirInicial={consumirPesquisa} aoAbrirTrabalho={(id) => { setTrabalhoExterno(id); navegar('agente') }} aoExpirar={aoExpirar} aoEncontrar={encontrarNaPesquisa} />}
     <div hidden={secao !== 'inicio' && secao !== 'agente'}><EspacoDoAgente key={usuario.id} usuario={usuario} inicio={secao === 'inicio'} aoOportunidades={() => navegar('crm')} aoTrabalhar={() => navegar('agente')} aoRede={() => navegar('rede')} aoAjuda={() => navegar('ajuda')} aoExpirar={aoExpirar} versaoEquipe={versaoEquipe} trabalhoExterno={trabalhoExterno} aoAbrirCrm={abrirCrm} aoPesquisar={pesquisar} /></div>
     <FichaEmpresaGaveta empresaId={ficha} aoFechar={() => setFicha(null)} aoAbrirCrm={abrirCrm} podeExportar={usuario.papel !== 'leitura'} />
   </EstruturaAgente></FichaContexto.Provider>

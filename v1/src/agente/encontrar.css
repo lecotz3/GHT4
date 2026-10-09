@@ -37,6 +37,12 @@
 /* A seta é a do app (visual.css, summary::before): o título fica na mesma linha dela. */
 .encontrar-grupo > summary .encontrar-grupo-titulo { display: inline-flex; }
 .encontrar-dica { margin-top: 0; }
+/* O cartão já espaça os filhos (grid com gap): o aviso de restrição de outro espaço não soma margem. */
+.encontrar-aviso { margin-top: 0; }
+/* Busca dentro de uma pesquisa por tese: o recorte vem dela, e dá para voltar a todas as empresas. */
+.encontrar-escopo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; padding: 10px 14px; border-radius: 12px; background: var(--color-comprador-fundo); color: var(--color-comprador); font-size: 13px; }
+.encontrar-escopo svg { width: 18px; flex: none; }
+.encontrar-escopo span { flex: 1 1 16rem; min-width: 0; }
 
 .encontrar-pessoas, .encontrar-lacunas { display: grid; gap: 10px; }
 .encontrar-pessoa, .encontrar-lacuna { border: 1px solid var(--color-fio); border-radius: 14px; background: white; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }

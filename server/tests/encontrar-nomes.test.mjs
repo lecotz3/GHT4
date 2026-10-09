@@ -193,3 +193,10 @@ test('ligar ao CNPJ quem só tem o nome da organização', async (t) => {
   assert.equal((await socio.chamar('GET', '/api/rede')).json().resumo.semCnpj, 0);
   assert.deepEqual((await socio.chamar('GET', '/api/rede/pessoas?lado=mercado&semEmpresa=1')).json().pessoas, []);
 });
+
+test('nome entre aspas e com abreviatura ainda é nome', () => {
+  const trechos = (pedido) => interpretarPedido(pedido).candidatos.map((c) => c.palavras.map((x) => x.t).join(' '));
+  assert.deepEqual(trechos("Quem decide na ''Mario A. Lussari & Cia. Ltda.''"), ['mario a lussari cia ltda']);
+  assert.deepEqual(trechos('Quem decide na "Química Alfa", com mais de 20 anos'), ['quimica alfa'], 'a vírgula e a aspa fecham o nome');
+  assert.deepEqual(trechos("Diretores da 'Alfa'"), ['alfa'], 'a aspa de fechamento não gruda no nome');
+});

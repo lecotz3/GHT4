@@ -77,7 +77,8 @@ export function julgarPessoa(p, ctx, leitura) {
   const obrigatorias = linhas.filter((l) => l.obrigatorio);
   const reprovada = obrigatorias.find((l) => l.julgamento === 'nao_atende');
   const grupo = ctx.restricao || reprovada ? 'excluido' : obrigatorias.every((l) => l.julgamento === 'atende') ? 'forte' : 'revisar';
-  const motivo = ctx.restricao ? `Não contatar neste espaço${ctx.restricao.motivo ? `: ${ctx.restricao.motivo}` : ''}.`
+  const motivoDaRestricao = (ctx.restricao?.motivo ?? '').replace(/[.\s]+$/, '');
+  const motivo = ctx.restricao ? `Não contatar neste espaço${motivoDaRestricao ? `: ${motivoDaRestricao}` : ''}.`
     : reprovada ? `${reprovada.requisito}: ${reprovada.informacao}` : null;
   const s = senioridadeDe(p.senioridade);
   return {
@@ -90,6 +91,8 @@ export function julgarPessoa(p, ctx, leitura) {
     juizo: linhas.map(({ requisito, julgamento, informacao, fonte, obrigatorio }) => ({ requisito, julgamento, informacao, fonte, obrigatorio })),
     caminho: ctx.caminho && !ctx.restricao ? { rota: ctx.caminho.rota, categoria: ctx.caminho.categoria, categoriaRotulo: ctx.caminho.categoriaRotulo, saltos: ctx.caminho.saltos } : null,
     respostas: { respostas: ctx.respostas, negativas: ctx.negativas },
+    // Restrição de outro espaço visível: não muda o grupo, pede conversa com o responsável.
+    avisos: ctx.avisos ?? [],
   };
 }
 

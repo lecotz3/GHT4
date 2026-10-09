@@ -53,8 +53,12 @@ export function candidatosANome(original, n, livre, municipios = null) {
     const digitos = m[0].replace(/\D/g, '');
     achados.push({ ini: m.index, fim: m.index + m[0].length, palavras: [], maiuscula: true, cnpj: digitos.slice(0, 8) });
   }
-  const tokens = [...n.matchAll(/[a-z0-9][a-z0-9'&-]*/g)].map((m) => ({ t: m[0], ini: m.index, fim: m.index + m[0].length }));
-  const colado = (a, b) => /^\s+$/.test(n.slice(a.fim, b.ini));
+  // Apóstrofo só dentro da palavra ("d'Oeste"): o que fecha uma citação ('Alfa') não gruda no nome.
+  const tokens = [...n.matchAll(/[a-z0-9](?:[a-z0-9&-]|'(?=[a-z]))*/g)].map((m) => ({ t: m[0], ini: m.index, fim: m.index + m[0].length }));
+  // Entre a preposição e o nome cabem aspas (na "Química Alfa"); dentro do nome, ponto e "&" de
+  // abreviatura ("Mario A. Lussari & Cia."). Vírgula, ponto e vírgula e aspas fecham o nome.
+  const abre = (a, b) => /^[\s"'“”‘’«»]+$/.test(n.slice(a.fim, b.ini)) && /\s/.test(n.slice(a.fim, b.ini));
+  const colado = (a, b) => /^[\s.&]+$/.test(n.slice(a.fim, b.ini));
   const maiuscula = (x) => { const c = original[x.ini]; return c !== c.toLowerCase(); };
   // Candidatos a nome podem se sobrepor ("Alfa e da Beta Química" e "Beta Química"): o catálogo
   // escolhe o trecho de cada um. Só o CNPJ, exato, tira as palavras da disputa.
@@ -65,10 +69,12 @@ export function candidatosANome(original, n, livre, municipios = null) {
     // "cidade de Campinas", "sediadas em Santos": o que vem depois é lugar.
     if (i > 0 && (LUGAR.test(tokens[i - 1].t) || /^(?:sediad|localizad|situad)/.test(tokens[i - 1].t))) continue;
     const primeiro = tokens[i + 1];
-    if (!colado(tokens[i], primeiro) || ocupado(tokens[i]) || ocupado(primeiro) || (!artigo && !maiuscula(primeiro))) continue;
+    if (!abre(tokens[i], primeiro) || ocupado(tokens[i]) || ocupado(primeiro) || (!artigo && !maiuscula(primeiro))) continue;
     const palavras = [primeiro];
     for (let j = i + 2; j < tokens.length && palavras.length < MAX_PALAVRAS; j++) {
-      if (!colado(tokens[j - 1], tokens[j]) || FIM.test(tokens[j].t) || ocupado(tokens[j])) break;
+      // "A." de "Mario A. Lussari" é inicial, não o artigo que abriria outra oração.
+      const inicial = tokens[j].t.length === 1 && maiuscula(tokens[j]) && n[tokens[j].fim] === '.';
+      if (!colado(tokens[j - 1], tokens[j]) || (FIM.test(tokens[j].t) && !inicial) || ocupado(tokens[j])) break;
       palavras.push(tokens[j]);
     }
     while (palavras.length && CONECTORES.test(palavras.at(-1).t)) palavras.pop();

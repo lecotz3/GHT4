@@ -68,6 +68,13 @@ try {
     senioridade: 'cfo', organizacao: 'Aurora Química Ltda.' })).pessoa;
   const sugestoes = await chamar('GET', `/api/rede/pessoas/${semCnpj.id}/empresas-sugeridas`);
   assert.equal(sugestoes.empresas[0]?.id, 'cnpj90000001', 'a Química Aurora é a sugestão mais parecida');
+  // Rodada 23: o find dentro de uma pesquisa por tese só de cadastro (o resultado sai na hora).
+  const pesquisaId = randomUUID();
+  const { pesquisa } = await chamar('POST', '/api/pesquisas', { id: pesquisaId, tese: 'Distribuidoras de SP com mais de 20 anos' });
+  await chamar('POST', `/api/pesquisas/${pesquisaId}/iniciar`, { versao: pesquisa.versao });
+  const naPesquisa = await chamar('POST', '/api/encontrar', { pedido: 'Quem decide', pesquisaId });
+  assert.ok(naPesquisa.leitura.pesquisa?.empresas > 0, 'a pesquisa tem aderentes');
+  assert.ok(naPesquisa.grupos.forte.some((p) => p.nome.startsWith('Carla')));
   if (interface_) {
     console.log(`Ensaio visual isolado em ${host}. PID ${process.pid}. Conta socio@teste.local; senha exclusivamente sintética: ${senha}`);
     await new Promise((resolve) => { process.once('SIGTERM', resolve); process.once('SIGINT', resolve); });
