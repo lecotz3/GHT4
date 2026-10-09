@@ -58,7 +58,9 @@ try {
   await chamar('POST', '/api/rede/reconhecimento', { id: randomUUID(), pessoaAlvoId: carla.id, resposta: 'posso_apresentar', evidencia: 'Relação fictícia criada para o ensaio visual.' });
 
   const r = await chamar('POST', '/api/encontrar', { pedido: 'Quem decide nas distribuidoras de SP com mais de 20 anos' });
-  assert.deepEqual(r.grupos.forte.map((p) => p.nome).sort(), ['Carla Mendes (fictícia)', 'Rui Teixeira (fictício)']);
+  // Rodada 27: o diretor-presidente dirige, mas o cargo não mostra participação; vai para revisão.
+  assert.deepEqual(r.grupos.forte.map((p) => p.nome), ['Carla Mendes (fictícia)']);
+  assert.deepEqual(r.grupos.revisar.find((p) => p.nome.startsWith('Rui')).pendencias, ['Decide a venda']);
   assert.equal(r.grupos.forte.find((p) => p.nome.startsWith('Carla')).caminho.categoria, 'introducao_viavel');
   assert.ok(r.lacunas.empresas.some((l) => l.empresa.id === 'cnpj90000004'), 'Insumos Paulista: ninguém mapeado');
   // Rodada 22: empresa pelo nome e pessoa só com o nome da organização, à espera do vínculo ao CNPJ.
@@ -75,6 +77,13 @@ try {
   const naPesquisa = await chamar('POST', '/api/encontrar', { pedido: 'Quem decide', pesquisaId });
   assert.ok(naPesquisa.leitura.pesquisa?.empresas > 0, 'a pesquisa tem aderentes');
   assert.ok(naPesquisa.grupos.forte.some((p) => p.nome.startsWith('Carla')));
+  // Rodada 26: um de cada, com a cobertura por papel, e o pedido ambíguo (sem IA no ensaio, a dica é reescrever).
+  const umDeCada = await chamar('POST', '/api/encontrar', { pedido: 'O CEO e o diretor comercial das distribuidoras de SP' });
+  assert.deepEqual(umDeCada.cobertura.map((c) => c.rotulo), ['CEO ou presidente', 'Diretoria · comercial']);
+  assert.ok(umDeCada.lacunas.empresas.some((l) => l.faltam?.length));
+  const ambiguo = await chamar('POST', '/api/encontrar', { pedido: 'Chefe de compras das distribuidoras de SP' });
+  assert.ok(ambiguo.leitura.ambiguidades.length > 0);
+  assert.equal(ambiguo.ia.disponivel, false);
   if (interface_) {
     console.log(`Ensaio visual isolado em ${host}. PID ${process.pid}. Conta socio@teste.local; senha exclusivamente sintética: ${senha}`);
     await new Promise((resolve) => { process.once('SIGTERM', resolve); process.once('SIGINT', resolve); });

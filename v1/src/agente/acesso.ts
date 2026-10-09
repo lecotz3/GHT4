@@ -43,6 +43,8 @@ export interface Plano {
   limitacoes: string[]
   eu: { naRede: boolean; pessoaId: string | null }
   podeRegistrar: boolean
+  /** Aberto de uma pesquisa de mandato confidencial: registrar exige confirmar que a fonte pode ir para a rede da casa. */
+  compartilhamento?: 'confirmar' | null
   tiposFonte: { id: string; rotulo: string }[]
   senioridades: { id: string; rotulo: string }[]
 }
@@ -50,6 +52,7 @@ export interface PedidoDecisor {
   id: string; nome: string; cargo: string; senioridade: string
   fonte: { tipo: string; descricao: string; url?: string }
   pesquisaId?: string
+  compartilhar?: true
 }
 
 const consulta = (pesquisaId?: string) => pesquisaId ? `?pesquisaId=${encodeURIComponent(pesquisaId)}` : ''

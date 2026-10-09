@@ -36,12 +36,12 @@ export async function registrarVinculoEmpresa(app, { catalogo }) {
     if (!p) throw semPessoa();
     if (p.lado !== 'mercado') throw doMercado();
     const busca = q.busca || p.organizacao || '';
-    let r = { empresas: [], total: 0, identifica: false };
+    let r = { empresas: [], total: 0, identifica: false, incompleta: false };
     if (busca) {
       try { r = await empresasParecidas(catalogo, busca); } catch (e) { throw catalogoFora(e); }
     }
     res.header('Cache-Control', 'no-store');
-    return { busca, empresaAtual: p.empresa_id, identifica: r.identifica, total: r.total, empresas: r.empresas.map(cartao) };
+    return { busca, empresaAtual: p.empresa_id, identifica: r.identifica, total: r.total, incompleta: r.incompleta, empresas: r.empresas.map(cartao) };
   });
 
   app.post('/api/rede/pessoas/:id/empresa', async (req, res) => {

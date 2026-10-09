@@ -306,7 +306,7 @@ test('componente: revisão humana de um veredito envia o que a tela mostrava, mo
     const antes = gets();
     await clicar(botao(/^Salvar decisão$/));
     const post = pedidos.find((p) => p.url.endsWith('/revisao'));
-    assert.deepEqual(post.corpo, { criterioId: 'c2', veredito: 'nao_atende', justificativa: 'Representa só fabricantes nacionais, segundo o diretor.', anterior: { veredito: 'indicio', lastro: 'site' } });
+    assert.deepEqual(post.corpo, { criterioId: 'c2', veredito: 'nao_atende', justificativa: 'Representa só fabricantes nacionais, segundo o diretor.', anterior: { veredito: 'indicio', lastro: 'site', versao: null } });
     await responder(post, { item: { ...cheio, categoria: 'nao_aderente', vereditos: [cheio.vereditos[0], humano] },
       revisoes: [{ id: 1, criterioId: 'c2', acao: 'revisar', antes: auto, depois: humano, em: '2026-10-08T12:00:00Z', autor: 'Ana' }] });
     await esperar();

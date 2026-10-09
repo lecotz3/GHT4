@@ -197,7 +197,7 @@ test('busca em lote não perde o caminho que passa por outro alvo (Casa → Alfa
   assert.equal((await socio.chamar('POST', '/api/rede/pessoas', { id: eu, lado: 'ght4', nome: 'Helena Sócia', usuarioId: socio.id })).statusCode, 201);
   for (const [id, nome, empresaId] of [[ivo, 'Ivo Ramos', 'cnpj11111111'], [rita, 'Rita Melo', 'cnpj44444444']]) await db.query(
     `INSERT INTO rede_pessoas (id,lado,nome,nome_normalizado,cargo,senioridade,organizacao,organizacao_normalizada,empresa_id,origem,criado_por)
-     VALUES ($1,'mercado',$2,lower($2),'Diretor-presidente','ceo','x','x',$3,'cadastro_publico',$4)`, [id, nome, empresaId, socio.id]);
+     VALUES ($1,'mercado',$2,lower($2),'Sócio-administrador','ceo','x','x',$3,'cadastro_publico',$4)`, [id, nome, empresaId, socio.id]);
   const ligar = (x, y) => { const [a, b] = [x, y].sort(); return db.query(
     `INSERT INTO rede_vinculos (id,pessoa_a_id,pessoa_b_id,tipo,forca,evidencia,disposicao,criado_por)
      VALUES ($1,$2,$3,'trabalharam_juntos','direta','Trabalharam juntos','posso_apresentar',$4)`, [randomUUID(), a, b, socio.id]); };
@@ -251,7 +251,9 @@ test('cargo negado sai do pedido, e a área do cargo vira exigência', async (t)
     assert.equal(grupoDe(r, nome).grupo, 'excluido', nome);
     assert.match(grupoDe(r, nome).motivo, /^Cargo fora do pedido \(Gerência\)/);
   }
-  assert.equal(grupoDe(r, 'Caio Dias').grupo, 'forte');
+  // Diretor-presidente dirige, mas o cargo não mostra participação: para "quem decide", fica para revisar.
+  assert.equal(grupoDe(r, 'Caio Dias').grupo, 'revisar');
+  assert.deepEqual(grupoDe(r, 'Caio Dias').pendencias, ['Decide a venda']);
 
   r = await buscar('Gerentes comerciais das distribuidoras de SP');
   assert.equal(grupoDe(r, 'Gil Souza').grupo, 'forte', 'o cargo registrado traz a área');

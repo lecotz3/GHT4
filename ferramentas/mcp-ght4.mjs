@@ -151,9 +151,15 @@ export function criarPonte({ url = 'http://127.0.0.1:3311', email, senha, fetchI
         required: ['pesquisaId'], additionalProperties: false },
       executar: async ({ pesquisaId, categoria, limite = 30 }) => {
         const d = await detalhe(pesquisaId);
-        const itens = d.itens.filter((i) => i.etapa === 'revisada' && (!categoria || i.categoria === categoria)).slice(0, limite);
+        /* Com categoria, a lista vem da rota do grupo, que pagina no banco: o detalhe só traz as
+           primeiras 300 revisadas, e uma categoria inteira podia ficar de fora. Sem categoria, as
+           primeiras do detalhe, com o total para dizer o corte. */
+        const grupo = categoria ? await pedir('GET', `/api/pesquisas/${encodeURIComponent(pesquisaId)}/itens?grupo=${categoria}&limite=${limite}`) : null;
+        const itens = grupo ? grupo.itens : d.itens.filter((i) => i.etapa === 'revisada').slice(0, limite);
+        const total = grupo ? grupo.total : d.contagens.revisadas;
         return { pesquisaId, tese: d.pesquisa.tese, estado: d.pesquisa.estado, criterios: d.pesquisa.criterios.map(resumoCriterio), contagens: d.contagens,
-          empresas: itens.map(resumoItem), limites: LIMITES };
+          empresas: itens.map(resumoItem), mostradas: itens.length, total,
+          ...(total > itens.length ? { corte: `Mostradas ${itens.length} de ${total}. A lista completa está na interface do GHT4.` } : {}), limites: LIMITES };
       } },
     { name: 'evidencias_empresa', description: 'Evidências de uma empresa numa pesquisa: para cada critério, o veredito, a justificativa e as fontes (campo da Receita, trecho e endereço da página do site).',
       inputSchema: { type: 'object', properties: { ...PESQUISA, empresaId: { type: 'string', pattern: '^cnpj\\d{8}$', description: 'Id da empresa (ex.: cnpj12345678).' } },
@@ -163,9 +169,11 @@ export function criarPonte({ url = 'http://127.0.0.1:3311', email, senha, fetchI
         const i = r.item;
         return { empresa: { id: i.empresa_id, nome: i.empresa?.nome, razaoSocial: i.empresa?.razaoSocial, cnpjRaiz: i.empresa?.cnpjRaiz, cidade: i.empresa?.cidade, uf: i.empresa?.uf },
           categoria: i.categoria, aderencia: i.aderencia, site: i.site ? { dominio: i.site.dominio, estado: i.site.estado, paginasLidas: (i.site.paginas ?? []).map((p) => p.url) } : null,
-          criterios: d.pesquisa.criterios.map((c, k) => ({ criterio: c.texto, obrigatorio: c.obrigatorio, veredito: i.vereditos[k]?.veredito, resumo: i.vereditos[k]?.resumo,
-            justificativa: i.vereditos[k]?.justificativa, lastro: i.vereditos[k]?.lastro,
-            evidencias: (i.vereditos[k]?.evidencias ?? []).map((e) => ({ fonte: e.fonte, url: e.url, trecho: e.trecho, referencia: e.referencia })) })),
+          // Revisão humana sai só como estado (o servidor já projeta assim; aqui, por garantia).
+          criterios: d.pesquisa.criterios.map((c, k) => { const v = i.vereditos[k]; const humano = v?.lastro === 'humano';
+            return { criterio: c.texto, obrigatorio: c.obrigatorio, veredito: v?.veredito, resumo: v?.resumo, lastro: v?.lastro,
+              justificativa: humano ? null : v?.justificativa,
+              evidencias: humano ? [] : (v?.evidencias ?? []).map((e) => ({ fonte: e.fonte, url: e.url, trecho: e.trecho, referencia: e.referencia })) }; }),
           limites: LIMITES };
       } },
     { name: 'registro_execucao', description: 'Registro do que a pesquisa fez, passo a passo: critérios propostos, funil, lotes revisados, pausas, ajustes, revisões humanas e entregas, com quem fez cada passo (agente ou pessoa).',

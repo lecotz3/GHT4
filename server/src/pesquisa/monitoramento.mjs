@@ -28,9 +28,10 @@
    - cobertura explícita: a verificação varre o recorte inteiro em páginas (ver
      `motor.aprovadasCadastro`); acima do teto da varredura ela é parcial, e isso fica gravado
      e visível;
-   - monitor ligado antes da cobertura (Rodada 15) ou com cobertura parcial: linha de base
-     reconstruída pela publicação da pesquisa, sem absorver novidade real (ver `baseLegada` e
-     `baseHistorica`). */
+   - monitor ligado antes da cobertura (Rodada 15) ou com cobertura parcial: a linha de base só
+     absorve quem comprovadamente já estava nela. Com a publicação avaliada da última vez
+     (`cobertura.hash`), ela é varrida inteira (`baseAmpliada`); sem ela, nada é absorvido e quem
+     atendia na publicação da pesquisa fica "a conferir" (`baseLegada`). */
 
 import { MAX_ITENS } from './motor.mjs';
 

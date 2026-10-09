@@ -1,10 +1,33 @@
 # Retomada da implementação do agente GHT4
 
-Atualizado em 9 de outubro de 2026 (checkpoint anterior: 8 de outubro). Branch de trabalho: `feat/agente-rodada-4`, publicada na `main` por fast-forward a cada rodada. A instalação usa Vercel e Supabase; todo push na `main` publica em produção, e o build de produção (`ferramentas/build-vercel.mjs`) roda `preparar-banco.mjs`: migrações, reimportação do catálogo e dos eventos.
+Atualizado em 9 de outubro de 2026, à noite (checkpoint anterior: 9 de outubro, à tarde). Branch de trabalho: `feat/agente-rodada-4`, publicada na `main` por fast-forward a cada rodada. A instalação usa Vercel e Supabase; todo push na `main` publica em produção, e o build de produção (`ferramentas/build-vercel.mjs`) roda `preparar-banco.mjs`: migrações, reimportação do catálogo e dos eventos.
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodada 25: achados do Codex corrigidos; rede pronta para gravar, falta a credencial do banco (09/10/2026)
+## COMECE AQUI — Rodadas 26 e 27: IA opcional no find e o parecer das Rodadas 20 e 25 corrigido; falta publicar e gravar a rede (09/10/2026)
+
+**Estado:**
+- **Commits locais, ainda fora da `main`:** `7845da1` (parecer do Codex sobre as Rodadas 20 e 25), `214a40c` (Rodada 26) e o commit da Rodada 27. O `git push` desta sessão foi recusado pelo controle de permissões do Claude Code. Publicar: `git push origin HEAD:main HEAD:feat/agente-rodada-4` (o deploy aplica a migração `0031_ia_sem_conversa`).
+- **Rodada 26:** a Etapa 4 do roteiro está completa.
+  - Leitura opcional com IA para pedido ambíguo: as regras dizem o que não leram, e só então a tela oferece a IA, na cota do dia. Cada item cita um trecho do pedido, e o modelo recebe só o texto.
+  - Um requisito por papel ("o CEO e o diretor de RH"), com a cobertura de cada um.
+  - Conflito de cargo único, com precedência do quadro estatutário.
+- **Rodada 27:** os achados do parecer `7845da1`, todos com regressão em `server/tests/parecer-rodadas-20-25.test.mjs`.
+  - Os dois P1 da Rodada 20: confirmação de compartilhamento para fonte de mandato confidencial; projeção do canal externo sem texto livre da revisão humana.
+  - Versão da revisão humana, paginação do MCP, homônimo, cargo × poder de vender.
+  - Negação sobre lista de cargos, municípios e sugestão de CNPJ truncada.
+- **Revisão do Codex nesta máquina:** o `codex exec` do app do Codex roda com `-c 'windows.sandbox="unelevated"'`; o sandbox elevado falha fora do app. A revisão usa uma cópia em `.revisao-codex/` (worktree fora do git, em `.git/info/exclude`) com junções para os `node_modules`.
+- **Esta máquina não tem** `server/.env.local` nem `.cache/quadro-societario-2026-08.js` (ficaram na máquina da Rodada 25). A extensão do Claude no Chrome não estava conectada nesta sessão.
+
+### Próximos passos, em ordem
+
+1. **Publicar** os commits locais na `main` (comando acima) e conferir o deploy: `/api/saude` com `ok:true`.
+2. **Revisão do Codex** das Rodadas 26 e 27 ("PARA O CODEX" no diário).
+3. **Gravar os 8.736 dirigentes** (passo 1 do checkpoint anterior, abaixo), na máquina que tem o arquivo do quadro, ou reconstruindo-o aqui. Falta o `DATABASE_URL` do Supabase (Connect → Transaction pooler, com a senha), colado pelo usuário.
+4. **Ativar a casa** (pessoas reais, pelo usuário): convites na tela Equipe, membros na Rede, listas CSV autorizadas, passada de reconhecimento, "Ligar ao CNPJ".
+5. **Aceite em produção** (Etapa 3): os onze pedidos, com contas de sócio e de analista, e o tempo anotado. Depois da publicação, com a extensão do Chrome conectada.
+
+## Checkpoint anterior — Rodada 25: achados do Codex corrigidos; rede pronta para gravar, falta a credencial do banco (09/10/2026)
 
 **Estado:**
 - **Na `main`:** tudo publicado, cada correção num commit (`716fd6a`, `f5a0a3d`, `ee3b9ce`, `2dd04f7`, `0bafdce` e os importantes da Rodada 23). Registro no [AI_COLLAB.md](../AI_COLLAB.md), Rodada 25, com "PARA O CODEX".

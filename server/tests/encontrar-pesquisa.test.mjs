@@ -190,7 +190,7 @@ test('o teto de pessoas conta só as empresas que passam nos critérios', async 
   const catalogo = criarCatalogo({ arquivo, arquivoIbama: null });
   const u = await criarUsuario(db, { email: 'teto-criterios@teste.local', papel: 'socio', senha, nome: 'Teto' });
   const pessoa = (nome, empresaId) => db.query(`INSERT INTO rede_pessoas (id,lado,nome,nome_normalizado,cargo,senioridade,empresa_id,origem,origem_referencia,criado_por)
-    VALUES ($1,'mercado',$2,lower($2),'Diretor-presidente','ceo',$3,'cadastro_publico','Quadro societário',$4)`, [randomUUID(), nome, empresaId, u.id]);
+    VALUES ($1,'mercado',$2,lower($2),'Sócio-administrador','ceo',$3,'cadastro_publico','Quadro societário',$4)`, [randomUUID(), nome, empresaId, u.id]);
   // A Empresa 1 é nova demais e tem três dirigentes; a Empresa 2 passa e tem um.
   for (const nome of ['Ana Um', 'Bia Um', 'Caio Um']) await pessoa(nome, 'cnpj11111111');
   await pessoa('Dora Dois', 'cnpj22222222');

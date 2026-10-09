@@ -336,7 +336,7 @@ const NOMES_REGIAO = new Set(['sul', 'norte', 'sudeste', 'nordeste', 'centro-oes
  * Campinas") pede a sede fora delas. Devolve [{ ini, fim, nomes, negado }] (posições no texto, da
  * negação ou da preposição ao fim do último nome).
  */
-const NEGACAO_LUGAR = /(?:^|[\s,;(])(fora|exceto|menos|nao|salvo|excluindo|tirando|sem ser)\s+$/;
+const NEGACAO_LUGAR = /(?:^|[\s,;(])(fora|exceto|menos|nao|salvo|excluindo|tirando|sem ser)(?:\s+(?:de|da|do|em|na|no))?\s+$/;
 function municipiosCitados(original, n, municipios) {
   const tokens = [...n.matchAll(/[a-z][a-z'-]*/g)].map((m) => ({ t: m[0], ini: m.index, fim: m.index + m[0].length }));
   const maiuscula = (k) => { const c = original[tokens[k].ini]; return c !== c.toLowerCase(); };
@@ -367,7 +367,8 @@ function municipiosCitados(original, n, municipios) {
       else if (!/^\s*,\s*$/.test(entre)) break;
       const preposicao = k < tokens.length && /^(?:em|no|na)$/.test(tokens[k].t);
       if (preposicao) k++;
-      if (k >= tokens.length || !(preposicao && tokens[k - 1].t === 'em') && !maiuscula(k)) break;
+      // Aberta por "em", a lista aceita minúsculas, como o primeiro nome: "em campinas ou osasco".
+      if (k >= tokens.length || !((preposicao && tokens[k - 1].t === 'em') || tokens[i].t === 'em') && !maiuscula(k)) break;
       const fim = nomeEm(k);
       if (fim < 0) break;
       nomes.push(original.slice(tokens[k].ini, tokens[fim].fim));
@@ -461,19 +462,30 @@ export function interpretarTese(tese, { referencia, municipios } = {}) {
 
   // Localização: cidade explícita, região, nomes de estado e siglas em maiúsculas.
   const ufs = new Set();
-  for (const m of todos(/\b(na cidade d[eo]|cidade d[eo]|municipio d[eo]|sediadas? (?:em|n[ao])|com sede (?:em|n[ao]))\s+([a-z' ]{3,40}?)(?=\s*(?:[,;.\n]|\s-\s|\(|\/|$|\s(?:e|com|que|sem|de preferencia|preferencialmente)\b))/g)) {
+  /* Cidades explícitas seguidas, ligadas por "ou", "e" ou vírgula ("na cidade de Campinas ou na
+     cidade de Osasco"), são um lugar só, qualquer uma delas, como na lista de municípios abaixo; a
+     negação antes da primeira vale para a lista inteira. */
+  const explicitas = [];
+  for (const m of todos(/\b(na cidade d[eo]|cidade d[eo]|municipio d[eo]|sediadas? (?:em|n[ao])|com sede (?:em|n[ao]))\s+([a-z' ]{3,40}?)(?=\s*(?:[,;.\n]|\s-\s|\(|\/|$|\s(?:e|ou|com|que|sem|de preferencia|preferencialmente)\b))/g)) {
     const nomeOriginal = original.slice(m.index + m[0].length - m[2].length, m.index + m[0].length).trim();
     const uf = NOMES_UF.find(([nome]) => nome === m[2].trim());
     if (uf && !/cidade|municipio/.test(m[1])) continue; // "sede em São Paulo" é ambíguo: tratado como estado abaixo, com nota
-    // "Cidade de São Paulo"/"cidade do Rio de Janeiro": município da capital, dentro do seu estado.
     const negacao = n.slice(Math.max(0, m.index - 16), m.index).match(NEGACAO_LUGAR);
-    if (negacao) {
-      const ini = m.index - negacao[0].replace(/^[\s,;(]/, '').length;
-      adicionar(Object.assign([n.slice(ini, m.index + m[0].length)], { index: ini }), `Sede fora de ${maiuscula(nomeOriginal)}`, { campo: 'municipio_fora', valor: [nomeOriginal] });
+    const ini = negacao ? m.index - negacao[0].replace(/^[\s,;(]/, '').length : m.index;
+    const anterior = explicitas.at(-1);
+    if (anterior && /^\s*(?:,\s*)?(?:(?:ou|e)\s+)?(?:(?:em|na|no|da|do|de)\s+)?$/.test(n.slice(anterior.fim, m.index)) && !negacao) {
+      anterior.nomes.push(nomeOriginal); anterior.fim = m.index + m[0].length; if (uf) anterior.ufs.push(uf[1]);
       continue;
     }
-    if (uf) ufs.add(uf[1]);
-    adicionar(m, `Sede em ${maiuscula(nomeOriginal)}`, { campo: 'municipio', valor: nomeOriginal });
+    explicitas.push({ ini, fim: m.index + m[0].length, nomes: [nomeOriginal], negado: Boolean(negacao), ufs: uf ? [uf[1]] : [] });
+  }
+  for (const c of explicitas) {
+    const trecho = Object.assign([n.slice(c.ini, c.fim)], { index: c.ini });
+    const nomes = c.nomes.map(maiuscula);
+    if (c.negado) { adicionar(trecho, `Sede fora de ${listaDe(nomes, 'e')}`, { campo: 'municipio_fora', valor: c.nomes }); continue; }
+    // "Cidade de São Paulo"/"cidade do Rio de Janeiro": município da capital, dentro do seu estado.
+    if (c.nomes.length === 1) c.ufs.forEach((u) => ufs.add(u));
+    adicionar(trecho, `Sede em ${listaDe(nomes, 'ou')}`, c.nomes.length > 1 ? { campo: 'municipios', valor: c.nomes } : { campo: 'municipio', valor: c.nomes[0] });
   }
   if (municipios?.size) {
     for (const c of municipiosCitados(original, n, municipios)) {

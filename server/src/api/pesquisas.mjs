@@ -13,7 +13,7 @@ import { registrar } from '../auditoria/registrar.mjs';
 import { criarMotorPesquisa, Filtros, ListaCriterios, ordenarItens } from '../pesquisa/motor.mjs';
 import { lembrarCriterios } from '../pesquisa/memoria.mjs';
 import { registrarEvento, lerEventos } from '../pesquisa/eventos.mjs';
-import { PedidoRevisao, ConflitoRevisao, revisarVeredito, desfazerRevisao, revisoesDoItem } from '../pesquisa/revisao.mjs';
+import { PedidoRevisao, Anterior, ConflitoRevisao, revisarVeredito, desfazerRevisao, revisoesDoItem } from '../pesquisa/revisao.mjs';
 import { definirMonitoramento, verificarVencidos, situacaoFalhas, coberturaDe, publico as monitoramentoPublico } from '../pesquisa/monitoramento.mjs';
 
 const Id = z.string().uuid();
@@ -22,6 +22,12 @@ const Versao = z.number().int().min(1);
 export const resumirTexto = (t, max) => { const limpo = t.replace(/\s+/g, ' ').trim(); if (limpo.length <= max) return limpo; const corte = limpo.slice(0, max - 1); return `${corte.slice(0, corte.lastIndexOf(' ') > max * 0.6 ? corte.lastIndexOf(' ') : corte.length).replace(/[\s,;.:]+$/, '')}…`; };
 const CAMPOS = `id,conversa_id,usuario_id,anterior_id,tese,frente,filtros,criterios,meta,limite_web,catalogo_hash,referencia,funil,
   estado,motivo_estado,modo,notas,turno_id,versao,execucao,criado_em,atualizado_em`;
+
+const RESUMO_HUMANO_FORA = 'Revisado por alguém da casa. A justificativa e a fonte ficam na interface do GHT4.';
+/** O veredito como sai pelo canal externo: o humano perde o texto livre, o automático fica igual. */
+export const vereditoParaFora = (v) => v?.lastro === 'humano'
+  ? { veredito: v.veredito, lastro: 'humano', resumo: RESUMO_HUMANO_FORA, justificativa: null, evidencias: [] } : v;
+const itemParaFora = (i) => i && Array.isArray(i.vereditos) ? { ...i, vereditos: i.vereditos.map(vereditoParaFora) } : i;
 
 export async function registrarPesquisas(app, { catalogo, servicoIA = null, web = {} } = {}) {
   const { db } = app;
@@ -94,6 +100,18 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     res.header('Vary', 'X-GHT4-Lista');
     if (req.headers['x-ght4-lista'] !== 'leve') return corpo;
     return { ...corpo, itens: corpo.itens.map(itemLeve) };
+  });
+
+  /* Canal externo (ponte MCP): a revisão humana sai só como estado. Justificativa, fonte, autor e
+     histórico são texto livre da casa e podem trazer nome, contato ou conversa reservada; ficam na
+     interface do GHT4. Vale para toda resposta das rotas de pesquisa (lista, item, revisão). */
+  app.addHook('preSerialization', async (req, res, corpo) => {
+    if (!canalExterno(req) || !req.routeOptions?.url?.startsWith('/api/pesquisas') || !corpo || typeof corpo !== 'object') return corpo;
+    const saida = { ...corpo };
+    if (Array.isArray(saida.itens)) saida.itens = saida.itens.map(itemParaFora);
+    if (saida.item) saida.item = itemParaFora(saida.item);
+    if ('revisoes' in saida) saida.revisoes = [];
+    return saida;
   });
 
   app.get('/api/pesquisas', async (req) => {
@@ -292,8 +310,8 @@ export async function registrarPesquisas(app, { catalogo, servicoIA = null, web 
     return aplicarRevisao(req, 'revisar_veredito', (tx, c) => revisarVeredito(tx, { ...c, pedido }));
   });
   app.post('/api/pesquisas/:id/itens/:empresaId/revisao/desfazer', async (req) => {
-    const { criterioId } = z.object({ criterioId: z.string().regex(/^[a-z0-9_-]{1,40}$/) }).strict().parse(req.body);
-    return aplicarRevisao(req, 'desfazer_revisao', (tx, c) => desfazerRevisao(tx, { ...c, criterioId }));
+    const { criterioId, anterior } = z.object({ criterioId: z.string().regex(/^[a-z0-9_-]{1,40}$/), anterior: Anterior }).strict().parse(req.body);
+    return aplicarRevisao(req, 'desfazer_revisao', (tx, c) => desfazerRevisao(tx, { ...c, criterioId, anterior }));
   });
 
   /* Edição do rascunho: critérios, recorte, frente, meta e limite de pesquisas no site. */

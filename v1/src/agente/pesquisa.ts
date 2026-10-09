@@ -29,7 +29,7 @@ export interface VereditoCriterio {
   veredito: Veredito; resumo: string; justificativa?: string; lastro: 'cadastro' | 'site' | 'ia' | 'pendente' | 'humano'
   evidencias?: Evidencia[]; pendente?: boolean; modelo?: string
   /** Revisão humana: quem decidiu, quando e com que fonte; `automatico` é o veredito que "desfazer" devolve. */
-  revisao?: { autor: { id: string; nome: string }; em: string; fonte?: { descricao: string; url?: string } }
+  revisao?: { autor: { id: string; nome: string }; em: string; versao?: string; fonte?: { descricao: string; url?: string } }
   automatico?: VereditoCriterio
 }
 /** Passo do registro da execução: `ator` diz se foi o agente (passo automático) ou uma pessoa. */
@@ -39,8 +39,12 @@ export interface EventoPesquisa { id: number; tipo: TipoEvento; dados: Record<st
 export interface RevisaoVeredito { id: number; criterioId: string; acao: 'revisar' | 'desfazer'; antes: VereditoCriterio; depois: VereditoCriterio; em: string; autor: string }
 export interface PedidoRevisao {
   criterioId: string; veredito: 'atende' | 'nao_atende' | 'indeterminado'; justificativa: string
-  fonte?: { descricao: string; url?: string }; anterior: { veredito: Veredito; lastro: string | null }
+  fonte?: { descricao: string; url?: string }; anterior: AnteriorRevisao
 }
+/** O veredito que a aba mostrava; `versao` distingue duas revisões humanas com o mesmo veredito. */
+export interface AnteriorRevisao { veredito: Veredito; lastro: string | null; versao: string | null }
+export const anteriorDe = (v: VereditoCriterio): AnteriorRevisao => ({ veredito: v.veredito, lastro: v.lastro ?? null,
+  versao: v.lastro === 'humano' ? v.revisao?.versao ?? v.revisao?.em ?? null : null })
 export interface Funil {
   recorte: number; avaliadas: number; truncado: boolean; semAtributos: number; eliminadas: number
   eliminadasPor: Record<string, number>; exclusivas: Record<string, number>
@@ -99,7 +103,7 @@ export const pesquisaApi = {
   eventos: (id: string, apos = 0) => api<{ eventos: EventoPesquisa[]; ultimo: number }>(`/api/pesquisas/${id}/eventos?apos=${apos}`),
   /** Revisão humana de um critério de empresa já revisada; desfazer devolve o veredito automático. */
   revisar: (id: string, empresaId: string, corpo: PedidoRevisao) => api<{ item: ItemPesquisa; revisoes: RevisaoVeredito[] }>(`/api/pesquisas/${id}/itens/${empresaId}/revisao`, 'POST', corpo),
-  desfazerRevisao: (id: string, empresaId: string, criterioId: string) => api<{ item: ItemPesquisa; revisoes: RevisaoVeredito[] }>(`/api/pesquisas/${id}/itens/${empresaId}/revisao/desfazer`, 'POST', { criterioId }),
+  desfazerRevisao: (id: string, empresaId: string, criterioId: string, anterior: AnteriorRevisao) => api<{ item: ItemPesquisa; revisoes: RevisaoVeredito[] }>(`/api/pesquisas/${id}/itens/${empresaId}/revisao/desfazer`, 'POST', { criterioId, anterior }),
   editar: (id: string, corpo: { versao: number; criterios?: Criterio[]; filtros?: Filtros; frente?: 'compra' | 'venda'; meta?: number; limiteWeb?: number }) => leve<DetalhePesquisa>(`/api/pesquisas/${id}`, 'PATCH', corpo),
   previa: (id: string, criterios: Criterio[], filtros: Filtros) => api<Previa>(`/api/pesquisas/${id}/previa`, 'POST', { criterios, filtros }),
   iniciar: (id: string, versao: number) => leve<DetalhePesquisa>(`/api/pesquisas/${id}/iniciar`, 'POST', { versao }),

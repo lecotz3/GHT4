@@ -5,7 +5,8 @@ import { api } from './api'
    em "Encontrar quem decide". */
 
 export type EmpresaSugerida = { id: string; nome: string; razaoSocial: string | null; cnpjRaiz: string; cidade: string | null; uf: string | null; subsetor: string | null }
-export type Sugestoes = { busca: string; empresaAtual: string | null; identifica: boolean; total: number; empresas: EmpresaSugerida[] }
+/** `incompleta`: a palavra do nome traz empresas demais e a leitura parou no teto; a lista é de uma amostra. */
+export type Sugestoes = { busca: string; empresaAtual: string | null; identifica: boolean; total: number; incompleta?: boolean; empresas: EmpresaSugerida[] }
 
 export const vinculoCnpjApi = {
   /** Sem `busca`, o servidor usa o nome da organização escrito no cadastro. */
@@ -20,6 +21,10 @@ export const raizFormatada = (r: string) => `${r.slice(0, 2)}.${r.slice(2, 5)}.$
 export function situacaoDasSugestoes(s: Sugestoes): string {
   if (!s.busca) return 'Escreva o nome da empresa ou o CNPJ para procurar no catálogo.'
   if (!s.identifica) return 'Este nome só tem palavras comuns (química, distribuidora, Ltda.). Escreva o nome próprio da empresa ou o CNPJ.'
+  // Leitura parada no teto: nem "nenhuma", nem a contagem, nem "a mais próxima" valem para o catálogo inteiro.
+  if (s.incompleta) return s.empresas.length
+    ? 'Este nome traz empresas demais para ler todas; abaixo, as mais próximas entre as lidas. Escreva o nome completo ou o CNPJ para ter certeza.'
+    : 'Este nome traz empresas demais para ler todas, e entre as lidas nenhuma corresponde. Escreva o nome completo ou o CNPJ.'
   if (!s.total) return 'Nenhuma empresa do catálogo de químicos com esse nome. Confira a grafia ou procure pelo CNPJ.'
   if (s.total > s.empresas.length) return `${s.total} empresas parecidas; abaixo, as ${s.empresas.length} mais próximas. Confira cidade e razão social antes de ligar.`
   return s.total === 1 ? '1 empresa parecida. Confira cidade e razão social antes de ligar.' : `${s.total} empresas parecidas. Confira cidade e razão social antes de ligar.`

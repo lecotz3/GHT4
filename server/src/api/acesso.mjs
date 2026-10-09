@@ -32,6 +32,9 @@ const Decisor = z.object({
   senioridade: Senioridade,
   fonte: Fonte,
   pesquisaId: Id.optional(),
+  /* Aberto de uma pesquisa de mandato confidencial: quem decide entra na rede compartilhada, com a
+     fonte escrita. Só com a confirmação de quem registra de que nada do mandato vai junto. */
+  compartilhar: z.literal(true).optional(),
 }).strict();
 
 export async function registrarAcesso(app, { catalogo, sancoes = criarSancoes() }) {
@@ -48,12 +51,14 @@ export async function registrarAcesso(app, { catalogo, sancoes = criarSancoes() 
       req.exigir('agente.ler');
       const p = (await db.query('SELECT id, conversa_id FROM pesquisas_tese WHERE id=$1 AND usuario_id=$2', [pesquisaId, u.id])).rows[0];
       if (!p) throw new ErroHttp(404, 'pesquisa_inexistente', 'Pesquisa não encontrada.');
-      const c = (await db.query('SELECT id, mandato_id, usuario_id FROM agente_conversas WHERE id=$1', [p.conversa_id])).rows[0];
+      const c = (await db.query(`SELECT c.id, c.mandato_id, c.usuario_id, m.confidencial FROM agente_conversas c
+        LEFT JOIN mandatos m ON m.id = c.mandato_id WHERE c.id=$1`, [p.conversa_id])).rows[0];
       if (c.mandato_id) await req.exigirNoMandato(c.mandato_id, 'agente.ler');
       const item = (await db.query('SELECT empresa, site FROM pesquisa_itens WHERE pesquisa_id=$1 AND empresa_id=$2', [p.id, empresaId])).rows[0];
       if (!item) throw new ErroHttp(404, 'item_inexistente', 'Empresa não encontrada nesta pesquisa.');
       return { empresa: item.empresa, atributos: item.empresa?.atributos ?? null, site: item.site ?? null,
-        escopo: c.mandato_id ? `mandato:${c.mandato_id}` : `usuario:${c.usuario_id}` };
+        escopo: c.mandato_id ? `mandato:${c.mandato_id}` : `usuario:${c.usuario_id}`,
+        mandato: c.mandato_id ? { id: c.mandato_id, confidencial: Boolean(c.confidencial) } : null };
     }
     let empresa;
     try { empresa = await catalogo.obter(empresaId); }
@@ -67,7 +72,7 @@ export async function registrarAcesso(app, { catalogo, sancoes = criarSancoes() 
         atributos = r?.empresas?.find((e) => e.id === empresaId)?.atributos ?? null;
       } catch { atributos = null; }
     }
-    return { empresa, atributos, site: null, escopo: `usuario:${u.id}` };
+    return { empresa, atributos, site: null, escopo: `usuario:${u.id}`, mandato: null };
   }
 
   app.get('/api/acesso/:empresaId', async (req, res) => {
@@ -90,7 +95,9 @@ export async function registrarAcesso(app, { catalogo, sancoes = criarSancoes() 
       oportunidades: situacao.oportunidades.map((o) => ({ id: o.id, titulo: o.titulo, etapa: o.etapa, proximaAcao: o.proxima_acao, prazo: o.prazo, responsavel: o.responsavel_nome, espaco: o.espaco ?? null })) });
     res.header('Cache-Control', 'no-store');
     return { ...plano, eu: { naRede: Boolean(minhas.eu), pessoaId: minhas.eu?.id ?? null },
-      podeRegistrar: pode(u.papel, 'rede.editar'), tiposFonte: TIPOS_FONTE_CARGO, senioridades: SENIORIDADES.map(({ id, rotulo }) => ({ id, rotulo })) };
+      podeRegistrar: pode(u.papel, 'rede.editar'), tiposFonte: TIPOS_FONTE_CARGO, senioridades: SENIORIDADES.map(({ id, rotulo }) => ({ id, rotulo })),
+      // Registrar daqui leva a pessoa e a fonte para a rede de toda a casa: num mandato confidencial, só confirmando.
+      compartilhamento: ctx.mandato?.confidencial ? 'confirmar' : null };
   });
 
   /* "Caminho de recall": alguém da casa informa quem decide nesta empresa, e de
@@ -103,6 +110,9 @@ export async function registrarAcesso(app, { catalogo, sancoes = criarSancoes() 
     const empresaId = EmpresaId.parse(req.params.empresaId);
     const p = Decisor.parse(req.body);
     const ctx = await contexto(req, u, empresaId, p.pesquisaId);
+    if (ctx.mandato?.confidencial && !p.compartilhar) {
+      throw new ErroHttp(409, 'confirmar_compartilhamento', 'Esta pesquisa é de um mandato confidencial. Quem você registrar entra na rede de toda a casa, com a fonte que escrever. Escreva uma fonte sem nada do mandato e confirme o compartilhamento.');
+    }
     const nomeNormalizado = normalizar(p.nome);
     const referencia = referenciaDaFonte(p.fonte);
     const CAMPOS = 'id,lado,nome,cargo,senioridade,organizacao,empresa_id,usuario_id,email,telefone,linkedin,observacoes,ativo,versao,origem,origem_referencia';
@@ -113,17 +123,23 @@ export async function registrarAcesso(app, { catalogo, sancoes = criarSancoes() 
         if (mesma.nome !== p.nome || mesma.empresa_id !== empresaId) throw new ErroHttp(409, 'registro_atualizado', 'Este registro mudou. Reabra o plano antes de salvar.');
         return { linha: mesma, nova: false };
       }
+      /* A trava da rede vem antes de procurar o homônimo: dois cadastros simultâneos da mesma pessoa
+         esperam um pelo outro aqui, e o segundo já vê o primeiro (o índice único só cobre o quadro público). */
+      await alterarRede(tx);
+      const reenviada = (await tx.query(`SELECT ${CAMPOS} FROM rede_pessoas WHERE id=$1`, [p.id])).rows[0];
+      if (reenviada) return { linha: reenviada, nova: false };
       const homonima = (await tx.query(`SELECT id FROM rede_pessoas WHERE ativo AND lado='mercado' AND empresa_id=$1 AND nome_normalizado=$2 LIMIT 1`,
         [empresaId, nomeNormalizado])).rows[0];
       if (homonima) throw new ErroHttp(409, 'pessoa_ja_mapeada', 'Esta pessoa já está na rede para esta empresa. Corrija o cargo pela tela Rede.', { id: homonima.id });
-      await alterarRede(tx);
       const linha = (await tx.query(
         `INSERT INTO rede_pessoas (id,lado,nome,nome_normalizado,cargo,senioridade,organizacao,organizacao_normalizada,
            empresa_id,origem,origem_referencia,criado_por)
          VALUES ($1,'mercado',$2,$3,$4,$5,$6,$7,$8,'manual',$9,$10) RETURNING ${CAMPOS}`,
         [p.id, p.nome, nomeNormalizado, p.cargo, p.senioridade, ctx.empresa.nome, normalizar(ctx.empresa.nome), empresaId, referencia, u.id])).rows[0];
-      await registrar(tx, { usuarioId: u.id, entidade: 'rede_pessoa', entidadeId: p.id, acao: 'registrar_decisor',
-        depois: { empresaId, nome: p.nome, cargo: p.cargo, senioridade: p.senioridade, fonte: p.fonte.tipo },
+      // O mandato de origem fica na auditoria (não na pessoa): de onde o registro partiu.
+      await registrar(tx, { usuarioId: u.id, mandatoId: ctx.mandato?.id ?? null, entidade: 'rede_pessoa', entidadeId: p.id, acao: 'registrar_decisor',
+        depois: { empresaId, nome: p.nome, cargo: p.cargo, senioridade: p.senioridade, fonte: p.fonte.tipo,
+          ...(ctx.mandato?.confidencial ? { compartilhadoDeMandatoConfidencial: true } : {}) },
         justificativa: referencia });
       return { linha, nova: true };
     });

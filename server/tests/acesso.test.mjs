@@ -61,9 +61,20 @@ test('a estrutura do cadastro diz que tipo de pessoa decide, sem nome e sem idad
   assert.equal(posicaoNaDecisao('outro', sa).id, 'a_revisar');
   assert.equal(posicaoNaDecisao('diretoria', estruturaDeDecisao({ naturezaJuridica: '2143' })).id, 'decide', 'cooperativa: diretoria conduz');
 
+  // O cargo prova a função, não o controle: só quem o cargo mostra como dono decide a venda (parecer da Rodada 20).
   const importada = juizoDoDecisor({ senioridade: 'ceo', cargo: 'Diretor', origem: 'importacao', origem_referencia: '', empresa_id: null, organizacao: 'Química Alfa' },
     { empresaId: empresa.id, estrutura: ltda, caminho: null, incompletos: 0, respostas: 2, negativas: 2, membros: 2 });
-  assert.deepEqual(importada.juizo.map((j) => j.julgamento), ['atende', 'indicio', 'indicio', 'nao_atende']);
+  assert.deepEqual(importada.juizo.map((j) => j.julgamento), ['indicio', 'indicio', 'indicio', 'nao_atende']);
+  assert.equal(importada.posicao.id, 'influencia');
+  const juizoDe = (cargo, senioridade = 'ceo', estrutura = sa) => juizoDoDecisor({ senioridade, cargo, origem: 'manual', origem_referencia: 'Página institucional: cargo', empresa_id: empresa.id },
+    { empresaId: empresa.id, estrutura, caminho: null, incompletos: 0, respostas: 0, negativas: 0, membros: 1 });
+  const profissional = juizoDe('Presidente profissional contratado');
+  assert.equal(profissional.posicao.id, 'influencia');
+  assert.equal(profissional.juizo[0].julgamento, 'indicio');
+  assert.match(profissional.juizo[0].informacao, /não mostra participação no capital/);
+  for (const cargo of ['Sócio-administrador', 'Titular', 'Acionista controlador', 'Sócia-gerente']) assert.equal(juizoDe(cargo).posicao.id, 'decide', cargo);
+  assert.equal(juizoDe('Conselheiro de administração', 'conselho').posicao.id, 'influencia');
+  assert.equal(juizoDe('Presidente do conselho e controlador', 'conselho').juizo[0].julgamento, 'atende');
 });
 
 test('canais institucionais: site e páginas lidas, nunca telefone ou e-mail do cadastro', () => {

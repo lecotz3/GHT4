@@ -3,7 +3,7 @@ import { IconeRede } from './IconeRede'
 import { PlanoAcesso } from './PlanoAcesso'
 import { ErroApi, type Usuario } from '../agente/api'
 import {
-  pesquisaApi, memoriaApi, type Memoria, type CriterioMemoria, ATALHOS_CADASTRO, DESCRICAO_CATEGORIA, EXEMPLOS_TESE, ROTULO_CATEGORIA, ROTULO_VEREDITO,
+  pesquisaApi, anteriorDe, memoriaApi, type Memoria, type CriterioMemoria, ATALHOS_CADASTRO, DESCRICAO_CATEGORIA, EXEMPLOS_TESE, ROTULO_CATEGORIA, ROTULO_VEREDITO,
   type Categoria, type Criterio, type DetalhePesquisa, type Filtros, type Funil, type IAInfo, type ItemPesquisa, type Previa, type ResumoPesquisa, type Veredito, type VereditoCriterio, type RevisaoVeredito, type PedidoRevisao, type EventoPesquisa, type Monitoramento, type InicialPesquisa, SUBSETORES_ALVO, SUBSETOR_ORIGINAL, rotuloSubsetor, TETO_VARREDURA,
 } from '../agente/pesquisa'
 import { montarGrupos, paginasVazias, sugerirRelaxamento, adicionarDaMemoria, sugestoesDaMemoria, PREFIXO_MEMORIA, descreverEvento, type Paginas, type Relaxamento } from '../agente/pesquisa-tela'
@@ -506,7 +506,7 @@ function Detalhe({ pesquisaId, item: resumo, criterios, aoExpirar, podeRevisar =
             {v.revisao?.fonte ? ` · fonte: ${v.revisao.fonte.descricao}` : ''}. Travada: a revisão automática não altera esta decisão.</span></p>}
           {revisavel && editando !== c.id && <div className="pesquisa-revisao-acoes">
             <button type="button" className="agente-link text-xs" onClick={() => { setEditando(c.id); setErroRevisao('') }} disabled={salvando}>{v.lastro === 'humano' ? 'Rever decisão' : 'Revisar'}<span className="sr-only">: {c.texto}</span></button>
-            {v.lastro === 'humano' && <button type="button" className="agente-link text-xs" onClick={() => void aplicarRevisao(() => pesquisaApi.desfazerRevisao(pesquisaId, empresaId, c.id))} disabled={salvando}>
+            {v.lastro === 'humano' && <button type="button" className="agente-link text-xs" onClick={() => void aplicarRevisao(() => pesquisaApi.desfazerRevisao(pesquisaId, empresaId, c.id, anteriorDe(v)))} disabled={salvando}>
               Desfazer<span className="sr-only"> a revisão de {c.texto}</span></button>}
           </div>}
           {revisavel && editando === c.id && <FormRevisao criterio={c} atual={v} salvando={salvando} erro={erroRevisao} aoCancelar={() => setEditando(null)}
@@ -538,7 +538,7 @@ function FormRevisao({ criterio, atual, salvando, erro, aoSalvar, aoCancelar }: 
   const enviar = (e: FormEvent) => {
     e.preventDefault()
     if (justificativa.trim().length < 10) return
-    aoSalvar({ criterioId: criterio.id, veredito, justificativa: justificativa.trim(), anterior: { veredito: atual.veredito, lastro: atual.lastro ?? null },
+    aoSalvar({ criterioId: criterio.id, veredito, justificativa: justificativa.trim(), anterior: anteriorDe(atual),
       ...(fonte.trim().length >= 3 ? { fonte: { descricao: fonte.trim(), ...(url.trim() ? { url: url.trim() } : {}) } } : {}) })
   }
   return <form className="pesquisa-revisao-form" onSubmit={enviar} aria-label={`Revisar: ${criterio.texto}`}>

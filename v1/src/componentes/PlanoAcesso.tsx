@@ -202,8 +202,11 @@ function RegistrarDecisor({ plano, pesquisaId, aberto, aoRegistrar, aoExpirar }:
   const [url, setUrl] = useState(institucional?.url ?? '')
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
+  // Mandato confidencial: a pessoa e a fonte vão para a rede de toda a casa, então quem registra confirma.
+  const confirmar = plano.compartilhamento === 'confirmar'
+  const [compartilhar, setCompartilhar] = useState(false)
   const envio = useRef<string | null>(null)
-  const valido = nome.trim().length >= 2 && cargo.trim().length >= 2 && descricao.trim().length >= 5
+  const valido = nome.trim().length >= 2 && cargo.trim().length >= 2 && descricao.trim().length >= 5 && (!confirmar || compartilhar)
   const enviar = async (e: FormEvent) => {
     e.preventDefault()
     if (!valido) return
@@ -211,9 +214,10 @@ function RegistrarDecisor({ plano, pesquisaId, aberto, aoRegistrar, aoExpirar }:
     envio.current ??= crypto.randomUUID()
     try {
       await acessoApi.registrarDecisor(plano.empresa.id, { id: envio.current, nome: nome.trim(), cargo: cargo.trim(), senioridade,
-        fonte: { tipo, descricao: descricao.trim(), ...(url.trim() ? { url: url.trim() } : {}) }, ...(pesquisaId ? { pesquisaId } : {}) })
+        fonte: { tipo, descricao: descricao.trim(), ...(url.trim() ? { url: url.trim() } : {}) }, ...(pesquisaId ? { pesquisaId } : {}),
+        ...(confirmar && compartilhar ? { compartilhar: true as const } : {}) })
       envio.current = null
-      setNome(''); setCargo(''); setDescricao('')
+      setNome(''); setCargo(''); setDescricao(''); setCompartilhar(false)
       aoRegistrar()
     } catch (falha) {
       if (falha instanceof ErroApi && falha.status === 401) aoExpirar()
@@ -235,6 +239,10 @@ function RegistrarDecisor({ plano, pesquisaId, aberto, aoRegistrar, aoExpirar }:
         <label className="acesso-campo-largo">Endereço <span className="text-suave">(opcional)</span><input className="agente-input" type="url" value={url} onChange={(e) => setUrl(e.target.value)} maxLength={500} placeholder="https://" /></label>
       </div>
       <p className="pesquisa-fonte">Sem e-mail, telefone ou LinkedIn: o plano não monta contato pessoal. A pessoa entra na rede ligada a esta empresa, e a casa é perguntada se a conhece.</p>
+      {confirmar && <label className="acesso-compartilhar">
+        <input type="checkbox" checked={compartilhar} onChange={(e) => setCompartilhar(e.target.checked)} />
+        <span>Esta pesquisa é de um mandato confidencial. Nome, cargo e fonte vão para a rede de toda a casa: confirmo que a fonte escrita não diz nada do mandato.</span>
+      </label>}
       {erro && <p role="alert" className="pesquisa-erro">{erro}</p>}
       <button className="agente-btn-primario" disabled={salvando || !valido}>{salvando ? 'Salvando…' : 'Registrar'}</button>
     </form>

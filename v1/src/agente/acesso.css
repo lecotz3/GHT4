@@ -90,3 +90,5 @@
   .acesso-juizo-linha { grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; }
   .acesso-juizo-info, .acesso-juizo-fonte { grid-column: 1 / -1; }
 }
+.acesso-compartilhar { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-radius: 10px; background: var(--color-comprador-fundo); color: var(--color-tinta-2); line-height: 1.5; }
+.acesso-compartilhar input { margin-top: 3px; flex: none; }

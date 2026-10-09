@@ -18,7 +18,7 @@ const REF = '2026-08';
 test('papéis numa lista com "e" viram um requisito cada; com "ou", qualquer um serve', () => {
   const lista = interpretarPedido('O CEO e o diretor de RH das distribuidoras de SP');
   assert.deepEqual(lista.papel.requisitos.map((r) => r.rotulo), ['CEO ou presidente', 'Diretoria · recursos humanos']);
-  assert.equal(lista.papel.rotulo, 'Um de cada: CEO ou presidente · Diretoria · recursos humanos');
+  assert.equal(lista.papel.rotulo, 'Um de cada: CEO ou presidente; Diretoria · recursos humanos');
   assert.ok(lista.notas.some((n) => /cada um é procurado em cada empresa/.test(n)));
   assert.equal(lista.recorte.uf, 'SP');
   assert.deepEqual(interpretarPedido('o dono e o CFO das tradings').papel.requisitos.map((r) => r.rotulo), ['Quem decide a venda', 'CFO ou financeiro']);

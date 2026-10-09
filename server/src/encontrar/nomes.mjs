@@ -145,7 +145,10 @@ const FORMA_JURIDICA = /^(?:ltda|sa|s|a|eireli|me|epp|cia|limitada|anonima|socie
  * pelas palavras em comum. CNPJ ou raiz no texto vai direto à empresa. Só sugere: quem vincula é
  * um membro, porque homônimo de empresa existe.
  *
- * @returns {Promise<{ empresas: object[], total: number, identifica: boolean }>}
+ * Leitura parada no teto do recorte (`incompleta`): a lista é de uma amostra. Não se afirma que a
+ * empresa não existe, nem quantas há, nem qual é a mais próxima no catálogo inteiro.
+ *
+ * @returns {Promise<{ empresas: object[], total: number, identifica: boolean, incompleta: boolean }>}
  */
 export async function empresasParecidas(catalogo, texto, { limite = 8 } = {}) {
   const digitos = String(texto ?? '').replace(/\D/g, '');
@@ -153,12 +156,12 @@ export async function empresasParecidas(catalogo, texto, { limite = 8 } = {}) {
     const raiz = digitos.slice(0, 8);
     const r = await lerRecorte(catalogo, { busca: raiz, incluirPossiveis: true });
     const empresas = r.empresas.filter((e) => e.cnpjRaiz === raiz);
-    return { empresas, total: empresas.length, identifica: true };
+    return { empresas, total: empresas.length, identifica: true, incompleta: Boolean(r.truncado) };
   }
   const normal = normalizar(texto).replace(/[^a-z0-9&]+/g, ' ').trim();
   const palavras = normal.split(' ').filter(Boolean);
   const identificam = palavras.filter(identifica).filter((w) => !FORMA_JURIDICA.test(w));
-  if (!identificam.length) return { empresas: [], total: 0, identifica: false };
+  if (!identificam.length) return { empresas: [], total: 0, identifica: false, incompleta: false };
   const chave = [...identificam].sort((a, b) => b.length - a.length)[0];
   const r = await lerRecorte(catalogo, { busca: chave, incluirPossiveis: true });
   const alvo = palavras.filter((w) => !CONECTORES.test(w) && !FORMA_JURIDICA.test(w));
@@ -171,5 +174,5 @@ export async function empresasParecidas(catalogo, texto, { limite = 8 } = {}) {
     pontuadas.push({ e, nota: (igual ? 1000 : 0) + 10 * alvo.filter((w) => doNome.has(w)).length - semForma(e.nome).split(' ').length });
   }
   pontuadas.sort((a, b) => b.nota - a.nota || a.e.nome.localeCompare(b.e.nome, 'pt-BR') || a.e.id.localeCompare(b.e.id));
-  return { empresas: pontuadas.slice(0, limite).map((x) => x.e), total: pontuadas.length, identifica: true };
+  return { empresas: pontuadas.slice(0, limite).map((x) => x.e), total: pontuadas.length, identifica: true, incompleta: Boolean(r.truncado) };
 }

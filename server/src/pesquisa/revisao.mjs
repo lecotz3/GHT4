@@ -18,8 +18,18 @@
  *  Não existe "indício" humano: a pessoa confirma, contesta ou deixa em aberto.
  * ========================================================================== */
 
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { consolidar } from './criterios.mjs';
+
+/* O veredito que a aba mostrava. `versao` é a da revisão humana vista (`revisao.versao`; nas gravadas
+   antes dela, a data): duas revisões humanas com o mesmo veredito ainda são versões diferentes, e a aba
+   antiga não sobrescreve nem desfaz a nova. */
+export const Anterior = z.object({ veredito: z.enum(['atende', 'indicio', 'indeterminado', 'nao_atende']), lastro: z.string().max(20).nullable(),
+  versao: z.string().max(60).nullable().optional() }).strict();
+const mesmaVersao = (atual, anterior) => atual.veredito === anterior.veredito && (atual.lastro ?? null) === anterior.lastro
+  && (atual.lastro !== 'humano' || (atual.revisao?.versao ?? atual.revisao?.em ?? null) === (anterior.versao ?? null));
+const VERSAO_ANTIGA = 'Este veredito mudou em outra aba. Reabra a empresa antes de revisar.';
 
 export const PedidoRevisao = z.object({
   criterioId: z.string().regex(/^[a-z0-9_-]{1,40}$/),
@@ -31,7 +41,7 @@ export const PedidoRevisao = z.object({
     url: z.string().trim().url().max(500).refine((u) => /^https?:\/\//i.test(u), 'Use um endereço http(s).').optional(),
   }).strict().optional(),
   /** O veredito que a tela mostrava: se mudou em outra aba, a revisão é recusada. */
-  anterior: z.object({ veredito: z.enum(['atende', 'indicio', 'indeterminado', 'nao_atende']), lastro: z.string().max(20).nullable() }).strict(),
+  anterior: Anterior,
 }).strict();
 
 const RESUMO = { atende: 'Confirmado pela equipe', nao_atende: 'Contestado pela equipe', indeterminado: 'Em aberto, segundo a equipe' };
@@ -67,26 +77,25 @@ export async function revisarVeredito(tx, { pesquisa, empresaId, pedido, usuario
   if (indice < 0) throw new ConflitoRevisao('criterio_inexistente', 'Este critério não existe nesta pesquisa.');
   const item = await itemTravado(tx, pesquisa.id, empresaId);
   const atual = item.vereditos[indice] ?? { veredito: 'indeterminado', lastro: null };
-  if (atual.veredito !== pedido.anterior.veredito || (atual.lastro ?? null) !== pedido.anterior.lastro) {
-    throw new ConflitoRevisao('veredito_atualizado', 'Este veredito mudou em outra aba. Reabra a empresa antes de revisar.');
-  }
+  if (!mesmaVersao(atual, pedido.anterior)) throw new ConflitoRevisao('veredito_atualizado', VERSAO_ANTIGA);
   const automatico = atual.lastro === 'humano' ? atual.automatico : atual;
   const novo = {
     veredito: pedido.veredito, resumo: pedido.resumo || RESUMO[pedido.veredito], justificativa: pedido.justificativa, lastro: 'humano',
     evidencias: [{ fonte: 'Revisão da equipe', referencia: pedido.fonte?.descricao ?? 'Sem fonte externa informada', ...(pedido.fonte?.url ? { url: pedido.fonte.url } : {}) }],
-    revisao: { autor: { id: usuario.id, nome: usuario.nome }, em: new Date().toISOString(), ...(pedido.fonte ? { fonte: pedido.fonte } : {}) },
+    revisao: { autor: { id: usuario.id, nome: usuario.nome }, em: new Date().toISOString(), versao: randomUUID(), ...(pedido.fonte ? { fonte: pedido.fonte } : {}) },
     automatico,
   };
   return gravar(tx, { pesquisa, item, indice, criterio: pesquisa.criterios[indice], novo, acao: 'revisar', usuario });
 }
 
 /** Devolve o veredito automático guardado. Só vale para um veredito com revisão humana. */
-export async function desfazerRevisao(tx, { pesquisa, empresaId, criterioId, usuario }) {
+export async function desfazerRevisao(tx, { pesquisa, empresaId, criterioId, anterior, usuario }) {
   const indice = pesquisa.criterios.findIndex((c) => c.id === criterioId);
   if (indice < 0) throw new ConflitoRevisao('criterio_inexistente', 'Este critério não existe nesta pesquisa.');
   const item = await itemTravado(tx, pesquisa.id, empresaId);
   const atual = item.vereditos[indice];
   if (atual?.lastro !== 'humano' || !atual.automatico) throw new ConflitoRevisao('sem_revisao_humana', 'Este veredito não tem revisão humana para desfazer.');
+  if (!mesmaVersao(atual, anterior)) throw new ConflitoRevisao('veredito_atualizado', VERSAO_ANTIGA);
   return gravar(tx, { pesquisa, item, indice, criterio: pesquisa.criterios[indice], novo: atual.automatico, acao: 'desfazer', usuario });
 }
 

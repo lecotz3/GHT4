@@ -269,7 +269,7 @@ function ItemLacuna({ x, pesquisaId, aberto, aoPlano, aoExpirar }: { x: Lacuna; 
   return <li className="encontrar-lacuna">
     <div className="encontrar-pessoa-cabeca">
       <div><b>{x.empresa.nome}</b><small>{[x.empresa.cidade && `${x.empresa.cidade}/${x.empresa.uf}`, x.empresa.subsetor].filter(Boolean).join(' · ')}</small></div>
-      <span className="acesso-posicao">{x.faltam?.length && x.mapeadas ? `Falta: ${x.faltam.join(' · ')}` : x.mapeadas ? `${x.mapeadas} mapeada${x.mapeadas === 1 ? '' : 's'}, nenhuma serve` : 'Ninguém mapeado'}</span>
+      <span className="acesso-posicao">{x.faltam?.length && x.mapeadas ? `Falta: ${x.faltam.join(' e ')}` : x.mapeadas ? `${x.mapeadas} mapeada${x.mapeadas === 1 ? '' : 's'}, nenhuma serve` : 'Ninguém mapeado'}</span>
     </div>
     <p className="acesso-leitura">{x.estrutura}</p>
     {(x.avisos ?? []).map((a) => <p key={a} className="pesquisa-alerta encontrar-aviso">{a}</p>)}

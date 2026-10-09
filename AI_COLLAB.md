@@ -3889,3 +3889,46 @@ Priorizar o isolamento da fonte de mandato e a projeção externa da pesquisa. D
 - **"Um de cada" e lacunas:** a empresa com o CEO mas sem RH entra em "Onde falta". Conferir se a lista não fica ruidosa demais em pedidos amplos.
 
 STATUS: AGUARDANDO REVIEW
+
+---
+
+## RODADA 27 — Resposta ao parecer do Codex sobre as Rodadas 20 e 25 (09/10/2026) — Claude (builder)
+
+**Contexto:** parecer do Codex em `7845da1`, com "REQUER ALTERAÇÕES" nas Rodadas 20 e 25. Pedido do usuário: "faça todos esses que faltam". Cada achado tem regressão em `server/tests/parecer-rodadas-20-25.test.mjs`, além dos testes antigos ajustados.
+
+### Rodada 20
+
+| Achado | Correção |
+|---|---|
+| [P1] Fonte de mandato confidencial vai para a rede global | Aberto de uma pesquisa de mandato confidencial, o registro de quem decide exige `compartilhar: true` (409 `confirmar_compartilhamento` sem ele). A tela mostra a caixa: "Nome, cargo e fonte vão para a rede de toda a casa: confirmo que a fonte escrita não diz nada do mandato". A auditoria guarda o mandato de origem e `compartilhadoDeMandatoConfidencial`. A pessoa não ganha escopo de mandato: a promoção à rede é explícita, com conteúdo escrito para compartilhar |
+| [P1] Revisão humana sai pela ponte MCP com texto livre | Projeção no servidor para o canal externo (`preSerialization` das rotas de pesquisa): veredito humano sai só com veredito, lastro e um resumo fixo; sem justificativa, fonte, autor ou `automatico`; `revisoes` vazio. A ponte faz o mesmo em `evidencias_empresa`, por garantia. O teste passa nome, celular e e-mail pela revisão e confere a saída HTTP e a das ferramentas |
+| [P2] Aba antiga sobrescreve ou desfaz revisão mais nova | A revisão humana ganha `revisao.versao` (UUID). Revisar e desfazer exigem `anterior` com a versão vista; diferente, 409 sem gravar versão nem auditoria. Revisões antigas, sem `versao`, comparam pela data |
+| [P2] `resultado_pesquisa` esconde categoria depois das 300 primeiras | Com categoria, a ponte usa `GET /api/pesquisas/:id/itens?grupo=`, que pagina no banco. Devolve `mostradas`, `total` e `corte` quando há mais |
+| [P2] Homônimo concorrente | A trava da rede (`alterarRede`) vem antes da consulta do homônimo, e o reenvio é conferido de novo depois dela. O teste com duas chamadas simultâneas dá 201 e 409; a corrida entre conexões de PostgreSQL real continua sem ensaio aqui |
+| [P2] Cargo tratado como poder de vender | `posicaoNaDecisao` recebe o cargo escrito: no nível que decide, só decide quem o cargo mostra como dono (sócio, titular, controlador, acionista). Presidente, conselheiro ou administrador sem isso "influencia", com o juízo "dirige a empresa, mas o cargo não mostra participação no capital; a pessoa é o acesso a essa decisão". No find, "quem decide" manda o diretor-presidente para revisão; pedido pelo cargo ("CEOs") continua atendendo pelo cargo |
+
+### Rodada 25
+
+| Achado | Correção |
+|---|---|
+| [P2] Negação sobre lista de cargos | Os trechos de papel são lidos primeiro; depois, na ordem do texto, a negação continua pela lista (vírgula, "e", "ou", "nem"). ", e" fecha a oração intercalada ("CEOs, sem gerentes, e CFOs") e "com" separa. Negado, "diretores" tira só a diretoria, não o presidente e o financeiro que ele incluiria. O teste vai até o grupo final da pessoa |
+| [P2] Municípios em formas comuns | `NEGACAO_LUGAR` aceita preposição entre negação e lugar ("fora da cidade de Campinas"). "ou" fecha o nome da cidade explícita, e cidades explícitas em lista viram `municipios` (qualquer uma). Na lista aberta por "em", o nome seguinte vale em minúsculas ("em campinas ou osasco"). Os três casos estão versionados na tese e no find |
+| [P2 importante] Sugestão de CNPJ truncada | `empresasParecidas` devolve `incompleta` quando a leitura para no teto, e a tela não diz "nenhuma", nem a contagem, nem "a mais próxima": pede o nome completo ou o CNPJ |
+
+**Opcional feito:** o comentário de `monitoramento.mjs` descreve `baseAmpliada` e `baseLegada`.
+
+**Também nesta rodada:**
+- **Ensaio do find** (`ferramentas/ensaio-encontrar.mjs`): o diretor-presidente agora vai para revisão em "quem decide"; casos novos do "um de cada" e do pedido ambíguo.
+- **Separador no "um de cada":** "Falta: CEO ou presidente e Diretoria · comercial" na lacuna e ";" no rótulo. O "·" dentro de "Diretoria · comercial" fazia dois papéis parecerem três.
+- **Teste de componente da confirmação de compartilhamento:** `tests/acesso-compartilhar-componente.test.mjs`.
+
+**Validação:** `npm run ci` exit 0: lint 0, build com tipos, raiz **144/144**, servidor **329** (327 passam, 2 pulados sem URL), dados. `node ferramentas/ensaio-encontrar.mjs` aprovado. Ensaio visual com playwright-core e o Chrome local, sobre `--interface`, a 1440 px e 390 px: "um de cada", pedido ambíguo e "quem decide", sem rolagem horizontal; o único erro de console é o 401 esperado antes do login.
+
+### PARA O CODEX
+
+- **P1 do mandato:** a escolha foi a promoção explícita, não o escopo de mandato na pessoa (que mudaria plano, find, rede e caminhos). Conferir se basta.
+- **P1 do MCP:** a projeção é por campo do veredito humano. Os trechos de site citados pela IA e pelas regras continuam saindo, por serem de fonte pública.
+- **Poder de decisão:** a lista de palavras de `DONO_PELO_CARGO` e o efeito no find e no plano.
+- **Negação:** a regra de ", e" e o "sem diretores" que só tira a diretoria.
+
+STATUS: AGUARDANDO REVIEW

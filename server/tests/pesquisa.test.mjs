@@ -983,12 +983,15 @@ test('revisão humana: só em empresa revisada, travada, versionada, desfazível
   assert.equal((await chamar('GET', `/api/pesquisas/${id}/itens/${delta}`)).json().item.vereditos[site].lastro, 'humano');
   // Outra pessoa não alcança.
   const outra = await entrar('outra@teste.local', 'analista');
-  assert.equal((await outra('POST', `/api/pesquisas/${id}/itens/${delta}/revisao/desfazer`, { criterioId: pesquisa.criterios[site].id })).statusCode, 404);
+  const vista = { veredito: 'atende', lastro: 'humano', versao: v.revisao.versao };
+  assert.equal((await outra('POST', `/api/pesquisas/${id}/itens/${delta}/revisao/desfazer`, { criterioId: pesquisa.criterios[site].id, anterior: vista })).statusCode, 404);
+  // Desfazer sem dizer a versão vista não é aceito: a aba antiga não desfaz decisão mais nova.
+  assert.equal((await chamar('POST', `/api/pesquisas/${id}/itens/${delta}/revisao/desfazer`, { criterioId: pesquisa.criterios[site].id })).statusCode, 422);
 
-  const desfeita = (await chamar('POST', `/api/pesquisas/${id}/itens/${delta}/revisao/desfazer`, { criterioId: pesquisa.criterios[site].id })).json();
+  const desfeita = (await chamar('POST', `/api/pesquisas/${id}/itens/${delta}/revisao/desfazer`, { criterioId: pesquisa.criterios[site].id, anterior: vista })).json();
   assert.equal(desfeita.item.vereditos[site].lastro, 'site'); assert.equal(desfeita.item.categoria, 'a_confirmar');
   assert.deepEqual(desfeita.revisoes.map((r) => r.acao), ['desfazer', 'revisar']);
-  assert.equal((await chamar('POST', `/api/pesquisas/${id}/itens/${delta}/revisao/desfazer`, { criterioId: pesquisa.criterios[site].id })).json().erro, 'sem_revisao_humana');
+  assert.equal((await chamar('POST', `/api/pesquisas/${id}/itens/${delta}/revisao/desfazer`, { criterioId: pesquisa.criterios[site].id, anterior: vista })).json().erro, 'sem_revisao_humana');
   await assert.rejects(db.query("UPDATE pesquisa_revisoes SET acao='revisar'"), /append-only/);
 
   // De novo, e a entrega leva a decisão da equipe e a fonte informada.
