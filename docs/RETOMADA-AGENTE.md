@@ -1,10 +1,45 @@
 # Retomada da implementação do agente GHT4
 
-Atualizado em 9 de outubro de 2026 (checkpoint anterior: 8 de outubro). Branch de trabalho: `feat/agente-rodada-4` (não publicada; ver abaixo). A instalação usa Vercel e Supabase; todo push na `main` publica em produção, e o build de produção (`ferramentas/build-vercel.mjs`) roda `preparar-banco.mjs`: migrações, reimportação do catálogo e dos eventos.
+Atualizado em 9 de outubro de 2026 (checkpoint anterior: 8 de outubro). Branch de trabalho: `feat/agente-rodada-4`, publicada na `main` por fast-forward a cada rodada. A instalação usa Vercel e Supabase; todo push na `main` publica em produção, e o build de produção (`ferramentas/build-vercel.mjs`) roda `preparar-banco.mjs`: migrações, reimportação do catálogo e dos eventos.
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodada 21 pronta, sem commit: "encontrar quem decide", o /find do agente (09/10/2026)
+## COMECE AQUI — Rodadas 21 e 22 publicadas: o find aceita empresa pelo nome, lê melhor a tese e liga ao CNPJ (09/10/2026)
+
+**Estado:**
+- **Na `main`:**
+  - Rodada 21, "encontrar quem decide" (`c544958`, `22a8b11`);
+  - Rodada 22 (este checkpoint).
+- **Autorização:** em 09/10/2026 o usuário disse "pode continuar commitando e publicando tudo". Cada rodada pronta é commitada na `feat/agente-rodada-4` e publicada na `main` por fast-forward, o que dispara o deploy.
+- **Rodada 22:** as três melhorias de prioridade alta da Etapa 4 do roteiro "Find 100% funcional" (doc do Claude, https://claude.ai/code/artifact/b4bdfeb9-60cb-4b98-a477-2845cf74f1d8). O registro completo está no [AI_COLLAB.md](../AI_COLLAB.md).
+  - **Empresa pelo nome ou CNPJ no pedido** ("quem decide na Química Alfa"): o pedido propõe o trecho e o catálogo confirma (`server/src/encontrar/nomes.mjs`). A empresa citada vira o recorte inteiro.
+  - **Leitor da tese:** "tradings" no plural, produto de uma palavra ("distribuidoras de solventes") e cidade sem "cidade de", pela lista de municípios do catálogo. Vale também para a pesquisa por tese.
+  - **Pessoa só com o nome da organização:** o agente sugere a empresa pelo nome escrito e um membro liga ao CNPJ.
+    - Rotas `GET /api/rede/pessoas/:id/empresas-sugeridas` e `POST /api/rede/pessoas/:id/empresa`.
+    - Filtro "Sem CNPJ" e botão "Ligar ao CNPJ" na tela Rede.
+  - **Sem migração.**
+- **Arquivos fora do git:** `brag-output/` e as capturas do ensaio, que ficam no scratchpad da sessão.
+
+**Validação:** `npm run ci` exit 0. Lint 0, build com tipos, raiz **132/132**, servidor **302** (300 passam, 2 pulados sem URL), dados. Ensaio `node ferramentas/ensaio-encontrar.mjs` e visual a 1440 px e 390 px sem rolagem horizontal.
+
+### Próximos passos, em ordem
+
+1. **Revisão do Codex:** Rodadas 21 e 22 ("PARA O CODEX" no diário).
+2. **Encher a rede, que é o que limita o find** (Etapas 1 e 2 do roteiro):
+   - importar o quadro societário estatutário com a credencial trazida pelo CLI da Vercel (`npm run rede:verificar` e `docs/ATIVACAO-REDE-GHT4.md`);
+   - ativar a casa: membros na rede, listas, passada de reconhecimento;
+   - ligar ao CNPJ quem veio só com o nome.
+3. **Aceite em produção** (Etapa 3 do roteiro): os dez pedidos com conta de sócio e de analista.
+4. **Melhorias de prioridade média e baixa da Etapa 4:**
+   - find dentro de uma pesquisa por tese;
+   - restrições de outros espaços como aviso;
+   - desempenho (só se a medição passar de 5 s);
+   - recorte além de 10 mil;
+   - histórico das buscas;
+   - IA opcional para pedidos ambíguos.
+5. **Lessie logado:** extensão do Claude no Chrome conectada à mesma conta, ou a CLI ou o MCP oficial autorizado pelo usuário (§10.5 do estudo).
+
+## Checkpoint anterior — Rodada 21 pronta (publicada depois, em `c544958` e `22a8b11`): "encontrar quem decide", o /find do agente (09/10/2026)
 
 **Estado:**
 - **Na `main`:** até a Rodada 20 e a §10 do estudo do Lessie (`9bae022`).

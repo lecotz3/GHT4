@@ -3249,3 +3249,102 @@ Nada de LinkedIn, base de pessoas comprada ou contato pessoal (§5.3).
 - Rever as regras de papel contra os usos de sócio, dono e controlador que descrevem a empresa.
 
 STATUS: AGUARDANDO REVIEW
+
+## RODADA 22 — Find: empresa pelo nome, leitor da tese e vínculo ao CNPJ (09/10/2026) — Claude (builder)
+
+**Contexto:** o usuário pediu "pode continuar commitando e publicando tudo". Esta rodada faz as três melhorias de prioridade alta da Etapa 4 do roteiro "Find 100% funcional" (doc do Claude). As três respondem a limites que a Rodada 21 deixou registrados:
+- o nome da empresa no pedido ("quem decide na Química Alfa") virava critério do site, e ninguém saía em "Atendem";
+- o leitor da tese perdia produto de uma palavra, "tradings" no plural e cidade sem "cidade de";
+- pessoa só com o nome da organização, sem CNPJ, não entrava em busca nenhuma.
+
+**Escopo:**
+- **Adições:**
+  - `server/src/encontrar/nomes.mjs`: candidatos a nome, conferência no catálogo e sugestões de empresa;
+  - `server/src/api/rede-empresa.mjs`: sugestões e vínculo ao CNPJ;
+  - método `municipios()` nos dois catálogos;
+  - `v1/src/agente/vinculo-cnpj.ts` e `v1/src/componentes/VincularCnpj.tsx`;
+  - testes `server/tests/encontrar-nomes.test.mjs` e `tests/vincular-cnpj.test.mjs`;
+  - o ensaio `ferramentas/ensaio-encontrar.mjs` cobre a busca pelo nome e a sugestão.
+- **Alterações em código existente,** todas mínimas e cobertas por teste:
+  - `pesquisa/criterios.mjs` (o leitor da tese, que também serve a pesquisa por tese): `tradings?` no subsetor de distribuição; opção `municipios`; produto único depois do tipo de empresa; nota para nome próprio solto; `NOMES_UF` exportado.
+  - `pesquisa/motor.mjs`: `propor` passa os municípios do catálogo ao leitor, e sem eles segue como antes.
+  - `encontrar/pedido.mjs` e `encontrar/buscar.mjs`: duas leituras do pedido quando há candidato a nome, o recorte pelo nome e a contagem de quem está sem CNPJ.
+  - `api/rede.mjs`: `CAMPOS` e `publicar` exportados; filtro opcional `semEmpresa=1` em `GET /api/rede/pessoas`; `semCnpj` no resumo de `GET /api/rede`.
+  - Telas: `Rede.tsx` (filtro "Sem CNPJ", botão "Ligar ao CNPJ", lista vazia do filtro, largura mínima do texto do cartão), `VisaoGeralRede.tsx` (sugestão "Ligue as pessoas ao CNPJ"), `EncontrarPessoas.tsx` (linha "Empresa" em "Como li o pedido") e o guia em `EstruturaAgente.tsx`.
+  - `server/tests/ativacao-rede.test.mjs`: a expectativa exata do resumo ganhou `semCnpj: 0`. Foi o único teste existente ajustado.
+- **Sem mudança em:** migração, catálogo importado e hash da publicação.
+
+### Feito
+
+1. **Empresa pelo nome ou CNPJ no pedido.** O pedido propõe e o catálogo decide (`encontrar/nomes.mjs`).
+   - **Candidatos:**
+     - o trecho depois de artigo no singular ("na", "no", "da", "do", "pela", "pelo"), em qualquer grafia;
+     - o trecho com inicial maiúscula depois de "em" ou "de";
+     - CNPJ completo, ou a raiz depois da palavra "CNPJ". "10.000.000" sozinho é valor e não vira CNPJ.
+   - **Ficam de fora:** UF, região, sigla de UF, município do catálogo, "cidade de", "no setor de" e trecho só de palavras comuns ("na Química").
+   - **Conferência:** uma consulta ao catálogo por candidato.
+     - O nome vira empresa quando um prefixo dele corresponde, por palavras inteiras do nome ou da razão social, a no máximo 20 empresas. Primeiro vale com todas as palavras; depois, só com as que identificam ("Grupo Alfa" acha "Alfa Química").
+     - Mais de 20 empresas, ou nenhuma: segue como descrição, como antes, com nota.
+     - CNPJ fora do catálogo deixa o recorte vazio, em vez de devolver todas as empresas.
+   - **Recorte:** com empresa citada, ela é o recorte inteiro. Subsetor e "possíveis" não a tiram; a UF citada ainda vale, com nota. As notas de subsetor saem, e a tela mostra "Empresa" e "Só as empresas citadas".
+2. **Leitor da tese** (também melhora a pesquisa por tese):
+   - "tradings" no plural aciona distribuição;
+   - **produto único:** um produto só, logo depois do tipo de empresa ("distribuidoras de solventes"), vira critério de pesquisa. Não vale para "produtos químicos", que é o recorte, nem para nome próprio;
+   - **cidade sem "cidade de":** reconhecida pela lista de municípios onde o catálogo tem empresa.
+     - Depois de "em", vale também em minúsculas.
+     - Depois de "no", "na", "de", "do" ou "da", só com inicial maiúscula e com o nome inteiro: "na Serra Gaúcha" não é Serra.
+     - Nome de estado continua estado.
+   - **Sem a lista de municípios** (catálogo fora do ar), a cidade não vira critério e ganha a nota: escreva "cidade de X".
+3. **Vínculo ao CNPJ de quem só tem o nome da organização:**
+   - **Sugestões:** `GET /api/rede/pessoas/:id/empresas-sugeridas` (`rede.editar`, `no-store`) procura pelo nome escrito ou por uma `busca` digitada.
+     - Exige todas as palavras que identificam o nome; forma jurídica não conta.
+     - Ordena pelo nome igual e depois pelas palavras em comum.
+     - CNPJ ou raiz na busca vai direto à empresa.
+   - **Vínculo:** `POST /api/rede/pessoas/:id/empresa` (`rede.editar`) muda só `empresa_id`, com versão conferida (409), empresa do catálogo (422) e auditoria `vincular_empresa`.
+     - O PATCH da pessoa reescreveria contatos que o papel de quem liga pode não ver.
+     - Nada é ligado sozinho: homônimo de empresa existe.
+   - **Telas:**
+     - visão geral da rede: "Ligue as pessoas ao CNPJ", que abre a lista já filtrada;
+     - "Pessoas nas empresas": filtro "Sem CNPJ (N)" e, em cada cartão sem CNPJ, "Ligar ao CNPJ" com as sugestões e a busca;
+     - o find: "N pessoas da rede estão só com o nome da organização", no lugar do aviso genérico.
+
+### Validação
+
+- **`npm run ci`, exit 0:**
+  - lint (0 diagnósticos);
+  - build com tipos;
+  - raiz **132/132** (4 novos);
+  - servidor **302**, dos quais 300 passam e 2 são pulados sem URL de PostgreSQL (4 novos);
+  - dados e paleta.
+- **Testes novos:**
+  - `server/tests/encontrar-nomes.test.mjs`:
+    - leitor da tese, com e sem municípios;
+    - candidatos a nome sem lugar, cargo ou valor;
+    - API: nome, nome com 2 empresas, CNPJ dentro e fora do catálogo, UF que tira a empresa citada, nome desconhecido e cidade sem "cidade de";
+    - vínculo: resumo `semCnpj`, aviso no find, filtro, sugestões (403 para analista), 409, 422, auditoria, contato preservado e a pessoa entrando no find.
+  - `tests/vincular-cnpj.test.mjs`: textos de situação, fluxo do componente (sugerir, procurar pelo CNPJ, ligar só o CNPJ e a versão), conflito 409 e a linha "Empresa" do find.
+- **Ensaio visual** com playwright a 1440 px e 390 px, sem rolagem horizontal; o único erro de console é o 401 esperado antes do login.
+  - O ensaio pegou o cartão da pessoa espremido numa coluna estreita a 390 px, com o botão novo. O texto ganhou largura mínima e os botões descem.
+  - O aviso "ligada a" presumia gênero pelo nome; virou "Vínculo registrado: … A pessoa agora aparece…".
+
+### Limites
+
+- **Cidade e nome dependem do catálogo:**
+  - cidade fora da lista de municípios do catálogo continua pedindo "cidade de";
+  - nome escrito diferente do cadastro ("Alfa Quimica do Brasil" contra "ALFA QUIMICA LTDA") acha pelo prefixo e pelas palavras que identificam. Grafias muito distantes não acham.
+- **Duas cidades** ("em Campinas ou Osasco"): só a primeira vira critério, e a segunda ganha nota. Critério de município com lista exigiria mudar o contrato da regra.
+- **Pela Etapa 4 do roteiro, seguem para depois:**
+  - histórico das buscas;
+  - restrições de outros espaços como aviso;
+  - desempenho com filtro no SQL;
+  - recorte além de 10 mil;
+  - IA opcional para pedidos ambíguos.
+
+### PARA O CODEX
+
+- Rever os candidatos a nome (`candidatosANome`) contra falsos positivos: artigo no singular em minúsculas, "em" ou "de" com maiúscula, e as exclusões de lugar. O catálogo é o árbitro, mas candidato demais custa uma consulta cada (no máximo 3).
+- Rever a regra "CNPJ fora do catálogo deixa o recorte vazio" e a de "nome não encontrado segue como descrição".
+- Rever `produtoDoTipo` e `municipiosCitados` no leitor da tese: é código compartilhado com a pesquisa por tese.
+- Rever a rota de vínculo: só `empresa_id`, versão, auditoria, e se a sugestão deve exigir `rede.editar` (hoje exige) ou só `rede.ler`.
+
+STATUS: AGUARDANDO REVIEW
