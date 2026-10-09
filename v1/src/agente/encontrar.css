@@ -15,6 +15,14 @@
 .encontrar-criterios li { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; }
 .encontrar-criterios li small { font-size: 10px; color: var(--color-suave); }
 .encontrar-criterios li.is-opcional { color: var(--color-suave); }
+/* Leitura com IA: oferecida quando as regras não leram parte do pedido; quando usada, diz de onde leu. */
+.encontrar-modo-ia { margin-left: 8px; font-size: 11px; font-weight: 600; border-radius: 999px; padding: 1px 8px; background: var(--color-comprador-fundo); color: var(--color-comprador); }
+.encontrar-trechos { display: block; margin-top: 2px; }
+.encontrar-ambiguo { display: grid; gap: 6px; padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--color-fio-forte); background: var(--color-papel); font-size: 12px; line-height: 1.5; color: var(--color-tinta-2); }
+.encontrar-ambiguo.is-ia { border-style: solid; border-color: var(--color-fio); }
+.encontrar-ambiguo ul { display: grid; gap: 4px; list-style: disc; padding-left: 18px; }
+.encontrar-ambiguo-acao { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.encontrar-ambiguo-acao small { flex: 1 1 18rem; min-width: 0; color: var(--color-suave); font-size: 11px; }
 .encontrar-notas { font-size: 12px; color: var(--color-suave); }
 .encontrar-notas summary { cursor: pointer; }
 .encontrar-notas ul { margin-top: 6px; display: grid; gap: 4px; list-style: disc; padding-left: 18px; line-height: 1.5; }

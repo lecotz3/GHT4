@@ -38,7 +38,8 @@ export function EncontrarPessoas({ aoPesquisar, aoExpirar, pesquisa = null, aoSa
   const [memoria, setMemoria] = useState<MemoriaBuscas | null>(null)
   const [esquecendo, setEsquecendo] = useState('')
   const lerMemoria = () => { encontrarApi.memoria().then(setMemoria, (falha) => { if (falha instanceof ErroApi && falha.status === 401) aoExpirar() }) }
-  useEffect(lerMemoria, [])
+  // Só ao montar: a memória é relida depois de cada busca, em `buscar`.
+  useEffect(lerMemoria, []) // oxlint-disable-line react-hooks/exhaustive-deps
   async function esquecer(chave: string | null) {
     if (esquecendo) return
     setEsquecendo(chave ?? 'todas')
@@ -54,7 +55,8 @@ export function EncontrarPessoas({ aoPesquisar, aoExpirar, pesquisa = null, aoSa
     if (pesquisa) setPedido((p) => p.trim() ? p : 'Quem decide')
   }, [pesquisa?.id]) // oxlint-disable-line react-hooks/exhaustive-deps
 
-  async function buscar(e?: FormEvent, repetido?: string) {
+  /** `comIA`: lê o pedido com a IA (um clique, uma chave: repetir o envio não gasta a cota de novo). */
+  async function buscar(e?: FormEvent, repetido?: string, comIA = false) {
     e?.preventDefault()
     const texto = (repetido ?? pedido).trim()
     if (texto.length < 3 || buscando) return
@@ -62,7 +64,7 @@ export function EncontrarPessoas({ aoPesquisar, aoExpirar, pesquisa = null, aoSa
     const n = ++pedidoAtual.current
     setBuscando(true); setErro(''); setPlano(null)
     try {
-      const r = await encontrarApi.buscar(texto, pesquisa?.id)
+      const r = await encontrarApi.buscar(texto, pesquisa?.id, comIA ? crypto.randomUUID() : undefined)
       if (n === pedidoAtual.current) setResultado(r)
       if (!pesquisa) lerMemoria()
     } catch (falha) {
@@ -109,7 +111,8 @@ export function EncontrarPessoas({ aoPesquisar, aoExpirar, pesquisa = null, aoSa
 
     {resultado && <div className="encontrar-resultado" aria-busy={buscando}>
       <p className="encontrar-resumo" role="status">{resumoResultado(resultado)}</p>
-      <Leitura r={resultado} />
+      <Leitura r={resultado} buscando={buscando} aoLerComIA={() => void buscar(undefined, resultado.leitura.pedido, true)}
+        aoUsarRegras={() => void buscar(undefined, resultado.leitura.pedido)} />
       <Funil r={resultado} />
       {GRUPOS.map((g) => <GrupoPessoas key={g} grupo={g} r={resultado} plano={plano} aoPlano={alternar} aoExpirar={aoExpirar}
         aoPesquisar={() => aoPesquisar(resultado.leitura.tese || resultado.leitura.pedido)} />)}
@@ -120,17 +123,28 @@ export function EncontrarPessoas({ aoPesquisar, aoExpirar, pesquisa = null, aoSa
   </main>
 }
 
-/** Como o pedido foi lido: papel, acesso, recorte e critérios da empresa, com as notas. */
-function Leitura({ r }: { r: ResultadoEncontrar }) {
+/** Como o pedido foi lido: papel, acesso, recorte e critérios da empresa, com as notas. Quando as
+    regras não leram parte do pedido com segurança, oferece a leitura com IA (opcional, na cota do dia). */
+function Leitura({ r, buscando, aoLerComIA, aoUsarRegras }: { r: ResultadoEncontrar; buscando: boolean; aoLerComIA: () => void; aoUsarRegras: () => void }) {
   const l = r.leitura
+  const ia = r.ia
+  const ambiguidades = l.modo === 'ia' ? [] : l.ambiguidades ?? []
   const citadas = (l.empresas ?? []).flatMap((n) => n.empresas)
   const recorte = l.pesquisa ? ['Só as empresas da pesquisa', l.recorte.uf || null].filter(Boolean).join(' · ')
     : citadas.length ? ['Só as empresas citadas', l.recorte.uf || null].filter(Boolean).join(' · ')
     : [l.recorte.subsetor && l.recorte.subsetor !== 'todos' ? l.recorte.subsetor : 'Todos os setores-alvo', l.recorte.uf || null, l.recorte.cnae ? `CNAE ${l.recorte.cnae}` : null].filter(Boolean).join(' · ')
   return <section className="agente-superficie encontrar-leitura" aria-labelledby="titulo-leitura">
-    <h3 id="titulo-leitura">Como li o pedido</h3>
+    <h3 id="titulo-leitura">Como li o pedido{l.modo === 'ia' && <span className="encontrar-modo-ia">com a IA{l.ia?.modelo ? ` · ${l.ia.modelo}` : ''}</span>}</h3>
+    {ia?.falha && <p className="pesquisa-alerta encontrar-aviso" role="alert">{ia.falha}</p>}
     <dl>
-      <div><dt>Quem</dt><dd>{l.papel.rotulo}{l.papel.padrao && <small> (o pedido não disse o cargo)</small>}</dd></div>
+      <div><dt>Quem</dt><dd>{l.papel.requisitos?.length ? <>
+        <small>Um de cada, em cada empresa</small>
+        <ul className="encontrar-criterios">{l.papel.requisitos.map((q) => {
+          const c = r.cobertura?.find((x) => x.rotulo === q.rotulo)
+          return <li key={q.rotulo}>{q.rotulo}{c && <small>{c.empresas ? `${numero(c.empresas)} ${c.empresas === 1 ? 'empresa' : 'empresas'}` : 'ninguém mapeado'}</small>}</li>
+        })}</ul></>
+        : <>{l.papel.rotulo}{l.papel.padrao && <small> (o pedido não disse o cargo)</small>}</>}
+        {l.modo === 'ia' && l.papel.trechos.length > 0 && <small className="encontrar-trechos"> Lido de: {l.papel.trechos.map((x) => `“${x}”`).join(', ')}</small>}</dd></div>
       <div><dt>Acesso</dt><dd>{l.acesso.exigido ? `${ACESSO_PEDIDO[l.acesso.exigido]}${l.acesso.obrigatorio ? '' : ' (de preferência)'}` : 'Qualquer um; o caminho aparece quando existe'}</dd></div>
       {l.pesquisa && <div><dt>Empresa</dt><dd>{l.pesquisa.empresas === 1 ? 'A aderente ou provável' : `As ${numero(l.pesquisa.empresas)} aderentes e prováveis`} da pesquisa “{l.pesquisa.tese}”</dd></div>}
       {!l.pesquisa && (l.empresas ?? []).length > 0 && <div><dt>Empresa</dt><dd>{citadas.length ? <ul className="encontrar-criterios">{citadas.map((e) => <li key={e.id}>
@@ -139,6 +153,19 @@ function Leitura({ r }: { r: ResultadoEncontrar }) {
       <div><dt>Na empresa</dt><dd>{l.criterios.length ? <ul className="encontrar-criterios">{l.criterios.map((c) => <li key={c.id} className={c.obrigatorio ? '' : 'is-opcional'}>
         {c.texto}<small>{c.tipo === 'pesquisa' ? 'site oficial' : 'cadastro'}{c.obrigatorio ? '' : ' · opcional'}</small></li>)}</ul> : 'Nenhum critério além do recorte'}</dd></div>
     </dl>
+    {ambiguidades.length > 0 && <div className="encontrar-ambiguo" role="note">
+      <p><b>Parte do pedido ficou ambígua.</b></p>
+      <ul>{ambiguidades.map((a) => <li key={a}>{a}</li>)}</ul>
+      {ia?.disponivel ? <div className="encontrar-ambiguo-acao">
+        <button type="button" className="agente-btn-secundario" onClick={aoLerComIA} disabled={buscando || !ia.restantes}>Ler o pedido com a IA</button>
+        <small>{ia.restantes ? `Usa 1 dos ${numero(ia.restantes)} ${ia.restantes === 1 ? 'pedido' : 'pedidos'} à IA que você ainda tem hoje.` : 'A cota de pedidos à IA de hoje acabou.'} Só o texto do pedido vai ao provedor{ia.provedor ? ` (${ia.provedor})` : ''}; nenhuma pessoa da rede sai daqui.{ia.gratuito ? ' Na camada gratuita, o provedor pode reter o texto.' : ''}</small>
+      </div> : <small>Reescreva com um cargo da escala: conselheiro, presidente, financeiro, diretor ou gerente.</small>}
+    </div>}
+    {l.modo === 'ia' && <div className="encontrar-ambiguo is-ia" role="note">
+      {(l.ia?.duvidas.length ?? 0) > 0 && <><p><b>O que a IA deixou em aberto</b></p><ul>{l.ia!.duvidas.map((d) => <li key={d}>{d}</li>)}</ul></>}
+      <div className="encontrar-ambiguo-acao"><small>Cada papel, acesso e critério vem de um trecho do seu pedido. Confira antes de abordar alguém.</small>
+        <button type="button" className="agente-link" onClick={aoUsarRegras} disabled={buscando}>Voltar à leitura por regras</button></div>
+    </div>}
     {l.notas.length > 0 && <details className="encontrar-notas"><summary>{l.notas.length === 1 ? '1 observação sobre a leitura' : `${l.notas.length} observações sobre a leitura`}</summary>
       <ul>{l.notas.map((n) => <li key={n}>{n}</li>)}</ul></details>}
   </section>
@@ -231,8 +258,8 @@ function Lacunas({ r, plano, aoPlano, aoExpirar }: { r: ResultadoEncontrar; plan
   const l = r.lacunas
   if (!l.total) return null
   return <section className="encontrar-grupo lacunas" aria-labelledby="titulo-lacunas">
-    <header><h3 id="titulo-lacunas"><span className="encontrar-grupo-marca lacuna" aria-hidden="true" />Onde falta quem decide<span className="encontrar-grupo-n">{numero(l.total)}</span></h3>
-      <small>{l.ninguemMapeado === l.total ? 'Empresas que se encaixam no pedido sem ninguém mapeado.' : `Empresas que se encaixam no pedido: ${numero(l.ninguemMapeado)} sem ninguém mapeado, as demais sem alguém que sirva ao pedido.`} Abra o plano e registre quem decide, com a fonte.</small></header>
+    <header><h3 id="titulo-lacunas"><span className="encontrar-grupo-marca lacuna" aria-hidden="true" />{r.cobertura?.length ? 'Onde falta algum papel do pedido' : 'Onde falta quem decide'}<span className="encontrar-grupo-n">{numero(l.total)}</span></h3>
+      <small>{l.ninguemMapeado === l.total ? 'Empresas que se encaixam no pedido sem ninguém mapeado.' : `Empresas que se encaixam no pedido: ${numero(l.ninguemMapeado)} sem ninguém mapeado, as demais sem alguém que sirva ${r.cobertura?.length ? 'a cada papel' : 'ao pedido'}.`} Abra o plano e registre quem decide, com a fonte.</small></header>
     <ul className="encontrar-lacunas">{l.empresas.map((x) => <ItemLacuna key={x.empresa.id} x={x} pesquisaId={r.leitura.pesquisa?.id} aberto={plano === `lacuna:${x.empresa.id}`} aoPlano={() => aoPlano(`lacuna:${x.empresa.id}`)} aoExpirar={aoExpirar} />)}</ul>
     {l.total > l.empresas.length && <p className="pesquisa-fonte">Mostrando {numero(l.empresas.length)} de {numero(l.total)}.</p>}
   </section>
@@ -242,7 +269,7 @@ function ItemLacuna({ x, pesquisaId, aberto, aoPlano, aoExpirar }: { x: Lacuna; 
   return <li className="encontrar-lacuna">
     <div className="encontrar-pessoa-cabeca">
       <div><b>{x.empresa.nome}</b><small>{[x.empresa.cidade && `${x.empresa.cidade}/${x.empresa.uf}`, x.empresa.subsetor].filter(Boolean).join(' · ')}</small></div>
-      <span className="acesso-posicao">{x.mapeadas ? `${x.mapeadas} mapeada${x.mapeadas === 1 ? '' : 's'}, nenhuma serve` : 'Ninguém mapeado'}</span>
+      <span className="acesso-posicao">{x.faltam?.length && x.mapeadas ? `Falta: ${x.faltam.join(' · ')}` : x.mapeadas ? `${x.mapeadas} mapeada${x.mapeadas === 1 ? '' : 's'}, nenhuma serve` : 'Ninguém mapeado'}</span>
     </div>
     <p className="acesso-leitura">{x.estrutura}</p>
     {(x.avisos ?? []).map((a) => <p key={a} className="pesquisa-alerta encontrar-aviso">{a}</p>)}

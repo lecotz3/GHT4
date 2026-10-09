@@ -232,7 +232,7 @@ test('cargo negado sai do pedido, e a área do cargo vira exigência', async (t)
   assert.deepEqual(cfo.papel.senioridades, ['cfo']);
   assert.deepEqual(cfo.papel.excluidas, ['ceo']);
   assert.deepEqual(interpretarPedido('Diretores, menos os CFOs').papel.senioridades.sort(), ['ceo', 'diretoria']);
-  assert.deepEqual(interpretarPedido('Gerentes comerciais de distribuidoras').papel.areas, [{ texto: 'comerciais', senioridades: ['gerencia'] }]);
+  assert.deepEqual(interpretarPedido('Gerentes comerciais de distribuidoras').papel.areas, [{ texto: 'comerciais', area: 'comercial', senioridades: ['gerencia'] }]);
 
   const { db, usuario } = await montar(t);
   const socio = await usuario('socio@teste.local', 'socio', 'Helena Sócia');

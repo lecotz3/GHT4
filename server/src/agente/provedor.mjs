@@ -180,7 +180,9 @@ async function reservar(db, config, e, tarefa) {
       if (c?.confidencial) throw new Error('mandato_confidencial_em_provedor_gratuito');
     }
     await tx.query('SELECT id FROM ia_controle WHERE id = true FOR UPDATE');
-    const anterior = (await tx.query('SELECT * FROM ia_execucoes WHERE conversa_id=$1 AND chave=$2', [e.conversaId, e.chave])).rows[0];
+    // Sem conversa (a leitura do find fora de uma pesquisa), a chave vale por pessoa (0031).
+    const anterior = (await tx.query(`SELECT * FROM ia_execucoes WHERE chave=$2
+      AND (conversa_id=$1 OR ($1::uuid IS NULL AND conversa_id IS NULL AND usuario_id=$3))`, [e.conversaId ?? null, e.chave, e.usuarioId])).rows[0];
     if (anterior) {
       if (anterior.usuario_id !== e.usuarioId || anterior.corpo_hash !== e.corpoHash) throw new Error('pedido_diferente');
       if (anterior.estado === 'reservada') throw new ExecucaoIAEmAndamento();
@@ -252,10 +254,11 @@ export function criarServicoIA(db, config, { fetchImpl = fetch } = {}) {
      * evidências). Recebe só dados públicos e o texto da tese; a resposta é
      * validada por quem chama: o modelo propõe, o código confere.
      */
-    async estruturar({ instrucoes, dados, execucao, sinal = null }) {
+    async estruturar({ instrucoes, dados, execucao, sinal = null, tarefa = 'revisao' }) {
       const input = JSON.stringify(dados);
       if (input.length > 48000) throw new Error('contexto_excessivo');
-      const reserva = await reservar(db, config, execucao, 'revisao');
+      // `tarefa` diferente de 'revisao' (a leitura do find) conta na cota comum de pedidos.
+      const reserva = await reservar(db, config, execucao, tarefa);
       return executarReservado(db, reserva, async () => {
         const r = await chamar(config, fetchImpl, { instrucoes: `${instrucoes}\nResponda somente com um objeto JSON válido, sem texto fora dele.`,
           input, formato: config.api === 'responses' ? { type: 'json_object' } : 'json', sinal });

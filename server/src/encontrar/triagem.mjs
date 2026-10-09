@@ -1,7 +1,7 @@
 import { juizoDoDecisor, estruturaDeDecisao } from '../acesso/plano.mjs';
 import { verificarCadastro } from '../pesquisa/criterios.mjs';
 import { senioridadeDe, categoriaDe } from '../rede/contratos.mjs';
-import { ACESSO_ROTULO } from './pedido.mjs';
+import { ACESSO_ROTULO, AREAS, cargoTrazArea } from './pedido.mjs';
 
 /* =============================================================================
  *  GHT4 · triagem das pessoas encontradas
@@ -50,15 +50,83 @@ function linhaDoPapel(p, papel, decisao) {
 }
 
 /* A área do cargo ("gerentes comerciais") não está na escala da rede: atende quando o cargo escrito
-   a traz, e fica sem evidência quando não traz, nunca reprovada (o cargo pode só estar resumido). */
+   a traz, e fica sem evidência quando não traz, nunca reprovada (o cargo pode só estar resumido).
+   Área da lista (`AREAS`) vale pelos nomes dela ("de RH" atende "Recursos Humanos"); fora da
+   lista, pelas palavras do pedido. */
 const palavras = (t) => String(t ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 const raiz = (w) => w.length <= 3 ? w : w.slice(0, Math.max(4, Math.min(6, w.length - 1)));
-function linhaDaArea(p, area) {
-  const doCargo = palavras(p.cargo);
-  const pedidas = palavras(area).filter((w) => !/^(?:de|da|do|das|dos|com|e)$/.test(w));
-  const traz = pedidas.length > 0 && pedidas.every((w) => doCargo.some((c) => w.length <= 3 ? c === w : c.startsWith(raiz(w))));
-  return { requisito: `Área do cargo: ${area}`, julgamento: traz ? 'atende' : 'indeterminado', obrigatorio: true, fonte: null,
-    informacao: traz ? `O cargo registrado traz a área: ${p.cargo}.` : `O cargo registrado (${p.cargo || 'sem cargo escrito'}) não diz a área.` };
+/** Se o cargo escrito traz a área pedida (`{texto, area}` de `leitura.papel.areas`). */
+export function cargoTemArea(cargo, area) {
+  const daLista = area.area ? AREAS.find((a) => a.id === area.area) : null;
+  if (daLista) return cargoTrazArea(cargo, daLista);
+  const doCargo = palavras(cargo);
+  const pedidas = palavras(area.texto).filter((w) => !/^(?:de|da|do|das|dos|com|e)$/.test(w));
+  return pedidas.length > 0 && pedidas.every((w) => doCargo.some((c) => w.length <= 3 ? c === w : c.startsWith(raiz(w))));
+}
+/* Várias áreas para o mesmo cargo ("o diretor comercial e o diretor de RH"): basta uma. */
+function linhaDaArea(p, areas) {
+  const trazida = areas.find((a) => cargoTemArea(p.cargo, a));
+  const nomes = [...new Set(areas.map((a) => a.texto))].join(' ou ');
+  return { requisito: `Área do cargo: ${trazida ? trazida.texto : nomes}`, julgamento: trazida ? 'atende' : 'indeterminado', obrigatorio: true, fonte: null,
+    informacao: trazida ? `O cargo registrado traz a área: ${p.cargo}.` : `O cargo registrado (${p.cargo || 'sem cargo escrito'}) não diz a área.` };
+}
+
+/* Cargo único (presidente, CFO) com mais de um ocupante na mesma empresa, por fontes diferentes:
+   o Lessie mostra dois "CEOs" do mesmo banco sem apontar o conflito (PESQUISA-LESSIE-AI.md, §11.5).
+   Aqui o quadro estatutário (Receita) prevalece sobre a lista da equipe e o registro da casa; sem
+   ele, todos vão para revisão. Dois do próprio quadro não são conflito: o quadro é a fonte. */
+const POSTOS_UNICOS = [
+  { id: 'presidencia', rotulo: 'presidente ou CEO', senioridades: ['ceo'],
+    re: /\b(?:ceo|presidente|diretor(?:a)?[- ]presidente|diretor(?:a)? geral|chief executive)\b/, nao: /\bvice\b|conselho/ },
+  { id: 'financeiro', rotulo: 'diretor financeiro ou CFO', senioridades: ['cfo'],
+    re: /\b(?:cfo|diretor(?:a)? financeir[oa]|vice[- ]presidente financeir[oa]|chief financial)\b/, nao: null },
+];
+const semAcento = (t) => String(t ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+const nomeChave = (t) => semAcento(t).replace(/[^a-z]+/g, ' ').trim();
+const postoDe = (p) => POSTOS_UNICOS.find((x) => x.senioridades.includes(p.senioridade) && x.re.test(semAcento(p.cargo)) && !(x.nao && x.nao.test(semAcento(p.cargo)))) ?? null;
+
+/** Por pessoa: a linha do conflito de cargo único, quando há. */
+export function conflitosDeCargoUnico(pessoas) {
+  const grupos = new Map();
+  for (const p of pessoas) {
+    const posto = postoDe(p);
+    if (!posto || !p.empresa_id) continue;
+    const chave = `${p.empresa_id}|${posto.id}`;
+    if (!grupos.has(chave)) grupos.set(chave, { posto, pessoas: [] });
+    grupos.get(chave).pessoas.push(p);
+  }
+  const linhas = new Map();
+  for (const { posto, pessoas: ocupantes } of grupos.values()) {
+    // A mesma pessoa cadastrada duas vezes (mesmo nome) não é conflito de cargo.
+    if (new Set(ocupantes.map((p) => nomeChave(p.nome))).size < 2) continue;
+    const doQuadro = ocupantes.filter((p) => p.origem === 'cadastro_publico');
+    if (doQuadro.length === ocupantes.length) continue;
+    const nomes = (lista) => lista.map((p) => p.nome).join(', ');
+    for (const p of ocupantes) {
+      const outros = ocupantes.filter((o) => o !== p);
+      if (p.origem === 'cadastro_publico') {
+        linhas.set(p.id, { requisito: 'Cargo único sem conflito', julgamento: 'atende', obrigatorio: false,
+          informacao: `Outra fonte também aponta ${nomes(outros.filter((o) => o.origem !== 'cadastro_publico'))} como ${posto.rotulo}. Vale o quadro estatutário.`,
+          fonte: 'Quadro societário público (Receita Federal)' });
+      } else if (doQuadro.length) {
+        linhas.set(p.id, { requisito: 'Cargo único sem conflito', julgamento: 'indicio', obrigatorio: true,
+          informacao: `O quadro estatutário registra ${nomes(doQuadro)} como ${posto.rotulo}. Pode ser a mesma pessoa escrita de outro jeito, ou um cadastro desatualizado: confirme quem ocupa o cargo hoje.`,
+          fonte: 'Quadro societário público (Receita Federal)' });
+      } else {
+        linhas.set(p.id, { requisito: 'Cargo único sem conflito', julgamento: 'indicio', obrigatorio: true,
+          informacao: `${nomes(outros)} também ${outros.length === 1 ? 'aparece' : 'aparecem'} como ${posto.rotulo} desta empresa, por outra fonte. Confirme quem ocupa o cargo hoje.`,
+          fonte: 'Cadastro da rede' });
+      }
+    }
+  }
+  return linhas;
+}
+
+/** Se a pessoa julgada serve a um requisito da lista "um de cada" (`leitura.papel.requisitos`). */
+export function serveAoRequisito(pessoa, cargo, req) {
+  if (pessoa.grupo === 'excluido') return false;
+  const noPapel = req.decide ? pessoa.posicao.id === 'decide' : req.senioridades.includes(pessoa.senioridade);
+  return noPapel && (!req.area || cargoTemArea(cargo, { texto: req.area.rotulo, area: req.area.id }));
 }
 
 /**
@@ -73,9 +141,15 @@ export function julgarPessoa(p, ctx, leitura) {
   const base = juizoDoDecisor(p, { empresaId: ctx.empresa.id, cnpjRaiz: ctx.empresa.cnpjRaiz, estrutura: ctx.avaliacao.estrutura,
     caminho: ctx.caminho, incompletos: ctx.incompletos, respostas: ctx.respostas, negativas: ctx.negativas, membros: ctx.membros });
   const [decisao, fonteDoCargo, pertence, casa] = base.juizo;
-  const linhas = [linhaDoPapel(p, leitura.papel, decisao), ...(leitura.papel.areas ?? []).filter((a) => a.senioridades.includes(senioridadeDe(p.senioridade).id)).map((a) => linhaDaArea(p, a.texto))];
+  const nivel = senioridadeDe(p.senioridade).id;
+  // No "um de cada", a área é de um papel só: quem serve a outro papel da lista, sem área, não a deve.
+  const semArea = (leitura.papel.requisitos ?? []).some((r) => !r.area && (r.decide ? base.posicao.id === 'decide' : r.senioridades.includes(nivel)));
+  const areas = semArea ? [] : (leitura.papel.areas ?? []).filter((a) => a.senioridades.includes(nivel));
+  const linhas = [linhaDoPapel(p, leitura.papel, decisao), ...(areas.length ? [linhaDaArea(p, areas)] : [])];
   if (leitura.papel.senioridades.length) linhas.push({ ...decisao, obrigatorio: false });
-  linhas.push({ ...fonteDoCargo, obrigatorio: true }, { ...pertence, obrigatorio: true }, ...ctx.avaliacao.linhas);
+  linhas.push({ ...fonteDoCargo, obrigatorio: true });
+  if (ctx.conflito) linhas.push(ctx.conflito);
+  linhas.push({ ...pertence, obrigatorio: true }, ...ctx.avaliacao.linhas);
 
   const acesso = leitura.acesso;
   const linhaCasa = { ...casa, obrigatorio: Boolean(acesso.exigido && acesso.obrigatorio) };

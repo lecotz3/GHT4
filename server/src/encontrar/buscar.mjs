@@ -3,7 +3,7 @@ import { lerGrafo, caminhosNoGrafo, LIMITACAO_GRAFO } from '../rede/caminhos.mjs
 import { respostasPorPessoa } from '../acesso/plano.mjs';
 import { interpretarPedido } from './pedido.mjs';
 import { resolverNomes } from './nomes.mjs';
-import { avaliarEmpresa, julgarPessoa, ordenar, GRUPOS } from './triagem.mjs';
+import { avaliarEmpresa, julgarPessoa, ordenar, GRUPOS, conflitosDeCargoUnico, serveAoRequisito } from './triagem.mjs';
 
 /* =============================================================================
  *  GHT4 · encontrar quem decide (o "/find" do agente)
@@ -105,22 +105,23 @@ function linhaDaPesquisa(item, pesquisa) {
  * @param {{texto: string, usuario: {id: string}, pesquisa?: {id: string, tese: string, referencia: string|null,
  *   escopo: string, itens: {empresa: object, categoria: string, aderencia: number}[]}|null}} pedido
  *   `pesquisa`: as empresas aderentes e prováveis de uma pesquisa por tese, já autorizada pela rota.
+ *   `ia`: a leitura do pedido feita pela IA e já conferida (encontrar/ia.mjs), no lugar das regras.
  */
-export async function encontrarPessoas(db, catalogo, { texto, usuario, pesquisa = null }, { limitePessoas = LIMITE_PESSOAS, paginaRecorte = LIMITE_RECORTE } = {}) {
+export async function encontrarPessoas(db, catalogo, { texto, usuario, pesquisa = null, ia = null }, { limitePessoas = LIMITE_PESSOAS, paginaRecorte = LIMITE_RECORTE } = {}) {
   // Sem a lista de municípios, cidade continua pedindo "cidade de" (como na pesquisa por tese).
   const municipios = await Promise.resolve(catalogo.municipios?.()).catch(() => null) ?? null;
-  let leitura = interpretarPedido(texto, { municipios });
+  let leitura = interpretarPedido(texto, { municipios, ia });
   // A restrição que decide o grupo é a do espaço do trabalho: o da pesquisa, ou o pessoal do membro.
   const escopo = pesquisa?.escopo ?? `usuario:${usuario.id}`;
   let recorte;
   try {
     if (pesquisa) {
       // Nome ou CNPJ no pedido estreita as empresas da pesquisa; não traz outras para dentro dela.
-      if (leitura.candidatos.length) leitura = interpretarPedido(texto, { municipios, nomes: (await resolverNomes(catalogo, leitura.candidatos)).nomes });
+      if (leitura.candidatos.length) leitura = interpretarPedido(texto, { municipios, ia, nomes: (await resolverNomes(catalogo, leitura.candidatos)).nomes });
       recorte = recorteDaPesquisa(leitura, pesquisa);
     } else if (leitura.candidatos.length) {
       const { nomes, referencia } = await resolverNomes(catalogo, leitura.candidatos);
-      leitura = interpretarPedido(texto, { municipios, nomes });
+      leitura = interpretarPedido(texto, { municipios, ia, nomes });
       if (leitura.empresas.length) recorte = recortePeloNome(leitura, referencia);
     }
     recorte ??= await lerRecorte(catalogo, leitura.recorte, { pagina: paginaRecorte });
@@ -190,32 +191,56 @@ export async function encontrarPessoas(db, catalogo, { texto, usuario, pesquisa 
   ]);
   if (semCnpj) limitacoes.push(`${semCnpj.toLocaleString('pt-BR')} ${semCnpj === 1 ? 'pessoa da rede está' : 'pessoas da rede estão'} só com o nome da organização e não ${semCnpj === 1 ? 'entra' : 'entram'} em nenhuma busca. Em Relacionamentos › Pessoas nas empresas, use "Vincular ao CNPJ".`);
 
+  const conflitos = conflitosDeCargoUnico(avaliadas);
   const julgadas = avaliadas.map((p) => {
     const { empresa, avaliacao } = empresas.get(p.empresa_id);
     const dela = porAlvo.get(p.id) ?? [];
     const resp = respostas.get(p.id) ?? { respostas: 0, negativas: 0 };
     return julgarPessoa(p, { empresa, avaliacao, caminho: dela.find((c) => c.recomendavel) ?? null,
-      incompletos: dela.filter((c) => !c.recomendavel).length, membros, ...resp,
+      incompletos: dela.filter((c) => !c.recomendavel).length, membros, ...resp, conflito: conflitos.get(p.id) ?? null,
       restricao: restricoes.get(p.empresa_id) ?? null, avisos: avisos.get(p.empresa_id) ?? [] }, leitura);
   });
   const grupos = Object.fromEntries(GRUPOS.map((g) => [g, ordenar(julgadas.filter((p) => p.grupo === g))]));
 
-  /* Lacunas: empresas nos critérios, sem restrição, onde ninguém mapeado serve ao pedido.
-     É o "caminho de recall": alguém da casa registra quem decide, com a fonte. */
+  /* "Um de cada" (`papel.requisitos`): por empresa, quais papéis da lista alguém serve. A cobertura
+     é contada das pessoas julgadas, nunca escrita à parte: "CEO: 3 empresas · RH: nenhuma". */
+  const requisitos = leitura.papel.requisitos ?? null;
+  const cargoDe = new Map(avaliadas.map((p) => [p.id, p.cargo]));
+  const servidosPorEmpresa = new Map();
+  if (requisitos) for (const p of julgadas) {
+    requisitos.forEach((req, i) => {
+      if (!serveAoRequisito(p, cargoDe.get(p.id), req)) return;
+      if (!servidosPorEmpresa.has(p.empresa.id)) servidosPorEmpresa.set(p.empresa.id, new Map());
+      const porReq = servidosPorEmpresa.get(p.empresa.id);
+      porReq.set(i, (porReq.get(i) ?? 0) + 1);
+    });
+  }
+  const cobertura = requisitos ? requisitos.map((req, i) => {
+    const empresasServidas = [...servidosPorEmpresa.values()].filter((m) => m.has(i));
+    return { rotulo: req.rotulo, empresas: empresasServidas.length, pessoas: empresasServidas.reduce((s, m) => s + m.get(i), 0) };
+  }) : null;
+
+  /* Lacunas: empresas nos critérios, sem restrição, onde ninguém mapeado serve ao pedido (ou, no
+     "um de cada", onde falta algum dos papéis). É o "caminho de recall": alguém da casa registra
+     quem decide, com a fonte. */
   const servidas = new Set(julgadas.filter((p) => p.grupo !== 'excluido').map((p) => p.empresa.id));
+  const faltamEm = (id) => requisitos ? requisitos.filter((_, i) => !servidosPorEmpresa.get(id)?.has(i)).map((r) => r.rotulo) : [];
   const mapeadas = new Map();
   for (const p of avaliadas) mapeadas.set(p.empresa_id, (mapeadas.get(p.empresa_id) ?? 0) + 1);
-  const lacunas = nosCriterios.filter((id) => !servidas.has(id) && !restricoes.has(id) && !(semAvaliar && id >= semAvaliar)).map((id) => {
+  const lacunas = nosCriterios.filter((id) => (requisitos ? faltamEm(id).length > 0 : !servidas.has(id)) && !restricoes.has(id) && !(semAvaliar && id >= semAvaliar)).map((id) => {
     const { empresa, avaliacao } = empresas.get(id);
     const pendentes = avaliacao.linhas.filter((l) => l.obrigatorio && l.julgamento !== 'atende').length;
     return { empresa: { id, nome: empresa.nome, cidade: empresa.cidade ?? null, uf: empresa.uf ?? null, subsetor: empresa.subsetor ?? null },
-      mapeadas: mapeadas.get(id) ?? 0, estrutura: avaliacao.estrutura.leitura, pendentes, avisos: avisos.get(id) ?? [] };
+      mapeadas: mapeadas.get(id) ?? 0, estrutura: avaliacao.estrutura.leitura, pendentes, avisos: avisos.get(id) ?? [],
+      ...(requisitos ? { faltam: faltamEm(id) } : {}) };
   }).sort((a, b) => a.pendentes - b.pendentes || (a.mapeadas ? 1 : 0) - (b.mapeadas ? 1 : 0));
 
   const contagem = Object.fromEntries(GRUPOS.map((g) => [g, grupos[g].length]));
   return {
     leitura: { pedido: leitura.pedido, tese: leitura.tese, papel: leitura.papel, acesso: leitura.acesso, recorte: leitura.recorte,
       criterios: leitura.criterios.map(({ id, texto, obrigatorio, tipo }) => ({ id, texto, obrigatorio, tipo })), notas: leitura.notas,
+      modo: leitura.modo, ambiguidades: leitura.ambiguidades,
+      ia: ia ? { modelo: ia.modelo ?? null, duvidas: ia.duvidas, descartes: ia.descartes } : null,
       empresas: leitura.empresas.map(({ trecho, empresas }) => ({ trecho,
         empresas: empresas.map(({ id, nome, cidade, uf }) => ({ id, nome, cidade: cidade ?? null, uf: uf ?? null })) })),
       pesquisa: pesquisa ? { id: pesquisa.id, tese: pesquisa.tese, empresas: pesquisa.itens.length, categorias: CATEGORIAS_DA_PESQUISA } : null },
@@ -226,6 +251,7 @@ export async function encontrarPessoas(db, catalogo, { texto, usuario, pesquisa 
     },
     grupos: Object.fromEntries(GRUPOS.map((g) => [g, grupos[g].slice(0, EXIBIDOS[g])])),
     lacunas: { total: lacunas.length, ninguemMapeado: lacunas.filter((l) => !l.mapeadas).length, empresas: lacunas.slice(0, LACUNAS_EXIBIDAS) },
+    cobertura,
     membros, referencia, fonte: recorte.fonte ?? 'Receita Federal · CNPJ', limitacoes,
   };
 }

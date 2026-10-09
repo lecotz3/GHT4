@@ -41,7 +41,67 @@ const USO_DA_EMPRESA_ANTES = /(?:\bate|\bsem|\bnenhum|\bmaximo|\bmais de|\bmenos
    da negação: nem vira alternativa positiva, nem sobra um "sem" para o intérprete da tese. */
 const NEGACAO_ANTES = /(?:^|[\s,;(])(?:sem|exceto|menos|nao|nem|fora|excluindo|tirando|salvo)\s+(?:(?:os|as|o|a)\s+)?$/;
 
-const AREA_DO_CARGO = /^\s+(?:comerciai?s|comercial|industriai?s|industrial|tecnic[oa]s?|juridic[oa]s?|administrativ[oa]s?|operaciona(?:l|is)|de (?:vendas|compras|operacoes|marketing|rh|recursos humanos|suprimentos|logistica|produtos?|novos negocios|negocios|qualidade|tecnologia|ti|inovacao|planejamento|estrategia|relacoes com investidores))\b/;
+const AREA_DO_CARGO = /^\s+(?:comerciai?s|comercial|industriai?s|industrial|tecnic[oa]s?|juridic[oa]s?|administrativ[oa]s?|operaciona(?:l|is)|de (?:vendas|compras|operacoes|marketing|rh|recursos humanos|pessoas|gente|suprimentos|logistica|produtos?|novos negocios|negocios|qualidade|tecnologia|ti|inovacao|planejamento|estrategia|relacoes com investidores))\b/;
+
+/* Áreas do cargo, com os nomes com que aparecem no cargo escrito: "de RH" atende quem é
+   "Diretor de Recursos Humanos". A IA (encontrar/ia.mjs) escolhe a área por esta lista. */
+export const AREAS = Object.freeze([
+  { id: 'rh', rotulo: 'recursos humanos', termos: ['rh', 'recursos humanos', 'pessoas', 'gente', 'people', 'hr', 'talentos'] },
+  { id: 'comercial', rotulo: 'comercial', termos: ['comercial', 'comerciais', 'vendas', 'sales'] },
+  { id: 'compras', rotulo: 'compras', termos: ['compras', 'suprimentos', 'procurement', 'purchasing'] },
+  { id: 'operacoes', rotulo: 'operações', termos: ['operacoes', 'operacional', 'operacionais', 'industrial', 'industriais', 'producao', 'fabrica'] },
+  { id: 'juridico', rotulo: 'jurídico', termos: ['juridico', 'juridica', 'juridicos', 'legal', 'compliance'] },
+  { id: 'marketing', rotulo: 'marketing', termos: ['marketing', 'mkt'] },
+  { id: 'logistica', rotulo: 'logística', termos: ['logistica', 'supply chain'] },
+  { id: 'ti', rotulo: 'tecnologia', termos: ['ti', 'tecnologia', 'sistemas'] },
+  { id: 'qualidade', rotulo: 'qualidade', termos: ['qualidade', 'regulatorio', 'regulatorios'] },
+  { id: 'tecnica', rotulo: 'técnica', termos: ['tecnico', 'tecnica', 'tecnicos', 'tecnicas', 'pesquisa e desenvolvimento', 'inovacao', 'produto', 'produtos'] },
+  { id: 'novos_negocios', rotulo: 'novos negócios', termos: ['novos negocios', 'estrategia', 'planejamento', 'expansao'] },
+  { id: 'administrativa', rotulo: 'administrativa', termos: ['administrativo', 'administrativa', 'administrativos', 'administracao'] },
+  { id: 'ri', rotulo: 'relações com investidores', termos: ['relacoes com investidores', 'ri'] },
+]);
+const temTermo = (texto, termo) => new RegExp(`(?:^|[^a-z0-9&])${termo.replace(/[.*+?^${}()|[\]\\&]/g, '\\$&')}(?:$|[^a-z0-9&])`).test(texto);
+/** A área da lista que o texto nomeia ("de RH", "comerciais"), ou null. */
+export const areaDoTexto = (texto) => { const t = mesmoTamanho(String(texto ?? '')); return AREAS.find((a) => a.termos.some((x) => temTermo(t, x))) ?? null; };
+/** Se o cargo escrito traz a área. */
+export const cargoTrazArea = (cargo, area) => { const t = mesmoTamanho(String(cargo ?? '')); return area.termos.some((x) => temTermo(t, x)); };
+
+/* Vários papéis numa lista com "e" ("o CEO e o diretor de RH") pedem um de cada em cada empresa:
+   cada papel é um requisito, com a cobertura contada à parte. Com "ou", ou fora de uma lista,
+   qualquer um serve, como antes. É o achado do Lessie na §11.5 de PESQUISA-LESSIE-AI.md. */
+const LISTA = /^\s*(?:,|\be\b|,\s*e\b)\s*(?:(?:o|a|os|as|um|uma|seu|sua|seus|suas|tambem)\s+)?$/;
+/** `n` nulo: quem chama já sabe que é "um de cada" (a IA disse, com o trecho), e o conector não é conferido. */
+function requisitosDaLista(achados, n) {
+  if (achados.length < 2) return null;
+  const ordem = [...achados].sort((a, b) => a.ini - b.ini);
+  if (n !== null) {
+    let comE = false;
+    for (let i = 1; i < ordem.length; i++) {
+      const entre = n.slice(ordem[i - 1].fim, ordem[i].ini);
+      if (!LISTA.test(entre)) return null;
+      if (/\be\b/.test(entre)) comE = true;
+    }
+    if (!comE) return null;
+  }
+  const vistos = new Map();
+  for (const a of ordem) {
+    const chave = `${a.decide ? 'decide' : a.senioridades.join('+')}|${a.area?.id ?? ''}`;
+    if (!vistos.has(chave)) vistos.set(chave, requisito(a));
+  }
+  return vistos.size >= 2 ? [...vistos.values()] : null;
+}
+/* "Diretores" e "liderança" juntam vários degraus da escala; no rótulo do requisito, o nome do pedido. */
+const GRUPOS_DA_ESCALA = [['Liderança', ['ceo', 'cfo', 'conselho', 'diretoria']], ['Diretoria', ['ceo', 'cfo', 'diretoria']]];
+function requisito({ decide, senioridades, area }) {
+  const chave = [...senioridades].sort().join('+');
+  const grupo = GRUPOS_DA_ESCALA.find(([, s]) => s.join('+') === chave)?.[0];
+  const base = decide ? 'Quem decide a venda' : grupo ?? senioridades.map((s) => senioridadeDe(s).rotulo).join(' ou ');
+  return { rotulo: area ? `${base} · ${area.rotulo}` : base, decide: Boolean(decide), senioridades: decide ? [] : [...senioridades], area: area ?? null };
+}
+
+/* Sobra do pedido que parece cargo mas não está na escala da rede ("chefe", "COO", "RH"):
+   as regras deixam para a empresa, e é aí que a leitura com IA ajuda. */
+const CARGO_FORA_DA_ESCALA = /\b(?:chefes?|lider(?:es)?|responsave(?:l|is)|superintendentes?|vice[- ]presidentes?|vps?|coos?|ctos?|cios?|cmos?|chros?|cpos?|rh|recursos humanos|people|compradores?|encarregad[oa]s?|supervisor(?:es|as|a)?|quem (?:cuida|responde|assina|compra|vende))\b/g;
 
 /* Acesso pela rede da casa. "Introdução" pede mais que "alcança": o titular aceitou apresentar. */
 const ACESSOS = [
@@ -53,6 +113,13 @@ const PALAVRAS_DA_PESSOA = /\b(?:pessoas?|nomes?|contatos?|quem|profissionais?|e
 
 export const ACESSO_ROTULO = Object.freeze({ com_caminho: 'A casa chega até ela', introducao: 'Há introdução viável pela casa' });
 
+/** Onde o trecho citado está no pedido normalizado (maiúsculas e acentos não contam), ou -1. */
+export const posicaoDoTrecho = (n, trecho) => {
+  const t = mesmoTamanho(String(trecho ?? '').trim());
+  return t.length >= 2 ? n.indexOf(t) : -1;
+};
+export { mesmoTamanho };
+
 /**
  * Lê o pedido. Sem papel no texto, procura quem decide a venda, com nota.
  *
@@ -60,12 +127,17 @@ export const ACESSO_ROTULO = Object.freeze({ com_caminho: 'A casa chega até ela
  * nome ou CNPJ); quem chama os confere no catálogo (`resolverNomes`) e lê de novo com `nomes`.
  * Na segunda, o trecho aceito sai da tese e as empresas voltam em `empresas`.
  *
- * @param {{ referencia?: string, municipios?: Set<string>|null, nomes?: object[]|null }} [opcoes]
- * @returns {{ pedido: string, papel: {decide: boolean, senioridades: string[], rotulo: string, padrao: boolean, trechos: string[]},
- *   acesso: {exigido: 'com_caminho'|'introducao'|null, obrigatorio: boolean, trecho: string|null},
- *   recorte: object, criterios: object[], notas: string[], candidatos: object[], empresas: {trecho: string, empresas: object[]}[] }}
+ * Com `ia` (a leitura da IA já conferida por `validarLeituraIA`), papel, acesso e critérios da
+ * empresa vêm dela, cada item preso a um trecho literal do pedido; nome de empresa e recorte
+ * continuam pelas regras, sobre o que sobra.
+ *
+ * @param {{ referencia?: string, municipios?: Set<string>|null, nomes?: object[]|null, ia?: object|null }} [opcoes]
+ * @returns {{ pedido: string, papel: {decide: boolean, senioridades: string[], rotulo: string, padrao: boolean, trechos: string[],
+ *   requisitos: object[]|null}, acesso: {exigido: 'com_caminho'|'introducao'|null, obrigatorio: boolean, trecho: string|null},
+ *   recorte: object, criterios: object[], notas: string[], candidatos: object[], empresas: {trecho: string, empresas: object[]}[],
+ *   modo: 'regras'|'ia', ambiguidades: string[] }}
  */
-export function interpretarPedido(texto, { referencia, municipios = null, nomes = null } = {}) {
+export function interpretarPedido(texto, { referencia, municipios = null, nomes = null, ia = null } = {}) {
   const original = String(texto || '').slice(0, 2000);
   const n = mesmoTamanho(original);
   const usados = [];
@@ -76,8 +148,33 @@ export function interpretarPedido(texto, { referencia, municipios = null, nomes 
   const areas = [];
   let decide = false;
   const trechos = [];
+  // Cada papel lido, com a posição: uma lista com "e" vira um requisito por papel.
+  const achados = [];
 
-  for (const papel of PAPEIS) {
+  if (ia) {
+    // A IA já foi conferida: cada trecho existe no pedido. Aqui só se marca o que cada um ocupa.
+    for (const p of ia.papeis) {
+      const ini = posicaoDoTrecho(n, p.trecho), fim = ini + mesmoTamanho(p.trecho.trim()).length;
+      if (ini < 0 || !livre(ini, fim)) continue;
+      usados.push([ini, fim]); trechos.push(original.slice(ini, fim));
+      p.senioridades.forEach((s) => senioridades.add(s));
+      const area = p.area ? AREAS.find((a) => a.id === p.area) : null;
+      if (area) areas.push({ texto: area.rotulo, area: area.id, senioridades: p.senioridades });
+      achados.push({ ini, fim, senioridades: p.senioridades, decide: false, area });
+    }
+    if (ia.decide) {
+      const ini = posicaoDoTrecho(n, ia.decide), fim = ini + mesmoTamanho(ia.decide.trim()).length;
+      if (ini >= 0 && livre(ini, fim)) { usados.push([ini, fim]); trechos.push(original.slice(ini, fim)); decide = true; achados.push({ ini, fim, senioridades: [], decide: true }); }
+    }
+    for (const x of ia.excluidas) {
+      const ini = posicaoDoTrecho(n, x.trecho), fim = ini + mesmoTamanho(x.trecho.trim()).length;
+      if (ini < 0 || !livre(ini, fim)) continue;
+      usados.push([ini, fim]);
+      x.senioridades.forEach((s) => excluidas.add(s));
+    }
+  }
+
+  for (const papel of ia ? [] : PAPEIS) {
     for (const m of n.matchAll(papel.re)) {
       const ini = m.index, fim = m.index + m[0].length;
       if (!livre(ini, fim)) continue;
@@ -98,15 +195,28 @@ export function interpretarPedido(texto, { referencia, municipios = null, nomes 
       if (papel.decide) decide = true;
       else papel.senioridades.forEach((s) => senioridades.add(s));
       if (papel.nota) notas.push(papel.nota);
-      if (area) areas.push({ texto: original.slice(fim, ate).trim(), senioridades: papel.senioridades });
+      const textoDaArea = area ? original.slice(fim, ate).trim() : null;
+      const daLista = area ? areaDoTexto(textoDaArea) : null;
+      if (area) areas.push({ texto: textoDaArea, area: daLista?.id ?? null, senioridades: papel.senioridades });
+      achados.push({ ini, fim: ate, senioridades: papel.decide ? [] : papel.senioridades, decide: Boolean(papel.decide),
+        area: area ? (daLista ?? { id: null, rotulo: textoDaArea, termos: [] }) : null });
     }
   }
   for (const s of excluidas) senioridades.delete(s);
   if (excluidas.size) notas.push(`Fora do pedido: ${[...excluidas].map((s) => senioridadeDe(s).rotulo).join(', ')}. Quem tem esse cargo vai para "Fora do pedido".`);
   if (areas.length) notas.push(`A área do cargo (${areas.map((a) => `"${a.texto}"`).join(', ')}) não está no cadastro da rede: é conferida no cargo escrito de cada pessoa, e quem não a tem fica para revisar.`);
+  const requisitos = ia ? (ia.cadaUm && achados.length >= 2 ? requisitosDaLista(achados, null) : null) : requisitosDaLista(achados, n);
+  if (requisitos) notas.push(`O pedido lista ${requisitos.length} papéis com "e": cada um é procurado em cada empresa, com a cobertura contada à parte. Para aceitar qualquer um deles, escreva "ou".`);
 
   let acesso = { exigido: null, obrigatorio: false, trecho: null };
-  for (const a of ACESSOS) {
+  if (ia?.acesso) {
+    const ini = posicaoDoTrecho(n, ia.acesso.trecho), fim = ini + mesmoTamanho(ia.acesso.trecho.trim()).length;
+    if (ini >= 0 && livre(ini, fim)) {
+      usados.push([ini, fim]);
+      acesso = { exigido: ia.acesso.exigido, obrigatorio: ia.acesso.obrigatorio, trecho: original.slice(ini, fim) };
+    }
+  }
+  for (const a of ia ? [] : ACESSOS) {
     for (const m of n.matchAll(a.re)) {
       const ini = m.index, fim = m.index + m[0].length;
       if (!livre(ini, fim)) continue;
@@ -142,7 +252,8 @@ export function interpretarPedido(texto, { referencia, municipios = null, nomes 
   }
   const rotulos = [...senioridades].map((s) => senioridadeDe(s).rotulo);
   const exceto = excluidas.size ? `, exceto ${[...excluidas].map((s) => senioridadeDe(s).rotulo).join(', ')}` : '';
-  const rotulo = [decide ? 'Quem decide a venda' : null, ...rotulos].filter(Boolean).join(' ou ') + exceto;
+  const rotulo = requisitos ? `Um de cada: ${requisitos.map((r) => r.rotulo).join(' · ')}${exceto}`
+    : [decide ? 'Quem decide a venda' : null, ...rotulos].filter(Boolean).join(' ou ') + exceto;
 
   // O resto é a empresa: apaga papel, acesso e palavras da pessoa, e lê como tese.
   let resto = '';
@@ -162,15 +273,24 @@ export function interpretarPedido(texto, { referencia, municipios = null, nomes 
   /* "De fabricantes de tintas", com o recorte já em Tintas, não pede site nenhum: o recorte
      responde. Só o critério de pesquisa feito apenas de tipo de empresa e de palavras do
      subsetor escolhido sai; "de solventes" ou "controle familiar" ficam. */
-  const criterios = tese.criterios.filter((c) => {
+  /* Com a IA, os critérios da empresa são os dela (já conferidos contra o pedido), menos os que
+     caem num trecho de papel, acesso ou nome, e a UF única que o recorte já aplica. O recorte
+     (UF, subsetor) continua das regras, que são exatas, como na pesquisa por tese. */
+  const daTese = ia ? ia.criterios.filter((c) => {
+    const ini = posicaoDoTrecho(n, c.trecho);
+    if (ini >= 0 && !livre(ini, ini + mesmoTamanho(c.trecho.trim()).length)) return false;
+    return !(c.regra?.campo === 'uf' && c.regra.valor.length === 1 && tese.filtros.uf === c.regra.valor[0]);
+  }) : tese.criterios;
+  const criterios = daTese.filter((c) => {
     if (c.tipo !== 'pesquisa' || !cobertoPeloRecorte(c.texto, tese.filtros.subsetor)) return true;
     notas.push(`"${c.texto}" já está no recorte (${tese.filtros.subsetor}) e não virou critério.`);
     return false;
   });
+  if (ia) notas.unshift('Pedido lido com a IA: cada papel, acesso e critério abaixo vem de um trecho do próprio pedido. O recorte e o nome de empresa continuam pelas regras.', ...ia.notas);
 
   return {
     pedido: original,
-    papel: { decide, senioridades: [...senioridades], excluidas: [...excluidas], areas, rotulo, padrao, trechos },
+    papel: { decide, senioridades: [...senioridades], excluidas: [...excluidas], areas, rotulo, padrao, trechos, requisitos },
     acesso,
     recorte: tese.filtros,
     criterios,
@@ -179,7 +299,20 @@ export function interpretarPedido(texto, { referencia, municipios = null, nomes 
     notas: [...new Set([...notas, ...notasTese])],
     candidatos,
     empresas,
+    modo: ia ? 'ia' : 'regras',
+    // O que as regras não souberam ler: é o que a leitura com IA pode resolver.
+    ambiguidades: ia ? [] : ambiguidades(textoDaEmpresa, [...notas, ...notasTese]),
   };
+}
+
+/** Trechos que as regras não leram com segurança, em frases curtas para a tela. */
+function ambiguidades(textoDaEmpresa, notas) {
+  const lista = [];
+  const n = mesmoTamanho(textoDaEmpresa);
+  const cargos = [...new Set([...n.matchAll(CARGO_FORA_DA_ESCALA)].map((m) => textoDaEmpresa.slice(m.index, m.index + m[0].length)))];
+  if (cargos.length) lista.push(`${cargos.map((c) => `"${c}"`).join(', ')} ${cargos.length === 1 ? 'parece cargo' : 'parecem cargos'}, mas não ${cargos.length === 1 ? 'está' : 'estão'} na escala da rede (conselho, presidência, financeiro, diretoria, gerência). Ficou como descrição da empresa.`);
+  for (const nota of notas) if (/não virou critério\. Se for a cidade|não corresponde a uma empresa do catálogo/.test(nota)) lista.push(nota);
+  return lista;
 }
 
 const LIGACAO = /^(?:de|da|do|das|dos|e|em|no|na|nos|nas|para|com|que|produtos?|quimic\w*)$/;

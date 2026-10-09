@@ -24,13 +24,18 @@ export interface Lacuna {
   empresa: { id: string; nome: string; cidade: string | null; uf: string | null; subsetor: string | null }
   mapeadas: number; estrutura: string; pendentes: number
   avisos?: string[]
+  /** No "um de cada": os papéis do pedido que ninguém mapeado serve nesta empresa. */
+  faltam?: string[]
 }
+/** Um papel do "um de cada" ("o CEO e o diretor de RH"): cada um é procurado em cada empresa. */
+export interface RequisitoPapel { rotulo: string; decide: boolean; senioridades: string[]; area: { id: string | null; rotulo: string } | null }
 export interface LeituraPedido {
   pedido: string
   /** A parte do pedido que descreve a empresa, para levar à pesquisa por tese. */
   tese: string
   /** `excluidas`: cargos negados no pedido ("sem gerentes"). `areas`: a área que acompanha um cargo ("gerentes comerciais"). */
-  papel: { decide: boolean; senioridades: string[]; excluidas?: string[]; areas?: { texto: string; senioridades: string[] }[]; rotulo: string; padrao: boolean; trechos: string[] }
+  papel: { decide: boolean; senioridades: string[]; excluidas?: string[]; areas?: { texto: string; area?: string | null; senioridades: string[] }[]; rotulo: string; padrao: boolean; trechos: string[]
+    requisitos?: RequisitoPapel[] | null }
   acesso: { exigido: 'com_caminho' | 'introducao' | null; obrigatorio: boolean; trecho: string | null }
   recorte: { uf: string; subsetor: string; cnae: string; incluirPossiveis: boolean }
   criterios: { id: string; texto: string; obrigatorio: boolean; tipo: 'cadastro' | 'pesquisa' }[]
@@ -39,7 +44,14 @@ export interface LeituraPedido {
   empresas?: { trecho: string; empresas: { id: string; nome: string; cidade: string | null; uf: string | null }[] }[]
   /** Busca feita dentro de uma pesquisa por tese: as aderentes e prováveis dela são o recorte. */
   pesquisa?: { id: string; tese: string; empresas: number; categorias: string[] } | null
+  /** Quem leu o pedido: as regras, ou a IA a pedido do membro (cada item preso a um trecho do pedido). */
+  modo?: 'regras' | 'ia'
+  /** O que as regras não leram com segurança: é quando a leitura com IA ajuda. */
+  ambiguidades?: string[]
+  ia?: { modelo: string | null; duvidas: string[]; descartes: number } | null
 }
+/** A leitura com IA nesta instalação: se existe, quantos pedidos restam hoje e, se falhou, por quê. */
+export interface IaDoFind { disponivel: boolean; provedor?: string; modelo?: string; gratuito?: boolean; restantes?: number; falha: string | null }
 /** A pesquisa por tese em que o find procura ("quem decide nas aderentes"). */
 export interface PesquisaDoFind { id: string; tese: string; boas: number }
 export interface FunilEncontrar {
@@ -51,6 +63,9 @@ export interface ResultadoEncontrar {
   grupos: Record<Grupo, PessoaEncontrada[]>
   lacunas: { total: number; ninguemMapeado: number; empresas: Lacuna[] }
   membros: number; referencia: string | null; fonte: string; limitacoes: string[]
+  /** No "um de cada": em quantas empresas cada papel tem alguém que serve, contado das pessoas julgadas. */
+  cobertura?: { rotulo: string; empresas: number; pessoas: number }[] | null
+  ia?: IaDoFind
 }
 
 /** Um pedido guardado na memória do membro, com as contagens do último resultado. */
@@ -61,7 +76,9 @@ export interface BuscaLembrada {
 export interface MemoriaBuscas { ativa: boolean; buscas: BuscaLembrada[] }
 
 export const encontrarApi = {
-  buscar: (pedido: string, pesquisaId?: string) => api<ResultadoEncontrar>('/api/encontrar', 'POST', pesquisaId ? { pedido, pesquisaId } : { pedido }),
+  /** `iaChave`: pede a leitura com IA; a mesma chave não gasta a cota de novo. */
+  buscar: (pedido: string, pesquisaId?: string, iaChave?: string) => api<ResultadoEncontrar>('/api/encontrar', 'POST',
+    { pedido, ...(pesquisaId ? { pesquisaId } : {}), ...(iaChave ? { ia: { chave: iaChave } } : {}) }),
   memoria: () => api<MemoriaBuscas>('/api/encontrar/memoria'),
   esquecer: (chave: string) => api<MemoriaBuscas>(`/api/encontrar/memoria/${chave}`, 'DELETE'),
   apagarTodas: () => api<MemoriaBuscas>('/api/encontrar/memoria', 'DELETE'),
@@ -100,8 +117,9 @@ export function resumoResultado(r: ResultadoEncontrar): string {
   const f = r.funil
   if (!f.recorte) return 'Nenhuma empresa do catálogo cabe neste recorte. Afrouxe UF ou subsetor no pedido.'
   if (!f.pessoas) return `${contar(f.nosCriterios, 'empresa se encaixa', 'empresas se encaixam')} no pedido, e a casa ainda não mapeou ninguém nelas.`
+  const papeis = r.cobertura?.length ? ` Por papel: ${r.cobertura.map((c) => `${c.rotulo} em ${c.empresas ? contar(c.empresas, 'empresa', 'empresas') : 'nenhuma empresa'}`).join('; ')}.` : ''
   return `${contar(f.forte, 'pessoa atende', 'pessoas atendem')}, ${contar(f.revisar, 'pede', 'pedem')} revisão e ${contar(f.excluido, 'ficou', 'ficaram')} fora, `
-    + `em ${contar(f.comPessoas, 'empresa', 'empresas')} com alguém mapeado.`
+    + `em ${contar(f.comPessoas, 'empresa', 'empresas')} com alguém mapeado.${papeis}`
 }
 
 /** Onde a pessoa está: empresa e cidade. */

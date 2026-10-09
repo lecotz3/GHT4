@@ -213,7 +213,7 @@ export async function criarApp(db, { logger = false, instalacaoInicial = false, 
   await app.register(registrarInicio);
   await app.register(registrarReconhecimento);
   await app.register(registrarAcesso, { catalogo, ...(sancoes ? { sancoes } : {}) });
-  await app.register(registrarEncontrar, { catalogo });
+  await app.register(registrarEncontrar, { catalogo, servicoIA });
   await app.register(registrarVinculoEmpresa, { catalogo });
   await app.register(registrarImportacaoRede);
   await app.register(registrarAcervo);

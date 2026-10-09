@@ -3854,3 +3854,38 @@ Preservar as correções de contexto, grafo, memória e monitoramento. Corrigir 
 Priorizar o isolamento da fonte de mandato e a projeção externa da pesquisa. Depois corrigir versão da revisão/desfazer, paginação MCP, atomicidade da recusa de homônimo e o juízo de poder decisório. Acrescentar as regressões descritas e solicitar nova revisão dessas mudanças, preservando as correções já verificadas da Rodada 25.
 
 **STATUS: REQUER ALTERAÇÕES**
+
+---
+
+## RODADA 26 — Find: leitura opcional com IA para pedidos ambíguos, um requisito por papel e conflito de cargo único (09/10/2026) — Claude (builder)
+
+**Contexto:** pedido do usuário: "faça todos esses que faltam". Último item da Etapa 4 do roteiro (IA opcional para pedidos ambíguos), com os dois candidatos da §11.6 do estudo do Lessie: um requisito por papel e o conflito de cargo único.
+
+**Feito:**
+- **Um requisito por papel** (`encontrar/pedido.mjs`): uma lista de papéis com "e" ("o CEO e o diretor de RH") vira `papel.requisitos`, um de cada em cada empresa. Com "ou", ou fora de uma lista ("CFOs das distribuidoras e diretores de tintas"), nada muda.
+  - A busca conta a cobertura de cada papel das pessoas julgadas (`cobertura`), e o resumo da tela vem dela: "Por papel: CEO em 2 empresas; Diretoria · RH em 1".
+  - "Onde falta" passa a listar a empresa onde falta algum papel, com `faltam`.
+  - No "um de cada", a área do cargo vale só para o papel que a pediu: o CEO não deve "área de RH".
+- **Áreas do cargo com nomes** (`AREAS`): "de RH" atende "Diretora de Recursos Humanos" e "Pessoas e Cultura". Várias áreas no mesmo nível ("diretor comercial e diretor de RH") valem como alternativa, numa linha só do juízo.
+- **Conflito de cargo único** (`triagem.mjs`, `conflitosDeCargoUnico`): presidente/CEO e CFO com dois ocupantes na mesma empresa, por fontes diferentes.
+  - O quadro estatutário prevalece: quem veio dele ganha uma linha informativa; os demais vão para revisão, com a explicação ("pode ser a mesma pessoa escrita de outro jeito, ou cadastro desatualizado").
+  - Sem o quadro, todos vão para revisão. Dois do próprio quadro, ou a mesma pessoa cadastrada duas vezes, não são conflito.
+  - "Sócio-administrador" e "Administrador" não são cargo único.
+- **Leitura com IA, opcional** (`encontrar/ia.mjs`):
+  - As regras dizem o que não leram (`ambiguidades`): palavra de cargo fora da escala ("chefe", "COO", "RH"), nome solto que não virou critério, empresa citada que o catálogo não achou.
+  - Só então a tela oferece "Ler o pedido com a IA", com a cota restante do dia e o aviso de que só o texto do pedido sai. Na camada gratuita, avisa que o provedor pode reter o texto.
+  - O modelo propõe; o código confere. Cada papel, acesso e critério cita um trecho literal do pedido, e cargo e área só valem da escala e da lista. Os critérios da empresa passam um a um por `validarPropostaIA`, o filtro da pesquisa por tese. O que não confere sai, com nota e contagem. Nome de empresa e recorte continuam pelas regras.
+  - A IA recebe `{ pedido }` e mais nada: nem pessoas, nem empresas, nem resultado. O teste confere o corpo enviado.
+  - Cota comum de pedidos (tarefa `leitura_find`, fora da cota das revisões), idempotente pela chave do clique. A falha (cota, provedor, leitura sem apoio no pedido, mandato confidencial em provedor que retém dados) não derruba a busca: ela sai pelas regras, com o motivo no topo.
+  - "Voltar à leitura por regras" refaz a busca sem IA.
+  - **Migração `0031_ia_sem_conversa`:** `ia_execucoes.conversa_id` aceita nulo (a leitura fora de uma pesquisa), com a chave única por pessoa nesse caso. Dentro de uma pesquisa, a execução usa a conversa dela, e a regra do mandato confidencial vale.
+- **Validação:** `npm run ci` exit 0: lint 0 (corrigido também o aviso do efeito da memória, vindo da Rodada 25), build com tipos, raiz **142/142**, servidor **321** (319 passam, 2 pulados sem URL), dados. Testes novos em `server/tests/encontrar-ia.test.mjs` (leitor, validação da IA, conflito, cobertura, rota com provedor simulado: corpo enviado, cota, chave, falhas) e `tests/encontrar-ia-componente.test.mjs` (oferta com cota, clique com chave, volta às regras, cota esgotada, sem IA).
+
+### PARA O CODEX
+
+- **Confiança no trecho:** o trecho literal prova de onde veio o item, não que o sentido esteja certo ("chefe de pessoas" como diretoria ou gerência). A tela diz de onde leu e o que a IA deixou em aberto. Conferir se isso basta.
+- **Conflito de cargo único:** a regra de precedência do quadro estatutário e os cargos que contam como únicos (`POSTOS_UNICOS`).
+- **`conversa_id` nulo:** a busca por execução anterior agora é `conversa_id = $1 OR (nulo e mesma pessoa)`. Conferir que nada mais lê `ia_execucoes` contando com a conversa.
+- **"Um de cada" e lacunas:** a empresa com o CEO mas sem RH entra em "Onde falta". Conferir se a lista não fica ruidosa demais em pedidos amplos.
+
+STATUS: AGUARDANDO REVIEW
