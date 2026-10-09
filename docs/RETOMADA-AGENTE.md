@@ -21,14 +21,20 @@ Atualizado em 9 de outubro de 2026 (checkpoint anterior: 8 de outubro). Branch d
 
 ### Próximos passos, em ordem
 
-1. **Revisão do Codex:** Rodadas 21 a 23 ("PARA O CODEX" no diário).
+1. **Corrigir os achados do Codex** (parecer de 09/10/2026, `36b24de`): todas as rodadas revisadas pedem alterações.
+   - **Rodada 23 [P1]:** o plano aberto pelo find perde o `pesquisaId` e o "não contatar" do mandato.
+   - **Rodada 21 [P2]:** a busca em lote perde o caminho quando o intermediário também é alvo; um cargo negado ("sem gerentes") vira alternativa positiva.
+   - **Rodada 22 [P2]:** um município negado ou alternativo ("fora de Campinas", "Campinas ou Osasco") vira sede obrigatória. O leitor é o mesmo da pesquisa por tese.
+   - **Rodada 24 [P2]:** uma gravação em voo repõe a memória depois de pausa e exclusão.
+   - **Rodada 19 [P2]:** a transição `ampliada` absorve sem aviso uma novidade real do monitor.
+   - A Rodada 20 ainda não tem parecer integral.
 2. **Encher a rede** (Etapas 1 e 2 do roteiro):
    - importar o quadro estatutário com a credencial trazida pelo CLI da Vercel;
    - ativar a casa;
    - ligar ao CNPJ quem veio só com o nome.
 3. **Aceite em produção** (Etapa 3): os onze pedidos, com contas de sócio e de analista; anotar o tempo em produção.
-4. **Prioridade baixa da Etapa 4:** histórico e memória das buscas; IA opcional para pedidos ambíguos.
-5. **Lessie logado:** extensão do Claude no Chrome, ou a CLI ou o MCP oficial autorizado pelo usuário.
+4. **Prioridade baixa da Etapa 4:** IA opcional para pedidos ambíguos. A memória das buscas foi feita na Rodada 24.
+5. ~~**Lessie logado**~~ **feito em 09/10/2026** pela extensão do Chrome, sem gastar crédito: §11 do [PESQUISA-LESSIE-AI.md](../PESQUISA-LESSIE-AI.md). Os candidatos da §11.6, sobretudo "um requisito por papel" e "conflito de cargo único", entram junto da correção da Rodada 21.
 
 ## Checkpoint anterior — Rodadas 21 e 22 publicadas: o find aceita empresa pelo nome, lê melhor a tese e liga ao CNPJ (09/10/2026)
 

@@ -411,3 +411,100 @@ Faltam a tela real, a ordem visual dos cartões e se o custo aparece antes do cl
    - `lessie tools` lista os esquemas reais das ferramentas, e a listagem não aparece na tabela de custos.
    - Uma busca de verdade custa 20 créditos e só roda com o sim explícito do usuário.
    - Instalar a CLI executa um binário de terceiro nesta máquina, e essa decisão é do usuário.
+
+O caminho 1 foi feito em 09/10/2026: ver a §11.
+
+---
+
+## 11. O `/find` logado, pela extensão do Chrome (09/10/2026)
+
+> Quarta passada, a primeira com login: a extensão do Claude no Chrome, no navegador em que o
+> usuário entrou no Lessie com a própria conta (saldo de **0 créditos**). Responde ao caminho 1
+> da §10.5. **Nenhuma busca foi iniciada, nenhum botão que cobra foi clicado e nenhum crédito
+> foi gasto.** Observou-se a tela inicial e a demonstração pública "Encontre o CEO e o chefe de
+> pessoas do Banco Pan no Brasil" (`/share/2Q3oV3n8x5jH4cEycMyDHI`), aberta pelo cartão de
+> exemplo da própria tela. O custo foi lido passando o mouse, sem clique. A resposta da API foi
+> lida só na estrutura (nomes de campos e julgamentos), e nenhum dado pessoal foi copiado para cá:
+> as duas pessoas aparecem como "registro 1" e "registro 2". O app continua no `main.8635114d.js`,
+> o mesmo nome com hash da §0.
+
+### 11.1 A tela do resultado [obs]
+
+- **Dois painéis.**
+  - À esquerda, a conversa com o agente e cada passo visível: busca na web pelo domínio da empresa, "montar a visão" e a consulta à base, com os filtros escritos por extenso (nível C-Suite e VP, líderes de RH, CEO, Brasil, "Top Recommended", "Explorer Mode").
+  - À direita, a tabela.
+- **A fonte das pessoas é o Apollo** (`source: "apollo"` em cada linha). Confirma a §2.2 numa busca real.
+- **A tabela:**
+  - é agrupada pelo grau de correspondência ("Completamente correspondente · 2 registros");
+  - tem uma coluna por critério, com o próprio requisito como descrição ("Currently works at Banco Pan (bancopan.com.br)"; "Holds the role of CEO, Head of People, …"; "Based in Brazil");
+  - tem as colunas "Verificar email" e "Conectar no LinkedIn";
+  - termina na linha **"Encontre mais"**, que continua a busca em vez de paginar.
+- **Barra de ações:** Conectar no LinkedIn, Mensagem do WhatsApp, Compor E-mail, Exportar, Grupo, e as vistas "História" e "Tabela". Embaixo ficam a seleção ("0 Selecionado · Novo · Confirmar") e "2 na lista".
+- **O agente termina com um menu numerado:**
+  - desbloquear os e-mails;
+  - enriquecer o perfil (LinkedIn, telefone);
+  - redigir a abordagem;
+  - "é só dizer o número".
+
+### 11.2 O cartão da pessoa, na ordem em que aparece [obs]
+
+1. Nome · país, cargo, ícone do LinkedIn, **"Verificar telefone"** e **"Verificar email"**.
+2. Abas **Resumo AI → Julgamento de correspondência → Experiência → Educação**.
+3. O julgamento abre com o placar ("3 / 3 Correspondente"). Cada critério vem com **Requisito** e **Julgamento**, uma frase.
+
+### 11.3 O custo aparece antes do clique [obs]
+
+- **Sim, no cartão, ao passar o mouse:** "Verificar e-mail: 3 créditos se encontrado." e "Verificar telefone: 8 créditos se encontrado." Os valores batem com a §10.1, e o "se encontrado" confirma que a falha não é cobrada.
+- **Na tabela da demonstração**, o mesmo botão diz só "Faça login para revelar o e-mail", sem preço.
+- **Antes de pagar**, a linha já traz `email_status: "verified"`, com o campo do e-mail vazio. O usuário sabe que o e-mail existe antes de comprar.
+- **Fechar o cartão** abre o convite "Quer sua própria lista como esta?", com os botões "Nova conversa" e "Mesma busca". Este último refaz a busca e cobra.
+
+### 11.4 O formato por trás da tela [obs, `GET /sourcing-api/searches/v1/:id?share_id=`]
+
+- **Cada critério, em cada pessoa:** `{keypoint, required, adopt, reason, summary, evidence[]}`. É o `adopt/reason/evidence` da §3.2, agora numa busca de pessoas. Uma cópia fica em `review_details[]`.
+- **A linha:**
+  - `_match_category: "full_match"`, `_group_path`, `_added_in_version`;
+  - `row_metadata: {locked_fields, modified_at, modified_by}`. Confirma a edição humana travada da §9;
+  - `source`, `email_status` e o `phone` como marcador vazio.
+- **A busca é versionada:** `version`, `parent_version`, `version_label: "Initial search"`, `version_type: "initial"`, `search_round`, `is_latest`, `mode: "b2b"`.
+- **A visão é dado, não código:** `view_config.columns` (cada critério é uma coluna `matchItem` cuja descrição é o requisito), `viewState {filters, groupBy, groups, hiddenColumns, sort}` e `group_meta` com rótulo, cor e ordem de cada grupo.
+- **`total_count: 3` e `visible_count: 2`:** uma pessoa achada ficou escondida. A tela não diz que há uma terceira, nem por quê.
+- **Outras rotas vistas na rede:**
+  - `/sourcing-api/shares/v1/:id`;
+  - `/prod-api/agent/points/info` (saldo);
+  - `/api/proactive/tasks` e `/api/proactive/shared/:id/plan` (404 nesta demonstração);
+  - `/sourcing-api/conversation/v1` (histórico, com `is_filter_hidden`).
+
+### 11.5 O que a demonstração ensina pelo que deu errado [obs, com a inferência marcada]
+
+1. **O pedido com "e" virou um critério com "ou".**
+   - Pedido: "o CEO **e** o chefe de pessoas". Critério montado: um só papel, "CEO, Head of People, Chief People Officer, VP of People **ou** HR Director".
+   - As duas linhas são CEOs e as duas passam. Ninguém de RH aparece.
+   - Ainda assim, o agente escreve que achou "o CEO e um líder sênior de Pessoas/RH". O resumo contradiz a própria tabela, e nada mede a cobertura por papel.
+2. **O julgamento repete a base, sem evidência.**
+   - Os três critérios das duas linhas têm `evidence: []`.
+   - O `reason` cita o "histórico de emprego", que é o próprio registro do Apollo.
+3. **Um perfil implausível tirou 3/3.**
+   - O registro 1 declara "CEO do Banco PAN desde set/2022". Na Experiência do mesmo cartão, logo antes, vêm dois cargos de desenvolvedor front-end, o último terminando no mesmo mês.
+   - O Resumo AI racionaliza a trajetória, em vez de estranhá-la.
+   - O Banco Pan é companhia aberta: a diretoria estatutária está no formulário de referência da CVM, fonte que o Lessie não consulta.
+4. **Dois registros dizem ser o CEO da mesma empresa** (`person_id` e LinkedIn diferentes), e nenhum conflito é apontado **[inf: ao menos um está errado ou é duplicata]**.
+5. **Uma pessoa escondida** (o total de 3 contra os 2 visíveis da §11.4), sem aviso.
+
+### 11.6 O que serve ao GHT4 (candidatos, nada implementado nesta passada)
+
+| No Lessie | Ideia para o GHT4 |
+|---|---|
+| "CEO **e** RH" achatado num "ou", e o resumo afirmando os dois | No find, um pedido com vários papéis ligados por "e" vira **um requisito por papel**, com a cobertura de cada um ("CEO: 1 · Diretor de RH: ninguém mapeado"). O resumo é contado da tabela, nunca escrito livre. É o mesmo cuidado do achado de negação do Codex na Rodada 21 |
+| Cargo autodeclarado aceito sem conferir | O GHT4 já exige fonte. Falta tratar **dois ocupantes do mesmo cargo único** (CEO, presidente) na mesma empresa como conflito "para revisar", e **dar precedência ao quadro estatutário** (Receita, CVM) sobre a lista da equipe quando divergem |
+| `total_count` maior que o visível, sem aviso | O find já informa os tetos. Manter a regra: toda pessoa achada e não mostrada aparece contada, com o motivo |
+| Custo no hover ("3 créditos se encontrado") | Sem créditos no GHT4. O equivalente segue sendo a cota diária de IA anunciada antes do lote (§10.4) |
+| "Encontre mais" como última linha | Continuação dos grupos e das lacunas: o opcional do Codex na Rodada 21 |
+| Busca versionada (`parent_version`, `version_label`) | Já existe: a "nova rodada" da pesquisa (§9). Nada a fazer |
+| Menu numerado de próximas ações pagas | **Não adotar.** O GHT4 mantém um único próximo passo, sem contato automático (§8.4) |
+
+### 11.7 Ainda desconhecido [?]
+
+- O fluxo de uma busca própria em andamento (checkpoint "10 primeiras", tarefas, inbox): exigiria iniciar uma busca, o que custa 20 créditos, com saldo zero.
+- Como o Apollo é consultado por dentro e por que a terceira pessoa ficou escondida: roda no servidor.
+- O caminho 2 da §10.5 (CLI ou MCP) não foi usado: o usuário escolheu a extensão.
