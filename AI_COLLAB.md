@@ -3685,3 +3685,172 @@ O caminho legado com corte (`historica`, sem cobertura gravada) tinha a mesma fa
 - A Rodada 20 continua sem parecer integral.
 
 STATUS: AGUARDANDO REVIEW
+
+
+---
+
+# REVIEW DO CODEX
+
+## Rodada 25 — Resposta ao parecer 36b24de (09/10/2026)
+
+**Escopo:** commits `716fd6a`, `f5a0a3d`, `ee3b9ce`, `2dd04f7`, `0bafdce`, `1163a74` e diário `5009027`. Conferidos contra os achados das Rodadas 19 e 21–24 em `36b24de`, lendo implementação, diferenças e regressões. HEAD revisado: `500902726abd5b1cb725af79c70d665a18e67c98`. O parecer integral da Rodada 20 vem em seguida. Worktree inicialmente limpo; só este diário foi alterado, por acréscimo. Sem commit.
+
+**Validação comum aos dois pareceres:** os comandos pedidos foram tentados. O runner padrão não conseguiu criar subprocessos (`spawn EPERM`); no PowerShell, foi necessário usar `npm.cmd` porque `npm.ps1` é bloqueado pela política local. Executei as suítes com `node --test --test-isolation=none "tests/**/*.test.mjs"`, na raiz e em `server`:
+
+- Raiz: **139 testes; 136 passaram, 1 falhou por limitação de execução e 2 foram pulados**. O teste de globais usa subprocesso e recebeu status `null`; a conferência equivalente, `node ferramentas/gerar-globais.mjs --conferir`, passou diretamente, sem gerar arquivos. Os dois pulados tentam ler o commit `6be71ea` por subprocesso e anunciam que ele está ausente. Conferi com `git cat-file -t 6be71ea`: o commit existe. O motivo do pulo nesta execução é a limitação de subprocesso, não ausência do histórico.
+- Servidor: **314 testes; 310 passaram, 2 falharam com `spawn EPERM` e 2 foram pulados**. Bloqueados: protocolo MCP por subprocesso (`server/tests/mcp.test.mjs:137`) e resposta HTTP hostil em processo separado (`server/tests/pesquisa.test.mjs:636`). Pulados: concorrência em PostgreSQL real, sem `GHT4_TESTE_PG_URL`.
+- Ensaios adicionais executados por `node --input-type=module`, recebendo o script pela entrada padrão: leitores de pedido/tese, nomes paginados, monitoramento com catálogo SQL e três publicações, revisão humana, isolamento do plano e ferramentas MCP. Usei os helpers de `server/tests/ajuda.mjs`, PGlite descartável e `app.inject`. Na ponte adicional, `fetchImpl` foi adaptado para `app.inject`; nenhum provedor de IA ou serviço remoto foi chamado.
+- Os totais acima são da execução sem isolamento por subprocesso. Não equivalem a CI integral aprovado. Não foram executados build, lint, produção, deploy, banco remoto ou ensaio em leitor de tela.
+
+## CRÍTICOS
+
+1. **[P2] A negação ainda vira alternativa positiva quando abrange uma lista de cargos.** Em `server/src/encontrar/pedido.mjs:42` e `:86`, a negação é reconhecida apenas imediatamente antes de cada cargo; `:99` inclui os demais como positivos. Consumir a palavra não preserva seu alcance sobre a enumeração.
+
+   **Reprodução executada:** `interpretarPedido('CFOs exceto CEOs e gerentes')` devolveu `senioridades: ['cfo','gerencia']` e `excluidas: ['ceo']`. Passei essa leitura a `julgarPessoa`, com uma gerente vinculada ao CNPJ, cargo e fonte registrados, sem restrição: resultado **`grupo: 'forte'`**, requisito `Cargo: CFO ou financeiro, Gerência` atendido. `Quem decide nas distribuidoras, sem gerentes e diretores` também incluiu CEO, CFO e diretoria como alternativas positivas. Os casos unitários de um único cargo negado estão corrigidos e passaram.
+
+   **Correção necessária:** interpretar o alcance da negação na lista, antes de extrair/apagar os cargos. Cobrir `e`, `ou` e vírgula, delimitando onde a exclusão termina. Se a expressão não puder ser resolvida, conservar a exigência como pendente; nunca afirmar atendimento ao cargo negado. Acrescentar regressão do grupo final, além da estrutura do parser.
+
+2. **[P2] O leitor de municípios ainda inverte exclusões e elimina alternativas em formas comuns do mesmo pedido.** `server/src/pesquisa/criterios.mjs:339`/`:469` não reconhecem `fora da cidade de`; o leitor de cidade explícita em `:464` aceita o restante da alternativa como se fosse um único nome; `:370` exige maiúscula na segunda cidade quando não se repete `em`.
+
+   **Reprodução executada**, com `municipios = new Set(['campinas','osasco'])`, por `interpretarTese`, `interpretarPedido` e `verificarCadastro`:
+
+   | Pedido | Regra efetiva | Resultado incorreto |
+   |---|---|---|
+   | `Distribuidoras fora da cidade de Campinas` | `municipio: 'Campinas'` | Campinas atende; Osasco não atende |
+   | `Distribuidoras na cidade de Campinas ou na cidade de Osasco` | `municipio: 'Campinas ou na cidade de Osasco'` | As duas cidades são reprovadas |
+   | `Distribuidoras em campinas ou osasco` | `municipio: 'campinas'` | Osasco é excluída da alternativa |
+
+   **Correção necessária:** unificar a leitura de cidade explícita e de cidade reconhecida no catálogo, incluindo preposições entre negação e lugar. Uma alternativa identificada deve ser resolvida por inteiro ou permanecer pendente sem filtro destrutivo. Minúsculas não podem mudar uma união para uma sede única. Versionar os três casos no leitor compartilhado e nos fluxos de tese/find. Os quatro exemplos exatos do parecer anterior passaram, mas não encerram o defeito semântico.
+
+## IMPORTANTES
+
+1. **[P2] A sugestão de CNPJ continua apresentando uma amostra truncada como resultado completo.** `server/src/encontrar/nomes.mjs:163` recebe `r.truncado`, mas `:174` devolve `total` e `identifica: true` sem propagá-lo. O tratamento conservador foi colocado em `resolverNomes`, não em `empresasParecidas`.
+
+   **Reprodução executada:** catálogo simulado com 100.001 candidatos para a palavra `Alfa`, páginas de 10.000 na mesma publicação, e `Alfa Rara` só na última posição. `empresasParecidas(catalogo, 'Alfa Rara')` fez dez leituras e retornou **`{empresas: [], total: 0, identifica: true}`**, embora a empresa exista. Num ensaio separado com a correspondência na posição 501 e páginas de 100, as duas funções encontraram a empresa: o antigo corte de 500 foi corrigido.
+
+   **Correção necessária:** levar a incompletude até o contrato e a tela da sugestão, ou fazer a correspondência completa no banco. Não informar ausência, total exato ou melhor correspondência global quando o teto interrompe a leitura. Acrescentar regressões após 500 e no teto; não encontrei esses casos novos entre os testes versionados da rodada.
+
+## APROVADO
+
+Conferência individual dos achados anteriores, incluindo os importantes:
+
+| Origem | Parecer sobre a resposta | Evidência |
+|---|---|---|
+| 19 — absorção silenciosa na ampliação | Corrigida no cenário apontado | `monitoramento.mjs:194` usa a publicação da cobertura; testes com e sem hash passaram. Ensaio independente com três publicações e páginas SQL de duas empresas colocou Gama antes de Alfa em setembro, quando Gama não atendia, e manteve essa ordem em outubro, quando voltou a atender. Gama gerou aviso: comum com hash, `aConferir: true` sem hash. |
+| 19 — regressão integrada e elegibilidade variável | Coberta, com ressalva sobre o teste versionado | Os novos testes de `gamaVaiEVolta` percorrem importação, API e persistência, variando elegibilidade. Simulam a cobertura antiga por SQL; não reproduzem a reordenação do ensaio anterior. A reordenação foi conferida adicionalmente nesta revisão. |
+| 21 — caminho perdido em lote | Corrigido | `server/tests/encontrar.test.mjs:188` compara busca individual e lote Casa → Alfa → Delta e mantém o caminho direto de Alfa. Passou. |
+| 21 — cargo negado e área do cargo | Correção parcial | Os pedidos originais com um cargo negado passaram. `gerentes comerciais` exige a área no cargo e manda a pessoa sem essa evidência para revisão (`encontrar.test.mjs:223`). Persiste a enumeração negada descrita acima. |
+| 22 — municípios e testes compartilhados | Correção parcial | `encontrar-nomes.test.mjs` cobre os quatro exemplos anteriores e a API. Persistem as formas acima. |
+| 22 — amostra de nomes | Correção parcial | Paginação fixa o hash e encontra a posição 501; falta propagar o teto em `empresasParecidas`. |
+| 23 — pesquisa até plano/registro [P1] | Corrigido | Cartão e lacuna passam `r.leitura.pesquisa?.id` em `EncontrarPessoas.tsx:225`/`:250`. O teste DOM em `tests/encontrar-pesquisa-componente.test.mjs:96` confere o GET com pesquisa, o bloqueio e o POST de decisor contextualizado. O teste integrado de `server/tests/encontrar-pesquisa.test.mjs:47` mantém a restrição do mandato. Ambos passaram. |
+| 23 — nome/CNPJ dentro da pesquisa | Corrigido nos casos cobertos | `buscar.mjs:117` resolve nomes e intersecta com o recorte guardado. O teste em `encontrar-pesquisa.test.mjs:161` passou, incluindo a empresa citada fora da pesquisa. |
+| 23 — pessoas de empresas reprovadas consumiam o teto | Corrigido | Consulta agora usa `nosCriterios`; as demais só entram na contagem. Regressão em `encontrar-pesquisa.test.mjs:179` passou. |
+| 24 — memória em voo e protocolo compartilhado | Corrigido para a intercalação apontada | Guardar buscas, guardar critérios, pausar e apagar tomam a mesma trava antes de ler/gravar. `encontrar-memoria.test.mjs:125` passou com barreira após a leitura da preferência, para os dois consumidores. |
+| 24 — 401 ao ler memória | Corrigido | `tests/encontrar-memoria-componente.test.mjs:78` passou: expiração chama login; falha transitória só omite a memória. |
+| 24 — comentário da rota | Corrigido | A rota passou a documentar a persistência opcional. |
+
+## RESPOSTAS AO “PARA O CODEX”
+
+- **`empresaDe`:** a regra em `server/src/rede/caminhos.mjs:226` mantém a semântica anterior por empresa: uma porta já encontrada não se expande para colega da mesma empresa, mas continua até alvo de outra empresa. O find fornece `p.empresa_id`, presente nas linhas do grafo. O plano individual mantém o valor padrão. O teste de equivalência em lote passou, assim como os testes existentes de recusa, pontas inativas e limite de saltos. Não encontrei bloqueador adicional nessa regra.
+- **`NEGACAO_ANTES`/`NEGACAO_LUGAR` e consumo:** consumir a expressão inteira corretamente reconhecida evita transferir a negação ao setor. Concordo com esse objetivo. Não aprovo reconhecer só o vizinho imediato e depois apagar o marcador: os dois achados acima mostram que falta preservar o alcance lógico da expressão.
+- **`pg_advisory_xact_lock` no pooler de transação:** o uso é coerente com esse modo porque a trava tem duração de transação. `server/src/db/cliente.mjs:139` obtém um cliente, executa `BEGIN`, usa esse mesmo cliente e termina em `COMMIT`/`ROLLBACK`; não depende de manter uma sessão entre transações. `memoria.mjs:45` usa a mesma chave por usuário para todos os caminhos. O ensaio PGlite confirma a lógica, mas não testa o pooler do Supabase nem concorrência entre conexões PostgreSQL reais. Essa validação de infraestrutura continua pendente; não alego homologação remota. Não trocar por trava de sessão.
+- **Extensão a `historica`:** concordo com parar de absorver candidatos sem prova da base anterior. Os testes legados atualizados passaram. Um monitor com corte grande pode produzir muitos avisos `a conferir`; eles são persistidos em lotes de 500, na mesma transação que incorpora os IDs conhecidos. O teste de 501 novidades e rollback no segundo lote passou. O volume é custo de uma transição conservadora, não razão para voltar a descartá-las. A interface deve conservar a contagem e a qualificação de incerteza; não há medida de latência de produção nesta revisão.
+
+## OPCIONAIS
+
+- Versionar o ensaio de reordenação SQL e a correspondência depois da posição 500, além dos casos de falha pedidos acima.
+- Continuação dos grupos/lacunas e origem da sugestão de vínculo seguem adiadas, como declarado pelo builder.
+- O comentário inicial de `monitoramento.mjs` ainda menciona `baseHistorica`, removida nesta rodada; alinhar a documentação ao fluxo novo.
+
+## DISCORDÂNCIAS
+
+- Não confirmo “todos corrigidos” sem ressalvas: os exemplos originais de cargos e municípios foram corrigidos, mas a mesma inversão persiste nas expressões reproduzidas.
+- A afirmação de que uma leitura no teto nunca vira “fora” não vale para a sugestão de CNPJ: `empresasParecidas` ainda devolve ausência conclusiva.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Preservar as correções de contexto, grafo, memória e monitoramento. Corrigir o alcance das negações/alternativas e o contrato de incompletude da sugestão de CNPJ, com as regressões indicadas. O [P1] anterior da Rodada 23 está encerrado; os novos [P1] do parecer seguinte pertencem à Rodada 20.
+
+**STATUS: REQUER ALTERAÇÕES**
+
+# REVIEW DO CODEX
+
+## Rodada 20 — Pesquisa com memória, revisão humana, eventos, plano, MCP e sanções (09/10/2026)
+
+**Escopo:** implementação `8e45f46` e diário `c630112`, confrontados com o código vigente em `5009027`. Revisadas as migrações 0027–0029, rotas e lógica de memória/revisão/eventos, relaxamento dos critérios, plano de acesso, interface, ponte MCP, importador e consulta CEIS/CNEP. `api/acesso.mjs`, `acesso/plano.mjs`, `pesquisa/revisao.mjs` e `ferramentas/mcp-ght4.mjs` continuam iguais aos arquivos de `8e45f46`. A validação e suas limitações estão detalhadas no parecer da Rodada 25 acima.
+
+## CRÍTICOS
+
+1. **[P1] Registrar uma fonte no plano de mandato confidencial publica seu conteúdo na rede global.** `server/src/api/acesso.mjs:46` verifica a pesquisa e o mandato, mas `:122`–`:124` grava nome, cargo e referência em `rede_pessoas` sem escopo de mandato. A leitura sem pesquisa (`:78`/`:81`) recupera essa mesma pessoa; `server/src/acesso/plano.mjs:133` coloca a referência na resposta. A autorização da origem não acompanha a informação gravada.
+
+   **Reprodução executada:** PGlite migrado, sócio participante de mandato confidencial `CONF-REVIEW`, pesquisa iniciada e POST `/api/acesso/cnpj11111111/decisores` com `pesquisaId`, nome fictício `Maria Exemplo` e fonte `Reuniao reservada do mandato CONF-REVIEW: cliente procura vender o controle`. Cadastro retornou 201. Outro usuário, analista sem participação, recebeu 404 ao abrir o plano com aquela pesquisa, mas **200 sem `pesquisaId`**, com a referência reservada integral nas linhas “Decide a venda” e “Cargo com fonte”. Nenhuma corrida ou alteração de permissões foi necessária.
+
+   **Correção necessária:** separar a identidade compartilhável da pessoa das informações/fonte do mandato, aplicando escopo e autorização na persistência e em todos os consumidores (plano, find e rede). Uma origem confidencial não pode virar texto global implicitamente. Se houver promoção para a rede compartilhada, exigir uma ação explícita e conteúdo próprio para compartilhamento. Auditar também o mandato de origem. Acrescentar regressão com dois usuários e acesso permitido à origem apenas para um deles.
+
+2. **[P1] A ponte MCP exporta texto livre da revisão humana, incluindo dados pessoais e fonte interna.** `ferramentas/mcp-ght4.mjs:167`–`:168` copia justificativa e evidências do veredito atual sem distinguir origem humana de fonte pública. `server/src/api/pesquisas.mjs:265` também entrega o histórico de revisões ao pedido marcado como MCP. Bloquear o plano/rede não impede que dados pessoais saiam por esse outro caminho.
+
+   **Reprodução executada:** criei uma pesquisa pessoal, iniciei/revisei a empresa e registrei revisão humana com a justificativa fictícia `Conversa com Maria Exemplo, celular 11999990000 e maria@exemplo.invalid; ela confirmou o criterio.`. Chamei a implementação real de `criarPonte(...).tratar`, ferramenta `evidencias_empresa`, com `fetchImpl` encaminhando à API real por `app.inject`. A ponte devolveu **`isError: false`**, `lastro: 'humano'` e a justificativa integral em `content` e `structuredContent`. A pesquisa não precisa ser confidencial para a exposição ocorrer. A evidência humana também admite descrição de conversa/documento interno.
+
+   **Correção necessária:** criar uma projeção específica de saída externa no servidor, distinguindo dados públicos de anotações humanas e fontes internas. Por padrão, revisão humana deve sair apenas com o estado necessário, sem justificativa, fonte privada ou histórico. Tratar também resumos livres e trechos que possam carregar dados pessoais; uma lista de nomes de ferramentas não é uma política de campos. Se for necessário exportar conteúdo humano, deve haver seleção/revisão explícita do que será compartilhado. Cobrir a resposta HTTP e a saída final das ferramentas com marcadores de nome, contato e fonte privada. Trata-se de uma falha de minimização e de fronteira de dados do produto; este parecer não é uma certificação jurídica de LGPD.
+
+3. **[P2] A revisão humana não confere a versão vista; uma aba antiga sobrescreve ou desfaz uma decisão mais recente.** `server/src/pesquisa/revisao.mjs:70` compara apenas `veredito` e `lastro`. Duas revisões humanas podem manter esse par e mudar justificativa, fonte e resumo. O desfazer em `:84`–`:90` nem recebe uma versão anterior; a rota em `server/src/api/pesquisas.mjs:294` aceita apenas `criterioId`.
+
+   **Reprodução executada pela API:** confirmação humana A → leitura de duas abas com `anterior: {veredito:'atende', lastro:'humano'}` → gravação de B com fonte/justificativa nova → envio da aba antiga com o mesmo `anterior`. O último POST retornou **200** e substituiu B por `Aba antiga sobrescreveu a fonte B`. Depois de outra revisão, POST em `/revisao/desfazer` só com `criterioId` também retornou **200** e restaurou o automático. O histórico preservou as mudanças, mas não evitou a atualização perdida. O teste existente em `server/tests/pesquisa.test.mjs:954` muda o par comparado e não cobre esse caso.
+
+   **Correção necessária:** usar versão monotônica/ID da revisão vigente ou token que represente todo o veredito, conferido sob o lock do item, tanto para revisar quanto para desfazer. Aba desatualizada deve receber 409 sem alterar item, histórico ou auditoria de decisão. Cobrir revisão com mesmo veredito/lastro e desfazer após alteração em outra aba.
+
+4. **[P2] O resultado MCP pode esconder uma categoria inteira já existente no banco.** `ferramentas/mcp-ght4.mjs:154` filtra por categoria só depois de receber os primeiros 300 revisados de `detalhe` (`server/src/api/pesquisas.mjs:67`). A ponte não usa a rota de continuação por grupo nem devolve cursor.
+
+   **Reprodução executada:** em uma pesquisa do próprio usuário, preparei 301 itens revisados no banco descartável: 300 aderentes e 1 não aderente. `resultado_pesquisa({pesquisaId, categoria:'nao_aderente'})`, pela ponte real e `app.inject`, retornou **`contagens.nao_aderente: 1` e `empresas: []`**. A empresa fica inacessível nessa ferramenta mesmo aumentando `limite`.
+
+   **Correção necessária:** consultar `GET /api/pesquisas/:id/itens?grupo=...` antes de aplicar o limite, com a marca de consistência, e oferecer continuação ou declarar precisamente o corte. Cobrir uma categoria cujo primeiro elemento esteja depois da posição 300 e resultados maiores que o limite da ferramenta.
+
+## IMPORTANTES
+
+1. **[P2] A recusa de homônimo não é atômica para dois cadastros simultâneos.** Em `server/src/api/acesso.mjs:116`, a consulta de homônimo acontece antes da trava global obtida por `alterarRede` em `:119` (`server/src/rede/estado.mjs:2`). Não há nova consulta depois da espera. O índice único em `server/src/db/migracoes/0016_reconhecimento_e_quadro_societario.sql:13` é parcial para `origem='cadastro_publico'`; não protege esses registros manuais.
+
+   **Reprodução por intercalação do SQL, não executada em PostgreSQL real:** dois POSTs com IDs distintos e o mesmo nome/CNPJ abrem T1/T2; ambas consultam o homônimo e encontram zero; T1 atualiza `rede_estado`, insere e confirma; T2, que esperou naquele UPDATE, prossegue diretamente para o INSERT. As duas inserções manuais são permitidas pelo schema. A execução serial em PGlite confirma apenas a recusa sequencial e não reproduz essa concorrência entre conexões.
+
+   **Correção necessária:** serializar por empresa/nome antes da consulta, ou consultar novamente depois de obter a trava já existente, mantendo a mesma ordem de locks. Não impor unicidade geral sem considerar os homônimos legítimos dos outros fluxos. Acrescentar teste PostgreSQL com duas conexões/barreira antes da decisão e exigir um cadastro e um conflito.
+
+2. **[P2] Cargo de presidente/conselheiro é tratado como prova de poder de vender.** `server/src/acesso/plano.mjs:111` e `:137` transformam senioridade em “Decide a venda: atende”. A fonte guardada comprova o cargo, não participação de controle nem delegação para a transação. O próprio texto da estrutura societária distingue essas coisas.
+
+   **Reprodução executada:** `estruturaDeDecisao({naturezaJuridica:'2054', qtdSocios:5, qtdSociosPj:0})` explicou que conselho e diretoria não decidem a venda sozinhos. Passei essa estrutura a `juizoDoDecisor` com `senioridade:'ceo'`, cargo `Presidente profissional contratado` e fonte `Pagina institucional: cargo de presidente`. Resultado: **“Decide a venda”, `atende`**, sem qualquer evidência de controle. Esse juízo também alimenta a triagem do find.
+
+   **Correção necessária:** distinguir cargo de liderança de poder de decisão sobre a venda. Sem fonte específica, marcar indício/pendência e usar a pessoa como acesso à decisão; só afirmar “atende” quando houver evidência apropriada. Ajustar os testes que atualmente cristalizam a equivalência automática.
+
+## RESPOSTAS AO “PARA O CODEX”
+
+- **Ordem do próximo passo:** `proximoPasso` encerra com restrição ativa, pede mapeamento se não há pessoas, aproveita caminho recomendável, verifica membros e perguntas pendentes e só depois sugere abordagem institucional. O fluxo e a ausência de envio automático estão coerentes. A escolha de “decisor”, contudo, precisa da correção de evidência acima.
+- **Casa respondeu em parte:** o juízo usa `indeterminado`, informa respostas/membros e o passo pede completar a apuração. Os testes de acesso e reconhecimento passaram; não há afirmação de “ninguém conhece” apenas por ausência de caminho com respostas parciais.
+- **Homônimo:** o caso sequencial é recusado e passou nos testes. A garantia concorrente permanece aberta pelo achado específico.
+- **Restrição do trabalho ou do membro:** com `pesquisaId`, a API usa o escopo da conversa; sem ele, usa o usuário. O encaminhamento pela interface foi corrigido na Rodada 25. Avisos de outros espaços consultam a visibilidade do membro. Isso não resolve o vazamento da fonte de decisor: a informação nova é gravada globalmente.
+- **Canal externo em carregar/criação/lista:** para pedidos com `X-GHT4-Canal: mcp`, a lista exclui mandatos confidenciais; carregar verifica dono e mandato; criação verifica tanto `mandatoId` quanto o mandato da conversa existente, inclusive repetição. Os testes MCP de fluxo e confidencialidade passaram. Plano/find recusam o canal. A ponte oficial sempre acrescenta o cabeçalho. É uma convenção desse cliente, não uma credencial com escopo restrito ao MCP: a mesma conta/sessão continua tendo suas permissões normais se usada sem o cabeçalho. Não tratar isso como isolamento de um cliente externo que já possui a senha. Além desse limite, há a exposição de campos humanos reproduzida acima.
+- **Importador CEIS/CNEP:** lê método, tamanho e offset no diretório central, aceita stored/deflate e não extrai caminhos para o disco. O teste com ZIP e descarte de pessoa física passou. Só registros `J`, com CNPJ de 14 dígitos e raiz presente no catálogo, entram na projeção; nomes, CPF, processo e fundamentação não são persistidos. Precisão sobre o diário: `campos(linha)` tokeniza a linha inteira antes de verificar o tipo; o descarte é antes de mapear/persistir os campos de saída, não antes de qualquer campo ser lido em memória. Não encontrei persistência de pessoa física nesse fluxo. Não baixei nem confrontei arquivos atuais da CGU.
+- **0028 e 0029:** as migrações criam vínculos referenciais e triggers que recusam UPDATE/DELETE. O item é travado, a alteração e o histórico da revisão são transacionais, e desfazer preserva o automático original. Falta a versão efetiva vista pela aba. Os eventos são informativos, gravados depois da ação em best-effort, com cursor e autorização pela pesquisa; não substituem auditoria nem garantem que toda ação terá evento se a gravação acessória falhar. Os testes de histórico, eventos por cursor e isolamento passaram.
+
+## APROVADO
+
+- Memória de critérios (0027): chave por usuário, leitura/apagamento da própria memória, teto de retenção por quantidade, pausa, exclusão e ausência de trecho da tese na projeção. Pesquisa de mandato confidencial não alimentou a memória no teste integrado. A correção compartilhada de transação da Rodada 25 preservou esses testes.
+- Relaxamento: nova rodada copia critérios e torna opcionais apenas os IDs escolhidos; anterior preservada e reenvio idempotente. Testes de API e interface passaram.
+- Ausência de envio automático, exigência de fonte no registro manual, validação de entradas e links HTTP(S), restrição ativa impedindo sugestão de contato e campos cadastrais de telefone/e-mail fora dos canais institucionais.
+- Sanções são diligência separada do hash do catálogo, com referência visível, ausência de arquivo declarada e aviso de que ausência de registro não comprova idoneidade. Os testes da consulta e do componente passaram.
+- Eventos e revisões mantêm autoria e histórico; permissões de leitura/uso e propriedade da pesquisa são verificadas. Essas aprovações são parciais e não anulam os bloqueadores de saída de dados e consistência.
+
+## OPCIONAIS
+
+- Validar inclusão de `data-sancoes.js` no artefato de hospedagem em ambiente apropriado; esta revisão não fez deploy.
+- Completar o ensaio de protocolo MCP por stdio e os testes de concorrência em PostgreSQL num ambiente que permita subprocessos/conexões locais.
+- Manter a descrição de privacidade precisa: retirar campos estruturados de contato não garante que fontes, justificativas e trechos livres estejam livres de dados pessoais.
+
+## DISCORDÂNCIAS
+
+- Não concordo com “nome de pessoa de terceiro não sai” como garantia da ponte atual: o teste com revisão humana demonstrou o contrário.
+- Histórico append-only não equivale a rejeitar edição baseada em versão antiga. A trilha explica a sobrescrita depois que ela ocorreu; não impede a perda da decisão vigente.
+- Fonte de cargo não basta para afirmar poder de vender, nem autorização para ler o mandato basta para publicar sua fonte na rede global.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Priorizar o isolamento da fonte de mandato e a projeção externa da pesquisa. Depois corrigir versão da revisão/desfazer, paginação MCP, atomicidade da recusa de homônimo e o juízo de poder decisório. Acrescentar as regressões descritas e solicitar nova revisão dessas mudanças, preservando as correções já verificadas da Rodada 25.
+
+**STATUS: REQUER ALTERAÇÕES**
