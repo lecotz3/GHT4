@@ -127,6 +127,27 @@ export async function caminhosDeAcesso(db, { empresaId = null, nomeEmpresa = '',
   if (!alvos.length) return vazio;
   if (restricao?.ativa) return vazio;
 
+  const grafo = await lerGrafo(db);
+  if (grafo.truncado) limitacoes.push(LIMITACAO_GRAFO);
+  if (!grafo.arestas.length) return { ...vazio, semCaminho: alvos.map((a) => filtrarMembroDaRede(comoPessoa(a), usuario)) };
+
+  const caminhos = caminhosNoGrafo(grafo, alvos, usuario);
+  const alcancados = new Set(caminhos.map((c) => c.alvo.id));
+  return {
+    ...vazio,
+    caminhos,
+    semCaminho: alvos.filter((a) => !alcancados.has(a.id)).map((a) => filtrarMembroDaRede(comoPessoa(a), usuario)),
+    limitacoes,
+  };
+}
+
+export const LIMITACAO_GRAFO = `A rede passou de ${LIMITE_ARESTAS} vínculos e esta leitura considerou apenas os primeiros. Avise quem mantém o sistema.`;
+
+/**
+ * Vínculos ativos com as duas pontas ativas, e as pessoas que eles ligam. Lido
+ * uma vez, serve a quantas empresas forem consultadas na mesma resposta.
+ */
+export async function lerGrafo(db) {
   /* O piloto trabalha com dezenas de pessoas; carregar as arestas ativas de uma
      vez custa menos que duas rodadas de ida e volta ao banco, e deixa a busca
      inteira legível num lugar só. O teto existe para que um crescimento
@@ -139,11 +160,9 @@ export async function caminhosDeAcesso(db, { empresaId = null, nomeEmpresa = '',
        JOIN rede_pessoas pb ON pb.id = v.pessoa_b_id AND pb.ativo
        LEFT JOIN usuarios c ON c.id = v.confirmado_por
       WHERE v.ativo ORDER BY v.id LIMIT ${LIMITE_ARESTAS + 1}`)).rows;
-  if (arestas.length > LIMITE_ARESTAS) {
-    limitacoes.push(`A rede passou de ${LIMITE_ARESTAS} vínculos e esta leitura considerou apenas os primeiros. Avise quem mantém o sistema.`);
-    arestas.length = LIMITE_ARESTAS;
-  }
-  if (!arestas.length) return { ...vazio, semCaminho: alvos.map((a) => filtrarMembroDaRede(comoPessoa(a), usuario)) };
+  const truncado = arestas.length > LIMITE_ARESTAS;
+  if (truncado) arestas.length = LIMITE_ARESTAS;
+  if (!arestas.length) return { arestas, pessoas: new Map(), vizinhos: new Map(), truncado };
 
   const envolvidos = [...new Set(arestas.flatMap((a) => [a.pessoa_a_id, a.pessoa_b_id]))];
   const pessoas = new Map((await db.query(
@@ -166,7 +185,14 @@ export async function caminhosDeAcesso(db, { empresaId = null, nomeEmpresa = '',
       || (!bloqueada && !anteriorBloqueada && disposicaoDe(a.disposicao).ordem < disposicaoDe(anterior.disposicao).ordem)) pares.set(chave,a);
   }
   for (const a of pares.values()) { ligar(a.pessoa_a_id, a.pessoa_b_id, a); ligar(a.pessoa_b_id, a.pessoa_a_id, a); }
+  return { arestas, pessoas, vizinhos, truncado };
+}
 
+/**
+ * Caminhos até `alvos` (linhas de `rede_pessoas`) no grafo de `lerGrafo`, do
+ * mais apresentável ao menos. Alvos de empresas diferentes podem ir juntos.
+ */
+export function caminhosNoGrafo({ pessoas, vizinhos }, alvos, usuario = null) {
   const daCasa = [...pessoas.values()].filter((p) => p.lado === 'ght4');
   const idsAlvo = new Set(alvos.map((a) => a.id));
   const brutos = [];
@@ -261,12 +287,5 @@ export async function caminhosDeAcesso(db, { empresaId = null, nomeEmpresa = '',
     || a.saltos - b.saltos
     || a.alvo.nome.localeCompare(b.alvo.nome, 'pt-BR')
     || a.ght4.nome.localeCompare(b.ght4.nome, 'pt-BR'));
-
-  const alcancados = new Set(caminhos.map((c) => c.alvo.id));
-  return {
-    ...vazio,
-    caminhos,
-    semCaminho: alvos.filter((a) => !alcancados.has(a.id)).map((a) => filtrarMembroDaRede(comoPessoa(a), usuario)),
-    limitacoes,
-  };
+  return caminhos;
 }

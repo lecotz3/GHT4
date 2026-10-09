@@ -11,6 +11,7 @@ import { PreviaBusca } from './PreviaBusca'
 import { EstruturaAgente, GuiaDeUso, type SecaoAgente } from './EstruturaAgente'
 import { InicioAgente } from './InicioAgente'
 import { PesquisaTese } from './PesquisaTese'
+import { EncontrarPessoas } from './EncontrarPessoas'
 import { EscolherEmpresaAgente } from './EscolherEmpresaAgente'
 import { IconeRede } from './IconeRede'
 import { SeletorUfs } from './SeletorUfs'
@@ -93,6 +94,7 @@ export function Agente({ aoExplorar, convite, aoLimparConvite }: { aoExplorar: (
     {secao === 'rede' && <Rede aoExpirar={aoExpirar} aoVoltar={() => navegar('agente')} />}
     {secao === 'crm' && <Oportunidades key={crm?.id ?? 'lista'} inicialId={crm?.id ?? null} aoVoltar={() => navegar('agente')} aoExpirar={aoExpirar} aoAbrirTrabalho={(id) => { setTrabalhoExterno(id); navegar('agente') }} />}
     {secao === 'ajuda' && <GuiaDeUso aoNavegar={navegar} aoExplorar={aoExplorar} />}
+    {secao === 'encontrar' && <EncontrarPessoas aoPesquisar={(tese) => pesquisar({ tese })} aoExpirar={aoExpirar} />}
     {secao === 'pesquisa' && <PesquisaTese usuario={usuario} inicial={pesquisaInicial} aoConsumirInicial={consumirPesquisa} aoAbrirTrabalho={(id) => { setTrabalhoExterno(id); navegar('agente') }} aoExpirar={aoExpirar} />}
     <div hidden={secao !== 'inicio' && secao !== 'agente'}><EspacoDoAgente key={usuario.id} usuario={usuario} inicio={secao === 'inicio'} aoOportunidades={() => navegar('crm')} aoTrabalhar={() => navegar('agente')} aoRede={() => navegar('rede')} aoAjuda={() => navegar('ajuda')} aoExpirar={aoExpirar} versaoEquipe={versaoEquipe} trabalhoExterno={trabalhoExterno} aoAbrirCrm={abrirCrm} aoPesquisar={pesquisar} /></div>
     <FichaEmpresaGaveta empresaId={ficha} aoFechar={() => setFicha(null)} aoAbrirCrm={abrirCrm} podeExportar={usuario.papel !== 'leitura'} />

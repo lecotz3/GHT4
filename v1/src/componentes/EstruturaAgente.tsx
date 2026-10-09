@@ -3,10 +3,11 @@ import { MarcaGHT4 } from './MarcaGHT4'
 import { IconeRede } from './IconeRede'
 import type { Usuario } from '../agente/api'
 
-export type SecaoAgente = 'inicio' | 'pesquisa' | 'agente' | 'rede' | 'crm' | 'equipe' | 'ajuda'
+export type SecaoAgente = 'inicio' | 'pesquisa' | 'encontrar' | 'agente' | 'rede' | 'crm' | 'equipe' | 'ajuda'
 const secoes = [
   { id: 'inicio', nome: 'Início', icone: 'casa' },
   { id: 'pesquisa', nome: 'Pesquisar por tese', icone: 'alvo' },
+  { id: 'encontrar', nome: 'Encontrar quem decide', icone: 'busca' },
   { id: 'agente', nome: 'Meus trabalhos', icone: 'pasta' },
   { id: 'rede', nome: 'Relacionamentos', icone: 'rede' },
   { id: 'crm', nome: 'Oportunidades', icone: 'empresa' },
@@ -55,6 +56,7 @@ export function GuiaDeUso({ aoNavegar, aoExplorar }: { aoNavegar: (s: SecaoAgent
     ].map(g => <article key={g.n} className="agente-guia-card"><span className="agente-icone-bloco"><IconeRede nome={g.icone} /></span><span className="agente-etapa-numero">{g.n}</span><h3>{g.titulo}</h3><p>{g.texto}</p><button className="agente-link" onClick={() => aoNavegar(g.destino)}>{g.acao}<IconeRede nome="seta" /></button></article>)}</div>
     <section className="agente-superficie p-6"><h3 className="text-lg font-semibold">Dúvidas na primeira utilização</h3>{[
       ['Como a pesquisa por tese decide se uma empresa atende?', 'Critérios de cadastro (idade, porte, filiais, sócios, IBAMA) são conferidos na Receita Federal. O que o cadastro não responde é procurado no site oficial da empresa, a partir do domínio declarado no CNPJ. Sem trecho que comprove, o critério fica “sem evidência”, nunca “não atende”. Com IA gratuita configurada, o modelo só pode citar trechos que existem na página.'],
+      ['Como encontro quem decide nas empresas?', 'Em Encontrar quem decide, escreva o cargo e a empresa, por exemplo “quem decide nas distribuidoras de SP que a casa conhece”. O agente procura entre as pessoas que a casa já mapeou e mostra, para cada uma, o juízo de cada exigência com a fonte e o caminho pela rede. As empresas que se encaixam e onde ninguém mapeado serve aparecem em “Onde falta quem decide”: abra o plano e registre quem decide, com a fonte. Telefone e e-mail não aparecem.'],
       ['Por que uma ação está indisponível?', 'Algumas tarefas precisam de uma empresa escolhida ou de um texto mínimo. A explicação aparece junto ao botão. Conversa livre e pesquisa web dependem da configuração de IA; pesquisa cadastral e relações funcionam sem ela.'],
       ['Onde encontro o que já fiz?', 'Em Meus trabalhos. Cada pedido executado salva o contexto e a resposta. Abra um trabalho recente para continuar; o rascunho ainda não executado não é salvo ao sair da conta.'],
       ['Um contato cadastrado já pode me apresentar?', 'Não. O titular precisa confirmar a relação e sua disposição. Confira a evidência do caminho e as restrições da empresa antes de abordar.'],
