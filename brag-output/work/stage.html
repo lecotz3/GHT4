@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>GHT4 brag stage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=block" rel="stylesheet">
+<link rel="stylesheet" href="css/app-index.css">
+<link rel="stylesheet" href="css/app-agente.css">
+<style>
+  /* Cada quadro é função pura do tempo: nada de transição ou animação do navegador. */
+  *, *::before, *::after { transition: none !important; animation: none !important; caret-color: transparent; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #fff; }
+  #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #fff; font-family: var(--font-sans); }
+  .layer { position: absolute; inset: 0; }
+  .cam { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+
+  /* campo da tese: o mesmo desenho do textarea da caixa */
+  .tese-campo { display: block; width: 100%; min-height: 120px; padding: 20px 22px 6px; font-size: 16px; line-height: 1.6; color: var(--color-tinta); white-space: pre-wrap; }
+  .tese-campo .ph { color: #9a9a9a; }
+  .tese-campo .caret { display: inline-block; width: 2px; height: 1.25em; background: var(--color-comprador); vertical-align: -0.28em; margin-left: 1px; }
+  .pesquisa-caixa.foco { border-color: var(--color-comprador); box-shadow: 0 14px 40px rgb(15 76 129 / .12); }
+
+  /* legendas */
+  #capcol { position: absolute; left: 124px; top: 0; width: 610px; height: 1080px; }
+  .cap { position: absolute; left: 0; top: 50%; width: 610px; transform: translateY(-50%); }
+  .cap-rotulo { display: flex; align-items: center; gap: 14px; font-size: 17px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--color-alvo-tinta); }
+  .cap-rotulo i { display: block; width: 3px; height: 26px; background: var(--color-marca); transform: skewX(-45deg); margin-left: 8px; }
+  .cap-titulo { margin-top: 26px; font-size: 76px; line-height: 1.04; font-weight: 600; letter-spacing: -.045em; color: var(--color-tinta); }
+  .cap-titulo .tinta-alvo { color: var(--color-alvo-tinta); }
+  .cap-sub { margin-top: 28px; font-size: 30px; line-height: 1.4; color: var(--color-suave); letter-spacing: -.01em; }
+  .cap > * { will-change: transform, opacity; }
+  .cap.menor .cap-titulo { font-size: 66px; line-height: 1.08; }
+
+  /* janela do app nas cenas divididas */
+  #win { position: absolute; left: 790px; top: 92px; width: 1040px; height: 896px; border-radius: 22px; overflow: hidden; background: var(--color-papel-2); border: 1px solid var(--color-fio); box-shadow: 0 40px 90px rgb(17 17 17 / .10), 0 8px 24px rgb(17 17 17 / .05); }
+  #page { width: 700px; min-height: 0 !important; background: transparent; }
+  .pg { position: absolute; left: 0; top: 0; width: 700px; padding: 30px 28px; }
+  .pg > * + * { margin-top: 20px; }
+
+  .pop { display: inline-grid; will-change: transform, opacity; }
+  .detalhe-wrap { overflow: hidden; }
+  .dica { position: absolute; z-index: 9; background: white; color: var(--color-tinta); border: 1px solid var(--color-fio-forte); box-shadow: 0 8px 22px rgb(0 0 0 / .12); border-radius: 7px; padding: 7px 10px; font-size: 11px; line-height: 1.35; white-space: nowrap; }
+
+  /* cursor */
+  #cursor { position: absolute; left: 0; top: 0; width: 42px; height: 42px; z-index: 50; pointer-events: none; will-change: transform; }
+
+  /* desfecho */
+  #s5 { background: #000; }
+  #faixa { background: var(--color-marca); }
+  #s5 .logo { position: absolute; left: 50%; top: 382px; height: 150px; transform: translateX(-50%); color: white; }
+  #s5 .regua { position: absolute; left: 50%; top: 584px; height: 4px; background: var(--color-marca); transform: translateX(-50%); }
+  #s5 .linha1 { position: absolute; left: 0; right: 0; top: 622px; text-align: center; color: white; font-size: 56px; font-weight: 600; letter-spacing: -.035em; }
+  #s5 .linha2 { position: absolute; left: 0; right: 0; top: 708px; text-align: center; color: var(--color-fio-forte); font-size: 26px; font-weight: 500; letter-spacing: .01em; }
+  #s5 .linha2 b { color: var(--color-marca); font-weight: 700; padding: 0 10px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="s1" class="layer"><div id="s1cam" class="cam"></div></div>
+  <div id="split" class="layer">
+    <div id="capcol"></div>
+    <div id="win"><div id="page" class="cam agente-app pesquisa"></div></div>
+  </div>
+  <div id="s5" class="layer"></div>
+  <div id="faixa" class="layer"></div>
+  <svg id="cursor" viewBox="0 0 24 24"><path d="M5 2.5v17.2l4.3-4.1 2.9 6.6 2.9-1.3-2.8-6.5h6.1Z" fill="#111" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>
+</div>
+
+<script>
+/* ---------- material real do GHT4 ---------- */
+const LOGO = 'M85.962,47.8V42.351a11.271,11.271,0,0,1-4.423,1.273,2.524,2.524,0,0,1-2.85-2.8V21.891h7.273v-5.3H78.69V8.233H73.306l-.843,8.394-4.3.315v4.95h4.114V42.325c0,4.4,3.068,7.129,8.008,7.129A12.648,12.648,0,0,0,85.962,47.8M112.1,38.756V20.028L99.58,38.756Zm0,5.555H92.4V39.158L113.057,8.233h5.455V38.756h8.627l-3.71,5.555h-4.917v4.8H112.1ZM12.722,22.093a8.03,8.03,0,0,0-2.709.459,5.508,5.508,0,0,0-2.035,1.312,6.432,6.432,0,0,0-1.541,4.584A6.388,6.388,0,0,0,7.975,33a5.522,5.522,0,0,0,2.04,1.317,8.333,8.333,0,0,0,5.449,0A5.5,5.5,0,0,0,17.5,33.007a6.432,6.432,0,0,0,1.542-4.583A6.4,6.4,0,0,0,17.5,23.866a5.537,5.537,0,0,0-2.041-1.315,8.109,8.109,0,0,0-2.737-.458h0Zm-.736-5.445,19.08-.006-3.506,5.25H23.6l.265.418a10.608,10.608,0,0,1,.7,1.425,12.922,12.922,0,0,1,.884,4.681,13.05,13.05,0,0,1-.885,4.724,10.793,10.793,0,0,1-2.945,4.12,11.675,11.675,0,0,1-4.35,2.338,15.5,15.5,0,0,1-3.715.607c-.006,0-1,.024-1.159.024h-.136l-.061.126a14.277,14.277,0,0,0-.584,2.579.713.713,0,0,0,.647.782c.326.033.873.053,1.271.058l.35.011c.878.009,1.956.02,3.085.1a16.2,16.2,0,0,1,4.407.874,8.611,8.611,0,0,1,4.341,3.385,9.43,9.43,0,0,1,1.35,5.04A10.3,10.3,0,0,1,22.7,61.718a12.729,12.729,0,0,1-4.3,1.944,18.833,18.833,0,0,1-4.287.582c-.173,0-.33,0-.484,0A16.464,16.464,0,0,1,5.51,62.421a10.745,10.745,0,0,1-3.724-3.356A11.883,11.883,0,0,1,.2,53.944c-.008-.071-.146-1.4-.2-1.928H6.453l.114,1.333A5.447,5.447,0,0,0,8.6,57.466a8.717,8.717,0,0,0,4.938,1.327q.2,0,.407-.006a8.121,8.121,0,0,0,5.038-1.693,4.353,4.353,0,0,0,1.676-3.567,4.215,4.215,0,0,0-2.306-3.792c-1.3-.626-2.472-.626-4.806-.626h-2.9a5.1,5.1,0,0,1-4.088-1.943,4.506,4.506,0,0,1-.642-3.945l.878-4.142-.141-.063a11.138,11.138,0,0,1-2.805-1.763A10.784,10.784,0,0,1,.907,33.138a12.959,12.959,0,0,1,0-9.406,10.79,10.79,0,0,1,2.945-4.119A11.657,11.657,0,0,1,8.2,17.275a16.1,16.1,0,0,1,3.783-.627M169.435,0,143.168,39.33h-6.685L109.321,80H115.9l26.257-39.33h6.695L176,0ZM62.027,22.958A12.747,12.747,0,0,1,62.9,27.6V49.11H56.487V28.246a6.459,6.459,0,0,0-1.648-4.71,5.93,5.93,0,0,0-2.253-1.261,9.286,9.286,0,0,0-2.73-.377c-.106,0-.213,0-.321,0a9.892,9.892,0,0,0-3.05.571,6.565,6.565,0,0,0-2.294,1.43,6.288,6.288,0,0,0-1.686,4.625V49.11H36.093V1.947h6.412v17.07l.3-.2a12.692,12.692,0,0,1,2.854-1.432,15.921,15.921,0,0,1,4.507-.9c.344-.022.689-.032,1.028-.032a14.928,14.928,0,0,1,3.5.4,10.868,10.868,0,0,1,4.4,2.114,10.016,10.016,0,0,1,2.931,3.989';
+const marca = (cls, st = '') => `<svg viewBox="0 0 176 80" role="img" aria-label="GHT4" class="block w-auto shrink-0 fill-current ${cls}" style="${st}"><path d="${LOGO}"/></svg>`;
+
+const D = {
+  casa: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/>',
+  pasta: '<path d="M3 7V5a1 1 0 0 1 1-1h5l2 3h9a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z"/>',
+  ajuda: '<circle cx="12" cy="12" r="9"/><path d="M9 8a3 3 0 0 1 6 0c0 2-3 2-3 4m0 4h.01"/>',
+  brilho: '<path d="m12 3 2.3 6.7L21 12l-6.7 2.3L12 21l-2.3-6.7L3 12l6.7-2.3Z"/>',
+  pessoas: '<circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 4a3 3 0 0 1 0 6m2 4a5 5 0 0 1 3 4v3"/>',
+  empresa: '<rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M9 7h1m4 0h1M9 11h1m4 0h1M10 21v-5h4v5"/>',
+  rede: '<circle cx="5" cy="12" r="3"/><circle cx="18" cy="5" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8 10 7-4M8 14l7 4"/>',
+  seta: '<path d="M4 12h16m-6-6 6 6-6 6"/>',
+  mais: '<path d="M12 4v16M4 12h16"/>',
+  certo: '<path d="m5 12 4 4L19 6"/>',
+  alvo: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/>',
+  xis: '<path d="m7 7 10 10M7 17 17 7"/>',
+  duvida: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 5 0c0 1.7-2.5 1.9-2.5 3.5m0 3h.01"/>',
+  aproximado: '<path d="M5 9c2-2 4 2 7 0s5-2 7 0M5 15c2-2 4 2 7 0s5-2 7 0"/>',
+  lixo: '<path d="M4 7h16m-10 4v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  globo: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/>',
+  documento: '<path d="M6 3h8l4 4v14H6Z"/><path d="M14 3v4h4M9 12h6m-6 4h6"/>',
+};
+const ic = (n, cls = '') => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="shrink-0 ${cls}">${D[n]}</svg>`;
+
+const TESE = 'Distribuidoras em SP com mais de 15 anos, sem sócio estrangeiro, com filiais, que representem fabricantes multinacionais';
+// Saída de interpretarTese() para a tese acima (server/src/pesquisa/criterios.mjs).
+const CRITERIOS = [
+  { texto: 'Mais de 15 anos de fundação', tipo: 'cadastro', trecho: 'mais de 15 anos' },
+  { texto: 'Pelo menos 2 estabelecimentos ativos', tipo: 'cadastro', trecho: 'com filiais' },
+  { texto: 'Sem sócio estrangeiro', tipo: 'cadastro', trecho: 'sem sócio estrangeiro' },
+  { texto: 'Representem fabricantes multinacionais', tipo: 'pesquisa', trecho: 'que representem fabricantes multinacionais' },
+];
+const EXEMPLOS = [
+  ['Venda', 'Distribuidoras químicas em SP com mais de 20 anos, sem holding no quadro e sem sócio estrangeiro, que representem fabricantes multinacionais'],
+  ['Compra', 'Alvos de aquisição para um comprador: distribuidoras de médio porte no Sul, com filiais, de preferência que atendam o agronegócio'],
+  ['Consolidação', 'Distribuidoras tradicionais em MG e SP que importem solventes e declarem transporte de produtos perigosos ao IBAMA'],
+  ['Nicho', 'Empresas com laboratório próprio e certificação ISO 9001 que distribuam resinas para a indústria de tintas'],
+];
+const ICONE = { atende: 'certo', indicio: 'aproximado', indeterminado: 'duvida', nao_atende: 'xis' };
+const ROTULO = { atende: 'Atende', indicio: 'Indício', indeterminado: 'Sem evidência', nao_atende: 'Não atende' };
+// Empresas fictícias da base de demonstração (data.js).
+const GRUPOS = [
+  { cat: 'provavel', rotulo: 'Prováveis', desc: 'Obrigatórios atendidos, ao menos um só por indício no site.', itens: [
+    { id: 'qb', nome: 'Quimibrás Distribuidora', local: 'Diadema/SP', ad: 90, v: ['atende', 'atende', 'atende', 'indicio'] },
+    { id: 'iq', nome: 'Interquímica Comércio', local: 'Guarulhos/SP', ad: 90, v: ['atende', 'atende', 'atende', 'indicio'] },
+  ] },
+  { cat: 'a_confirmar', rotulo: 'A confirmar', desc: 'Passaram no cadastro; falta evidência pública para algum obrigatório.', itens: [
+    { id: 'px', nome: 'Polimix Trading Químico', local: 'Santos/SP', ad: 75, v: ['atende', 'atende', 'atende', 'indeterminado'] },
+  ] },
+  { cat: 'nao_aderente', rotulo: 'Não aderentes', desc: 'Algum obrigatório foi contrariado por evidência.', itens: [] },
+];
+
+/* ---------- utilidades de tempo ---------- */
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const eio = (x) => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;      // ease in-out cúbico
+const eout = (x) => 1 - Math.pow(1 - x, 3);
+const eoutq = (x) => 1 - Math.pow(1 - x, 5);
+const ein = (x) => x * x * x;
+const lerp = (a, b, x) => a + (b - a) * x;
+const back = (x) => { const c = 1.6; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const $ = (s, r = document) => r.querySelector(s);
+
+/* ---------- cena 1: o app real ---------- */
+function montarCena1() {
+  const nav = [['casa', 'Início'], ['alvo', 'Pesquisar por tese', true], ['pasta', 'Meus trabalhos'], ['rede', 'Relacionamentos'], ['empresa', 'Oportunidades'], ['pessoas', 'Equipe e acessos']];
+  $('#s1cam').innerHTML = `
+  <div class="agente-app agente-shell" style="width:1600px;height:900px;min-height:900px">
+    <aside class="agente-lateral" style="height:900px;position:relative">
+      <div class="agente-marca">${marca('h-10')}<span>ADVISORY<span>Inteligência de M&amp;A</span></span></div>
+      <div class="agente-menu">
+        <p class="agente-menu-legenda">Seu espaço de trabalho</p>
+        <nav>${nav.map(([i, n, at]) => `<button class="agente-nav-item" ${at ? 'aria-current="page"' : ''}>${ic(i)}<span>${n}</span>${at ? '<span class="agente-nav-ponto"></span>' : ''}</button>`).join('')}</nav>
+        <div class="agente-lateral-final"><button class="agente-nav-item">${ic('ajuda')}Como usar o agente</button></div>
+      </div>
+    </aside>
+    <div class="agente-corpo">
+      <header class="agente-cabecalho"><div><span>Seu espaço</span><span aria-hidden="true">/</span><h1 class="agente-cabecalho-titulo">Pesquisar por tese</h1></div><span class="agente-selo-setor">Químicos · setores-alvo</span></header>
+      <main class="agente-pagina pesquisa"><div class="pesquisa-layout">
+        <section class="pesquisa-compositor">
+          <span class="agente-sobretitulo">Pesquisa por tese</span>
+          <h2>Descreva as empresas que você procura.</h2>
+          <p class="pesquisa-sub">O agente transforma a tese em critérios verificáveis, confere cada empresa do catálogo no cadastro da Receita e pesquisa no site oficial o que o cadastro não responde. Você revisa os critérios antes de rodar.</p>
+          <div class="pesquisa-caixa" id="caixa">
+            <div class="tese-campo" id="campo"></div>
+            <div class="pesquisa-caixa-rodape">
+              <div class="pesquisa-segmentos"><button aria-pressed="false">Venda</button><button aria-pressed="false">Compra</button><button aria-pressed="true">Detectar</button></div>
+              <button class="agente-btn-primario" id="montar" disabled><span id="montar-txt">Montar critérios</span>${ic('seta')}</button>
+            </div>
+          </div>
+          <div class="pesquisa-exemplos">${EXEMPLOS.map(([r, t]) => `<button><span>${r}</span>${t}</button>`).join('')}</div>
+          <ol class="pesquisa-etapas">${[['01', 'Critérios', 'A tese vira critérios obrigatórios e opcionais, que você edita.'], ['02', 'Funil cadastral', 'Todo o recorte é conferido na Receita, sem custo, em segundos.'], ['03', 'Evidência pública', 'O site oficial de cada empresa é lido para o que o cadastro não responde.'], ['04', 'Entrega', 'As escolhidas seguem para o trabalho, reunião e oportunidade.']].map(([n, t, d]) => `<li><span>${n}</span><strong>${t}</strong><p>${d}</p></li>`).join('')}</ol>
+        </section>
+        <aside class="pesquisa-lateral">
+          <section class="pesquisa-ia"><span class="agente-icone-bloco">${ic('documento')}</span><h3>Modo sem IA</h3><p>Cadastro conferido por regras e sites lidos por busca de termos (indícios). Com uma chave gratuita do Gemini ou Groq, os critérios de site passam a ter julgamento.</p></section>
+          <section><h3 class="mb-3 text-sm font-semibold">Pesquisas recentes</h3><p class="text-xs leading-relaxed text-suave">Suas pesquisas aparecem aqui, com o andamento salvo.</p></section>
+        </aside>
+      </div></main>
+    </div>
+  </div>`;
+}
+
+/* ---------- cenas 2 a 4: a página da pesquisa ---------- */
+const simbolo = (v, id) => `<span class="pesquisa-simbolo ${v} pop" ${id ? `id="${id}"` : ''}>${ic(ICONE[v])}</span>`;
+function montarPagina() {
+  const crit = CRITERIOS.map((c, k) => `
+    <li id="crit${k}">
+      <span class="pesquisa-tipo ${c.tipo}">${ic(c.tipo === 'cadastro' ? 'documento' : 'globo')}</span>
+      <div class="min-w-0 flex-1">
+        <p class="pesquisa-criterio-texto">${c.texto}</p>
+        <p class="pesquisa-criterio-meta">${c.tipo === 'cadastro' ? 'Cadastro RFB · sem custo' : 'Site oficial · evidência pública'} · de “${c.trecho.slice(0, 60)}”</p>
+      </div>
+      <div class="pesquisa-segmentos pequeno"><button aria-pressed="true">Obrigatório</button><button aria-pressed="false">Opcional</button></div>
+      <button class="pesquisa-remover">${ic('lixo')}</button>
+    </li>`).join('');
+  const etapa = (id, rotulo) => `<div class="pesquisa-funil-etapa"><span class="pesquisa-funil-valor" id="${id}v">—</span><span class="pesquisa-funil-rotulo">${rotulo}</span><span class="pesquisa-funil-trilho"><span id="${id}b" style="width:0%"></span></span></div>`;
+  const cabecalho = `<header class="pesquisa-cabecalho" id="cabecalho"><div class="min-w-0"><span class="agente-sobretitulo">Pesquisa por tese · mandato de venda</span><h2>${TESE}</h2><p><span class="pesquisa-estado rascunho">Rascunho</span></p></div></header>`;
+  const rascunho = `<div class="pg" id="pg1">
+    ${cabecalho}
+    <section class="pesquisa-funil" id="funil" style="grid-template-columns:1fr 1fr">${etapa('f1', 'No recorte')}${etapa('f2', 'Passam no cadastro')}</section>
+    <section class="agente-superficie pesquisa-criterios" id="criterios">
+      <div class="agente-linha-titulo"><h3>Critérios desta pesquisa</h3><span>Propostos por regras locais</span></div>
+      <ul class="pesquisa-lista-criterios">${crit}</ul>
+      <div class="pesquisa-acoes"><button class="agente-btn-primario">Revisar as 10 primeiras${ic('seta')}</button><button class="agente-btn-secundario">Revisar até a meta</button></div>
+    </section>
+  </div>`;
+  const linhas = (g) => g.itens.map((i) => `
+    <tr id="row-${i.id}"><td><input type="checkbox"></td>
+      <td><button class="pesquisa-empresa" id="nome-${i.id}"><strong>${i.nome}</strong><small>${i.local}</small></button></td>
+      <td><span class="pesquisa-aderencia"><span class="pesquisa-aderencia-trilho"><span style="width:${i.ad}%"></span></span>${i.ad}%</span></td>
+      ${i.v.map((v, k) => `<td>${simbolo(v, `s-${i.id}-${k}`)}</td>`).join('')}
+    </tr>
+    ${i.id === 'qb' ? `<tr class="pesquisa-detalhe-linha"><td colspan="7"><div class="detalhe-wrap" id="det-wrap"><div class="pesquisa-detalhe" id="detalhe">
+      <div class="pesquisa-detalhe-cabeca"><div><strong>Quimibrás Distribuidora Ltda.</strong><small>CNAE 4684-2/99 · aberta em 14/03/1998</small></div></div>
+      <ul>
+        ${[
+          ['atende', 'Mais de 15 anos de fundação', '28 anos (aberta em 14/03/1998)', 'rfb'],
+          ['atende', 'Pelo menos 2 estabelecimentos ativos', '3 estabelecimento(s) ativo(s)', 'rfb'],
+          ['atende', 'Sem sócio estrangeiro', 'Sem sócio estrangeiro no quadro', 'rfb'],
+          ['indicio', 'Representem fabricantes multinacionais', 'O site menciona os termos do critério', 'site'],
+        ].map(([v, c, r, l], k) => `<li class="pesquisa-veredito ${v}" id="ver${k}">${simbolo(v)}<div class="min-w-0"><p><b>${c}</b> · ${ROTULO[v]} — ${r}</p>${l === 'rfb'
+          ? `<p class="pesquisa-fonte">Receita Federal · CNPJ · referência 2026-09</p>`
+          : `<p class="pesquisa-justificativa">Indício textual encontrado nas páginas lidas, sem julgamento por IA. Leia o trecho para confirmar o sentido.</p><blockquote id="citacao"><p>“Somos representantes de fabricantes multinacionais de solventes, resinas e aditivos.”</p></blockquote>`}</div></li>`).join('')}
+      </ul>
+    </div></div></td></tr>` : ''}`).join('');
+  const grupos = GRUPOS.map((g) => `<details class="pesquisa-grupo ${g.cat}" id="g-${g.cat}" ${g.itens.length ? 'open' : ''}>
+      <summary><span class="pesquisa-grupo-ponto"></span>${g.rotulo}<small>${g.desc}</small></summary>
+      ${g.itens.length ? `<div class="pesquisa-tabela-rolagem"><table class="pesquisa-tabela">
+        <thead><tr><th class="w-8"></th><th>Empresa</th><th>Aderência</th>${CRITERIOS.map((c, k) => `<th>C${k + 1}</th>`).join('')}</tr></thead>
+        <tbody>${linhas(g)}</tbody></table></div>` : ''}
+    </details>`).join('');
+  const legenda = `<details class="pesquisa-legenda" open id="legenda"><summary>Critérios e legenda</summary>
+      <ol>${CRITERIOS.map((c, k) => `<li><b>C${k + 1}</b> ${c.texto} <span>obrigatório · ${c.tipo === 'cadastro' ? 'cadastro' : 'site'}</span></li>`).join('')}</ol>
+      <p>${['atende', 'indicio', 'indeterminado', 'nao_atende'].map((v) => `<span>${simbolo(v)}${ROTULO[v]}</span>`).join('')}</p>
+    </details>`;
+  const resultado = `<div class="pg" id="pg2">${legenda}<section class="pesquisa-resultados" id="resultados">${grupos}</section></div>`;
+  $('#page').innerHTML = rascunho + resultado + `<div class="dica" id="dica">Representem fabricantes multinacionais: Nada encontrado nas páginas lidas</div>`;
+}
+
+/* ---------- legendas ---------- */
+const CAPS = [
+  { id: 'c2', a: 3.62, b: 7.0, rotulo: 'Critérios', titulo: 'A tese vira critérios.', sub: 'Obrigatórios e opcionais, que você edita.' },
+  { id: 'c3', a: 7.22, b: 10.62, rotulo: 'Funil cadastral', titulo: 'Cada empresa conferida na Receita.', sub: 'Sem custo, em segundos.' },
+  { id: 'c4', a: 10.86, b: 13.72, rotulo: 'Evidência', titulo: 'Cada veredito com a fonte.', sub: 'Com o trecho citado.' },
+  { id: 'c5', a: 13.9, b: 16.62, rotulo: 'A regra', titulo: 'Sem evidência, fica<br>“sem evidência”.<br><span class="tinta-alvo">Nunca “não atende”.</span>', sub: '', menor: true },
+];
+function montarLegendas() {
+  $('#capcol').innerHTML = CAPS.map((c) => `<div class="cap${c.menor ? ' menor' : ''}" id="${c.id}"><div class="cap-rotulo"><i></i>${c.rotulo}</div><div class="cap-titulo">${c.titulo}</div>${c.sub ? `<div class="cap-sub">${c.sub}</div>` : ''}</div>`).join('');
+}
+
+/* ---------- desfecho ---------- */
+function montarDesfecho() {
+  $('#s5').innerHTML = `${marca('logo')}<div class="regua"></div><div class="linha1">Pesquisa por tese</div><div class="linha2">GHT4 Advisory<b>·</b>Inteligência de M&amp;A</div>`;
+}
+
+/* ---------- medidas (sem escala) ---------- */
+const M = {};
+function medir() {
+  const cam = $('#s1cam'); cam.style.transform = 'none';
+  const r = (el) => { const b = el.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height, cx: b.left + b.width / 2, cy: b.top + b.height / 2 }; };
+  M.caixa = r($('#caixa')); M.montar = r($('#montar')); M.h2 = r($('.pesquisa-compositor h2'));
+  const pg = $('#page'); pg.style.transform = 'none';
+  const base = r(pg);
+  const rel = (el) => { const b = r(el); return { ...b, x: b.x - base.x, y: b.y - base.y, cx: b.cx - base.x, cy: b.cy - base.y }; };
+  $('#pg2').style.visibility = 'hidden';
+  M.criterios = rel($('#criterios')); M.funil = rel($('#funil')); M.cabecalho = rel($('#cabecalho'));
+  // Resultado com o detalhe aberto: é a posição final que a câmera procura.
+  $('#det-wrap').style.height = 'auto';
+  M.detH = $('#det-wrap').getBoundingClientRect().height;
+  M.resultados = rel($('#resultados')); M.legenda = rel($('#legenda'));
+  M.citacao = rel($('#citacao')); M.ver0 = rel($('#ver0')); M.detalhe = rel($('#detalhe'));
+  M.px = rel($('#row-px')); M.pxSim = rel($('#s-px-3')); M.gConf = rel($('#g-a_confirmar'));
+  M.nomeQb = rel($('#nome-qb'));
+  $('#det-wrap').style.height = '0px';
+  M.rowQbAntes = rel($('#row-qb')); M.nomeQbAntes = rel($('#nome-qb')); M.gruposAntes = rel($('#resultados'));
+  M.pg2Top = 0;
+}
+
+/* câmera: (escala, foco x, foco y) → transformação que leva o foco ao centro da janela */
+function camera(el, s, fx, fy, cx, cy) {
+  const tx = cx - fx * s, ty = cy - fy * s;
+  el.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+  return { s, tx, ty };
+}
+const mix = (A, B, x) => ({ s: lerp(A.s, B.s, x), fx: lerp(A.fx, B.fx, x), fy: lerp(A.fy, B.fy, x) });
+function trajeto(t, chaves) { // chaves: [[t, {s,fx,fy}], ...] com interpolação suave
+  if (t <= chaves[0][0]) return chaves[0][1];
+  for (let i = 0; i < chaves.length - 1; i++) {
+    const [ta, A] = chaves[i], [tb, B] = chaves[i + 1];
+    if (t <= tb) return mix(A, B, eio(prog(t, ta, tb)));
+  }
+  return chaves[chaves.length - 1][1];
+}
+
+function cursor(x, y, vis, press = 0) {
+  const c = $('#cursor');
+  c.style.opacity = vis;
+  c.style.transform = `translate(${x - 9}px, ${y - 5}px) scale(${1 - .12 * press})`;
+}
+
+/* ---------- quadro ---------- */
+function render(t) {
+  /* cena 1 */
+  const s1 = $('#s1');
+  const out1 = prog(t, 3.32, 3.62);
+  s1.style.display = t < 3.65 ? 'block' : 'none';
+  s1.style.opacity = 1 - eout(out1);
+  const v1 = trajeto(t, [[0, { s: 1.2, fx: 800, fy: 450 }], [0.35, { s: 1.2, fx: 800, fy: 450 }], [3.0, { s: 1.62, fx: M.caixa.cx + 40, fy: M.caixa.cy - 40 }], [3.6, { s: 1.78, fx: M.montar.cx - 120, fy: M.caixa.cy }]]);
+  const c1 = camera($('#s1cam'), v1.s, v1.fx, v1.fy, 960, 540);
+
+  // digitação: 0,85 s → 2,85 s, com ritmo humano leve
+  const tipoA = 0.85, tipoB = 2.85;
+  const n = Math.floor(TESE.length * eio(prog(t, tipoA, tipoB)) + (t >= tipoB ? 1 : 0));
+  const digitado = TESE.slice(0, Math.min(n, TESE.length));
+  const caretOn = (t > tipoA - .1 && t < tipoB + .05) || Math.floor(t * 2.2) % 2 === 0;
+  $('#campo').innerHTML = (digitado ? digitado.replace(/&/g, '&amp;') : '') + (t > 0.55 ? `<span class="caret" style="opacity:${caretOn ? 1 : 0}"></span>` : '') + (!digitado ? `<span class="ph">Ex.: Distribuidoras químicas em SP com mais de 20 anos, sem sócio estrangeiro, que representem fabricantes multinacionais</span>` : '');
+  $('#caixa').classList.toggle('foco', t > 0.55);
+  const btn = $('#montar');
+  btn.disabled = digitado.length < 10;
+  const press = t > 3.08 && t < 3.24 ? 1 : 0;
+  btn.style.background = t > 2.92 ? 'var(--color-comprador)' : '';
+  btn.style.borderColor = t > 2.92 ? 'var(--color-comprador)' : '';
+  btn.style.transform = press ? 'translateY(1px)' : '';
+  $('#montar-txt').textContent = t > 3.2 ? 'Montando critérios…' : 'Montar critérios';
+
+  /* cenas divididas */
+  const split = $('#split');
+  const inS = t >= 3.55 && t < 17.2;
+  split.style.display = inS ? 'block' : 'none';
+  const win = $('#win');
+  const wIn = eoutq(prog(t, 3.55, 4.15));
+  win.style.opacity = wIn;
+  win.style.transform = `translateY(${(1 - wIn) * 70}px)`;
+
+  // legendas: entra rótulo → título → sub; sai tudo junto, antes da próxima
+  for (const c of CAPS) {
+    const el = $('#' + c.id);
+    if (t < c.a - .05 || t > c.b + .4) { el.style.display = 'none'; continue; }
+    el.style.display = 'block';
+    const [rot, tit, sub] = el.children;
+    const sai = eout(prog(t, c.b, c.b + .26));
+    const anim = (node, d) => {
+      if (!node) return;
+      const x = eoutq(prog(t, c.a + d, c.a + d + .55));
+      node.style.opacity = x * (1 - sai);
+      node.style.transform = `translateY(${(1 - x) * 34 - sai * 18}px)`;
+    };
+    anim(rot, 0); anim(tit, .08); anim(sub, .3);
+  }
+
+  // página: rascunho (cenas 2 e 3) ou resultado (cena 4)
+  const pg1 = $('#pg1'), pg2 = $('#pg2');
+  const troca = 10.62;
+  const sai1 = eout(prog(t, troca, troca + .2)), ent2 = eoutq(prog(t, troca + .18, troca + .62));
+  pg1.style.visibility = t < troca + .22 ? 'visible' : 'hidden';
+  pg1.style.opacity = 1 - sai1;
+  pg2.style.visibility = t > troca + .15 ? 'visible' : 'hidden';
+  pg2.style.opacity = ent2;
+  pg2.style.transform = `translateY(${(1 - ent2) * 26}px)`;
+
+  // critérios entram um a um
+  CRITERIOS.forEach((_, k) => {
+    const x = eoutq(prog(t, 3.88 + k * .28, 3.88 + k * .28 + .45));
+    const li = $('#crit' + k);
+    li.style.opacity = x; li.style.transform = `translateY(${(1 - x) * 18}px)`;
+  });
+
+  // funil: 725 no recorte → 93 passam no cadastro (ensaio com o catálogo real)
+  const calc = t < 7.55;
+  $('#funil').classList.toggle('is-calculando', calc && t > 4.2);
+  const a1 = eout(prog(t, 7.55, 8.25));
+  const a2 = eio(prog(t, 8.45, 9.45));
+  const v1n = Math.round(725 * a1), v2n = t < 8.45 ? null : Math.round(lerp(725, 93, a2));
+  $('#f1v').textContent = t < 7.55 ? '—' : v1n.toLocaleString('pt-BR');
+  $('#f1b').style.width = `${t < 7.55 ? 0 : Math.max(2, 100 * a1)}%`;
+  $('#f2v').textContent = v2n === null ? '—' : v2n.toLocaleString('pt-BR');
+  $('#f2b').style.width = `${v2n === null ? 0 : Math.max(2, (100 * v2n) / 725)}%`;
+
+  // símbolos da tabela
+  let k = 0;
+  for (const g of GRUPOS) for (const i of g.itens) i.v.forEach((_, c) => {
+    const tt = 11.12 + k * .085; k++;
+    const x = prog(t, tt, tt + .22);
+    const el = $(`#s-${i.id}-${c}`);
+    el.style.opacity = clamp(x * 2);
+    el.style.transform = `scale(${x === 0 ? .4 : lerp(.4, 1, back(x))})`;
+  });
+
+  // detalhe da Quimibrás abre
+  const abre = eio(prog(t, 12.18, 12.62));
+  $('#det-wrap').style.height = `${M.detH * abre}px`;
+  $('#row-qb').classList.toggle('is-aberta', t > 12.12);
+
+  // dica do "sem evidência"
+  const dica = $('#dica');
+  const dv = eout(prog(t, 14.62, 14.8));
+  dica.style.opacity = dv;
+  dica.style.left = `${M.pxSim.x + M.pxSim.w + 6 - dica.offsetWidth}px`;
+  dica.style.top = `${M.pxSim.y - 38 + (1 - dv) * 6}px`;
+
+  // câmera dentro da janela
+  const W = { cx: 520, cy: 448 };
+  let view;
+  if (t < troca + .2) {
+    view = trajeto(t, [
+      [3.6, { s: 1.38, fx: 350, fy: M.criterios.y + M.criterios.h * .44 }],
+      [7.0, { s: 1.46, fx: 350, fy: M.criterios.y + M.criterios.h * .40 }],
+      [7.55, { s: 1.5, fx: 350, fy: (M.cabecalho.y + M.funil.y + M.funil.h) / 2 + 92 }],
+      [10.8, { s: 1.56, fx: 350, fy: (M.cabecalho.y + M.funil.y + M.funil.h) / 2 + 92 }],
+    ]);
+  } else {
+    // posições finais (com o detalhe aberto) e iniciais (fechado)
+    const fechadoY = M.gruposAntes.y + 120;
+    view = trajeto(t, [
+      [10.8, { s: 1.34, fx: 350, fy: fechadoY }],
+      [12.1, { s: 1.38, fx: 350, fy: fechadoY + 10 }],
+      [12.95, { s: 1.62, fx: 360, fy: (M.ver0.y + M.citacao.y + M.citacao.h) / 2 + 4 }],
+      [13.75, { s: 1.66, fx: 362, fy: (M.ver0.y + M.citacao.y + M.citacao.h) / 2 + 8 }],
+      [14.45, { s: 1.44, fx: 350, fy: M.px.cy - 95 }],
+      [16.8, { s: 1.5, fx: 352, fy: M.px.cy - 95 }],
+    ]);
+  }
+  const cw = camera($('#page'), view.s, view.fx, view.fy, W.cx, W.cy);
+
+  /* cursor (coordenadas de tela) */
+  const wb = { x: 790 + 1, y: 92 + 1 + (1 - wIn) * 70 };
+  if (t < 3.5) {
+    // da área do texto até o botão
+    const sx0 = M.caixa.x + M.caixa.w * .72, sy0 = M.caixa.y + 160;
+    const p = eio(prog(t, 2.35, 3.0));
+    const fx = lerp(sx0, M.montar.cx + 10, p), fy = lerp(sy0, M.montar.cy + 4, p);
+    cursor(fx * c1.s + c1.tx, fy * c1.s + c1.ty, prog(t, 2.2, 2.4) * (1 - prog(t, 3.3, 3.45)), press);
+  } else if (t > 11.6 && t < 12.6) {
+    const p = eio(prog(t, 11.62, 12.05));
+    const ax = M.nomeQbAntes.x + 120, ay = M.nomeQbAntes.y + 60;
+    const bx = M.nomeQbAntes.x + 70, by = M.nomeQbAntes.y + 9;
+    const x = lerp(ax, bx, p), y = lerp(ay, by, p);
+    cursor(wb.x + x * cw.s + cw.tx, wb.y + y * cw.s + cw.ty, prog(t, 11.6, 11.75) * (1 - prog(t, 12.4, 12.58)), t > 12.06 && t < 12.2 ? 1 : 0);
+  } else if (t > 14.2 && t < 16.9) {
+    const p = eio(prog(t, 14.22, 14.6));
+    const ax = M.pxSim.cx + 60, ay = M.pxSim.cy + 70, bx = M.pxSim.cx + 3, by = M.pxSim.cy + 2;
+    cursor(wb.x + lerp(ax, bx, p) * cw.s + cw.tx, wb.y + lerp(ay, by, p) * cw.s + cw.ty, prog(t, 14.2, 14.34) * (1 - prog(t, 16.45, 16.6)), 0);
+  } else cursor(0, 0, 0);
+
+  /* desfecho: a diagonal de 45° do "4" varre a tela */
+  const k1 = lerp(-300, 3400, eio(prog(t, 16.42, 17.08)));
+  const kb = k1 - 340;
+  const faixa = $('#faixa'), s5 = $('#s5');
+  faixa.style.display = t > 16.4 && t < 17.12 ? 'block' : 'none';
+  faixa.style.clipPath = `polygon(${Math.max(kb, -10)}px 0px, ${k1}px 0px, 0px ${k1}px, 0px ${Math.max(kb, -10)}px)`;
+  s5.style.display = t > 16.5 ? 'block' : 'none';
+  s5.style.clipPath = t > 17.1 ? 'none' : `polygon(0px 0px, ${kb}px 0px, 0px ${kb}px)`;
+  const lg = eoutq(prog(t, 17.0, 17.6));
+  const logo = $('#s5 .logo');
+  logo.style.opacity = lg;
+  logo.style.transform = `translateX(-50%) translateY(${(1 - lg) * 22}px) scale(${lerp(.94, 1, lg) + .012 * prog(t, 17.6, 20.4)})`;
+  $('#s5 .regua').style.width = `${120 * eoutq(prog(t, 17.35, 17.85))}px`;
+  const l1 = eoutq(prog(t, 17.5, 18.0)), l2 = eoutq(prog(t, 17.78, 18.28));
+  $('#s5 .linha1').style.opacity = l1; $('#s5 .linha1').style.transform = `translateY(${(1 - l1) * 20}px)`;
+  $('#s5 .linha2').style.opacity = l2; $('#s5 .linha2').style.transform = `translateY(${(1 - l2) * 20}px)`;
+}
+
+async function iniciar() {
+  montarCena1(); montarPagina(); montarLegendas(); montarDesfecho();
+  await Promise.all(['400', '500', '600', '700'].map((w) => document.fonts.load(`${w} 16px Inter`)));
+  await document.fonts.ready;
+  medir();
+  render(0);
+  window.pronto = true;
+}
+window.render = render;
+iniciar();
+</script>
+</body>
+</html>
