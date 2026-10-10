@@ -4,13 +4,27 @@ Atualizado em 10 de outubro de 2026, à tarde (checkpoint anterior: 9 de outubro
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodada 28 publicada; 8.736 dirigentes em produção com o atestado do quadro; falta ativar a casa e o aceite (10/10/2026)
+## COMECE AQUI — Rodada 28 publicada; 8.736 dirigentes em produção; aceite feito em parte, e a busca em 1,4 s com a função em São Paulo (10/10/2026)
 
 **Estado:**
 - **Sem aprovação do Codex (pedido do usuário, 10/10/2026):** cada rodada é commitada e publicada depois dos testes, do `npm run ci` e do CI do GitHub verde. A revisão do Codex é opcional e não trava nada. A tentativa sobre a Rodada 28 parou no limite de uso da conta do Codex; o pedido pronto está em "PARA O CODEX" no diário.
 - **Publicado na `main`:** a Rodada 28 (`95fcc5f`), com CI verde e deploy conferido (`/api/saude` ok, migração `0032` aplicada no build). Antes dela, as Rodadas 26 e 27 (`79f231d`) e o parecer do Codex sobre elas (`b1cc7e0`).
 - **Rede em produção:** `server/.env.local` existe nesta máquina, com o `DATABASE_URL` do Transaction pooler. A verificação de prontidão (`--conectar`) conta **8.736** dirigentes públicos em 2.477 empresas, já gravados antes desta sessão. Uma consulta só de leitura confirmou o atestado `quadro` em todas as linhas, conferindo nome, cargo, senioridade e empresa. A importação não foi rodada de novo. Pendências que a verificação aponta: participantes e rodada de reconhecimento.
-- **Extensão do Claude no Chrome:** não estava conectada nesta sessão, por isso o aceite em produção não começou.
+- **Aceite em produção (10/10/2026, conta de administrador, extensão do Chrome):**
+
+  | Item | Resultado |
+  |---|---|
+  | 1. Quem decide | **Diverge do roteiro.** Os dirigentes aparecem com a fonte "Quadro societário público" e "Cargo com fonte: Atende", mas nenhum em "Atendem": 0 de 26, em 10 empresas, todas S.A. Presidente, diretor e conselheiro de S.A. "influenciam a decisão", porque a venda é do acionista controlador, que não está no quadro público. O recorte estatutário nunca põe ninguém em "Atendem". Para mudar isso, há duas saídas, e as duas são decisão do usuário: importar o sócio-administrador das limitadas (`--todas-as-qualificacoes`, decisão de LGPD) ou rever a expectativa do item |
+  | 2. Pela rede | Passa com a casa vazia: leitura "Só quem a casa alcança", e todos em revisar com "A casa chega até ela". O caso com caminho confirmado depende de ativar a casa |
+  | 3. Introdução | Depende de ativar a casa: não há relação cadastrada |
+  | 4. Critério do site | Passa: 53 para revisar e o atalho "Rodar a pesquisa por tese" |
+  | 5. Pelo nome e CNPJ | Passa: "Unigel Distribuidora" traz só ela; o CNPJ 65.763.377 traz só a Basequimica; um CNPJ fora do catálogo dá recorte vazio, com a nota "Nenhuma do catálogo com esse CNPJ" |
+  | 6. Restrição | Não feito: grava em produção. Fica para o usuário |
+  | 7. Lacuna fechada | Não feito: exige registrar um decisor real, com fonte. Fica para o usuário |
+  | 8. Sanções | Passa: o plano mostra CEIS e CNEP, referência 08/10/2026 |
+  | 9. Papéis | Em parte: nenhum telefone ou e-mail na página. Não existe conta de analista para testar a permissão |
+  | 10. Celular | Passa: a 386 px, sem rolagem horizontal, inclusive com o juízo e o plano abertos |
+  | 11. Tempo | Passa depois da correção. A função rodava em iad1 (Washington), longe do banco em São Paulo: 5,25, 5,06 e 4,54 s. Com `"regions": ["gru1"]` (`5eac130`): 1,42, 1,41 e 1,38 s |
 - **Rodada 28:** todos os achados do parecer, registrados no [AI_COLLAB.md](../AI_COLLAB.md).
   - P1: a busca confere sessão e acesso de novo depois da IA e antes de entregar.
   - A leitura da IA não apaga exigência, empresa nem UF.
@@ -24,7 +38,7 @@ Atualizado em 10 de outubro de 2026, à tarde (checkpoint anterior: 9 de outubro
 ### Próximos passos, em ordem
 
 1. **Ativar a casa** (pessoas reais, pelo usuário): convites na tela Equipe, membros na Rede, listas, passada de reconhecimento, "Ligar ao CNPJ". Depende da lista de participantes da GHT4.
-2. **Aceite em produção** (Etapa 3): os onze itens do doc "Find 100% funcional", com contas de sócio e de analista. Precisa da extensão do Chrome conectada e do login feito pelo usuário em cada conta.
+2. **Fechar o aceite** (Etapa 3): decidir o item 1 (recorte ou expectativa); fazer os itens 6 e 7, que gravam em produção; testar o 9 com uma conta de analista; repetir os itens 2 e 3 com a casa ativada. Os demais já passaram (tabela acima).
 3. **Opcional:** revisão do Codex da Rodada 28, quando a conta dele tiver uso disponível. Não bloqueia.
 
 ## Checkpoint anterior — Rodadas 26 e 27: IA opcional no find e o parecer das Rodadas 20 e 25 corrigido; falta publicar e gravar a rede (09/10/2026)
