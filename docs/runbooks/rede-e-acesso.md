@@ -130,6 +130,29 @@ Dos 48.847 `ceo` do recorte largo, **38.867 eram "sócio-administrador"** — o 
 
 Reabrir a decisão é `--ensaio --todas-as-qualificacoes`, que mostra os dois cenários lado a lado sem gravar nada.
 
+### Alargamento de 2026-10-10: o sócio-administrador das limitadas
+
+**Decisão do usuário em 10/10/2026**, depois do aceite em produção. Só com o recorte estatutário, "Quem decide nas distribuidoras de SP com mais de 20 anos" achou 26 pessoas e nenhuma decidia: eram todas de S.A., em que a venda de controle é do acionista que o quadro público não nomeia.
+
+O recorte passa a incluir o **sócio-administrador** (código 49, e o sócio-gerente, 28, nome do mesmo papel antes de 2002), **só nas limitadas** (naturezas 2062 e 2240). Dentro da limitada não há a ambiguidade que motivou a decisão de 18/09: quem tem cota e administra é o dono que toca o negócio. Fora dela, o código continua de fora. Sócio sem administração (22), administrador sem cota (05) e titular continuam de fora.
+
+```
+node --env-file=server/.env.local ferramentas/importar-quadro-societario.mjs --arquivo=.cache/quadro-societario-2026-08.js --com-socio-administrador --confirmo-a-decisao-lgpd --destino=HOST:PORTA/BANCO
+```
+
+A natureza jurídica vem do catálogo (`--catalogo=`, padrão `data-quimicos.js`), porque o arquivo do quadro não a traz. Empresa sem natureza conhecida fica sem o sócio-administrador. A auditoria registra o recorte `cargos_estatutarios_e_socio_administrador_ltda`.
+
+| Quadro de 2026-08 | Só cargo estatutário | Com o sócio-administrador das limitadas |
+|---|---:|---:|
+| Pessoas importadas | 8.736 | **47.599** |
+| Empresas alcançadas | 2.477 (6,9%) | **32.001** (89,7%) |
+| Classificadas como `ceo` | 1.925 | 40.788 |
+| Homônimos entre empresas | 383 | 3.164 |
+
+**No find:** numa limitada de até três sócios pessoas físicas, o sócio-administrador "decide a venda". Com mais de três sócios ou sócio pessoa jurídica, fica para revisar ("tem participação, mas o capital se divide"), como já valia para o sócio registrado pela casa.
+
+**O que a decisão custa:** a fila de reconhecimento fica com cerca de 40 mil `ceo`, a maioria donos de limitada, e cada membro da casa vai ver muito mais nomes. A medição local com 47.600 pessoas ficou em 434 ms no pior pedido, que atingiu o teto de 20 mil pessoas lidas por busca.
+
 ## Usar (no agente)
 
 1. **Encontrar empresas**, e no resultado clicar **Abrir caminho** na empresa.

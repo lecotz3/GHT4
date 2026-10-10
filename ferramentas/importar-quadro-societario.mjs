@@ -29,11 +29,18 @@
  *  o que ela custa em cobertura. `--todas-as-qualificacoes` alarga o recorte, e
  *  exige ser escrito para que a escolha apareça no histórico.
  *
+ *  `--com-socio-administrador` (decisão da casa de 2026-10-10) acrescenta ao
+ *  recorte estatutário o sócio-administrador das limitadas, e só delas. O
+ *  arquivo do quadro não traz a natureza jurídica: ela vem do catálogo
+ *  (`--catalogo=`, padrão `data-quimicos.js`), e empresa sem natureza conhecida
+ *  fica sem o sócio-administrador.
+ *
  *  USO
  *    node ferramentas/importar-quadro-societario.mjs --ensaio
  *    node ferramentas/importar-quadro-societario.mjs --confirmo-a-decisao-lgpd
  *    node ferramentas/importar-quadro-societario.mjs --arquivo=... --ensaio
  *    node ferramentas/importar-quadro-societario.mjs --ensaio --todas-as-qualificacoes
+ *    node ferramentas/importar-quadro-societario.mjs --ensaio --com-socio-administrador
  *
  *  `--ensaio` lê, classifica e conta, sem escrever nada. É o modo que permite à
  *  casa ver o volume e a cara do dado ANTES de decidir.
@@ -47,7 +54,7 @@ import { abrir, fechar, urlDireta, descreverAlvo } from '../server/src/db/client
 import { alterarRede } from '../server/src/rede/estado.mjs';
 import { lerFonteCatalogo } from '../server/src/agente/catalogo.mjs';
 import { normalizar } from '../server/src/rede/contratos.mjs';
-import { qualificacao, importavel, estatutaria, QUALIFICACOES_EXCLUIDAS } from '../server/src/rede/qualificacoes.mjs';
+import { qualificacao, importavel, estatutaria, socioAdministradorDeLimitada, QUALIFICACOES_EXCLUIDAS, QUALIFICACOES_SOCIO_ADMINISTRADOR } from '../server/src/rede/qualificacoes.mjs';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argumento = (nome) => process.argv.find((a) => a.startsWith(`--${nome}=`))?.split('=').slice(1).join('=');
@@ -61,6 +68,17 @@ const ARQUIVO = argumento('arquivo') ?? path.join(RAIZ, 'data-quimicos.js');
    dele. Alargar é possível, mas tem de ser escrito na linha de comando: assim a
    escolha aparece no histórico de quem rodou, em vez de morar num default. */
 const SOMENTE_ESTATUTARIOS = !tem('todas-as-qualificacoes');
+const COM_SOCIO_ADMINISTRADOR = SOMENTE_ESTATUTARIOS && tem('com-socio-administrador');
+const CATALOGO = argumento('catalogo') ?? path.join(RAIZ, 'data-quimicos.js');
+
+/** Nome do recorte, como fica na auditoria. */
+export const nomeDoRecorte = ({ somenteEstatutarios = true, socioAdministrador = false } = {}) =>
+  !somenteEstatutarios ? 'todas_as_qualificacoes' : socioAdministrador ? 'cargos_estatutarios_e_socio_administrador_ltda' : 'cargos_estatutarios';
+const JUSTIFICATIVA_DO_RECORTE = {
+  cargos_estatutarios: 'Recorte da casa: só presidente, diretor e conselheiro.',
+  cargos_estatutarios_e_socio_administrador_ltda: 'Recorte da casa (10/10/2026): presidente, diretor, conselheiro e o sócio-administrador das limitadas.',
+  todas_as_qualificacoes: 'Recorte alargado a todas as qualificações por --todas-as-qualificacoes.',
+};
 
 /* `data-quimicos.js` é um script que povoa globais, mas nunca é executado para
    ser lido: `lerFonteCatalogo` extrai os literais JSON do texto. Manter essa
@@ -78,8 +96,11 @@ async function lerCatalogo(caminho) {
  * @param opcoes.somenteEstatutarios  Só entram presidente, diretor e conselheiro
  *   — os códigos cujo rótulo nomeia um cargo. É o padrão, e a razão está em
  *   `qualificacoes.mjs`, junto com o custo de cobertura que ele impõe.
+ * @param opcoes.socioAdministrador  No recorte estatutário, entra também o
+ *   sócio-administrador, se a empresa for limitada (`naturezaJuridica`).
  */
-export function pessoasDoQuadro(empresa, referencia, { somenteEstatutarios = true } = {}) {
+export function pessoasDoQuadro(empresa, referencia, { somenteEstatutarios = true, socioAdministrador = false,
+  naturezaJuridica = empresa.naturezaJuridica } = {}) {
   const saida = [], descartes = [];
   for (const s of empresa.socios ?? []) {
     if (s.tipo !== 'fisica') { descartes.push({ motivo: 'pessoa jurídica no quadro' }); continue; }
@@ -88,8 +109,12 @@ export function pessoasDoQuadro(empresa, referencia, { somenteEstatutarios = tru
       descartes.push({ motivo: QUALIFICACOES_EXCLUIDAS.get(String(s.qualificacao ?? '').padStart(2, '0')) ?? 'qualificação excluída' });
       continue;
     }
-    if (somenteEstatutarios && !estatutaria(s.qualificacao)) {
-      descartes.push({ motivo: `posição societária, não cargo: ${qualificacao(s.qualificacao).cargo}` });
+    if (somenteEstatutarios && !estatutaria(s.qualificacao)
+      && !(socioAdministrador && socioAdministradorDeLimitada(s.qualificacao, naturezaJuridica))) {
+      const doSocioAdministrador = socioAdministrador && QUALIFICACOES_SOCIO_ADMINISTRADOR.has(String(s.qualificacao ?? '').trim().padStart(2, '0'));
+      descartes.push({ motivo: doSocioAdministrador
+        ? (naturezaJuridica ? 'sócio-administrador fora de limitada' : 'sócio-administrador sem natureza jurídica conhecida')
+        : `posição societária, não cargo: ${qualificacao(s.qualificacao).cargo}` });
       continue;
     }
     const q = qualificacao(s.qualificacao);
@@ -128,9 +153,18 @@ async function principal() {
     process.exit(2);
   }
 
+  /* O arquivo do quadro não traz a natureza jurídica; o catálogo traz. Empresa
+     ausente do catálogo fica sem natureza, e portanto sem o sócio-administrador. */
+  let naturezas = new Map();
+  if (COM_SOCIO_ADMINISTRADOR) {
+    const catalogo = path.resolve(CATALOGO) === path.resolve(ARQUIVO) ? { empresas } : await lerCatalogo(CATALOGO);
+    naturezas = new Map(catalogo.empresas.map((e) => [e.id, e.naturezaJuridica]));
+  }
+
   let pessoas = [], descartes = [], semQualificacao = 0;
   for (const e of comQuadro) {
-    const r = pessoasDoQuadro(e, referencia, { somenteEstatutarios: SOMENTE_ESTATUTARIOS });
+    const r = pessoasDoQuadro(e, referencia, { somenteEstatutarios: SOMENTE_ESTATUTARIOS, socioAdministrador: COM_SOCIO_ADMINISTRADOR,
+      naturezaJuridica: e.naturezaJuridica ?? naturezas.get(e.id) });
     pessoas.push(...r.pessoas);
     descartes.push(...r.descartes);
     semQualificacao += r.pessoas.filter((p) => !p.qualificacaoConhecida).length;
@@ -163,9 +197,10 @@ async function principal() {
   const empresasAlcancadas = new Set(unicas.map((p) => p.empresaId)).size;
 
   console.log(`  referência cadastral .......... ${referencia}`);
-  console.log(`  recorte ....................... ${SOMENTE_ESTATUTARIOS
-    ? 'só cargo estatutário (presidente, diretor, conselheiro)'
-    : 'TODAS as qualificações, inclusive sócio e administrador'}`);
+  console.log(`  recorte ....................... ${!SOMENTE_ESTATUTARIOS
+    ? 'TODAS as qualificações, inclusive sócio e administrador'
+    : COM_SOCIO_ADMINISTRADOR ? 'cargo estatutário e sócio-administrador das limitadas'
+      : 'só cargo estatutário (presidente, diretor, conselheiro)'}`);
   console.log(`  empresas com quadro ........... ${comQuadro.length.toLocaleString('pt-BR')}`);
   console.log(`  pessoas físicas a importar .... ${unicas.length.toLocaleString('pt-BR')}`);
   console.log(`  empresas alcançadas ........... ${empresasAlcancadas.toLocaleString('pt-BR')} de ${comQuadro.length.toLocaleString('pt-BR')}`
@@ -211,6 +246,7 @@ async function principal() {
 
     const {criadas,atualizadas} = await gravarQuadro(db,unicas,{
       operadorId:operador.id,referencia,descartadas:descartes.length,empresasAlcancadas,somenteEstatutarios:SOMENTE_ESTATUTARIOS,
+      socioAdministrador:COM_SOCIO_ADMINISTRADOR,
     });
     console.log(`\n  criadas ${criadas.toLocaleString('pt-BR')} · atualizadas ${atualizadas.toLocaleString('pt-BR')}\n`);
   } finally {
@@ -227,7 +263,8 @@ export function validarDestinoImportacao(url,confirmacao,apenasLocal) {
 }
 
 /** A carga e a auditoria confirmam juntas, ou a transação inteira é desfeita. */
-export async function gravarQuadro(db,unicas,{operadorId,referencia,descartadas=0,empresasAlcancadas=0,somenteEstatutarios=true}) {
+export async function gravarQuadro(db,unicas,{operadorId,referencia,descartadas=0,empresasAlcancadas=0,somenteEstatutarios=true,socioAdministrador=false}) {
+  const recorte = nomeDoRecorte({ somenteEstatutarios, socioAdministrador });
   return db.transaction(async tx=>{
     await alterarRede(tx);
     let criadas = 0, atualizadas = 0;
@@ -252,12 +289,8 @@ export async function gravarQuadro(db,unicas,{operadorId,referencia,descartadas=
       `INSERT INTO auditoria (usuario_id, acao, entidade, entidade_id, depois, justificativa)
        VALUES ($1,'importar','rede_quadro_societario',$2,$3,$4)`,
       [operadorId, referencia,
-        JSON.stringify({ criadas, atualizadas, descartadas, empresasAlcancadas,
-          recorte: somenteEstatutarios ? 'cargos_estatutarios' : 'todas_as_qualificacoes' }),
-        'Importação do quadro societário público, confirmada na linha de comando. '
-        + (somenteEstatutarios
-          ? 'Recorte da casa: só presidente, diretor e conselheiro.'
-          : 'Recorte alargado a todas as qualificações por --todas-as-qualificacoes.')]);
+        JSON.stringify({ criadas, atualizadas, descartadas, empresasAlcancadas, recorte }),
+        'Importação do quadro societário público, confirmada na linha de comando. ' + JUSTIFICATIVA_DO_RECORTE[recorte]]);
     return {criadas,atualizadas};
   });
 }

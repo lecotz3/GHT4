@@ -15,8 +15,9 @@ import { avaliarEmpresa, julgarPessoa, ordenar, GRUPOS, conflitosDeCargoUnico, s
  *
  *  DE ONDE VÊM AS PESSOAS
  *  Só de `rede_pessoas` do lado do mercado, ligadas a um CNPJ do catálogo:
- *  quadro societário público no recorte estatutário que a casa decidiu
- *  (18/09/2026), listas compartilhadas pela equipe e quem alguém da casa
+ *  quadro societário público no recorte que a casa decidiu (cargos
+ *  estatutários em 18/09/2026, e o sócio-administrador das limitadas em
+ *  10/10/2026), listas compartilhadas pela equipe e quem alguém da casa
  *  registrou com a fonte. O GHT4 não compra base de pessoas nem lê LinkedIn
  *  (PESQUISA-LESSIE-AI.md, §5.3), e a resposta não traz telefone nem e-mail.
  *

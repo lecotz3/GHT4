@@ -24,4 +24,10 @@ test('quadro societário grava e audita atomicamente; reexecução não duplica;
   await assert.rejects(gravarQuadro(db,[{...p,nome:'Outra Pessoa',nomeNormalizado:'outra pessoa'},{...p,nome:'Erro',nomeNormalizado:'erro',senioridade:'invalida'}],op));
   assert.equal((await db.query("SELECT count(*)::int n FROM rede_pessoas WHERE origem='cadastro_publico'")).rows[0].n,1);
   assert.equal((await db.query("SELECT count(*)::int n FROM auditoria WHERE entidade='rede_quadro_societario'")).rows[0].n,2);
+  // A auditoria diz qual recorte entrou.
+  const socio={...p,nome:'Sócia Administradora',nomeNormalizado:'socia administradora',cargo:'Sócio-administrador'};
+  assert.deepEqual(await gravarQuadro(db,[socio],{...op,socioAdministrador:true}),{criadas:1,atualizadas:0});
+  const recortes=(await db.query("SELECT depois->>'recorte' r, justificativa j FROM auditoria WHERE entidade='rede_quadro_societario'")).rows;
+  assert.deepEqual(recortes.map(x=>x.r).sort(),['cargos_estatutarios','cargos_estatutarios','cargos_estatutarios_e_socio_administrador_ltda']);
+  assert.ok(recortes.some(x=>/sócio-administrador das limitadas/.test(x.j)));
 });

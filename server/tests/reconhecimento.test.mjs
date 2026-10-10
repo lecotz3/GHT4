@@ -118,6 +118,38 @@ test('por padrão entra só quem tem cargo estatutário, e sócio-administrador 
   assert.equal(largo.pessoas.length, 5);
 });
 
+test('com o sócio-administrador, entra o da limitada, e só ele: S.A., sócio sem administração e natureza desconhecida ficam de fora', () => {
+  const socio = (nome, q) => ({ tipo: 'fisica', nome, qualificacao: q, entrada: '2009-03-11' });
+  const quadro = (naturezaJuridica) => ({ id: 'cnpj12345678', nome: 'Química Alfa', naturezaJuridica, socios: [
+    socio('CARLOS NUNES', '49'),   // Sócio-administrador
+    socio('NEIDE GOMES', '28'),    // Sócio-gerente: o mesmo papel, nome anterior a 2002
+    socio('RUI TAVARES', '10'),    // Diretor
+    socio('LIA ROCHA', '22'),      // Sócia, sem administrar
+    socio('OTO LIMA', '05'),       // Administrador sem cota
+  ] });
+  const nomes = (r) => r.pessoas.map((p) => p.nome);
+
+  const ltda = pessoasDoQuadro(quadro('2062'), '2026-08', { socioAdministrador: true });
+  assert.deepEqual(nomes(ltda), ['CARLOS NUNES', 'NEIDE GOMES', 'RUI TAVARES']);
+  assert.equal(ltda.pessoas[0].cargo, 'Sócio-administrador');
+  assert.equal(ltda.pessoas[0].senioridade, 'ceo');
+  assert.deepEqual(nomes(pessoasDoQuadro(quadro('2240'), '2026-08', { socioAdministrador: true })), ['CARLOS NUNES', 'NEIDE GOMES', 'RUI TAVARES']);
+
+  // Fora da limitada, o código 49 continua de fora, com o motivo à vista.
+  const sa = pessoasDoQuadro(quadro('2054'), '2026-08', { socioAdministrador: true });
+  assert.deepEqual(nomes(sa), ['RUI TAVARES']);
+  assert.ok(sa.descartes.some((d) => d.motivo === 'sócio-administrador fora de limitada'));
+  const semNatureza = pessoasDoQuadro(quadro(undefined), '2026-08', { socioAdministrador: true });
+  assert.deepEqual(nomes(semNatureza), ['RUI TAVARES']);
+  assert.ok(semNatureza.descartes.some((d) => d.motivo === 'sócio-administrador sem natureza jurídica conhecida'));
+  // A natureza pode vir de fora do quadro (o catálogo), que é o caso do arquivo de 2026-08.
+  assert.deepEqual(nomes(pessoasDoQuadro(quadro(undefined), '2026-08', { socioAdministrador: true, naturezaJuridica: '2062' })),
+    ['CARLOS NUNES', 'NEIDE GOMES', 'RUI TAVARES']);
+
+  // Sem a opção, nada muda: o padrão continua estatutário.
+  assert.deepEqual(nomes(pessoasDoQuadro(quadro('2062'), '2026-08')), ['RUI TAVARES']);
+});
+
 test('a passada mostra quem decide primeiro e some da fila depois de respondida', async (t) => {
   const { db, socio, pessoa, naEmpresa, responder } = await montar(t);
   // Quem responde precisa existir na rede, ligado à conta.

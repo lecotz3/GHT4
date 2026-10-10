@@ -10,7 +10,7 @@
   "scripts": {
     "iniciar": "node ferramentas/iniciar-agente.mjs",
     "rede:verificar": "node ferramentas/verificar-prontidao-rede.mjs",
-    "rede:ensaio": "node ferramentas/importar-quadro-societario.mjs --arquivo=.cache/quadro-societario-2026-08.js --ensaio",
+    "rede:ensaio": "node ferramentas/importar-quadro-societario.mjs --arquivo=.cache/quadro-societario-2026-08.js --com-socio-administrador --ensaio",
     "build": "npm run build --prefix v1",
     "lint": "npm run lint --prefix v1",
     "test": "node --test \"tests/**/*.test.mjs\"",

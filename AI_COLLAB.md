@@ -4141,3 +4141,30 @@ O parecer original foi incorporado por outra execução no commit `b1cc7e0`. As 
 STATUS: PUBLICADA (`95fcc5f`, CI verde, deploy conferido). Revisão do Codex opcional: a tentativa de 10/10/2026 parou no limite de uso da conta do Codex.
 
 **Depois da publicação (10/10/2026):** os 8.736 dirigentes já estavam em produção. A verificação de prontidão contou 8.736 dirigentes públicos em 2.477 empresas. Uma consulta só de leitura, autorizada pelo usuário, confirmou o atestado `quadro` preenchido pela `0032` em todas as linhas, conferindo nome, cargo, senioridade e empresa. A auditoria não tem nenhuma edição de pessoa. A importação não foi rodada de novo, porque regravaria os mesmos valores.
+
+---
+
+## RODADA 29 — Sócio-administrador das limitadas no quadro, e a função da Vercel em São Paulo (10/10/2026) — Claude (builder)
+
+**Contexto:** no aceite em produção, "Quem decide nas distribuidoras de SP com mais de 20 anos" achou 26 pessoas, e nenhuma decidia. As 10 empresas eram S.A., em que presidente, diretor e conselheiro só influenciam a venda, e o acionista controlador não está no quadro público. O recorte estatutário nunca põe ninguém em "Atendem". O usuário decidiu importar o sócio-administrador das limitadas.
+
+**O que mudou:**
+- `server/src/rede/qualificacoes.mjs`: `socioAdministradorDeLimitada(qualificação, natureza)` — códigos 49 e 28 (sócio-gerente, o mesmo papel antes de 2002), só nas naturezas 2062 e 2240. A decisão e o volume estão no comentário.
+- `ferramentas/importar-quadro-societario.mjs`: opção `--com-socio-administrador`, explícita como o `--todas-as-qualificacoes`. O padrão continua estatutário. A natureza vem do catálogo (`--catalogo=`, padrão `data-quimicos.js`), porque o arquivo do quadro não a traz. Empresa sem natureza fica sem o sócio-administrador. A auditoria registra o recorte `cargos_estatutarios_e_socio_administrador_ltda`.
+- `server/src/acesso/plano.mjs`: "Cargo com fonte" dizia "Cargo estatutário declarado"; agora diz "Cargo declarado no quadro societário público". A fonte da estrutura deixou de dizer "Nomes fora do produto".
+- `npm run rede:ensaio` conta com a opção nova.
+- `vercel.json` (commit `5eac130`): `"regions": ["gru1"]`. A função rodava em iad1, longe do Supabase em sa-east-1: "Quem decide nas empresas químicas" levava 5,1 s em produção e passou a 1,4 s.
+
+**Ensaio (quadro de 2026-08):** 47.599 pessoas em 32.001 empresas (89,7%), contra 8.736 em 2.477. Nenhuma repetida na mesma empresa e 3.164 homônimos entre empresas, que vão para revisão humana, sem fusão.
+
+**No find:** numa limitada de até três sócios pessoas físicas, o sócio-administrador decide a venda e vai para "Atendem". Com capital dividido, fica para revisar. A regra de `posicaoNaDecisao` é a mesma da Rodada 28; nada mudou nela.
+
+**Testes:**
+- `server/tests/socio-administrador.test.mjs`: decide na limitada de poucos sócios e fica para revisar com o capital dividido.
+- `reconhecimento.test.mjs`: o recorte entra na limitada e fica de fora na S.A., no sócio sem administração, no administrador sem cota e sem natureza.
+- `importacao-quadro.test.mjs`: o recorte é auditado.
+- Medição local com 47.600 pessoas: pior pedido em 434 ms, no teto de 20 mil pessoas lidas.
+
+**Validação:** servidor 346 (344 passam, 2 pulados sem URL), raiz 144/144. O lint não roda nesta máquina (Application Control do Windows); o CI do GitHub roda.
+
+STATUS: PUBLICADA, sem aguardar o Codex (regra de 10/10/2026). Revisão opcional.

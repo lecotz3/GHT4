@@ -95,7 +95,30 @@ export const QUALIFICACOES_ESTATUTARIAS = Object.freeze(new Set([
   '73', // Presidente residente no exterior
 ]));
 
+/* -----------------------------------------------------------------------------
+ *  SÓCIO-ADMINISTRADOR DAS LIMITADAS
+ *
+ *  Em 2026-10-10 a casa alargou o recorte: além dos cargos estatutários, entra o
+ *  sócio-administrador (49, e o sócio-gerente, 28, nome do mesmo papel antes do
+ *  Código Civil de 2002), mas só nas limitadas. Ali ele tem cota e administra:
+ *  é o dono que toca o negócio. Só com o recorte estatutário, o "Quem decide" do
+ *  aceite em produção achou 0 decisores em 26 pessoas, todas de S.A., em que
+ *  quem vende o controle é o acionista que o quadro público não nomeia.
+ *
+ *  Fora da limitada o código continua de fora: a ambiguidade descrita acima
+ *  (o presidente de uma companhia e o dono de uma distribuidora com o mesmo
+ *  código) não existe dentro dela. No quadro de 2026-08 são 38.863 pessoas em
+ *  29.524 limitadas.
+ * -------------------------------------------------------------------------- */
+export const QUALIFICACOES_SOCIO_ADMINISTRADOR = Object.freeze(new Set(['49', '28']));
+export const NATUREZAS_LIMITADA = Object.freeze(new Set(['2062', '2240']));
+
 const codigo = (v) => String(v ?? '').trim().padStart(2, '0');
+
+/** Sócio-administrador (ou sócio-gerente) de uma sociedade limitada? Sem a natureza, não. */
+export function socioAdministradorDeLimitada(qualificacao, naturezaJuridica) {
+  return QUALIFICACOES_SOCIO_ADMINISTRADOR.has(codigo(qualificacao)) && NATUREZAS_LIMITADA.has(String(naturezaJuridica ?? '').trim());
+}
 
 /** O titular desta qualificação pode ser importado? */
 export function importavel(qualificacao) {

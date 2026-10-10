@@ -56,13 +56,13 @@ Nome é obrigatório. Empresa ou CNPJ ajuda a localizar a pessoa no alvo; sem or
 
    O comando mostra somente destino, contagens e pendências; não imprime credenciais nem nomes. Código de saída 2 significa pendência. Verificar conexão, migrações e administrador antes de importar.
 
-4. Repetir `npm run rede:ensaio`, que apenas conta. Importar usando exatamente o destino sem usuário/senha exibido pelo verificador:
+4. Repetir `npm run rede:ensaio`, que apenas conta, já com o sócio-administrador das limitadas (47.599). Importar usando exatamente o destino sem usuário/senha exibido pelo verificador:
 
    ```powershell
-   node --env-file=server/.env.local ferramentas/importar-quadro-societario.mjs --arquivo=.cache/quadro-societario-2026-08.js --confirmo-a-decisao-lgpd --destino=HOST:PORTA/BANCO
+   node --env-file=server/.env.local ferramentas/importar-quadro-societario.mjs --arquivo=.cache/quadro-societario-2026-08.js --com-socio-administrador --confirmo-a-decisao-lgpd --destino=HOST:PORTA/BANCO
    ```
 
-   Substituir `HOST:PORTA/BANCO` pelo destino conferido. Não usar a connection string nesse argumento. A confirmação remete à decisão de importação registrada no projeto; se o escopo de tratamento tiver mudado, o responsável deve fornecer a decisão atual. O recorte padrão continua estatutário. Na primeira carga esperam-se 8.736 registros; em reexecução, criadas + atualizadas deve totalizar 8.736. A auditoria registra `rede_quadro_societario` e `cargos_estatutarios`.
+   Substituir `HOST:PORTA/BANCO` pelo destino conferido. Não usar a connection string nesse argumento. A confirmação remete à decisão de importação registrada no projeto; se o escopo de tratamento tiver mudado, o responsável deve fornecer a decisão atual. Desde 10/10/2026 a decisão da casa inclui o sócio-administrador das limitadas (`--com-socio-administrador`; ver `docs/runbooks/rede-e-acesso.md`). Sem essa opção, o script continua só estatutário. Com ela, criadas + atualizadas deve totalizar 47.599, e a auditoria registra `rede_quadro_societario` e `cargos_estatutarios_e_socio_administrador_ltda`. Só estatutário, o total é 8.736, e a auditoria registra `cargos_estatutarios`.
 
 5. Confirmar login remoto. Retirar variáveis de redefinição de senha ainda presentes na hospedagem depois de verificar o acesso. Criar os convites, cadastrar os membros na Rede e associar cada conta. Importar as seleções, revisar identidades e níveis de decisão, iniciar reconhecimento por empresa.
 6. Fazer o aceite com duas contas reais em máquinas diferentes: a conta de membro não deve revisar a rede de outra pessoa; a conta sem acesso a contatos não deve ver e-mail/telefone/LinkedIn; uma apresentação confirmada deve aparecer, a correção “não conheço” deve retirá-la e uma restrição ativa deve bloquear a abordagem. Sair/entrar e confirmar persistência.

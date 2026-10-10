@@ -18,7 +18,8 @@ import { senioridadeDe, categoriaDe, normalizar } from '../rede/contratos.mjs';
  *
  *  O QUE ELE NÃO FAZ, de propósito
  *  - Não descobre nomes. O quadro societário público só entra no produto pelo
- *    recorte estatutário decidido pela casa em 18/09/2026; para as demais
+ *    recorte decidido pela casa (cargos estatutários em 18/09/2026, e o
+ *    sócio-administrador das limitadas em 10/10/2026); para as demais
  *    empresas, a ESTRUTURA do cadastro (natureza jurídica, quantos sócios, sócio
  *    pessoa jurídica ou no exterior) diz QUE TIPO de pessoa decide, e quem é a
  *    pessoa é registrado por alguém da casa, com a fonte (o "caminho de recall").
@@ -103,7 +104,7 @@ export function estruturaDeDecisao(a, referencia = null) {
   return {
     conhecida: true, natureza, naturezaRotulo: ROTULO_NATUREZA[natureza], socios, sociosPj: pj, socioEstrangeiro: estrangeiro,
     leitura, sinais, decide,
-    fonte: `Cadastro CNPJ (Receita Federal)${referencia ? `, referência ${referencia}` : ''}: natureza jurídica e contagem do quadro societário. Nomes fora do produto por decisão da casa (18/09/2026).`,
+    fonte: `Cadastro CNPJ (Receita Federal)${referencia ? `, referência ${referencia}` : ''}: natureza jurídica e contagem do quadro societário. Do quadro, só entram com nome os cargos estatutários e o sócio-administrador das limitadas (decisões da casa de 18/09 e 10/10/2026).`,
   };
 }
 
@@ -185,7 +186,7 @@ export function juizoDoDecisor(p, ctx) {
       : posicao.id === 'porta' ? juizo('Decide a venda', 'nao_atende', `${cargo}: porta de entrada, não decide a venda.`, fonteCargo)
         : juizo('Decide a venda', 'indeterminado', 'Cargo sem nível de decisão definido. Revise o cadastro.', fonteCargo));
 
-  if (doQuadro) linhas.push(juizo('Cargo com fonte', 'atende', 'Cargo estatutário declarado no cadastro público.', fonteCargo));
+  if (doQuadro) linhas.push(juizo('Cargo com fonte', 'atende', 'Cargo declarado no quadro societário público.', fonteCargo));
   else if (p.origem === 'cadastro_publico') linhas.push(juizo('Cargo com fonte', 'indicio', 'Veio do quadro societário público, mas nome, cargo ou empresa já não são os que a Receita registrou: foi editado depois da importação. Confirme no quadro.', fonteCargo));
   else if (p.origem === 'importacao') linhas.push(juizo('Cargo com fonte', 'indicio', 'Veio de lista compartilhada pela equipe; o nível de decisão ainda deve ser revisado.', p.origem_referencia || 'Lote compartilhado'));
   else if (p.origem_referencia) linhas.push(juizo('Cargo com fonte', 'atende', 'Registrado pela casa com a fonte do cargo.', p.origem_referencia));
