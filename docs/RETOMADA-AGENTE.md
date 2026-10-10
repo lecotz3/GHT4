@@ -4,10 +4,13 @@ Atualizado em 10 de outubro de 2026, à tarde (checkpoint anterior: 9 de outubro
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodada 28: parecer das Rodadas 26 e 27 corrigido; rede pronta para gravar, falta a credencial do banco (10/10/2026)
+## COMECE AQUI — Rodada 28 publicada; 8.736 dirigentes em produção com o atestado do quadro; falta ativar a casa e o aceite (10/10/2026)
 
 **Estado:**
-- **Publicado na `main`:** as Rodadas 26 e 27 (`79f231d`), com CI do GitHub verde e deploy conferido (bundle novo com a leitura por IA e a confirmação de compartilhamento). O parecer do Codex sobre elas está em `b1cc7e0`; a Rodada 28 vem no commit seguinte, com a migração `0032_quadro_atestado`.
+- **Sem aprovação do Codex (pedido do usuário, 10/10/2026):** cada rodada é commitada e publicada depois dos testes, do `npm run ci` e do CI do GitHub verde. A revisão do Codex é opcional e não trava nada. A tentativa sobre a Rodada 28 parou no limite de uso da conta do Codex; o pedido pronto está em "PARA O CODEX" no diário.
+- **Publicado na `main`:** a Rodada 28 (`95fcc5f`), com CI verde e deploy conferido (`/api/saude` ok, migração `0032` aplicada no build). Antes dela, as Rodadas 26 e 27 (`79f231d`) e o parecer do Codex sobre elas (`b1cc7e0`).
+- **Rede em produção:** `server/.env.local` existe nesta máquina, com o `DATABASE_URL` do Transaction pooler. A verificação de prontidão (`--conectar`) conta **8.736** dirigentes públicos em 2.477 empresas, já gravados antes desta sessão. Uma consulta só de leitura confirmou o atestado `quadro` em todas as linhas, conferindo nome, cargo, senioridade e empresa. A importação não foi rodada de novo. Pendências que a verificação aponta: participantes e rodada de reconhecimento.
+- **Extensão do Claude no Chrome:** não estava conectada nesta sessão, por isso o aceite em produção não começou.
 - **Rodada 28:** todos os achados do parecer, registrados no [AI_COLLAB.md](../AI_COLLAB.md).
   - P1: a busca confere sessão e acesso de novo depois da IA e antes de entregar.
   - A leitura da IA não apaga exigência, empresa nem UF.
@@ -15,18 +18,14 @@ Atualizado em 10 de outubro de 2026, à tarde (checkpoint anterior: 9 de outubro
   - Negação em lista, cidades em alternativa e dono com capital dividido.
 - **Sessão do Codex em paralelo:** ela começou as correções neste checkout e passou a só validar; a verificação complementar dela está no diário, e os dez casos passam.
 - **Lint bloqueado nesta máquina:** o Windows (Application Control) barra `v1/node_modules/@oxlint/binding-win32-x64-msvc/oxlint.win32-x64-msvc.node`. O bloqueio não foi contornado; o lint roda no CI do GitHub. Para voltar a rodar aqui, é decisão do usuário: ajustar o Smart App Control ou a política do Windows.
-- **Rede:** `.cache/quadro-societario-2026-08.js` reconstruído nesta máquina (10 MB, 35.690 empresas), e `npm run rede:ensaio` confirma **8.736** dirigentes. Falta só o `DATABASE_URL`.
+- **Arquivo do quadro:** `.cache/quadro-societario-2026-08.js` reconstruído nesta máquina (10 MB, 35.690 empresas), e `npm run rede:ensaio` confirma **8.736** dirigentes. Para reimportar no futuro: `node --env-file=server/.env.local ferramentas/importar-quadro-societario.mjs --arquivo=.cache/quadro-societario-2026-08.js --confirmo-a-decisao-lgpd --destino=aws-1-sa-east-1.pooler.supabase.com:5432/postgres`.
+- **Senha nova do banco:** logo depois de redefinida, o pooler do Supabase recusa por um ou dois minutos (código `28P01`). Basta repetir.
 
 ### Próximos passos, em ordem
 
-1. **Publicar** a Rodada 28 na `main` e conferir o deploy (`/api/saude` e a migração `0032` no build).
-2. **Revisão do Codex** da Rodada 28 ("PARA O CODEX" no diário).
-3. **Gravar os 8.736 dirigentes:** o usuário cria `server/.env.local` com `DATABASE_URL=` (Supabase → Connect → Transaction pooler, com a senha; caracteres especiais codificados). Depois:
-   - `node --env-file=server/.env.local ferramentas/verificar-prontidao-rede.mjs --conectar`;
-   - `node --env-file=server/.env.local ferramentas/importar-quadro-societario.mjs --arquivo=.cache/quadro-societario-2026-08.js --confirmo-a-decisao-lgpd --destino=HOST:PORTA/BANCO`;
-   - conferir criadas + atualizadas = 8.736. A importação já grava o atestado `quadro`.
-4. **Ativar a casa** (pessoas reais, pelo usuário): convites na tela Equipe, membros na Rede, listas, passada de reconhecimento, "Ligar ao CNPJ".
-5. **Aceite em produção** (Etapa 3): os onze itens do doc "Find 100% funcional", com contas de sócio e de analista.
+1. **Ativar a casa** (pessoas reais, pelo usuário): convites na tela Equipe, membros na Rede, listas, passada de reconhecimento, "Ligar ao CNPJ". Depende da lista de participantes da GHT4.
+2. **Aceite em produção** (Etapa 3): os onze itens do doc "Find 100% funcional", com contas de sócio e de analista. Precisa da extensão do Chrome conectada e do login feito pelo usuário em cada conta.
+3. **Opcional:** revisão do Codex da Rodada 28, quando a conta dele tiver uso disponível. Não bloqueia.
 
 ## Checkpoint anterior — Rodadas 26 e 27: IA opcional no find e o parecer das Rodadas 20 e 25 corrigido; falta publicar e gravar a rede (09/10/2026)
 

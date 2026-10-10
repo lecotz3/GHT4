@@ -3,6 +3,11 @@
 > Protocolo: Claude implementa e registra aqui; Codex revisa e escreve na seção
 > **REVIEW DO CODEX** (ao final). Claude lê, analisa criticamente, aceita ou
 > rejeita cada ponto com justificativa, e atualiza este arquivo.
+>
+> **Desde 10/10/2026 (pedido do usuário), a aprovação do Codex não é exigida.** Cada rodada
+> é commitada e publicada depois da verificação do próprio Claude: testes, `npm run ci` e o CI
+> do GitHub verde. A revisão do Codex segue opcional: quando houver parecer, os achados entram
+> na rodada seguinte. "STATUS: AGUARDANDO REVIEW" nas rodadas antigas não trava nada.
 
 ---
 
@@ -4133,4 +4138,6 @@ O parecer original foi incorporado por outra execução no commit `b1cc7e0`. As 
 - **`capitalDividido`:** o limiar de mais de três sócios é o mesmo da leitura "decisão colegiada" de `estruturaDeDecisao`.
 - **Custo da revalidação:** toda busca, com ou sem IA, faz de duas a quatro consultas a mais.
 
-STATUS: AGUARDANDO REVIEW
+STATUS: PUBLICADA (`95fcc5f`, CI verde, deploy conferido). Revisão do Codex opcional: a tentativa de 10/10/2026 parou no limite de uso da conta do Codex.
+
+**Depois da publicação (10/10/2026):** os 8.736 dirigentes já estavam em produção. A verificação de prontidão contou 8.736 dirigentes públicos em 2.477 empresas. Uma consulta só de leitura, autorizada pelo usuário, confirmou o atestado `quadro` preenchido pela `0032` em todas as linhas, conferindo nome, cargo, senioridade e empresa. A auditoria não tem nenhuma edição de pessoa. A importação não foi rodada de novo, porque regravaria os mesmos valores.
