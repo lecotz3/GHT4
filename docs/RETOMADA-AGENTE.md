@@ -26,8 +26,8 @@ Atualizado em 10 de outubro de 2026, à tarde (checkpoint anterior: 9 de outubro
   | 3. Introdução | Depende de ativar a casa: não há relação cadastrada |
   | 4. Critério do site | Passa: 53 para revisar e o atalho "Rodar a pesquisa por tese" |
   | 5. Pelo nome e CNPJ | Passa: "Unigel Distribuidora" traz só ela; o CNPJ 65.763.377 traz só a Basequimica; um CNPJ fora do catálogo dá recorte vazio, com a nota "Nenhuma do catálogo com esse CNPJ" |
-  | 6. Restrição | Não feito: grava em produção. Fica para o usuário |
-  | 7. Lacuna fechada | Não feito: exige registrar um decisor real, com fonte. Fica para o usuário |
+  | 6. Restrição | Passa (com autorização do usuário). Oportunidade privada "Teste de aceite · Basequimica S.A." criada pela pesquisa "Distribuidoras químicas na cidade de Ribeirão Preto", com "não contatar". Os dois diretores foram para "Fora do pedido" com o motivo e "Nenhum caminho sugerido: restrição ativa". Depois, a restrição foi retirada e a oportunidade movida para "Perdida ou não contatar" |
+  | 7. Lacuna fechada | Não feito: o auto mode do Claude Code barrou o registro de uma pessoa real. Fica para o usuário. Candidata: Alpha Galvano - Química Brasileira Ltda (sócio no quadro da Receita desde 1989, qualificação 22) |
   | 8. Sanções | Passa: o plano mostra CEIS e CNEP, referência 08/10/2026 |
   | 9. Papéis | Em parte: nenhum telefone ou e-mail na página. Não existe conta de analista para testar a permissão |
   | 10. Celular | Passa: a 386 px, sem rolagem horizontal, inclusive com o juízo e o plano abertos |
@@ -45,7 +45,7 @@ Atualizado em 10 de outubro de 2026, à tarde (checkpoint anterior: 9 de outubro
 ### Próximos passos, em ordem
 
 1. **Ativar a casa** (pessoas reais, pelo usuário): convites na tela Equipe, membros na Rede, listas, passada de reconhecimento, "Ligar ao CNPJ". Depende da lista de participantes da GHT4.
-2. **Fechar o aceite** (Etapa 3): fazer os itens 6 e 7, que gravam em produção; testar o 9 com uma conta de analista; repetir os itens 2 e 3 com a casa ativada. Os demais já passaram (tabela acima).
+2. **Fechar o aceite** (Etapa 3): fazer o item 7, que registra uma pessoa real em produção; testar o 9 com uma conta de analista; repetir os itens 2 e 3 com a casa ativada. Os demais já passaram (tabela acima).
    - A passada de reconhecimento agora tem cerca de 40 mil `ceo`, a maioria donos de limitada. Quando a casa for ativada, ver se a fila por empresa continua utilizável.
 3. **Opcional:** revisão do Codex da Rodada 28, quando a conta dele tiver uso disponível. Não bloqueia.
 
