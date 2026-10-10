@@ -235,13 +235,14 @@ export async function gravarQuadro(db,unicas,{operadorId,referencia,descartadas=
       const lote=unicas.slice(inicio,inicio+250).map(p=>({...p,id:randomUUID(),organizacaoNormalizada:normalizar(p.organizacao)}));
       const r = await tx.query(
         `INSERT INTO rede_pessoas (id,lado,nome,nome_normalizado,cargo,senioridade,organizacao,
-           organizacao_normalizada,empresa_id,origem,origem_referencia,criado_por)
-         SELECT p.id,'mercado',p.nome,p."nomeNormalizado",p.cargo,p.senioridade,p.organizacao,p."organizacaoNormalizada",p."empresaId",'cadastro_publico',p.referencia,$2
+           organizacao_normalizada,empresa_id,origem,origem_referencia,criado_por,quadro)
+         SELECT p.id,'mercado',p.nome,p."nomeNormalizado",p.cargo,p.senioridade,p.organizacao,p."organizacaoNormalizada",p."empresaId",'cadastro_publico',p.referencia,$2,
+           jsonb_build_object('nome',p.nome,'cargo',p.cargo,'senioridade',p.senioridade,'empresaId',p."empresaId")
          FROM jsonb_to_recordset($1::jsonb) AS p(id uuid,nome text,"nomeNormalizado" text,cargo text,senioridade text,organizacao text,"organizacaoNormalizada" text,"empresaId" text,referencia text)
          ON CONFLICT (empresa_id, nome_normalizado) WHERE origem = 'cadastro_publico'
          DO UPDATE SET cargo = EXCLUDED.cargo, senioridade = EXCLUDED.senioridade,
            organizacao = EXCLUDED.organizacao, organizacao_normalizada = EXCLUDED.organizacao_normalizada,
-           origem_referencia = EXCLUDED.origem_referencia, versao = rede_pessoas.versao + 1,
+           origem_referencia = EXCLUDED.origem_referencia, quadro = EXCLUDED.quadro, versao = rede_pessoas.versao + 1,
            atualizado_em = now()
          RETURNING (xmax = 0) AS nova`,
         [JSON.stringify(lote), operadorId]);

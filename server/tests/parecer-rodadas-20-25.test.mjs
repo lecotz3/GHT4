@@ -14,9 +14,39 @@ import { avaliarEmpresa, julgarPessoa } from '../src/encontrar/triagem.mjs';
 import { empresasParecidas } from '../src/encontrar/nomes.mjs';
 import { interpretarTese, verificarCadastro } from '../src/pesquisa/criterios.mjs';
 import { criarPonte } from '../../ferramentas/mcp-ght4.mjs';
+import { posicaoNaDecisao } from '../src/acesso/plano.mjs';
 
 const senha = 'Senha restrita aos testes 2026!';
 const REF = '2026-08';
+
+test('27: área de cargo negado mantém a exclusão até o fim da lista e o grupo final', () => {
+  const empresa = { id: 'cnpj11111111', nome: 'Alfa', cnpjRaiz: '11111111' };
+  const ctx = { empresa, avaliacao: avaliarEmpresa(empresa, [], REF), caminho: null, incompletos: 0,
+    respostas: 0, negativas: 0, membros: 1, restricao: null };
+  const pessoa = { id: randomUUID(), nome: 'Caio', cargo: 'CEO', senioridade: 'ceo', origem: 'manual',
+    origem_referencia: 'Site institucional', empresa_id: empresa.id };
+  for (const separador of ['e', 'ou', ',', 'nem']) {
+    const lida = interpretarPedido(`CFOs exceto gerentes comerciais ${separador} CEOs`);
+    assert.deepEqual(lida.papel.excluidas.sort(), ['ceo', 'gerencia']);
+    assert.equal(julgarPessoa(pessoa, ctx, lida).grupo, 'excluido');
+  }
+  assert.deepEqual(interpretarPedido('CEOs, sem gerentes comerciais, e CFOs').papel.senioridades.sort(), ['ceo', 'cfo']);
+});
+
+test('27: representar um sócio ou negar participação não prova ser dono, no plano e no find', () => {
+  const empresa = { id: 'cnpj11111111', nome: 'Alfa', cnpjRaiz: '11111111' };
+  const ctx = { empresa, avaliacao: avaliarEmpresa(empresa, [], REF), caminho: null, incompletos: 0,
+    respostas: 0, negativas: 0, membros: 1, restricao: null };
+  for (const cargo of ['Representante do sócio pessoa jurídica', 'Administrador não sócio', 'CEO sem ser sócio', 'Ex-sócio']) {
+    assert.equal(posicaoNaDecisao('ceo', null, cargo).id, 'influencia', cargo);
+    const pessoa = { id: randomUUID(), nome: 'Caio', cargo, senioridade: 'ceo', origem: 'manual',
+      origem_referencia: 'Site institucional', empresa_id: empresa.id };
+    assert.equal(julgarPessoa(pessoa, ctx, interpretarPedido('Quem decide')).grupo, 'revisar', cargo);
+  }
+  for (const cargo of ['Sócia-administradora', 'CEO e acionista', 'Sócio controlador', 'Titular', 'Representante do sócio e sócio-administrador']) {
+    assert.equal(posicaoNaDecisao('ceo', null, cargo).id, 'decide', cargo);
+  }
+});
 
 test('25 [P2]: a negação vale para a lista de cargos, até outra palavra separar', () => {
   const lista = interpretarPedido('CFOs exceto CEOs e gerentes');

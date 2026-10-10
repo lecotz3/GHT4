@@ -70,3 +70,9 @@ export async function comoUsuarioDoRbac(db, usuarioId) {
 
   return { ...u, mandatos: m.rows.map((r) => ({ id: r.id, papel: r.papel })) };
 }
+
+/** Dirigente inserido direto no banco como se viesse do quadro: grava o atestado, como a importação e a migração 0032. */
+export function atestarQuadro(db) {
+  return db.query(`UPDATE rede_pessoas SET quadro = jsonb_build_object('nome',nome,'cargo',cargo,'senioridade',senioridade,'empresaId',empresa_id)
+    WHERE origem = 'cadastro_publico' AND quadro IS NULL`);
+}

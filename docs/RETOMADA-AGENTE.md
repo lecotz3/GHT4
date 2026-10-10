@@ -1,10 +1,34 @@
 # Retomada da implementação do agente GHT4
 
-Atualizado em 9 de outubro de 2026, à noite (checkpoint anterior: 9 de outubro, à tarde). Branch de trabalho: `feat/agente-rodada-4`, publicada na `main` por fast-forward a cada rodada. A instalação usa Vercel e Supabase; todo push na `main` publica em produção, e o build de produção (`ferramentas/build-vercel.mjs`) roda `preparar-banco.mjs`: migrações, reimportação do catálogo e dos eventos.
+Atualizado em 10 de outubro de 2026, à tarde (checkpoint anterior: 9 de outubro, à noite). Branch de trabalho: `feat/agente-rodada-4`, publicada na `main` por fast-forward a cada rodada. A instalação usa Vercel e Supabase; todo push na `main` publica em produção, e o build de produção (`ferramentas/build-vercel.mjs`) roda `preparar-banco.mjs`: migrações, reimportação do catálogo e dos eventos.
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodadas 26 e 27: IA opcional no find e o parecer das Rodadas 20 e 25 corrigido; falta publicar e gravar a rede (09/10/2026)
+## COMECE AQUI — Rodada 28: parecer das Rodadas 26 e 27 corrigido; rede pronta para gravar, falta a credencial do banco (10/10/2026)
+
+**Estado:**
+- **Publicado na `main`:** as Rodadas 26 e 27 (`79f231d`), com CI do GitHub verde e deploy conferido (bundle novo com a leitura por IA e a confirmação de compartilhamento). O parecer do Codex sobre elas está em `b1cc7e0`; a Rodada 28 vem no commit seguinte, com a migração `0032_quadro_atestado`.
+- **Rodada 28:** todos os achados do parecer, registrados no [AI_COLLAB.md](../AI_COLLAB.md).
+  - P1: a busca confere sessão e acesso de novo depois da IA e antes de entregar.
+  - A leitura da IA não apaga exigência, empresa nem UF.
+  - O quadro só prova o que atestou (`rede_pessoas.quadro`).
+  - Negação em lista, cidades em alternativa e dono com capital dividido.
+- **Sessão do Codex em paralelo:** ela começou as correções neste checkout e passou a só validar; a verificação complementar dela está no diário, e os dez casos passam.
+- **Lint bloqueado nesta máquina:** o Windows (Application Control) barra `v1/node_modules/@oxlint/binding-win32-x64-msvc/oxlint.win32-x64-msvc.node`. O bloqueio não foi contornado; o lint roda no CI do GitHub. Para voltar a rodar aqui, é decisão do usuário: ajustar o Smart App Control ou a política do Windows.
+- **Rede:** `.cache/quadro-societario-2026-08.js` reconstruído nesta máquina (10 MB, 35.690 empresas), e `npm run rede:ensaio` confirma **8.736** dirigentes. Falta só o `DATABASE_URL`.
+
+### Próximos passos, em ordem
+
+1. **Publicar** a Rodada 28 na `main` e conferir o deploy (`/api/saude` e a migração `0032` no build).
+2. **Revisão do Codex** da Rodada 28 ("PARA O CODEX" no diário).
+3. **Gravar os 8.736 dirigentes:** o usuário cria `server/.env.local` com `DATABASE_URL=` (Supabase → Connect → Transaction pooler, com a senha; caracteres especiais codificados). Depois:
+   - `node --env-file=server/.env.local ferramentas/verificar-prontidao-rede.mjs --conectar`;
+   - `node --env-file=server/.env.local ferramentas/importar-quadro-societario.mjs --arquivo=.cache/quadro-societario-2026-08.js --confirmo-a-decisao-lgpd --destino=HOST:PORTA/BANCO`;
+   - conferir criadas + atualizadas = 8.736. A importação já grava o atestado `quadro`.
+4. **Ativar a casa** (pessoas reais, pelo usuário): convites na tela Equipe, membros na Rede, listas, passada de reconhecimento, "Ligar ao CNPJ".
+5. **Aceite em produção** (Etapa 3): os onze itens do doc "Find 100% funcional", com contas de sócio e de analista.
+
+## Checkpoint anterior — Rodadas 26 e 27: IA opcional no find e o parecer das Rodadas 20 e 25 corrigido; falta publicar e gravar a rede (09/10/2026)
 
 **Estado:**
 - **Commits locais, ainda fora da `main`:** `7845da1` (parecer do Codex sobre as Rodadas 20 e 25), `214a40c` (Rodada 26) e o commit da Rodada 27. O `git push` desta sessão foi recusado pelo controle de permissões do Claude Code. Publicar: `git push origin HEAD:main HEAD:feat/agente-rodada-4` (o deploy aplica a migração `0031_ia_sem_conversa`).

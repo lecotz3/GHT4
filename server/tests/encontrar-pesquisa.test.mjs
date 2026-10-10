@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { criarApp } from '../src/app.mjs';
 import { criarCatalogo } from '../src/agente/catalogo.mjs';
-import { bancoDeTeste, criarUsuario, criarMandato, darAcesso } from './ajuda.mjs';
+import { bancoDeTeste, criarUsuario, criarMandato, darAcesso, atestarQuadro } from './ajuda.mjs';
 import { encontrarPessoas } from '../src/encontrar/buscar.mjs';
 
 /* Rodada 23: as melhorias de prioridade média do roteiro "Find 100% funcional".
@@ -141,7 +141,7 @@ test('recorte em páginas e teto de pessoas: empresa sem avaliar não vira "ning
   const catalogo = criarCatalogo({ arquivo, arquivoIbama: null });
   const u = await criarUsuario(db, { email: 'tetos@teste.local', papel: 'socio', senha, nome: 'Teto' });
   const pessoa = (nome, senioridade, empresaId) => db.query(`INSERT INTO rede_pessoas (id,lado,nome,nome_normalizado,cargo,senioridade,empresa_id,origem,origem_referencia,criado_por)
-    VALUES ($1,'mercado',$2,lower($2),'Cargo',$3,$4,'cadastro_publico','Quadro societário',$5)`, [randomUUID(), nome, senioridade, empresaId, u.id]);
+    VALUES ($1,'mercado',$2,lower($2),'Cargo',$3,$4,'cadastro_publico','Quadro societário',$5)`, [randomUUID(), nome, senioridade, empresaId, u.id]).then(() => atestarQuadro(db));
   await pessoa('Bia Gerente', 'gerencia', 'cnpj11111111');
   await pessoa('Caio Presidente', 'ceo', 'cnpj22222222');
   await pessoa('Dora Presidente', 'ceo', 'cnpj44444444');
@@ -190,7 +190,7 @@ test('o teto de pessoas conta só as empresas que passam nos critérios', async 
   const catalogo = criarCatalogo({ arquivo, arquivoIbama: null });
   const u = await criarUsuario(db, { email: 'teto-criterios@teste.local', papel: 'socio', senha, nome: 'Teto' });
   const pessoa = (nome, empresaId) => db.query(`INSERT INTO rede_pessoas (id,lado,nome,nome_normalizado,cargo,senioridade,empresa_id,origem,origem_referencia,criado_por)
-    VALUES ($1,'mercado',$2,lower($2),'Sócio-administrador','ceo',$3,'cadastro_publico','Quadro societário',$4)`, [randomUUID(), nome, empresaId, u.id]);
+    VALUES ($1,'mercado',$2,lower($2),'Sócio-administrador','ceo',$3,'cadastro_publico','Quadro societário',$4)`, [randomUUID(), nome, empresaId, u.id]).then(() => atestarQuadro(db));
   // A Empresa 1 é nova demais e tem três dirigentes; a Empresa 2 passa e tem um.
   for (const nome of ['Ana Um', 'Bia Um', 'Caio Um']) await pessoa(nome, 'cnpj11111111');
   await pessoa('Dora Dois', 'cnpj22222222');

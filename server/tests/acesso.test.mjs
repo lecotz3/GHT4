@@ -72,7 +72,12 @@ test('a estrutura do cadastro diz que tipo de pessoa decide, sem nome e sem idad
   assert.equal(profissional.posicao.id, 'influencia');
   assert.equal(profissional.juizo[0].julgamento, 'indicio');
   assert.match(profissional.juizo[0].informacao, /não mostra participação no capital/);
-  for (const cargo of ['Sócio-administrador', 'Titular', 'Acionista controlador', 'Sócia-gerente']) assert.equal(juizoDe(cargo).posicao.id, 'decide', cargo);
+  for (const cargo of ['Titular', 'Acionista controlador']) assert.equal(juizoDe(cargo).posicao.id, 'decide', cargo);
+  // Sócio que administra decide na limitada de dois sócios; na S.A. de cinco, a participação não prova o controle (Rodada 28).
+  for (const cargo of ['Sócio-administrador', 'Sócia-gerente']) {
+    assert.equal(juizoDe(cargo, 'ceo', ltda).posicao.id, 'decide', cargo);
+    assert.equal(juizoDe(cargo).posicao.id, 'influencia', cargo);
+  }
   assert.equal(juizoDe('Conselheiro de administração', 'conselho').posicao.id, 'influencia');
   assert.equal(juizoDe('Presidente do conselho e controlador', 'conselho').juizo[0].julgamento, 'atende');
 });

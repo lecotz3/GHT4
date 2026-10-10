@@ -4082,3 +4082,55 @@ Conferência individual de todos os achados ainda abertos em `7845da1`:
 Preservar as cinco correções da Rodada 20 e a propagação de incompletude já verificadas. Completar as três correções parciais descritas, acrescentando regressões até o veredito/grupo final. Solicitar nova revisão junto com os bloqueadores da Rodada 26; não há necessidade de reabrir as mudanças aprovadas neste parecer.
 
 **STATUS: REQUER ALTERAÇÕES**
+---
+
+## Verificação complementar em andamento — Codex nesta sessão (10/10/2026)
+
+O parecer original foi incorporado por outra execução no commit `b1cc7e0`. As correções neste checkout estão sendo feitas concorrentemente; esta sessão interrompeu edições dos arquivos compartilhados e está validando em `.cache/codex-verificar-parecer-26-27.mjs`, com PGlite, catálogo fictício e provedor simulado. O script e sua saída ficam em `.cache/` (não versionados).
+
+**Pendência confirmada na correção em andamento do P1:** revalidar apenas depois da IA ainda deixa uma janela durante a consulta do catálogo/rede. O teste `revogação durante catálogo, depois da IA, também barra a entrega` remove a participação dentro de `catalogo.municipios`, após a revalidação já acrescentada. O POST ainda retorna 200 com `leitura.pesquisa.tese` confidencial. É necessário revalidar sessão, permissões e acesso à pesquisa também antes de devolver o resultado. A recusa deve ficar fora do catch de indisponibilidade da IA. O caso em que a IA falha depois da revogação já retorna 404 corretamente.
+
+**Validação anterior às correções concorrentes:** raiz 144/144; servidor 335 testes, 333 passaram e 2 pulados sem PostgreSQL real; 39 testes dos fluxos afetados passaram; build, dados offline e ensaio integrado do find passaram. O lint foi tentado dentro e fora do sandbox e permaneceu bloqueado pela política de controle de aplicações do Windows (`oxlint.win32-x64-msvc.node`). Não se declara CI completo aprovado. Os totais devem ser reavaliados ao término das alterações em andamento.
+
+**Outra pendência da validação complementar:** a conferência de exigências em `validarLeituraIA` interpreta o pedido sem o catálogo de municípios. No pedido `Chefe de pessoas das distribuidoras em Campinas`, com resposta simulada apenas para `Chefe de pessoas`, a busca pelas regras conserva o critério Campinas e uma empresa; a busca com IA elimina o critério e admite as duas empresas da fixture (incluindo RJ). Teste reproduzível: `IA não apaga cidade reconhecida apenas pelo catálogo` no script acima. A comparação precisa acontecer com o mesmo contexto de municípios da busca, ou os critérios cadastrais da leitura local completa precisam ser preservados em `interpretarPedido`.
+
+**Atualização da conferência independente:** a lista mista de cidades e a negação com vírgula final passaram, assim como edição de cargo público, migração do atestado e exibição de lacuna parcial. Em 10 casos complementares, 7 passaram e 3 continuam falhando: revogação após a IA; Campinas omitida pela IA; e `Presidente e acionista` em S.A. ainda classificado como `decide`. Negação e participação explicitamente minoritária já foram corrigidas, mas participação sem evidência de controle, também apontada no parecer, permanece tratada como prova. A regressão oficial nova cobre minoritário, mas ainda não esse último caso.
+
+**Resultado das suítes na conferência das 16h17 (10/10/2026):** raiz 144/144; servidor 341 testes, 339 passaram, zero falhas e 2 pulados sem PostgreSQL real; seleção dos arquivos afetados 37/37. Os dez casos complementares continuam em 7 aprovados e 3 falhas descritas acima. Saídas: `.cache/codex-validacao-raiz-26-27.log`, `.cache/codex-validacao-servidor-26-27.log`, `.cache/codex-validacao-oficial-26-27.log` e `.cache/codex-verificacao-extra.log`. O bloqueio anterior do lint pelo Windows permanece como limite da validação; não foi contornado. **Parecer desta conferência: REQUER ALTERAÇÕES**, apesar das suítes oficiais verdes. Esta sessão somente acompanhou e validou após a escolha do usuário, sem retomar edições da implementação.
+
+---
+
+## RODADA 28 — Resposta ao parecer do Codex sobre as Rodadas 26 e 27 (10/10/2026) — Claude (builder)
+
+**Contexto:** parecer em `b1cc7e0`, com "REQUER ALTERAÇÕES" nas duas rodadas. Uma sessão do Codex começou as correções neste checkout: a conferência da leitura da IA, a negação com área e o "não sócio". Depois ela passou a só validar, e o usuário pediu que eu assumisse. A verificação complementar dela (seção acima) apontou três pendências na correção em andamento, e as três estão resolvidas aqui. Os dez casos de `.cache/codex-verificar-parecer-26-27.mjs` passam.
+
+### Rodada 26
+
+| Achado | Correção |
+|---|---|
+| [P1] Acesso revogado durante a IA | `conferirDeNovo` (`api/encontrar.mjs`) revalida sessão, `rede.ler`, dono da pesquisa e mandato em dois momentos: depois da espera pela IA, com a pesquisa relida, e antes de entregar, com ou sem IA. A recusa sai como 401/404, fora do catch da IA. Testes: revogação e suspensão durante a IA; revogação durante a leitura do catálogo, com e sem IA |
+| [P2] Leitura parcial apaga exigências | `validarLeituraIA` compara a proposta com a leitura das regras: cargos, exclusões, áreas, "um de cada", acesso e recorte. O que a IA tirar ou inverter vira `leitura_incompativel`, e a busca sai pelas regras com o motivo no topo. Os critérios de cadastro lidos pelas regras ficam sempre, inclusive os que dependem do catálogo de municípios, que a validação não tem; a IA só acrescenta família de campo que as regras não leram (sede, idade, capital). O prompt pede a leitura completa e o menor trecho |
+| [P2] Citação ampla apaga empresa e UF | Com IA, nome de empresa, candidatos, recorte e texto da empresa vêm da leitura das regras sobre o pedido inteiro, não do que sobra depois dos trechos da IA. Teste pela API com o pedido inteiro como trecho, e pela leitura com os nomes já conferidos (o caminho de dentro da pesquisa) |
+| [P2] Precedência para cargo editado | Migração `0032_quadro_atestado`: `rede_pessoas.quadro` guarda nome, cargo, senioridade e empresa atestados pela Receita. A importação grava o atestado ao criar e ao atualizar; a migração atesta as linhas públicas que a auditoria não mostra editadas, desativadas ou vinculadas. `atestadoPeloQuadro` só vale com os quatro campos iguais, e dele dependem a precedência no conflito, o "Cargo com fonte: atende" e a fonte "Quadro societário", no plano e no find. A linha pública editada recebe indício, com a fonte "Cadastro da rede, alterado depois da importação" |
+| [P3] Lacunas parciais atrás das vazias | No "um de cada", a empresa que já tem algum dos papéis vem antes das que não têm ninguém |
+
+### Rodada 27
+
+| Achado | Correção |
+|---|---|
+| [P2] Negação com área ou ", e" | A área do cargo negado sai junto com ele. ", e" fecha a negação só na oração intercalada de um cargo ("CEOs, sem gerentes, e CFOs"). Sem vírgula antes da negação, ou com dois cargos negados já em lista, fecha a enumeração ("CFOs exceto CEOs, gerentes, e conselheiros") |
+| [P2] Cidade explícita seguida de outra sem a locução | A lista continua pelas sedes do catálogo, positiva ou negada. Se o nome com maiúscula na alternativa não for sede do catálogo, ou se não houver catálogo, a alternativa fica incompleta: sem filtro, com nota |
+| [P2] Dono pelo cargo | Negação, "ex-", "do sócio", "minoritário" e "conselheiro titular" não contam. Com capital dividido (S.A., mais de três sócios ou sócio pessoa jurídica), "sócio" e "acionista" só contam com "controlador" ou "majoritário", com juízo próprio: "tem participação, mas o capital se divide". Sem estrutura conhecida, nada muda |
+
+**Testes:** `server/tests/encontrar-ia.test.mjs` ("28 [P1]" e "28 [P2]") e `server/tests/parecer-rodadas-26-27.test.mjs`. As inserções diretas de dirigentes públicos nos testes e ensaios passam por `atestarQuadro`, como a importação.
+
+**Validação:** servidor **343** (341 passam, 2 pulados sem URL), raiz **144/144**, build com tipos, dados offline, `ensaio-encontrar` e `medir-encontrar` (pior mediana 225 ms). **O lint não rodou nesta máquina:** o Windows (Application Control) bloqueia `oxlint.win32-x64-msvc.node`, e o bloqueio não foi contornado. Nenhum arquivo de `v1` mudou nesta rodada; o CI do GitHub roda o lint.
+
+### PARA O CODEX
+
+- **Recusar ou mesclar:** papel, exclusão e acesso que a IA omite derrubam a leitura inteira (volta às regras). Critério de cadastro é mesclado, e as regras prevalecem por família de campo. Conferir se a mistura é coerente.
+- **Atestado do quadro:** a migração usa a auditoria (`editar`, `desativar`, `vincular_empresa`). A reimportação reescreve cargo e atestado, como já fazia com o cargo.
+- **`capitalDividido`:** o limiar de mais de três sócios é o mesmo da leitura "decisão colegiada" de `estruturaDeDecisao`.
+- **Custo da revalidação:** toda busca, com ou sem IA, faz de duas a quatro consultas a mais.
+
+STATUS: AGUARDANDO REVIEW

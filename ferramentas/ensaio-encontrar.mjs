@@ -46,7 +46,10 @@ const decisor = (empresaId, nome, cargo, senioridade) => chamar('POST', `/api/ac
   fonte: { tipo: 'site_oficial', descricao: 'Página institucional fictícia do ensaio', url: `https://${empresaId}.exemplo.test/quem-somos` } });
 const inserir = (empresaId, nome, cargo, senioridade, origem, referencia = '') => db.query(
   `INSERT INTO rede_pessoas (id,lado,nome,nome_normalizado,cargo,senioridade,organizacao,organizacao_normalizada,empresa_id,origem,origem_referencia,criado_por)
-   VALUES ($1,'mercado',$2,lower($2),$3,$4,'Empresa fictícia','empresa ficticia',$5,$6,$7,$8)`, [randomUUID(), nome, cargo, senioridade, empresaId, origem, referencia, socio.id]);
+   VALUES ($1,'mercado',$2,lower($2),$3,$4,'Empresa fictícia','empresa ficticia',$5,$6,$7,$8)`, [randomUUID(), nome, cargo, senioridade, empresaId, origem, referencia, socio.id])
+  // O dirigente do quadro traz o atestado, como na importação (migração 0032).
+  .then(() => db.query(`UPDATE rede_pessoas SET quadro = jsonb_build_object('nome',nome,'cargo',cargo,'senioridade',senioridade,'empresaId',empresa_id)
+    WHERE origem = 'cadastro_publico' AND quadro IS NULL`));
 
 try {
   await chamar('POST', '/api/rede/pessoas', { id: randomUUID(), lado: 'ght4', nome: 'Helena Sócia (teste)', usuarioId: socio.id });

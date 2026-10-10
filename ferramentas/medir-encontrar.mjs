@@ -36,6 +36,8 @@ for (let i = 0; i < PESSOAS; i += 500) {
   const valores = lote.map((_, j) => `($${j * 5 + 1}::uuid,'mercado',$${j * 5 + 2},lower($${j * 5 + 2}),$${j * 5 + 3},$${j * 5 + 4},'','',$${j * 5 + 5},'cadastro_publico','Quadro societário sintético',$${lote.length * 5 + 1}::uuid)`);
   await db.query(`INSERT INTO rede_pessoas (id,lado,nome,nome_normalizado,cargo,senioridade,organizacao,organizacao_normalizada,empresa_id,origem,origem_referencia,criado_por)
     VALUES ${valores.join(',')}`, [...lote.flat(), usuario.id]);
+  await db.query(`UPDATE rede_pessoas SET quadro = jsonb_build_object('nome',nome,'cargo',cargo,'senioridade',senioridade,'empresaId',empresa_id)
+    WHERE origem = 'cadastro_publico' AND quadro IS NULL`);
 }
 const membros = [];
 for (let m = 0; m < MEMBROS; m++) {

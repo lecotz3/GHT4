@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { criarApp } from '../src/app.mjs';
 import { criarCatalogo } from '../src/agente/catalogo.mjs';
-import { bancoDeTeste, criarUsuario } from './ajuda.mjs';
+import { bancoDeTeste, criarUsuario, atestarQuadro } from './ajuda.mjs';
 import { interpretarPedido } from '../src/encontrar/pedido.mjs';
 
 const senha = 'Senha restrita aos testes 2026!';
@@ -102,7 +102,7 @@ test('encontrar quem decide: triagem, caminho, introdução, lacunas e restriç�
   const inserir = (id, nome, cargo, senioridade, empresaId, origem, extra = {}) => db.query(
     `INSERT INTO rede_pessoas (id,lado,nome,nome_normalizado,cargo,senioridade,organizacao,organizacao_normalizada,empresa_id,origem,origem_referencia,criado_por,email,telefone)
      VALUES ($1,'mercado',$2,lower($2),$3,$4,'x','x',$5,$6,$7,$8,$9,$10)`,
-    [id, nome, cargo, senioridade, empresaId, origem, extra.referencia ?? '', socio.id, extra.email ?? null, extra.telefone ?? null]);
+    [id, nome, cargo, senioridade, empresaId, origem, extra.referencia ?? '', socio.id, extra.email ?? null, extra.telefone ?? null]).then(() => atestarQuadro(db));
   const bia = randomUUID(), dora = randomUUID();
   await inserir(bia, 'Bia Prado', 'Gerente comercial', 'gerencia', 'cnpj11111111', 'importacao', { referencia: 'Lista da feira', email: 'bia@alfa.com.br', telefone: '(19) 99999-1234' });
   await inserir(dora, 'Dora Lima', 'Conselheira', 'conselho', 'cnpj22222222', 'cadastro_publico');
@@ -197,7 +197,7 @@ test('busca em lote não perde o caminho que passa por outro alvo (Casa → Alfa
   assert.equal((await socio.chamar('POST', '/api/rede/pessoas', { id: eu, lado: 'ght4', nome: 'Helena Sócia', usuarioId: socio.id })).statusCode, 201);
   for (const [id, nome, empresaId] of [[ivo, 'Ivo Ramos', 'cnpj11111111'], [rita, 'Rita Melo', 'cnpj44444444']]) await db.query(
     `INSERT INTO rede_pessoas (id,lado,nome,nome_normalizado,cargo,senioridade,organizacao,organizacao_normalizada,empresa_id,origem,criado_por)
-     VALUES ($1,'mercado',$2,lower($2),'Sócio-administrador','ceo','x','x',$3,'cadastro_publico',$4)`, [id, nome, empresaId, socio.id]);
+     VALUES ($1,'mercado',$2,lower($2),'Sócio-administrador','ceo','x','x',$3,'cadastro_publico',$4)`, [id, nome, empresaId, socio.id]).then(() => atestarQuadro(db));
   const ligar = (x, y) => { const [a, b] = [x, y].sort(); return db.query(
     `INSERT INTO rede_vinculos (id,pessoa_a_id,pessoa_b_id,tipo,forca,evidencia,disposicao,criado_por)
      VALUES ($1,$2,$3,'trabalharam_juntos','direta','Trabalharam juntos','posso_apresentar',$4)`, [randomUUID(), a, b, socio.id]); };
@@ -243,7 +243,7 @@ test('cargo negado sai do pedido, e a área do cargo vira exigência', async (t)
   };
   for (const [nome, cargo, senioridade] of [['Gil Souza', 'Gerente comercial', 'gerencia'], ['Lia Reis', 'Gerente de compras', 'gerencia'], ['Caio Dias', 'Diretor-presidente', 'ceo']]) await db.query(
     `INSERT INTO rede_pessoas (id,lado,nome,nome_normalizado,cargo,senioridade,organizacao,organizacao_normalizada,empresa_id,origem,criado_por)
-     VALUES ($1,'mercado',$2,lower($2),$3,$4,'x','x','cnpj11111111','cadastro_publico',$5)`, [randomUUID(), nome, cargo, senioridade, socio.id]);
+     VALUES ($1,'mercado',$2,lower($2),$3,$4,'x','x','cnpj11111111','cadastro_publico',$5)`, [randomUUID(), nome, cargo, senioridade, socio.id]).then(() => atestarQuadro(db));
   const grupoDe = (r, nome) => [...r.grupos.forte, ...r.grupos.revisar, ...r.grupos.excluido].find((p) => p.nome === nome);
 
   let r = await buscar('Quem decide nas distribuidoras de SP, sem gerentes');

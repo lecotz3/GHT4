@@ -380,6 +380,18 @@ function municipiosCitados(original, n, municipios) {
   }
   return achados;
 }
+/** Município do catálogo logo no início do texto normalizado, com até seis palavras: onde o nome acaba, ou 0. */
+function municipioNoInicio(texto, municipios) {
+  const tokens = [...texto.matchAll(/[a-z][a-z'-]*/g)];
+  if (!municipios?.size || !tokens.length || tokens[0].index !== 0) return 0;
+  for (let j = Math.min(tokens.length, 6); j >= 1; j--) {
+    const parte = tokens.slice(0, j);
+    if (parte.some((t, x) => x && !/^\s+$/.test(texto.slice(parte[x - 1].index + parte[x - 1][0].length, t.index)))) continue;
+    const nome = parte.map((t) => t[0]).join(' ');
+    if (municipios.has(nome) && !NOMES_UF.some(([uf]) => uf === nome) && !NOMES_REGIAO.has(nome)) return parte.at(-1).index + parte.at(-1)[0].length;
+  }
+  return 0;
+}
 const listaDe = (nomes, conjuncao) => nomes.length < 2 ? nomes[0] : `${nomes.slice(0, -1).join(', ')} ${conjuncao} ${nomes.at(-1)}`;
 
 /**
@@ -479,9 +491,32 @@ export function interpretarTese(tese, { referencia, municipios } = {}) {
     }
     explicitas.push({ ini, fim: m.index + m[0].length, nomes: [nomeOriginal], negado: Boolean(negacao), ufs: uf ? [uf[1]] : [] });
   }
+  /* A lista segue sem repetir a locução ("na cidade de Campinas ou Osasco"): as cidades do catálogo
+     entram na mesma alternativa, e a negação vale para todas. Um nome com maiúscula na alternativa
+     que o catálogo não reconhece deixa a lista incompleta: aplicar só a primeira cidade filtraria
+     errado, então a sede não vira filtro e a nota pede para conferir (parecer do Codex, Rodada 27). */
+  explicitas.forEach((c, k) => {
+    const limite = explicitas[k + 1]?.ini ?? n.length;
+    for (;;) {
+      const sep = n.slice(c.fim, limite).match(/^\s*(?:,\s*)?(?:(?:ou|e)\s+)?(?:(?:em|na|no|de|da|do)\s+)?/);
+      if (!/,|\bou\b|\be\b/.test(sep[0])) return;
+      const ini = c.fim + sep[0].length;
+      const fim = municipioNoInicio(n.slice(ini, limite), municipios);
+      if (fim) { c.nomes.push(original.slice(ini, ini + fim)); c.fim = ini + fim; continue; }
+      if (/,|\bou\b/.test(sep[0]) && /^\p{Lu}/u.test(original.slice(ini, limite))) {
+        c.incompleta = original.slice(ini, limite).match(/^[\p{L}' -]+?(?=\s*(?:[,;.\n()]|$|\s(?:e|ou|com|que|sem)\s))/u)?.[0]?.trim() || original.slice(ini, limite).split(/\s/)[0];
+      }
+      return;
+    }
+  });
   for (const c of explicitas) {
     const trecho = Object.assign([n.slice(c.ini, c.fim)], { index: c.ini });
     const nomes = c.nomes.map(maiuscula);
+    if (c.incompleta) {
+      usados.push([c.ini, c.fim]);
+      notas.push(`"${original.slice(c.ini, c.fim).trim()}" vem com outra cidade em alternativa ("${c.incompleta}") que não reconheci entre as sedes do catálogo: a sede não virou filtro, para não valer só a primeira. Escreva "na cidade de" antes de cada uma, ou confira na revisão.`);
+      continue;
+    }
     if (c.negado) { adicionar(trecho, `Sede fora de ${listaDe(nomes, 'e')}`, { campo: 'municipio_fora', valor: c.nomes }); continue; }
     // "Cidade de São Paulo"/"cidade do Rio de Janeiro": município da capital, dentro do seu estado.
     if (c.nomes.length === 1) c.ufs.forEach((u) => ufs.add(u));

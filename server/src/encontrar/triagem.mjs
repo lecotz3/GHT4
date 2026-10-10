@@ -1,4 +1,4 @@
-import { juizoDoDecisor, estruturaDeDecisao } from '../acesso/plano.mjs';
+import { juizoDoDecisor, estruturaDeDecisao, atestadoPeloQuadro } from '../acesso/plano.mjs';
 import { verificarCadastro } from '../pesquisa/criterios.mjs';
 import { senioridadeDe, categoriaDe } from '../rede/contratos.mjs';
 import { ACESSO_ROTULO, AREAS, cargoTrazArea } from './pedido.mjs';
@@ -99,14 +99,15 @@ export function conflitosDeCargoUnico(pessoas) {
   for (const { posto, pessoas: ocupantes } of grupos.values()) {
     // A mesma pessoa cadastrada duas vezes (mesmo nome) não é conflito de cargo.
     if (new Set(ocupantes.map((p) => nomeChave(p.nome))).size < 2) continue;
-    const doQuadro = ocupantes.filter((p) => p.origem === 'cadastro_publico');
+    // Só o que o quadro atestou desempata: a linha pública editada depois não é mais prova dele.
+    const doQuadro = ocupantes.filter(atestadoPeloQuadro);
     if (doQuadro.length === ocupantes.length) continue;
     const nomes = (lista) => lista.map((p) => p.nome).join(', ');
     for (const p of ocupantes) {
       const outros = ocupantes.filter((o) => o !== p);
-      if (p.origem === 'cadastro_publico') {
+      if (doQuadro.includes(p)) {
         linhas.set(p.id, { requisito: 'Cargo único sem conflito', julgamento: 'atende', obrigatorio: false,
-          informacao: `Outra fonte também aponta ${nomes(outros.filter((o) => o.origem !== 'cadastro_publico'))} como ${posto.rotulo}. Vale o quadro estatutário.`,
+          informacao: `Outra fonte também aponta ${nomes(outros.filter((o) => !doQuadro.includes(o)))} como ${posto.rotulo}. Vale o quadro estatutário.`,
           fonte: 'Quadro societário público (Receita Federal)' });
       } else if (doQuadro.length) {
         linhas.set(p.id, { requisito: 'Cargo único sem conflito', julgamento: 'indicio', obrigatorio: true,

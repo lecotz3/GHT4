@@ -41,8 +41,11 @@ const USO_DA_EMPRESA_ANTES = /(?:\bate|\bsem|\bnenhum|\bmaximo|\bmais de|\bmenos
    da negação: nem vira alternativa positiva, nem sobra um "sem" para o intérprete da tese. */
 const NEGACAO_ANTES = /(?:^|[\s,;(])(?:sem|exceto|menos|nao|nem|fora|excluindo|tirando|salvo)\s+(?:(?:os|as|o|a)\s+)?$/;
 /* Entre dois cargos, o que continua a lista negada: vírgula, "e", "ou", "nem" e artigo. ", e" fecha a
-   oração intercalada ("CEOs, sem gerentes, e CFOs"): o cargo seguinte volta a ser pedido. */
+   oração intercalada, aberta depois de vírgula ("CEOs, sem gerentes, e CFOs"): o cargo seguinte volta a
+   ser pedido. Sem vírgula antes da negação, ou com a lista negada já em dois cargos, ", e" fecha a
+   enumeração ("CFOs exceto CEOs, gerentes, e conselheiros"), e o último cargo também sai. */
 const LISTA_NEGADA = /^\s*(?:,|\be\b|\bou\b|\bnem\b|,\s*nem\b)\s*(?:(?:os|as|o|a)\s+)?$/;
+const FIM_DA_ENUMERACAO = /^\s*,\s*e\s+(?:(?:os|as|o|a)\s+)?$/;
 
 const AREA_DO_CARGO = /^\s+(?:comerciai?s|comercial|industriai?s|industrial|tecnic[oa]s?|juridic[oa]s?|administrativ[oa]s?|operaciona(?:l|is)|de (?:vendas|compras|operacoes|marketing|rh|recursos humanos|pessoas|gente|suprimentos|logistica|produtos?|novos negocios|negocios|qualidade|tecnologia|ti|inovacao|planejamento|estrategia|relacoes com investidores))\b/;
 
@@ -116,6 +119,10 @@ const PALAVRAS_DA_PESSOA = /\b(?:pessoas?|nomes?|contatos?|quem|profissionais?|e
 
 export const ACESSO_ROTULO = Object.freeze({ com_caminho: 'A casa chega até ela', introducao: 'Há introdução viável pela casa' });
 
+/* Campos de cadastro que falam da mesma coisa: a sede, a idade, o capital. */
+const FAMILIAS = { municipios: 'municipio', municipio_fora: 'municipio', idade_max: 'idade', idade_min: 'idade', capital_min: 'capital', capital_max: 'capital' };
+const familiaDoCampo = (campo) => FAMILIAS[campo] ?? campo;
+
 /** Onde o trecho citado está no pedido normalizado (maiúsculas e acentos não contam), ou -1. */
 export const posicaoDoTrecho = (n, trecho) => {
   const t = mesmoTamanho(String(trecho ?? '').trim());
@@ -132,7 +139,8 @@ export { mesmoTamanho };
  *
  * Com `ia` (a leitura da IA já conferida por `validarLeituraIA`), papel, acesso e critérios da
  * empresa vêm dela, cada item preso a um trecho literal do pedido; nome de empresa e recorte
- * continuam pelas regras, sobre o que sobra.
+ * continuam pelas regras, lidos como se não houvesse IA: um trecho largo citado pela IA não os
+ * apaga (parecer do Codex sobre a Rodada 26).
  *
  * @param {{ referencia?: string, municipios?: Set<string>|null, nomes?: object[]|null, ia?: object|null }} [opcoes]
  * @returns {{ pedido: string, papel: {decide: boolean, senioridades: string[], rotulo: string, padrao: boolean, trechos: string[],
@@ -143,6 +151,8 @@ export { mesmoTamanho };
 export function interpretarPedido(texto, { referencia, municipios = null, nomes = null, ia = null } = {}) {
   const original = String(texto || '').slice(0, 2000);
   const n = mesmoTamanho(original);
+  // Com a IA, a leitura das regras dá o nome de empresa, o recorte e o texto da empresa.
+  const base = ia ? interpretarPedido(texto, { referencia, municipios, nomes }) : null;
   const usados = [];
   const livre = (ini, fim) => !usados.some(([a, b]) => ini < b && fim > a);
   const notas = [];
@@ -188,15 +198,16 @@ export function interpretarPedido(texto, { referencia, municipios = null, nomes 
       if (papel.decide && /socio|dono|controlador|acionista/.test(m[0])
         && (USO_DA_EMPRESA_DEPOIS.test(n.slice(fim, fim + 30)) || USO_DA_EMPRESA_ANTES.test(n.slice(Math.max(0, ini - 14), ini)))) continue;
       const negacao = papel.decide ? null : n.slice(Math.max(0, ini - 20), ini).match(NEGACAO_ANTES);
+      const area = papel.decide ? null : n.slice(fim).match(AREA_DO_CARGO);
+      const ate = fim + (area ? area[0].length : 0);
       if (negacao) {
-        usados.push([ini - negacao[0].replace(/^[\s,;(]/, '').length, fim]);
-        lidos.push({ papel, ini, fim, ate: fim, negado: true, area: null });
+        const inicio = ini - negacao[0].replace(/^[\s,;(]/, '').length;
+        usados.push([inicio, ate]);
+        lidos.push({ papel, ini, fim, ate, negado: true, area, itens: 1, intercalada: /[,;(]\s*$/.test(n.slice(Math.max(0, inicio - 3), inicio)) });
         continue;
       }
       // A área do cargo ("gerentes comerciais") acompanha o papel: a rede guarda o nível, e a área
       // é conferida no cargo escrito de cada pessoa (triagem.mjs).
-      const area = papel.decide ? null : n.slice(fim).match(AREA_DO_CARGO);
-      const ate = fim + (area ? area[0].length : 0);
       usados.push([ini, ate]);
       lidos.push({ papel, ini, fim, ate, negado: false, area });
     }
@@ -204,7 +215,12 @@ export function interpretarPedido(texto, { referencia, municipios = null, nomes 
   lidos.sort((a, b) => a.ini - b.ini);
   lidos.forEach((x, i) => {
     const antes = lidos[i - 1];
-    if (!x.negado && !x.papel.decide && antes?.negado && LISTA_NEGADA.test(n.slice(antes.ate, x.ini))) x.negado = true;
+    if (x.negado || x.papel.decide || !antes?.negado) return;
+    const entre = n.slice(antes.ate, x.ini);
+    // Com dois cargos negados já em lista, ", e" fecha a enumeração mesmo na intercalada.
+    if (LISTA_NEGADA.test(entre) || ((!antes.intercalada || antes.itens > 1) && FIM_DA_ENUMERACAO.test(entre))) {
+      Object.assign(x, { negado: true, intercalada: antes.intercalada, itens: antes.itens + 1 });
+    }
   });
   for (const { papel, ini, fim, ate, negado, area } of lidos) {
     // Negado, "diretores" tira a diretoria, não o presidente nem o financeiro que ela incluiria.
@@ -247,10 +263,11 @@ export function interpretarPedido(texto, { referencia, municipios = null, nomes 
   }
 
   // Empresa pelo nome: o pedido propõe, o catálogo confirma (nomes.mjs).
-  const candidatos = nomes ? [] : candidatosANome(original, n, livre, municipios);
+  const candidatos = nomes ? [] : base ? base.candidatos : candidatosANome(original, n, livre, municipios);
   const empresas = [], semEmpresa = [];
   for (const nome of nomes ?? []) {
-    if (!livre(nome.ini, nome.fim)) continue;
+    // Os nomes vieram do texto livre das regras; o trecho citado pela IA não os tira.
+    if (!ia && !livre(nome.ini, nome.fim)) continue;
     const trecho = original.slice(nome.ini, nome.fim);
     if (nome.cnpj || nome.empresas.length) {
       usados.push([nome.ini, nome.fim]);
@@ -277,7 +294,7 @@ export function interpretarPedido(texto, { referencia, municipios = null, nomes 
   for (let i = 0; i < original.length; i++) resto += usados.some(([a, b]) => i >= a && i < b) ? ' ' : original[i];
   const restoN = mesmoTamanho(resto);
   for (const m of restoN.matchAll(PALAVRAS_DA_PESSOA)) resto = resto.slice(0, m.index) + ' '.repeat(m[0].length) + resto.slice(m.index + m[0].length);
-  const textoDaEmpresa = resto.replace(/\s+/g, ' ').replace(/^[\s,;:.-]+|[\s,;:-]+$/g, '').trim();
+  const textoDaEmpresa = base ? base.tese : resto.replace(/\s+/g, ' ').replace(/^[\s,;:.-]+|[\s,;:-]+$/g, '').trim();
   const tese = interpretarTese(textoDaEmpresa, { referencia, municipios });
   // A nota de "não identifiquei critérios" fala da tese; aqui o pedido pode ser só sobre a pessoa.
   // A tela do find não tem o seletor "Recorte" da pesquisa: o subsetor muda pelo próprio pedido.
@@ -293,17 +310,23 @@ export function interpretarPedido(texto, { referencia, municipios = null, nomes 
   /* Com a IA, os critérios da empresa são os dela (já conferidos contra o pedido), menos os que
      caem num trecho de papel, acesso ou nome, e a UF única que o recorte já aplica. O recorte
      (UF, subsetor) continua das regras, que são exatas, como na pesquisa por tese. */
-  const daTese = ia ? ia.criterios.filter((c) => {
+  /* O critério de cadastro que as regras leram fica, e a IA só acrescenta o que elas não leram: omitir
+     "em Campinas" (que as regras reconhecem pela lista de municípios) ou trocar "mais de" por "até"
+     não apaga a exigência (parecer do Codex sobre a Rodada 26). */
+  const dasRegras = ia ? base.criterios.filter((c) => c.tipo === 'cadastro') : [];
+  const familias = new Set(dasRegras.map((c) => familiaDoCampo(c.regra?.campo)));
+  const daTese = ia ? [...dasRegras, ...ia.criterios.filter((c) => {
+    if (c.tipo === 'cadastro' && familias.has(familiaDoCampo(c.regra?.campo))) return false;
     const ini = posicaoDoTrecho(n, c.trecho);
     if (ini >= 0 && !livre(ini, ini + mesmoTamanho(c.trecho.trim()).length)) return false;
     return !(c.regra?.campo === 'uf' && c.regra.valor.length === 1 && tese.filtros.uf === c.regra.valor[0]);
-  }) : tese.criterios;
+  })] : tese.criterios;
   const criterios = daTese.filter((c) => {
     if (c.tipo !== 'pesquisa' || !cobertoPeloRecorte(c.texto, tese.filtros.subsetor)) return true;
     notas.push(`"${c.texto}" já está no recorte (${tese.filtros.subsetor}) e não virou critério.`);
     return false;
   });
-  if (ia) notas.unshift('Pedido lido com a IA: cada papel, acesso e critério abaixo vem de um trecho do próprio pedido. O recorte e o nome de empresa continuam pelas regras.', ...ia.notas);
+  if (ia) notas.unshift('Pedido lido com a IA: cada papel, acesso e critério abaixo vem de um trecho do próprio pedido. O recorte e o nome de empresa continuam pelas regras, sobre o pedido inteiro.', ...ia.notas);
 
   return {
     pedido: original,

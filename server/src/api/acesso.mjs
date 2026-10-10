@@ -83,7 +83,7 @@ export async function registrarAcesso(app, { catalogo, sancoes = criarSancoes() 
     const ctx = await contexto(req, u, empresaId, pesquisaId);
     const acesso = await caminhosDeAcesso(db, { empresaId, nomeEmpresa: ctx.empresa.nome, escopo: ctx.escopo, usuario: u });
     const ids = [...new Set([...acesso.caminhos.map((c) => c.alvo.id), ...acesso.semCaminho.map((p) => p.id)])];
-    const linhas = ids.length ? (await db.query('SELECT id, origem, origem_referencia, empresa_id FROM rede_pessoas WHERE id = ANY($1::uuid[])', [ids])).rows : [];
+    const linhas = ids.length ? (await db.query('SELECT id, nome, origem, origem_referencia, empresa_id, quadro FROM rede_pessoas WHERE id = ANY($1::uuid[])', [ids])).rows : [];
     const [respostas, minhas, situacao, diligencia] = await Promise.all([
       respostasPorPessoa(db, ids), minhasRespostas(db, u.id, ids), situacaoDaEmpresa(db, u, empresaId),
       sancoes.daEmpresa(ctx.empresa.cnpjRaiz ?? empresaId.slice(4)),

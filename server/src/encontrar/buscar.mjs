@@ -145,7 +145,7 @@ export async function encontrarPessoas(db, catalogo, { texto, usuario, pesquisa 
   // (listá-las seria ruído, e consumir o teto com elas faria lacuna falsa nas que passam).
   const [linhas, foraDosCriterios] = await Promise.all([
     nosCriterios.length ? db.query(
-      `SELECT id, lado, nome, cargo, senioridade, organizacao, empresa_id, origem, origem_referencia
+      `SELECT id, lado, nome, cargo, senioridade, organizacao, empresa_id, origem, origem_referencia, quadro
          FROM rede_pessoas WHERE lado = 'mercado' AND ativo AND empresa_id = ANY($1::text[])
         ORDER BY empresa_id, nome, id LIMIT ${limitePessoas + 1}`, [nosCriterios]).then((r) => r.rows) : [],
     reprovadas.length ? db.query(`SELECT count(*)::int AS n FROM rede_pessoas WHERE lado = 'mercado' AND ativo AND empresa_id = ANY($1::text[])`,
@@ -227,13 +227,15 @@ export async function encontrarPessoas(db, catalogo, { texto, usuario, pesquisa 
   const faltamEm = (id) => requisitos ? requisitos.filter((_, i) => !servidosPorEmpresa.get(id)?.has(i)).map((r) => r.rotulo) : [];
   const mapeadas = new Map();
   for (const p of avaliadas) mapeadas.set(p.empresa_id, (mapeadas.get(p.empresa_id) ?? 0) + 1);
+  const parcial = (l) => (requisitos && l.faltam.length < requisitos.length ? 0 : 1);
   const lacunas = nosCriterios.filter((id) => (requisitos ? faltamEm(id).length > 0 : !servidas.has(id)) && !restricoes.has(id) && !(semAvaliar && id >= semAvaliar)).map((id) => {
     const { empresa, avaliacao } = empresas.get(id);
     const pendentes = avaliacao.linhas.filter((l) => l.obrigatorio && l.julgamento !== 'atende').length;
     return { empresa: { id, nome: empresa.nome, cidade: empresa.cidade ?? null, uf: empresa.uf ?? null, subsetor: empresa.subsetor ?? null },
       mapeadas: mapeadas.get(id) ?? 0, estrutura: avaliacao.estrutura.leitura, pendentes, avisos: avisos.get(id) ?? [],
       ...(requisitos ? { faltam: faltamEm(id) } : {}) };
-  }).sort((a, b) => a.pendentes - b.pendentes || (a.mapeadas ? 1 : 0) - (b.mapeadas ? 1 : 0));
+  // No "um de cada", a empresa que já tem algum dos papéis vem antes: falta pouco para fechar o par.
+  }).sort((a, b) => a.pendentes - b.pendentes || parcial(a) - parcial(b) || (a.mapeadas ? 1 : 0) - (b.mapeadas ? 1 : 0));
 
   const contagem = Object.fromEntries(GRUPOS.map((g) => [g, grupos[g].length]));
   return {

@@ -39,6 +39,7 @@ const FALHA_IA = {
   limite_provedor: 'O provedor de IA recusou por limite de uso. A leitura abaixo é a das regras.',
   mandato_confidencial_em_provedor_gratuito: 'Esta pesquisa é de um mandato confidencial, e o provedor de IA configurado pode reter o texto. A leitura abaixo é a das regras.',
   leitura_vazia: 'A IA não propôs nada que se apoiasse no texto do pedido. A leitura abaixo é a das regras.',
+  leitura_incompativel: 'A IA alterou uma exigência explícita do pedido. A leitura abaixo é a das regras; as exigências foram preservadas.',
   ia_em_andamento: 'Esta leitura com IA ainda está em andamento. A leitura abaixo é a das regras.',
 };
 
@@ -55,12 +56,27 @@ export async function registrarEncontrar(app, { catalogo, servicoIA = null }) {
       restantes: Math.max(0, Math.min(s.pedidosUsuarioDia - c.pessoal, s.pedidosDia - c.total)) };
   }
 
-  async function daPesquisa(req, u, pesquisaId) {
+  /** A pesquisa é do membro, e o mandato da conversa ainda o inclui. */
+  async function acessoDaPesquisa(req, u, pesquisaId) {
     req.exigir('agente.ler');
     const p = (await db.query('SELECT id, conversa_id, tese, referencia FROM pesquisas_tese WHERE id=$1 AND usuario_id=$2', [pesquisaId, u.id])).rows[0];
     if (!p) throw new ErroHttp(404, 'pesquisa_inexistente', 'Pesquisa não encontrada.');
     const c = (await db.query('SELECT mandato_id, usuario_id FROM agente_conversas WHERE id=$1', [p.conversa_id])).rows[0];
     if (c.mandato_id) await req.exigirNoMandato(c.mandato_id, 'agente.ler');
+    return { p, c };
+  }
+
+  /* A sessão, o papel ou o mandato podem mudar enquanto a busca espera a IA ou lê catálogo e rede:
+     confere tudo de novo. A recusa encerra o pedido; não é falha da IA (parecer do Codex, Rodada 26). */
+  async function conferirDeNovo(req, pesquisaId) {
+    await req.revalidarSessao();
+    const u = req.exigir('rede.ler');
+    if (pesquisaId) await acessoDaPesquisa(req, u, pesquisaId);
+    return u;
+  }
+
+  async function daPesquisa(req, u, pesquisaId) {
+    const { p, c } = await acessoDaPesquisa(req, u, pesquisaId);
     const itens = (await db.query(
       `SELECT empresa, categoria, aderencia FROM pesquisa_itens
         WHERE pesquisa_id=$1 AND categoria = ANY($2::text[]) ORDER BY ordem LIMIT ${LIMITE_ITENS}`,
@@ -70,10 +86,10 @@ export async function registrarEncontrar(app, { catalogo, servicoIA = null }) {
   }
 
   app.post('/api/encontrar', async (req, res) => {
-    const u = req.exigir('rede.ler');
+    let u = req.exigir('rede.ler');
     if (req.headers['x-ght4-canal'] === 'mcp') throw new ErroHttp(403, 'canal_externo', 'Encontrar pessoas não é servido por canal externo. Use a interface do GHT4.');
     const { pedido, pesquisaId, ia: pedidoIA } = Pedido.parse(req.body);
-    const pesquisa = pesquisaId ? await daPesquisa(req, u, pesquisaId) : null;
+    let pesquisa = pesquisaId ? await daPesquisa(req, u, pesquisaId) : null;
     /* Leitura com IA: só o texto do pedido vai ao provedor, na cota diária comum. Se a IA não
        ler, a busca segue pelas regras e a tela diz por quê; a falha não derruba a busca. */
     let ia = null, falhaIA = null;
@@ -85,6 +101,9 @@ export async function registrarEncontrar(app, { catalogo, servicoIA = null }) {
         falhaIA = FALHA_IA[e?.codigo ?? e?.message] ?? 'A IA não respondeu agora. A leitura abaixo é a das regras.';
         req.log?.warn?.({ motivo: e?.codigo ?? e?.message }, 'leitura do find com IA indisponível');
       }
+      // A espera pela IA é externa: a busca segue com a sessão e a pesquisa relidas.
+      u = await conferirDeNovo(req, null);
+      if (pesquisaId) pesquisa = await daPesquisa(req, u, pesquisaId);
     }
     let resultado;
     try { resultado = await encontrarPessoas(app.db, catalogo, { texto: pedido, usuario: u, pesquisa, ia }); }
@@ -92,6 +111,8 @@ export async function registrarEncontrar(app, { catalogo, servicoIA = null }) {
       if (e?.codigo === 'catalogo_indisponivel') throw new ErroHttp(503, 'base_indisponivel', e.message);
       throw e;
     }
+    // E antes de entregar: a busca leu catálogo e rede depois da última conferência.
+    u = await conferirDeNovo(req, pesquisaId);
     if (falhaIA) resultado.leitura.notas.unshift(falhaIA);
     resultado.ia = { ...await iaDisponivel(u), falha: falhaIA };
     // Guardar o pedido não pode derrubar a busca: sem memória, a pessoa só redigita.

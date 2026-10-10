@@ -18,6 +18,9 @@ test('quadro societário grava e audita atomicamente; reexecução não duplica;
   const op={operadorId:u.id,referencia:'2026-08',empresasAlcancadas:1};
   assert.deepEqual(await gravarQuadro(db,[p],op),{criadas:1,atualizadas:0});
   assert.deepEqual(await gravarQuadro(db,[p],op),{criadas:0,atualizadas:1});
+  // O que o quadro atestou fica gravado: a precedência estatutária depende dele (migração 0032).
+  assert.deepEqual((await db.query("SELECT quadro FROM rede_pessoas WHERE origem='cadastro_publico'")).rows[0].quadro,
+    {nome:'Presidente Sintético',cargo:'Presidente',senioridade:'ceo',empresaId:'cnpj12345678'});
   await assert.rejects(gravarQuadro(db,[{...p,nome:'Outra Pessoa',nomeNormalizado:'outra pessoa'},{...p,nome:'Erro',nomeNormalizado:'erro',senioridade:'invalida'}],op));
   assert.equal((await db.query("SELECT count(*)::int n FROM rede_pessoas WHERE origem='cadastro_publico'")).rows[0].n,1);
   assert.equal((await db.query("SELECT count(*)::int n FROM auditoria WHERE entidade='rede_quadro_societario'")).rows[0].n,2);

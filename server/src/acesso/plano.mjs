@@ -110,8 +110,36 @@ export function estruturaDeDecisao(a, referencia = null) {
 /* O cargo prova a função, não o controle. Decide a venda quem tem participação no capital (sócio,
    titular, controlador); presidente, conselheiro ou administrador sem ela dirigem a empresa e dão
    acesso a quem decide, mas não vendem o controle (parecer do Codex sobre a Rodada 20). */
-const DONO_PELO_CARGO = /\b(?:socio|socia|socios|socias|titular|dono|dona|proprietari[oa]|controlador(?:a)?|acionista)\b/;
-export const donoPeloCargo = (cargo) => DONO_PELO_CARGO.test(String(cargo ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase());
+const DONO_PELO_CARGO = /\b(?:socio|socia|socios|socias|titular|dono|dona|proprietari[oa]|controlador(?:a)?|acionista)\b/g;
+/* Onde o capital se divide (S.A., quadro com mais de três sócios ou com sócio pessoa jurídica), ser
+   sócio ou acionista não prova o controle: vale "controlador", "majoritário", "dono", "proprietário"
+   ou "titular" (parecer do Codex sobre a Rodada 27). Sem a estrutura, a participação basta, como antes. */
+export const capitalDividido = (e) => Boolean(e?.conhecida)
+  && (['sa_aberta', 'sa_fechada'].includes(e.natureza) || (e.sociosPj ?? 0) > 0 || (e.socios ?? 0) > 3);
+export const donoPeloCargo = (cargo, { exigeControle = false } = {}) => {
+  const texto = String(cargo ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+  return [...texto.matchAll(DONO_PELO_CARGO)].some((m) => {
+    const antes = texto.slice(0, m.index), depois = texto.slice(m.index + m[0].length);
+    if (exigeControle && /^(?:socio|socia|socios|socias|acionista)$/.test(m[0]) && !/^[-\s]*(?:majoritari[oa]s?|controlador(?:a|es|as)?)\b/.test(depois)) return false;
+    // Referência a outra pessoa, negação e cargo anterior não provam participação própria.
+    return !/\b(?:d[oa]s?|a[oa]s?)\s+$/.test(antes)
+      && !/\b(?:nao|sem)(?:[-\s]+(?:e|ser|o|a|um|uma|qualquer))*[-\s]+$/.test(antes)
+      && !/\bex[-\s]*$/.test(antes)
+      // Participação minoritária não vende o controle; "conselheiro titular" é o contrário de suplente.
+      && !/^[-\s]*(?:minoritari[oa]s?|sem (?:controle|poder de controle))\b/.test(depois)
+      && !(m[0] === 'titular' && /\b(?:conselheir[oa]s?|membros?|diretor(?:es|a|as)?|suplentes?)\s+(?:\w+\s+)?$/.test(antes));
+  });
+};
+
+/* O quadro estatutário prova só o que atestou na importação (coluna `quadro`, migração 0032): nome,
+   cargo, senioridade e empresa. Editada depois pela Rede, a linha continua de origem pública, mas o
+   campo mudado já não é da Receita (parecer do Codex sobre a Rodada 26). */
+const chaveDoQuadro = (t) => String(t ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
+export function atestadoPeloQuadro(p) {
+  const q = p?.origem === 'cadastro_publico' ? p.quadro : null;
+  return Boolean(q) && chaveDoQuadro(q.nome) === chaveDoQuadro(p.nome) && chaveDoQuadro(q.cargo) === chaveDoQuadro(p.cargo)
+    && q.senioridade === p.senioridade && q.empresaId === p.empresa_id;
+}
 
 /**
  * Posição da pessoa na decisão de venda: decide, influencia, abre a porta ou cargo a revisar.
@@ -122,7 +150,9 @@ export function posicaoNaDecisao(senioridade, estrutura, cargo = undefined) {
   const s = senioridadeDe(senioridade);
   if (s.id === 'outro') return { id: 'a_revisar', rotulo: 'Cargo a revisar' };
   if ((estrutura?.decide ?? ['ceo', 'conselho']).includes(s.id)) {
-    return cargo === undefined || donoPeloCargo(cargo) ? { id: 'decide', rotulo: 'Decide a venda' } : { id: 'influencia', rotulo: 'Influencia a decisão', dirige: true };
+    if (cargo === undefined || donoPeloCargo(cargo, { exigeControle: capitalDividido(estrutura) })) return { id: 'decide', rotulo: 'Decide a venda' };
+    // Participação sem prova de controle (capital dividido) dirige e dá acesso, como o cargo sem participação.
+    return { id: 'influencia', rotulo: 'Influencia a decisão', dirige: true, semControle: donoPeloCargo(cargo) };
   }
   if (s.lideranca) return { id: 'influencia', rotulo: 'Influencia a decisão' };
   return { id: 'porta', rotulo: 'Porta de entrada' };
@@ -142,17 +172,21 @@ export function juizoDoDecisor(p, ctx) {
   const s = senioridadeDe(p.senioridade);
   const posicao = posicaoNaDecisao(p.senioridade, ctx.estrutura, p.cargo ?? '');
   const cargo = `${s.rotulo}${p.cargo ? ` · ${p.cargo}` : ''}`;
-  const fonteCargo = p.origem === 'cadastro_publico' ? `Quadro societário público (Receita Federal)${p.origem_referencia ? ` · ${p.origem_referencia}` : ''}`
-    : p.origem_referencia || null;
+  const doQuadro = atestadoPeloQuadro(p);
+  const fonteCargo = doQuadro ? `Quadro societário público (Receita Federal)${p.origem_referencia ? ` · ${p.origem_referencia}` : ''}`
+    : p.origem === 'cadastro_publico' ? 'Cadastro da rede, alterado depois da importação do quadro societário'
+      : p.origem_referencia || null;
   const linhas = [];
 
   linhas.push(posicao.id === 'decide' ? juizo('Decide a venda', 'atende', cargo, fonteCargo)
+    : posicao.semControle ? juizo('Decide a venda', 'indicio', `${cargo}: tem participação, mas o capital se divide e o cargo não diz que ela controla. A venda é de quem controla; confirme se é esta pessoa.`, fonteCargo)
     : posicao.dirige ? juizo('Decide a venda', 'indicio', `${cargo}: dirige a empresa, mas o cargo não mostra participação no capital. A venda é de quem controla; a pessoa é o acesso a essa decisão.`, fonteCargo)
     : posicao.id === 'influencia' ? juizo('Decide a venda', 'indicio', `${cargo}: influencia; a venda é de quem controla.`, fonteCargo)
       : posicao.id === 'porta' ? juizo('Decide a venda', 'nao_atende', `${cargo}: porta de entrada, não decide a venda.`, fonteCargo)
         : juizo('Decide a venda', 'indeterminado', 'Cargo sem nível de decisão definido. Revise o cadastro.', fonteCargo));
 
-  if (p.origem === 'cadastro_publico') linhas.push(juizo('Cargo com fonte', 'atende', 'Cargo estatutário declarado no cadastro público.', fonteCargo));
+  if (doQuadro) linhas.push(juizo('Cargo com fonte', 'atende', 'Cargo estatutário declarado no cadastro público.', fonteCargo));
+  else if (p.origem === 'cadastro_publico') linhas.push(juizo('Cargo com fonte', 'indicio', 'Veio do quadro societário público, mas nome, cargo ou empresa já não são os que a Receita registrou: foi editado depois da importação. Confirme no quadro.', fonteCargo));
   else if (p.origem === 'importacao') linhas.push(juizo('Cargo com fonte', 'indicio', 'Veio de lista compartilhada pela equipe; o nível de decisão ainda deve ser revisado.', p.origem_referencia || 'Lote compartilhado'));
   else if (p.origem_referencia) linhas.push(juizo('Cargo com fonte', 'atende', 'Registrado pela casa com a fonte do cargo.', p.origem_referencia));
   else linhas.push(juizo('Cargo com fonte', 'indeterminado', 'Cadastrado sem dizer de onde vem o cargo. Peça a quem cadastrou.', null));
