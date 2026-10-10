@@ -153,7 +153,7 @@ export async function encontrarPessoas(db, catalogo, { texto, usuario, pesquisa 
       [reprovadas]).then((r) => r.rows[0].n) : 0,
   ]);
   const limitacoes = [
-    'Só entram pessoas que a casa já mapeou: o quadro societário público no recorte estatutário, as listas compartilhadas pela equipe e quem alguém da casa registrou com a fonte. O GHT4 não compra base de pessoas nem lê LinkedIn.',
+    'Só entram pessoas que a casa já mapeou: do quadro societário público, os cargos estatutários e o sócio-administrador das limitadas; as listas compartilhadas pela equipe e quem alguém da casa registrou com a fonte. O GHT4 não compra base de pessoas nem lê LinkedIn.',
     'Telefone e e-mail não aparecem: a conversa começa pelo caminho da rede ou pelo canal institucional do plano de acesso.',
     'Critério que o cadastro não responde fica "sem evidência" e manda a pessoa para revisão; a pesquisa por tese procura a resposta no site oficial.',
   ];

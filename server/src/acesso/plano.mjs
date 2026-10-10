@@ -338,7 +338,7 @@ export function montarPlano(d) {
     cobertura: r.cobertura, restricao: r.restricao ?? null, restricoesOutras: d.restricoesOutras ?? [], diligencia,
     oportunidades: d.oportunidades ?? [],
     limitacoes: [
-      'Nomes do quadro societário só entram no produto pelo recorte estatutário decidido pela casa; nas demais empresas, quem decide é registrado por alguém da casa, com a fonte.',
+      'Nomes do quadro societário só entram no produto pelo recorte decidido pela casa: cargos estatutários e o sócio-administrador das limitadas. Nas demais empresas, quem decide é registrado por alguém da casa, com a fonte.',
       'Cadastro de pessoa não comprova relacionamento: cada ligação exige evidência e confirmação do titular.',
       'Telefone e e-mail do cadastro não são exibidos: costumam ser do escritório contábil, e contato pessoal não é propagado.',
       'Nenhuma mensagem é enviada pelo sistema.',

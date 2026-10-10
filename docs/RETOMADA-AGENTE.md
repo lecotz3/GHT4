@@ -4,17 +4,24 @@ Atualizado em 10 de outubro de 2026, à tarde (checkpoint anterior: 9 de outubro
 
 **Os checkpoints estão em ordem cronológica inversa: o mais novo primeiro.** Para retomar o trabalho, leia só a seção abaixo; o resto é histórico.
 
-## COMECE AQUI — Rodada 28 publicada; 8.736 dirigentes em produção; aceite feito em parte, e a busca em 1,4 s com a função em São Paulo (10/10/2026)
+## COMECE AQUI — Rodada 29: 47.599 pessoas do quadro em produção, com o sócio-administrador das limitadas; o "Quem decide" passa (10/10/2026)
 
 **Estado:**
+- **Rodada 29 (`6516f6e`), pedido do usuário:** o recorte do quadro inclui o sócio-administrador das limitadas (códigos 49 e 28, naturezas 2062 e 2240), com a opção `--com-socio-administrador`. A decisão e os números estão em `docs/runbooks/rede-e-acesso.md`.
+- **Gravado em produção:** 38.863 criadas e 8.736 atualizadas, total de **47.599 pessoas em 32.001 empresas**, todas com o atestado `quadro`. A auditoria registrou o recorte `cargos_estatutarios_e_socio_administrador_ltda`. Para reimportar: `node --env-file=server/.env.local ferramentas/importar-quadro-societario.mjs --arquivo=.cache/quadro-societario-2026-08.js --com-socio-administrador --confirmo-a-decisao-lgpd --destino=aws-1-sa-east-1.pooler.supabase.com:5432/postgres`.
+- **Item 1 do aceite, refeito** com a função de busca do servidor contra o banco de produção, numa transação só de leitura, porque a extensão do Chrome desconectou:
+  - "Quem decide nas distribuidoras de SP com mais de 20 anos": 257 atendem, 104 para revisar e 64 lacunas. Antes eram 0, 26 e 277. Em "Atendem" estão sócios-administradores, com "Decide a venda: atende" e a fonte do quadro.
+  - "Quem decide nas empresas químicas": 14.659 pessoas avaliadas, dentro do teto de 20 mil, e 11.014 atendem.
+  - Falta conferir o tempo no site, porque a medição daqui até São Paulo não vale. A medição local com 47.600 pessoas deu 434 ms.
+- **`brag-output/`:** o usuário commitou ("ok", `0e4712a`) na `feat/agente-rodada-4`, e o push da Rodada 29 levou para a `main`.
 - **Sem aprovação do Codex (pedido do usuário, 10/10/2026):** cada rodada é commitada e publicada depois dos testes, do `npm run ci` e do CI do GitHub verde. A revisão do Codex é opcional e não trava nada. A tentativa sobre a Rodada 28 parou no limite de uso da conta do Codex; o pedido pronto está em "PARA O CODEX" no diário.
 - **Publicado na `main`:** a Rodada 28 (`95fcc5f`), com CI verde e deploy conferido (`/api/saude` ok, migração `0032` aplicada no build). Antes dela, as Rodadas 26 e 27 (`79f231d`) e o parecer do Codex sobre elas (`b1cc7e0`).
-- **Rede em produção:** `server/.env.local` existe nesta máquina, com o `DATABASE_URL` do Transaction pooler. A verificação de prontidão (`--conectar`) conta **8.736** dirigentes públicos em 2.477 empresas, já gravados antes desta sessão. Uma consulta só de leitura confirmou o atestado `quadro` em todas as linhas, conferindo nome, cargo, senioridade e empresa. A importação não foi rodada de novo. Pendências que a verificação aponta: participantes e rodada de reconhecimento.
+- **Rede em produção:** `server/.env.local` existe nesta máquina, com o `DATABASE_URL` do Transaction pooler. Antes da Rodada 29, a verificação de prontidão (`--conectar`) contava 8.736 dirigentes públicos em 2.477 empresas, gravados antes desta sessão. Uma consulta só de leitura confirmou o atestado `quadro` em todas as linhas, conferindo nome, cargo, senioridade e empresa. A importação não foi rodada de novo. Pendências que a verificação aponta: participantes e rodada de reconhecimento.
 - **Aceite em produção (10/10/2026, conta de administrador, extensão do Chrome):**
 
   | Item | Resultado |
   |---|---|
-  | 1. Quem decide | **Diverge do roteiro.** Os dirigentes aparecem com a fonte "Quadro societário público" e "Cargo com fonte: Atende", mas nenhum em "Atendem": 0 de 26, em 10 empresas, todas S.A. Presidente, diretor e conselheiro de S.A. "influenciam a decisão", porque a venda é do acionista controlador, que não está no quadro público. O recorte estatutário nunca põe ninguém em "Atendem". Para mudar isso, há duas saídas, e as duas são decisão do usuário: importar o sócio-administrador das limitadas (`--todas-as-qualificacoes`, decisão de LGPD) ou rever a expectativa do item |
+  | 1. Quem decide | **Passa depois da Rodada 29.** Só com o recorte estatutário, ninguém atendia (0 de 26, todas de S.A., em que a venda é do acionista controlador). Com o sócio-administrador das limitadas: 257 atendem (ver acima) |
   | 2. Pela rede | Passa com a casa vazia: leitura "Só quem a casa alcança", e todos em revisar com "A casa chega até ela". O caso com caminho confirmado depende de ativar a casa |
   | 3. Introdução | Depende de ativar a casa: não há relação cadastrada |
   | 4. Critério do site | Passa: 53 para revisar e o atalho "Rodar a pesquisa por tese" |
@@ -32,13 +39,14 @@ Atualizado em 10 de outubro de 2026, à tarde (checkpoint anterior: 9 de outubro
   - Negação em lista, cidades em alternativa e dono com capital dividido.
 - **Sessão do Codex em paralelo:** ela começou as correções neste checkout e passou a só validar; a verificação complementar dela está no diário, e os dez casos passam.
 - **Lint bloqueado nesta máquina:** o Windows (Application Control) barra `v1/node_modules/@oxlint/binding-win32-x64-msvc/oxlint.win32-x64-msvc.node`. O bloqueio não foi contornado; o lint roda no CI do GitHub. Para voltar a rodar aqui, é decisão do usuário: ajustar o Smart App Control ou a política do Windows.
-- **Arquivo do quadro:** `.cache/quadro-societario-2026-08.js` reconstruído nesta máquina (10 MB, 35.690 empresas), e `npm run rede:ensaio` confirma **8.736** dirigentes. Para reimportar no futuro: `node --env-file=server/.env.local ferramentas/importar-quadro-societario.mjs --arquivo=.cache/quadro-societario-2026-08.js --confirmo-a-decisao-lgpd --destino=aws-1-sa-east-1.pooler.supabase.com:5432/postgres`.
+- **Arquivo do quadro:** `.cache/quadro-societario-2026-08.js` reconstruído nesta máquina (10 MB, 35.690 empresas). `npm run rede:ensaio` conta 47.599 pessoas com o recorte atual.
 - **Senha nova do banco:** logo depois de redefinida, o pooler do Supabase recusa por um ou dois minutos (código `28P01`). Basta repetir.
 
 ### Próximos passos, em ordem
 
 1. **Ativar a casa** (pessoas reais, pelo usuário): convites na tela Equipe, membros na Rede, listas, passada de reconhecimento, "Ligar ao CNPJ". Depende da lista de participantes da GHT4.
-2. **Fechar o aceite** (Etapa 3): decidir o item 1 (recorte ou expectativa); fazer os itens 6 e 7, que gravam em produção; testar o 9 com uma conta de analista; repetir os itens 2 e 3 com a casa ativada. Os demais já passaram (tabela acima).
+2. **Fechar o aceite** (Etapa 3): medir no site o tempo de "Quem decide nas empresas químicas" com a rede nova; fazer os itens 6 e 7, que gravam em produção; testar o 9 com uma conta de analista; repetir os itens 2 e 3 com a casa ativada. Os demais já passaram (tabela acima).
+   - A passada de reconhecimento agora tem cerca de 40 mil `ceo`, a maioria donos de limitada. Quando a casa for ativada, ver se a fila por empresa continua utilizável.
 3. **Opcional:** revisão do Codex da Rodada 28, quando a conta dele tiver uso disponível. Não bloqueia.
 
 ## Checkpoint anterior — Rodadas 26 e 27: IA opcional no find e o parecer das Rodadas 20 e 25 corrigido; falta publicar e gravar a rede (09/10/2026)
