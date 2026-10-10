@@ -4,6 +4,7 @@
   "installCommand": "(cd v1 && npm ci --include=dev) && (cd server && npm ci --omit=dev)",
   "buildCommand": "node ferramentas/build-vercel.mjs",
   "outputDirectory": "v1/dist",
+  "regions": ["gru1"],
   "functions": {
     "api/**/*.mjs": {
       "maxDuration": 60,
