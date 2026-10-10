@@ -3932,3 +3932,153 @@ STATUS: AGUARDANDO REVIEW
 - **Negação:** a regra de ", e" e o "sem diretores" que só tira a diretoria.
 
 STATUS: AGUARDANDO REVIEW
+
+---
+
+# REVIEW DO CODEX
+
+## Rodada 26 — Leitura opcional com IA, um requisito por papel e conflito de cargo único (10/10/2026)
+
+**Escopo:** commit `214a40c`, conferido por `git show` e pelo diff `7845da1..79f231d`, no HEAD `79f231d4be289ce4aac0ccba7c517a826e567304`. Lidos os registros das Rodadas 26 e 27, seus blocos "PARA O CODEX" e os dois pareceres anteriores sobre as Rodadas 25 e 20 em `7845da1`. Revistos leitura/validação da IA, envio e reserva, migração 0031, consumidores de `ia_execucoes`, autorização do find, papéis, conflitos, cobertura, lacunas e interface. Os números de linha abaixo são do HEAD revisado.
+
+**Validação comum aos dois pareceres:** executado `node --test --test-isolation=none "tests/**/*.test.mjs"` na raiz e em `server`, sem instalar nada. `GHT4_TESTE_PG_URL` foi removida do ambiente dos comandos de teste para impedir conexão externa.
+
+- **Raiz: 144 testes, 141 passaram, 1 falhou e 2 foram pulados.** A falha em `tests/taxonomia.test.mjs:104` é a chamada de subprocesso dos globais, com status `null`; a conferência direta `node ferramentas/gerar-globais.mjs --conferir` passou para todos os arquivos, sem gerá-los. Os dois testes que anunciam ausência de `6be71ea` dependem de subprocesso; `git cat-file -t 6be71ea` confirmou que o commit existe. Houve avisos React de atualização fora de `act`. A execução sem isolamento demorou a encerrar depois dos resultados; uma repetição com `--test-force-exit` produziu os mesmos totais, e a primeira também terminou com esses totais.
+- **Servidor: 329 testes, 325 passaram, 2 falharam e 2 foram pulados.** As falhas foram exclusivamente `spawn EPERM` em `server/tests/mcp.test.mjs:137` (stdio) e `server/tests/pesquisa.test.mjs:636` (HTTP hostil em processo separado). Os pulos foram os dois ensaios de concorrência em PostgreSQL real. As regressões de `encontrar-ia.test.mjs` e `parecer-rodadas-20-25.test.mjs` passaram.
+- **Ensaios adicionais:** scripts pela entrada padrão de `node --input-type=module`, helpers de `server/tests/ajuda.mjs`, PGlite em memória migrado do zero, `app.inject`, catálogos fictícios e provedor simulado por `fetchImpl`. Reproduzidos omissão/inversão de critérios, perda do recorte por citação ampla, revogação de mandato durante a IA, edição de pessoa de origem pública, lacunas em 41 empresas, negações, municípios, poder de decisão e MCP com 301 itens reais no banco descartável. Duas tentativas iniciais de fixture de pesquisa falharam por contrato incompleto do catálogo simulado; corrigida a fixture em memória, os ensaios correspondentes concluíram. Não são falhas do produto.
+- Nenhum provedor real, serviço remoto ou banco remoto foi chamado. Não foram executados instalação, build, lint, deploy ou ensaio visual. Estes resultados não equivalem a CI integral aprovado. Worktree inicialmente limpo; a entrega altera somente este diário, por acréscimo, sem commit.
+
+## CRÍTICOS
+
+1. **[P1] O find devolve dados do mandato após revogação de acesso durante a leitura com IA.** `server/src/api/encontrar.mjs:76` autoriza e guarda a pesquisa antes do `await` externo em `:82`; `:90` usa o usuário e o contexto antigos e `:103` devolve o resultado sem revalidar sessão/permissões.
+
+   **Reprodução executada:** PGlite, sócio participante de mandato confidencial, pesquisa com tese fictícia `Distribuidoras — segredo do mandato em revisão`, adaptador Ollama configurado como local e inteiramente substituído por `fetchImpl` simulado. Uma barreira segurou a resposta da IA. Depois de o pedido entrar no provedor simulado, removi o membro de `mandato_membros` e só então liberei a resposta. O POST `/api/encontrar` em voo retornou **200**, incluindo a tese confidencial em `leitura.pesquisa`. Um novo POST do mesmo usuário para a mesma pesquisa retornou **404 `mandato_inexistente`**. Nenhum dado foi enviado a um Ollama real.
+
+   **Correção necessária:** depois da espera pela IA, inclusive quando ela falha e o fluxo volta às regras, revalidar a sessão, `rede.ler`, propriedade da pesquisa e acesso ao mandato usando o usuário atualizado. Revalidar também antes da entrega após operações demoradas. Recusa de autorização deve encerrar o pedido, sem ser absorvida como indisponibilidade da IA. Versionar a intercalação de revogação e a de suspensão da conta, como já se faz em outros fluxos assíncronos do projeto.
+
+## IMPORTANTES
+
+1. **[P2] Uma leitura parcial ou contraditória da IA elimina exigências explícitas e pode promover resultado indevido a forte.** `server/src/encontrar/pedido.mjs:184` e `:236` desativam os leitores locais de papel/acesso quando há IA; `:296` substitui todos os critérios pelos propostos. `server/src/encontrar/ia.mjs:66` valida procedência/formato, mas não conserva exigências omitidas nem confronta contradições com as regras. Basta um papel aproveitável para aceitar a leitura inteira.
+
+   **Reprodução executada:** pedido `Chefe de pessoas das distribuidoras com mais de 20 anos, sem gerentes, com introdução viável`; resposta simulada somente `{papeis:[{senioridades:['gerencia'],area:'rh',trecho:'Chefe de pessoas'}]}`. Pelas regras, o pedido conserva idade mínima, exclusão de gerência e introdução obrigatória. Pela IA, os três desaparecem, com **`descartes: 0`, `duvidas: []` e nenhuma ambiguidade**. Com empresa aberta em 2020 e gerente de pessoas sem caminho, `julgarPessoa` mudou de `excluido` para `forte`; pela API, a empresa antes fora dos critérios entrou e a gerente apareceu em `grupos.forte`. Em ensaio adicional, citar literalmente `mais de 20 anos` com regra `idade_max: 20` também foi aceito sem descarte e aprovou a empresa de 2020.
+
+   **Correção necessária:** preservar as restrições inequívocas já reconhecidas e usar a IA para complementar trechos ambíguos; omissão não pode significar remoção. Confrontar os operadores/negações que o leitor local resolve. Divergência ou trecho não resolvido deve manter pendência ou produzir proposta para confirmação antes de filtrar/classificar. Cobrir resposta parcial, item descartado e operador invertido até o grupo final. Um aviso genérico para conferir antes de abordar não compensa resultados já afirmados como fortes.
+
+2. **[P2] Uma citação ampla de papel apaga nome de empresa e UF, embora o contrato diga que continuam pelas regras.** `server/src/encontrar/pedido.mjs:160`–`:162` consome todo o trecho citado pela IA; `:250` só procura nomes em trechos livres e o recorte é lido do restante em `:281`. `server/src/encontrar/ia.mjs:69`–`:72` aceita a frase inteira como citação de um cargo.
+
+   **Reprodução executada:** pedido `Chefe de pessoas da Alfa Química em SP`; mesma proposta de gerência/RH, variando apenas `trecho`. Com `Chefe de pessoas`, a API conservou Alfa e SP e retornou **recorte de 1 empresa**. Com o pedido inteiro como trecho, também válido e literal, devolveu **`empresas: []`, UF vazia e recorte de 41 empresas**, incluindo as 40 empresas fictícias de RJ. A nota continuou afirmando que recorte e nome de empresa vinham das regras.
+
+   **Correção necessária:** extrair/proteger nome, CNPJ e recorte independentemente dos intervalos consumidos pela IA, ou rejeitar sobreposição que os elimine. O tamanho máximo de 300 caracteres não resolve a propriedade do trecho. Acrescentar regressão pela API com duas UFs e empresa citada, inclusive dentro de pesquisa.
+
+3. **[P2] A precedência estatutária pode ser concedida a um cargo escrito manualmente depois da importação.** `server/src/encontrar/triagem.mjs:102` e `:107` decidem a autoridade apenas por `origem === 'cadastro_publico'`. Essa origem permanece quando `server/src/api/rede.mjs:167` altera cargo, senioridade, nome ou empresa. O novo juízo atribui à Receita um cargo que ela não forneceu.
+
+   **Reprodução executada:** inseri na fixture uma pessoa importada como `Diretor`, senioridade `diretoria`, e outra cadastrada manualmente como `CEO`, na mesma empresa. Pelo PATCH real `/api/rede/pessoas/:id`, alterei a primeira para `CEO`/`ceo`: **200**, mantendo `origem: 'cadastro_publico'`. No find por CEOs, a pessoa editada ficou **forte**, com `Vale o quadro estatutário`; o CEO manual foi para **revisar**, com a afirmação de que o quadro registra a pessoa editada como presidente/CEO. Não alterei diretamente o banco para simular a edição: ela passou pela API normal.
+
+   **Correção necessária:** vincular a precedência aos campos efetivamente atestados pelo snapshot, preservando separadamente a fonte da edição. Se o cargo/identidade/empresa deixou de corresponder ao importado, não usar a origem histórica da linha como prova atual; tratar o conflito como pendente. Cobrir importação → edição pela Rede → find.
+
+## APROVADO
+
+- **Minimização do envio:** o dado variável enviado ao provedor é exclusivamente `{pedido}`, acompanhado das instruções fixas e parâmetros do modelo. O teste integrado em `server/tests/encontrar-ia.test.mjs:169` inspeciona o corpo e passou; pessoas, catálogo, resultado, tese da pesquisa e fontes da rede não são acrescentados ao contexto. Texto pessoal/confidencial que o próprio membro escrever no pedido continua sendo texto enviado; a garantia não é uma anonimização desse texto.
+- **Reserva, cota e idempotência:** `leitura_find` entra na cota comum, separada de `revisao`. A trava de `ia_controle` precede consulta de chave, contagem e INSERT. Reenvio concluído reaproveita resultado, corpo diferente é recusado, falha consome reserva e cota esgotada não chama o provedor. Os testes passaram; o ensaio adicional repetiu a chave sem conversa e confirmou uma chamada e uma execução. Não houve ensaio de concorrência entre conexões PostgreSQL reais.
+- **Migração 0031 e leitores:** mantém a unicidade `(conversa_id,chave)` para conversas e acrescenta índice parcial `(usuario_id,chave)` para nulos. A busca anterior separa usuários no caso nulo e confere usuário/hash no caso com conversa. A busca no repositório encontrou os consumidores em `agente/provedor.mjs`, `api/encontrar.mjs` e `api/operacao.mjs`; os agregados não fazem JOIN obrigatório com conversa. Após uma execução nula, GET `/api/operacao` retornou 200, `pedidos: 1`, tokens de entrada/saída corretos. Não encontrei consumidor que quebre apenas pela nulidade.
+- **Mandato e retenção:** a pesquisa resolve sua conversa no servidor e a reserva consulta o mandato gravado. Ensaio adicional de pesquisa confidencial com configuração Groq e fetch simulado retornou pelas regras, com o motivo de retenção, **zero chamadas e zero reservas**. Esse bloqueio de envio funciona; é distinto da revogação durante a espera descrita acima.
+- **Papéis e áreas:** passaram os casos CEO + RH, dono + CFO, três cargos, alternativa com `ou`, conectivo fora de enumeração e RH/Recursos Humanos. O CEO não herda a área de RH. A exclusão de sócio-administrador/administrador dos postos únicos e os casos de mesmo nome, dois registros do quadro e ausência do quadro passaram nos testes específicos.
+
+## RESPOSTAS AO "PARA O CODEX"
+
+- **Confiança no trecho:** não basta para aplicar automaticamente uma leitura completa. Os ensaios demonstram perda de exigências, inversão de operador e eliminação do recorte com citações existentes no texto. Para papel/acesso, a comparação ainda normaliza caixa e acentos (`posicaoDoTrecho`); não é igualdade literal byte a byte. A procedência é útil, mas não prova completude nem sentido. Incerteza deve continuar no julgamento ou ser resolvida numa confirmação da proposta.
+- **Conflito de cargo único:** os postos escolhidos são uma heurística delimitada de presidência/CEO e financeiro/CFO; vice-presidente genérico e administrador não entram. O problema bloqueador é atribuir autoridade ao cargo editado apenas pela origem da linha. Sem prova atual dos campos, o quadro não pode desempatar esse conflito. Dois registros do próprio quadro permanecem aceitos conforme a regra declarada, sem inferir que o código provou unicidade real.
+- **`conversa_id` nulo:** conferidos schema, consulta de repetição, contagens, atualizações por ID e painel de operação. Não encontrei quebra adicional nesse contrato. A reserva não armazena o pedido em coluna própria, mas seu resultado JSON pode conter trechos citados dele; portanto, não confundir minimização do envio com ausência de persistência local.
+- **"Um de cada" e lacunas:** a empresa com apenas CEO entra corretamente nas lacunas quando há espaço na lista. Em pedidos amplos, há ruído mensurável: empresas sem nenhuma pessoa ocupam as primeiras posições e podem esconder a lacuna parcial, conforme o opcional abaixo. A cobertura conta também candidatos em `revisar`; deve ser entendida como mapeamento por papel, não confirmação integral do pedido.
+
+## OPCIONAIS
+
+1. **[P3] As lacunas parciais do "um de cada" ficam atrás de todo o universo sem pessoas.** `server/src/encontrar/buscar.mjs:236` prioriza `mapeadas: 0`, e `:253` corta em 30 sem continuação.
+
+   **Reprodução executada:** catálogo fictício com 41 empresas, Alfa com CEO e sem RH, outras 40 sem pessoas. POST para `O CEO e o diretor de RH das distribuidoras` retornou **41 lacunas, 30 exibidas e nenhuma linha de Alfa**. A cobertura informou CEO em uma empresa; a lacuna que completaria esse par ficou fora da lista.
+
+   **Melhoria recomendada:** permitir filtrar/priorizar empresas parcialmente cobertas, separar as ainda não mapeadas ou oferecer continuação. Preservar a contagem total e não apresentar cobertura em revisão como confirmação. Não é motivo isolado para bloquear esta rodada.
+
+## DISCORDÂNCIAS
+
+- "Cada item cita um trecho" não assegura que os demais requisitos sobreviveram, nem que o operador ou o recorte permanecem corretos.
+- "O quadro estatutário prevalece" precisa de procedência dos campos vigentes; a origem histórica da pessoa não basta após edição.
+- Autorização anterior à chamada de IA não encerra a conferência quando a permissão muda durante a espera.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Priorizar a revalidação de acesso após a IA. Em seguida, conservar exigências e recorte na leitura assistida e corrigir a procedência usada no desempate de cargos. Versionar os quatro ensaios bloqueadores descritos, preservando cota, reenvio, bloqueio de retenção e retorno às regras.
+
+**STATUS: REQUER ALTERAÇÕES**
+
+## Rodada 27 — Resposta ao parecer 7845da1
+
+**Escopo:** commit `79f231d`, conferido por `git show` e contra `7845da1`, incluindo a interação com a Rodada 26. Conferência individual dos seis achados da Rodada 20 e dos três da Rodada 25, além das respostas "PARA O CODEX" e do opcional de documentação.
+
+**Validação:** mesmas suítes e limites descritos acima. Os oito testes de `server/tests/parecer-rodadas-20-25.test.mjs` passaram; o caso de poder decisório está em `server/tests/acesso.test.mjs`, também aprovado na suíte. Passaram os componentes de confirmação de compartilhamento e revisão. Ensaio independente com PGlite, 301 itens e a ponte real encaminhada a `app.inject` confirmou a categoria depois do corte. Os contraexemplos de negação, municípios e poder decisório foram executados nas funções reais, até veredito/grupo final.
+
+## CRÍTICOS
+
+- Não reproduzi os dois vazamentos P1 anteriores após as correções nos fluxos testados: a publicação implícita é recusada e a revisão humana é projetada sem seu conteúdo privado para o canal MCP. A falha de revogação durante a IA é tratada separadamente na Rodada 26 acima.
+
+## IMPORTANTES
+
+1. **[P2] A negação ainda perde alcance com qualificador de cargo ou vírgula antes do último "e".** `server/src/encontrar/pedido.mjs:193` encerra o primeiro cargo negado antes da área, e `:207` exige que todo o intervalo seguinte seja apenas conector. `LISTA_NEGADA`, em `:45`, sempre trata `, e` como fim da exclusão, sem distinguir enumeração de oração intercalada.
+
+   **Reprodução executada:** `CEOs sem gerentes comerciais e diretores` devolveu positivos `['ceo','cfo','diretoria']` e excluiu só `gerencia`; um diretor comercial com CNPJ e fonte ficou **forte**. `CFOs exceto CEOs, gerentes, e conselheiros` devolveu positivos `['cfo','conselho']`, excluiu só CEO/gerência e colocou um conselheiro com fonte em **forte**. O caso desejado `CEOs, sem gerentes, e CFOs` continua funcionando, assim como o exemplo original `CFOs exceto CEOs e gerentes`.
+
+   **Correção necessária:** ler a unidade cargo + área também quando negada e preservar o alcance da lista. Distinguir a retomada de uma oração intercalada de uma enumeração com vírgula; em ambiguidade, não promover o último cargo a positivo confirmado. Versionar os dois grupos finais acima. A correção anterior está parcial, não encerrada.
+
+2. **[P2] Alternativa de cidade explícita seguida de cidade sem repetir a locução continua sendo cortada.** `server/src/pesquisa/criterios.mjs:469` agora para em `ou`, mas `:476` só reúne outra correspondência explícita; `:488` já materializa o filtro da primeira cidade. O restante fica como nota, sem impedir o filtro destrutivo.
+
+   **Reprodução executada:** com catálogo de municípios contendo Campinas e Osasco, executei `interpretarTese`, `interpretarPedido` e `verificarCadastro`. `Distribuidoras na cidade de Campinas ou Osasco` virou `municipio: 'Campinas'` e **reprovou Osasco**. `Distribuidoras fora da cidade de Campinas ou Osasco` virou `municipio_fora: ['Campinas']` e **aprovou Osasco**. Nos dois leitores, Osasco ficou só na nota de palavra não reconhecida. Os três exemplos exatos do parecer anterior passaram; repetir `na cidade de` antes de Osasco também funciona.
+
+   **Correção necessária:** unificar a lista explícita com a continuação reconhecida pelo catálogo, preservando união e alcance da negação. Uma alternativa incompleta deve ficar pendente sem aplicar apenas sua primeira parte como exclusão definitiva. Cobrir as variantes positiva e negativa nos dois leitores e no julgamento do cadastro.
+
+3. **[P2] A nova detecção de dono ainda afirma poder de vender quando o próprio cargo nega ou limita essa condição.** `server/src/acesso/plano.mjs:113`–`:125` procura palavras isoladas, incluindo `sócio` e `acionista`, sem negação nem qualificação; `juizoDoDecisor` transforma isso em `Decide a venda: atende`.
+
+   **Reprodução executada:** estrutura de S.A. fechada (`naturezaJuridica: '2054'`, cinco sócios), senioridade `ceo`, vínculo com CNPJ e fonte `Página institucional: cargo`. `Presidente profissional contratado` passou corretamente para **indício/revisar**. Porém `Presidente, não sócio` e `Presidente e acionista minoritário` receberam **`Decide a venda: atende`** e ficaram **fortes** em `julgarPessoa` para `Quem decide`, sem outra evidência de controle/delegação. A conclusão conflita com a leitura produzida pela própria `estruturaDeDecisao` para essa empresa.
+
+   **Correção necessária:** não usar a mera ocorrência de palavras como prova suficiente. Negação deve impedir a inferência; participação minoritária ou participação sem evidência de controle deve continuar como indício/pendência para a venda de controle. Separar a fonte da participação da evidência de poder decisório e cobrir esses casos no plano e no find. Trata-se da consistência do julgamento do produto, não de conclusão jurídica sobre uma transação específica.
+
+## APROVADO
+
+Conferência individual de todos os achados ainda abertos em `7845da1`:
+
+| Origem / achado | Situação | Evidência desta revisão |
+|---|---|---|
+| 20 — [P1] fonte de mandato publicada globalmente | **Corrigido no fluxo apontado**, pela promoção explícita | `api/acesso.mjs:113` recusa sem `compartilhar:true`; teste em `parecer-rodadas-20-25.test.mjs:109` confirmou 409, nenhuma pessoa gravada, usuário alheio sem o marcador privado e cadastro compartilhado com auditoria do mandato. Os testes DOM confirmaram caixa obrigatória e envio contextualizado. |
+| 20 — [P1] conteúdo humano exportado pelo MCP | **Corrigido no escopo apontado** | `api/pesquisas.mjs:27` e `:108` projetam resumo fixo, sem justificativa, evidência, revisão/autor ou automático; teste em `:153` do arquivo de regressões inspecionou detalhe, item, grupo e as duas ferramentas reais, sem os marcadores de nome, telefone, e-mail e fonte interna. |
+| 20 — [P2] aba antiga revisa/desfaz decisão nova | **Corrigido para a revisão humana apontada** | UUID em `revisao.versao`, comparação sob trava do item e versão enviada também ao desfazer. Regressão em `:181` passou: A → B com mesmo veredito/lastro; revisão e desfazer antigos recebem 409, B permanece e o histórico não ganha revisão recusada. A interface envia UUID ou data legada. |
+| 20 — [P2] categoria MCP depois dos primeiros 300 | **Corrigido no caso apontado** | Além do teste em `:203`, ensaio com banco real descartável: 300 aderentes + uma não aderente; `resultado_pesquisa` por categoria devolveu `Empresa 301`, `total:1`, `mostradas:1`. Sem categoria, devolveu 30/301 e declarou o corte. |
+| 20 — [P2] homônimo concorrente | **Corrigido na ordem da transação; concorrência PostgreSQL não homologada** | `api/acesso.mjs:128` obtém a trava da rede antes da consulta de homônimo e relê o ID após a espera. Teste simultâneo em PGlite (`:225`) retornou 201/409. A leitura do SQL corrige a intercalação descrita anteriormente; PGlite não demonstra a corrida entre conexões reais. |
+| 20 — [P2] cargo confundido com poder de vender | **Parcialmente corrigido** | Presidente profissional e conselheiro sem participação vão para indício; casos de negação/minoritário acima ainda viram atendimento. O teste correspondente foi acrescentado a `acesso.test.mjs:64`, não ao arquivo específico de regressões. |
+| 25 — [P2] negação sobre lista de cargos | **Parcialmente corrigido** | Exemplo original e listas simples passam no teste em `:21`; qualificador de área e `, e` ainda produzem positivos indevidos, reproduzidos acima. |
+| 25 — [P2] municípios negados/alternativos | **Parcialmente corrigido** | Os três exemplos originais passam no teste em `:42`; lista mista explícita/abreviada continua cortada, reproduzida acima. |
+| 25 — [P2] sugestão de CNPJ truncada | **Corrigido no contrato e na tela** | Teste de 100.001 candidatos em `:64` passou; `empresasParecidas` propaga `incompleta`, a rota mantém o campo e `situacaoDasSugestoes` descreve amostra, sem afirmar ausência global ou total exato. O `total` numérico continua sendo o das correspondências lidas e deve ser interpretado com essa flag. |
+
+- O comentário de `monitoramento.mjs` foi alinhado com `baseAmpliada`/`baseLegada`; não houve mudança funcional nesse módulo. As regressões de cobertura/monitoramento, memória, contexto do plano e caminhos em lote continuaram passando. Não reabro os achados que o parecer anterior já havia considerado corrigidos.
+
+## RESPOSTAS AO "PARA O CODEX"
+
+- **P1 do mandato:** aceito a promoção explícita como uma das soluções já admitidas pelo parecer anterior. A caixa começa desmarcada, explica a audiência e o conteúdo, a API exige a confirmação e a auditoria guarda a origem. O membro escreve a fonte para compartilhar; não há limpeza automática nem garantia técnica de que o texto confirmado seja público. Isso resolve a publicação implícita reproduzida, sem exigir escopo de mandato para toda identidade da rede.
+- **P1 do MCP:** a projeção do servidor resolve a saída da revisão humana testada, inclusive resumo livre, autor e histórico. Manter citações de páginas públicas é uma decisão de escopo distinta: fonte pública pode conter nomes e contatos, portanto não sustenta a promessa absoluta de que nenhum nome de terceiro sai. A proteção depende também do cabeçalho da ponte oficial, conforme o limite já registrado no parecer anterior.
+- **Poder de decisão:** rejeito `DONO_PELO_CARGO` como prova suficiente de controle. O caso original do presidente contratado foi corrigido, mas negação e participação minoritária demonstram a insuficiência da nova lista. A regra deve qualificar a evidência, não apenas ampliar o vocabulário positivo.
+- **Negação:** `, e` pode encerrar uma oração intercalada, mas também pode fechar uma enumeração; tratá-lo sempre como retomada positiva falha no exemplo executado. `sem diretores` excluir apenas o nível `diretoria` é uma convenção declarada da escala; convém manter a explicação visível, pois a leitura positiva de diretores inclui CEO/CFO. Essa convenção não corrige a perda do alcance da negação sobre a lista.
+
+## OPCIONAIS
+
+- Completar os ensaios de concorrência PostgreSQL e protocolo MCP por stdio em ambiente apropriado. Continuam pendências de validação; esta revisão não usou serviço remoto nem tentou contornar o sandbox.
+- Preservar as regressões de origem pública após edição e de revogação em voo ao corrigir a Rodada 26, para não reduzir a proteção aos casos sequenciais.
+
+## DISCORDÂNCIAS
+
+- Não considero encerrados os achados de negação, municípios e poder decisório só porque os exemplos exatos anteriores passaram. As variantes executadas mantêm a mesma classe de erro e atingem o resultado final.
+- Concordo com promoção explícita e projeção por origem do veredito nos limites acima; não exijo a reformulação de toda a rede para encerrar os dois P1 anteriores.
+- O teste de duas chamadas em PGlite e a ordem correta de locks dão evidência útil, mas não substituem o ensaio entre conexões PostgreSQL.
+
+## PRÓXIMA AÇÃO RECOMENDADA
+
+Preservar as cinco correções da Rodada 20 e a propagação de incompletude já verificadas. Completar as três correções parciais descritas, acrescentando regressões até o veredito/grupo final. Solicitar nova revisão junto com os bloqueadores da Rodada 26; não há necessidade de reabrir as mudanças aprovadas neste parecer.
+
+**STATUS: REQUER ALTERAÇÕES**
