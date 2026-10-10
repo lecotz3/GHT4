@@ -12,7 +12,7 @@ Atualizado em 10 de outubro de 2026, à tarde (checkpoint anterior: 9 de outubro
 - **Item 1 do aceite, refeito** com a função de busca do servidor contra o banco de produção, numa transação só de leitura, porque a extensão do Chrome desconectou:
   - "Quem decide nas distribuidoras de SP com mais de 20 anos": 257 atendem, 104 para revisar e 64 lacunas. Antes eram 0, 26 e 277. Em "Atendem" estão sócios-administradores, com "Decide a venda: atende" e a fonte do quadro.
   - "Quem decide nas empresas químicas": 14.659 pessoas avaliadas, dentro do teto de 20 mil, e 11.014 atendem.
-  - Falta conferir o tempo no site, porque a medição daqui até São Paulo não vale. A medição local com 47.600 pessoas deu 434 ms.
+  - Tempo no site, com a rede nova (Chrome, conta de administrador): "Quem decide nas empresas químicas" em 2,31, 1,92 e 1,60 s (mediana de 1,9 s, abaixo do limite de 5 s); "Quem decide nas distribuidoras de SP com mais de 20 anos" em 0,31, 0,24 e 0,19 s. O site mostra os mesmos 257 e 104 da consulta direta.
 - **`brag-output/`:** o usuário commitou ("ok", `0e4712a`) na `feat/agente-rodada-4`, e o push da Rodada 29 levou para a `main`.
 - **Sem aprovação do Codex (pedido do usuário, 10/10/2026):** cada rodada é commitada e publicada depois dos testes, do `npm run ci` e do CI do GitHub verde. A revisão do Codex é opcional e não trava nada. A tentativa sobre a Rodada 28 parou no limite de uso da conta do Codex; o pedido pronto está em "PARA O CODEX" no diário.
 - **Publicado na `main`:** a Rodada 28 (`95fcc5f`), com CI verde e deploy conferido (`/api/saude` ok, migração `0032` aplicada no build). Antes dela, as Rodadas 26 e 27 (`79f231d`) e o parecer do Codex sobre elas (`b1cc7e0`).
@@ -45,7 +45,7 @@ Atualizado em 10 de outubro de 2026, à tarde (checkpoint anterior: 9 de outubro
 ### Próximos passos, em ordem
 
 1. **Ativar a casa** (pessoas reais, pelo usuário): convites na tela Equipe, membros na Rede, listas, passada de reconhecimento, "Ligar ao CNPJ". Depende da lista de participantes da GHT4.
-2. **Fechar o aceite** (Etapa 3): medir no site o tempo de "Quem decide nas empresas químicas" com a rede nova; fazer os itens 6 e 7, que gravam em produção; testar o 9 com uma conta de analista; repetir os itens 2 e 3 com a casa ativada. Os demais já passaram (tabela acima).
+2. **Fechar o aceite** (Etapa 3): fazer os itens 6 e 7, que gravam em produção; testar o 9 com uma conta de analista; repetir os itens 2 e 3 com a casa ativada. Os demais já passaram (tabela acima).
    - A passada de reconhecimento agora tem cerca de 40 mil `ceo`, a maioria donos de limitada. Quando a casa for ativada, ver se a fila por empresa continua utilizável.
 3. **Opcional:** revisão do Codex da Rodada 28, quando a conta dele tiver uso disponível. Não bloqueia.
 
