@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>GHT4 · o agente inteiro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=block" rel="stylesheet">
+<style>
+  :root { --marca: #FF6E00; --tinta: #111111; --suave: #6B6B6B; --papel2: #F7F8F9; --fio: #E3E6E8; --comprador: #0F4C81; --alvo: #9A4200; }
+  *, *::before, *::after { box-sizing: border-box; transition: none !important; animation: none !important; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #fff; }
+  #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #fff; font-family: Inter, system-ui, sans-serif; color: var(--tinta); }
+  .abs { position: absolute; }
+
+  /* janela do app */
+  #win { position: absolute; border-radius: 22px; overflow: hidden; background: var(--papel2); border: 1px solid var(--fio);
+    box-shadow: 0 40px 90px rgb(17 17 17 / .12), 0 8px 24px rgb(17 17 17 / .06); will-change: transform, opacity; }
+  #view { position: absolute; inset: 0; overflow: hidden; }
+  #view img { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform, opacity; image-rendering: auto; }
+  .anel { position: absolute; border: 3px solid var(--marca); border-radius: 12px; box-shadow: 0 0 0 6px rgb(255 110 0 / .14), 0 10px 30px rgb(255 110 0 / .18); will-change: transform, opacity; }
+
+  /* legendas */
+  #capcol { position: absolute; left: 110px; top: 0; width: 580px; height: 1080px; }
+  .cap { position: absolute; left: 0; top: 50%; width: 580px; transform: translateY(-50%); }
+  .cap-rotulo { display: flex; align-items: center; gap: 14px; font-size: 18px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--alvo); }
+  .cap-rotulo i { display: block; width: 3px; height: 26px; background: var(--marca); transform: skewX(-45deg); margin-left: 8px; }
+  .cap-titulo { margin-top: 26px; font-size: 70px; line-height: 1.05; font-weight: 600; letter-spacing: -.045em; }
+  .cap-sub { margin-top: 26px; font-size: 30px; line-height: 1.4; color: var(--suave); letter-spacing: -.01em; }
+  .cap > * { will-change: transform, opacity; }
+
+  /* revelação */
+  #reveal { position: absolute; inset: 0; }
+  #reveal .rot { position: absolute; left: 0; right: 0; top: 248px; display: flex; justify-content: center; align-items: center; gap: 14px; font-size: 19px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--alvo); }
+  #reveal .rot i { display: block; width: 3px; height: 26px; background: var(--marca); transform: skewX(-45deg); }
+  #reveal h1 { position: absolute; left: 0; right: 0; top: 300px; margin: 0; text-align: center; font-size: 118px; line-height: 1; font-weight: 600; letter-spacing: -.05em; }
+  #reveal h1 b { color: var(--marca); font-weight: 600; }
+  #reveal p { position: absolute; left: 0; right: 0; top: 458px; margin: 0; text-align: center; font-size: 34px; color: var(--suave); letter-spacing: -.012em; }
+  #chips { position: absolute; left: 210px; right: 210px; top: 590px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  .chip { display: flex; align-items: center; gap: 14px; height: 76px; padding: 0 22px; border: 1px solid var(--fio); border-radius: 16px; background: #fff; box-shadow: 0 8px 22px rgb(17 17 17 / .05); font-size: 23px; font-weight: 600; letter-spacing: -.02em; will-change: transform, opacity; }
+  .chip span { font-size: 15px; font-weight: 700; color: var(--marca); letter-spacing: .06em; }
+
+  /* telefone */
+  #phone { position: absolute; width: 418px; height: 872px; border-radius: 62px; background: #111; padding: 14px; box-shadow: 0 50px 100px rgb(17 17 17 / .25), 0 10px 30px rgb(17 17 17 / .12); will-change: transform, opacity; }
+  #phscreen { position: relative; width: 390px; height: 844px; border-radius: 48px; overflow: hidden; background: #fff; }
+  #phscreen img { position: absolute; left: 0; top: 0; width: 390px; will-change: transform, opacity; }
+
+  /* desfecho */
+  #outro { position: absolute; inset: 0; background: #000; }
+  #outro .logo { position: absolute; left: 50%; top: 372px; height: 150px; transform: translateX(-50%); color: #fff; fill: #fff; }
+  #outro .regua { position: absolute; left: 50%; top: 576px; height: 4px; background: var(--marca); transform: translateX(-50%); }
+  #outro .l1 { position: absolute; left: 0; right: 0; top: 616px; text-align: center; color: #fff; font-size: 58px; font-weight: 600; letter-spacing: -.035em; }
+  #outro .l2 { position: absolute; left: 0; right: 0; top: 704px; text-align: center; color: #C9CDD1; font-size: 27px; font-weight: 500; letter-spacing: .01em; }
+  #outro .l2 b { color: var(--marca); padding: 0 10px; }
+  #faixa { position: absolute; top: -200px; height: 1480px; width: 900px; background: var(--marca); transform-origin: 50% 50%; will-change: transform; }
+
+  #cursor { position: absolute; left: 0; top: 0; width: 44px; height: 44px; z-index: 50; pointer-events: none; will-change: transform, opacity; }
+  #pulso { position: absolute; width: 70px; height: 70px; margin: -35px 0 0 -35px; border-radius: 50%; border: 3px solid var(--marca); z-index: 49; will-change: transform, opacity; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="win"><div id="view"></div></div>
+  <div id="capcol"><div class="cap" id="cap"><div class="cap-rotulo" id="capRot"><i></i><span></span></div><div class="cap-titulo" id="capTit"></div><div class="cap-sub" id="capSub"></div></div></div>
+  <div id="reveal">
+    <div class="rot"><i></i>GHT4 · Agente de M&amp;A<i></i></div>
+    <h1>Da tese ao mandato<b>.</b></h1>
+    <p>O agente de M&amp;A da GHT4, com a fonte em cada resposta.</p>
+    <div id="chips"></div>
+  </div>
+  <div id="phone"><div id="phscreen"></div></div>
+  <div id="outro">
+    <svg class="logo" viewBox="0 0 176 80" role="img" aria-label="GHT4"><path id="logoPath"/></svg>
+    <div class="regua"></div>
+    <div class="l1">Toda resposta com a fonte.</div>
+    <div class="l2">GHT4 Advisory<b>·</b>Inteligência de M&amp;A</div>
+  </div>
+  <div id="faixa"></div>
+  <div id="pulso"></div>
+  <svg id="cursor" viewBox="0 0 24 24"><path d="M5 2.5v17.2l4.3-4.1 2.9 6.6 2.9-1.3-2.8-6.5h6.1Z" fill="#111" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>
+</div>
+
+<script>
+const LOGO = 'M85.962,47.8V42.351a11.271,11.271,0,0,1-4.423,1.273,2.524,2.524,0,0,1-2.85-2.8V21.891h7.273v-5.3H78.69V8.233H73.306l-.843,8.394-4.3.315v4.95h4.114V42.325c0,4.4,3.068,7.129,8.008,7.129A12.648,12.648,0,0,0,85.962,47.8M112.1,38.756V20.028L99.58,38.756Zm0,5.555H92.4V39.158L113.057,8.233h5.455V38.756h8.627l-3.71,5.555h-4.917v4.8H112.1ZM12.722,22.093a8.03,8.03,0,0,0-2.709.459,5.508,5.508,0,0,0-2.035,1.312,6.432,6.432,0,0,0-1.541,4.584A6.388,6.388,0,0,0,7.975,33a5.522,5.522,0,0,0,2.04,1.317,8.333,8.333,0,0,0,5.449,0A5.5,5.5,0,0,0,17.5,33.007a6.432,6.432,0,0,0,1.542-4.583A6.4,6.4,0,0,0,17.5,23.866a5.537,5.537,0,0,0-2.041-1.315,8.109,8.109,0,0,0-2.737-.458h0Zm-.736-5.445,19.08-.006-3.506,5.25H23.6l.265.418a10.608,10.608,0,0,1,.7,1.425,12.922,12.922,0,0,1,.884,4.681,13.05,13.05,0,0,1-.885,4.724,10.793,10.793,0,0,1-2.945,4.12,11.675,11.675,0,0,1-4.35,2.338,15.5,15.5,0,0,1-3.715.607c-.006,0-1,.024-1.159.024h-.136l-.061.126a14.277,14.277,0,0,0-.584,2.579.713.713,0,0,0,.647.782c.326.033.873.053,1.271.058l.35.011c.878.009,1.956.02,3.085.1a16.2,16.2,0,0,1,4.407.874,8.611,8.611,0,0,1,4.341,3.385,9.43,9.43,0,0,1,1.35,5.04A10.3,10.3,0,0,1,22.7,61.718a12.729,12.729,0,0,1-4.3,1.944,18.833,18.833,0,0,1-4.287.582c-.173,0-.33,0-.484,0A16.464,16.464,0,0,1,5.51,62.421a10.745,10.745,0,0,1-3.724-3.356A11.883,11.883,0,0,1,.2,53.944c-.008-.071-.146-1.4-.2-1.928H6.453l.114,1.333A5.447,5.447,0,0,0,8.6,57.466a8.717,8.717,0,0,0,4.938,1.327q.2,0,.407-.006a8.121,8.121,0,0,0,5.038-1.693,4.353,4.353,0,0,0,1.676-3.567,4.215,4.215,0,0,0-2.306-3.792c-1.3-.626-2.472-.626-4.806-.626h-2.9a5.1,5.1,0,0,1-4.088-1.943,4.506,4.506,0,0,1-.642-3.945l.878-4.142-.141-.063a11.138,11.138,0,0,1-2.805-1.763A10.784,10.784,0,0,1,.907,33.138a12.959,12.959,0,0,1,0-9.406,10.79,10.79,0,0,1,2.945-4.119A11.657,11.657,0,0,1,8.2,17.275a16.1,16.1,0,0,1,3.783-.627M169.435,0,143.168,39.33h-6.685L109.321,80H115.9l26.257-39.33h6.695L176,0ZM62.027,22.958A12.747,12.747,0,0,1,62.9,27.6V49.11H56.487V28.246a6.459,6.459,0,0,0-1.648-4.71,5.93,5.93,0,0,0-2.253-1.261,9.286,9.286,0,0,0-2.73-.377c-.106,0-.213,0-.321,0a9.892,9.892,0,0,0-3.05.571,6.565,6.565,0,0,0-2.294,1.43,6.288,6.288,0,0,0-1.686,4.625V49.11H36.093V1.947h6.412v17.07l.3-.2a12.692,12.692,0,0,1,2.854-1.432,15.921,15.921,0,0,1,4.507-.9c.344-.022.689-.032,1.028-.032a14.928,14.928,0,0,1,3.5.4,10.868,10.868,0,0,1,4.4,2.114,10.016,10.016,0,0,1,2.931,3.989';
+document.getElementById('logoPath').setAttribute('d', LOGO);
+
+/* ---------- tempo ---------- */
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const eio = (x) => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const eout = (x) => 1 - Math.pow(1 - x, 3);
+const eoutq = (x) => 1 - Math.pow(1 - x, 5);
+const ein = (x) => x * x * x;
+const lerp = (a, b, x) => a + (b - a) * x;
+const back = (x) => { const c = 1.5; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const $ = (s) => document.querySelector(s);
+
+/* ---------- janela ---------- */
+const CHEIA = { x: 60, y: 40, w: 1800, h: 1000 };
+const LADO = { x: 740, y: 110, w: 1110, h: 860 };
+
+/* ---------- o roteiro: imagens, câmera, anéis, cursor e legendas ---------- */
+// Câmera em coordenadas da captura (1440×900 CSS); z = pixels de tela por pixel da captura.
+const C = (cx, cy, z) => ({ cx, cy, z });
+const dig = (prefixo, t0, passo, n) => Array.from({ length: n }, (_, k) => ({ t: t0 + k * passo, img: `${prefixo}-${k}`, corte: true }));
+const IMAGENS = [
+  { t: 0, img: 'enc-vazio', corte: true }, ...dig('enc-dig', 0.5, 0.27, 7), { t: 2.9, img: 'enc-res' },
+  { t: 8.4, img: 'tese-vazio' }, ...dig('tese-dig', 8.62, 0.16, 7), { t: 9.95, img: 'tese-criterios' }, { t: 11.25, img: 'tese-detalhe' },
+  { t: 12.6, img: 'enc-juizo' },
+  { t: 16.8, img: 'plano-1' }, { t: 19.0, img: 'plano-2' },
+  { t: 21.0, img: 'rel-reconhecimento' }, { t: 23.2, img: 'rede-encontrar' },
+  { t: 25.2, img: 'ia-oferta' }, { t: 27.2, img: 'ia-lida' },
+  { t: 29.4, img: 'opo-painel' }, { t: 31.6, img: 'opo-restricao' },
+  { t: 33.6, img: 'inicio' }, { t: 35.4, img: 'equipe' },
+];
+const CAMERA = [
+  { t0: 0, t1: 2.5, de: C(720, 450, 1.25), para: C(735, 470, 1.55) },
+  { t0: 2.9, t1: 4.8, de: C(840, 330, 1.45), para: C(840, 400, 1.3) },
+  { t0: 8.4, t1: 9.95, de: C(700, 420, 1.0), para: C(690, 400, 1.12) },
+  { t0: 9.95, t1: 11.25, de: C(690, 470, 0.98), para: C(690, 520, 1.05) },
+  { t0: 11.25, t1: 12.6, de: C(690, 420, 1.05), para: C(690, 440, 1.12) },
+  { t0: 12.6, t1: 15.0, de: C(839, 420, 0.86), para: C(839, 440, 0.975) },
+  { t0: 15.0, t1: 16.8, de: C(839, 440, 0.975), para: C(839, 446, 0.975) },
+  { t0: 16.8, t1: 19.0, de: C(839, 330, 0.95), para: C(839, 300, 0.975) },
+  { t0: 19.0, t1: 21.0, de: C(839, 420, 0.97), para: C(839, 440, 0.975) },
+  { t0: 21.0, t1: 23.2, de: C(839, 560, 0.9), para: C(839, 600, 0.975) },
+  { t0: 23.2, t1: 25.2, de: C(839, 300, 0.97), para: C(839, 330, 0.975) },
+  { t0: 25.2, t1: 27.2, de: C(839, 380, 0.95), para: C(775, 400, 1.15) },
+  { t0: 27.2, t1: 29.4, de: C(760, 260, 1.05), para: C(760, 280, 1.12) },
+  { t0: 29.4, t1: 31.6, de: C(839, 470, 0.95), para: C(839, 520, 0.975) },
+  { t0: 31.6, t1: 33.6, de: C(839, 420, 0.97), para: C(839, 440, 0.975) },
+  { t0: 33.6, t1: 35.4, de: C(839, 420, 0.96), para: C(839, 470, 0.975) },
+  { t0: 35.4, t1: 37.2, de: C(839, 440, 0.96), para: C(839, 460, 0.975) },
+];
+const ANEIS = [
+  { t0: 3.4, t1: 4.8, x: 1172, y: 466, w: 236, h: 126 },
+  { t0: 10.2, t1: 11.2, x: 685, y: 269, w: 411, h: 105 },
+  { t0: 11.6, t1: 12.5, x: 310, y: 330, w: 470, h: 70 },
+  { t0: 13.8, t1: 16.6, x: 291, y: 358, w: 1098, h: 48 },
+  { t0: 17.5, t1: 18.9, x: 318, y: 263, w: 1043, h: 100 },
+  { t0: 19.4, t1: 20.9, x: 300, y: 418, w: 760, h: 66 },
+  { t0: 22.0, t1: 23.1, x: 300, y: 598, w: 356, h: 86 },
+  { t0: 23.5, t1: 24.3, x: 563, y: 95, w: 156, h: 26 },
+  { t0: 24.35, t1: 25.1, x: 286, y: 434, w: 556, h: 30 },
+  { t0: 25.6, t1: 26.6, x: 292, y: 370, w: 1094, h: 111 },
+  { t0: 27.5, t1: 28.3, x: 400, y: 158, w: 190, h: 26 },
+  { t0: 28.3, t1: 29.3, x: 286, y: 188, w: 272, h: 102 },
+  { t0: 29.9, t1: 30.75, x: 573, y: 326, w: 259, h: 113 },
+  { t0: 30.8, t1: 31.5, x: 300, y: 487, w: 1078, h: 341 },
+  { t0: 31.9, t1: 33.5, x: 295, y: 423, w: 1087, h: 97 },
+  { t0: 34.3, t1: 35.3, x: 401, y: 761, w: 96, h: 45 },
+];
+// Cursor: pontos na captura vigente; clique no fim do trecho.
+const CURSOR = [
+  { t0: 1.9, t1: 2.55, de: [1000, 640], para: [1116, 512], clique: 2.62, some: 2.95 },
+  { t0: 9.25, t1: 9.75, de: [1150, 640], para: [999, 463], clique: 9.8, some: 10.05 },
+  { t0: 21.7, t1: 22.25, de: [800, 820], para: [470, 640], clique: 22.32, some: 22.7 },
+  { t0: 26.2, t1: 26.75, de: [700, 620], para: [391, 450], clique: 26.85, some: 27.15 },
+];
+const CENAS = [
+  { t0: 8.4, t1: 12.6, rot: '01 · Pesquisa por tese', tit: 'A tese vira critérios.', sub: 'Cada empresa conferida no cadastro da Receita, sem custo.' },
+  { t0: 12.6, t1: 16.8, rot: '02 · Encontrar quem decide', tit: 'Quem decide, com a prova.', sub: '47.599 dirigentes do quadro societário, julgados exigência por exigência.' },
+  { t0: 16.8, t1: 21.0, rot: '03 · Plano de acesso', tit: 'Da pessoa à primeira conversa.', sub: 'Rascunho pronto, estrutura de decisão e sanções conferidas.' },
+  { t0: 21.0, t1: 25.2, rot: '04 · Relacionamentos', tit: 'Quem da casa conhece quem.', sub: 'Uma pergunta por pessoa; a apresentação aparece no resultado.' },
+  { t0: 25.2, t1: 29.4, rot: '05 · Leitura com IA', tit: 'IA só quando precisa.', sub: 'Pedido ambíguo? A IA lê citando cada trecho; só o texto sai.' },
+  { t0: 29.4, t1: 33.6, rot: '06 · Oportunidades', tit: 'Do primeiro contato ao mandato.', sub: 'Etapas, agenda e o “não contatar” que trava a abordagem.' },
+  { t0: 33.6, t1: 37.2, rot: '07 · Meu dia e equipe', tit: 'Cada um no seu mandato.', sub: 'Agenda do dia, trabalhos salvos e acesso por espaço.' },
+  { t0: 37.2, t1: 40.8, rot: '08 · No celular', tit: 'Em qualquer tela.', sub: 'O pedido mais pesado responde em 1,9 s.' },
+];
+const CHIPS = ['Pesquisa por tese', 'Quem decide', 'Plano de acesso', 'Relacionamentos', 'Leitura com IA', 'Oportunidades', 'Meu dia e equipe', 'Celular'];
+
+/* ---------- montagem ---------- */
+const nomes = [...new Set(IMAGENS.map((i) => i.img)), 'cel-res', 'cel-juizo'];
+const cache = {};
+const carregar = (n) => new Promise((ok, erro) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => erro(new Error(n)); im.src = `shots/${n}.png`; cache[n] = im; });
+$('#chips').innerHTML = CHIPS.map((c, k) => `<div class="chip"><span>${String(k + 1).padStart(2, '0')}</span>${c}</div>`).join('');
+
+function retangulo(t) {
+  // Gancho em tela cheia; depois a janela ao lado da legenda; some antes do celular.
+  if (t < 4.8) return { r: CHEIA, o: 1, s: 1, dx: 0 };
+  if (t < 5.25) { const p = eio(prog(t, 4.8, 5.25)); return { r: CHEIA, o: 1 - p, s: 1 - 0.08 * p, dx: 0 }; }
+  if (t < 8.4) return null;
+  if (t < 8.85) { const p = eoutq(prog(t, 8.4, 8.85)); return { r: LADO, o: p, s: 1, dx: 90 * (1 - p) }; }
+  if (t < 37.0) return { r: LADO, o: 1, s: 1, dx: 0 };
+  if (t < 37.35) { const p = ein(prog(t, 37.0, 37.35)); return { r: LADO, o: 1 - p, s: 1, dx: -70 * p }; }
+  return null;
+}
+function cameraEm(t, r) {
+  let seg = CAMERA[0];
+  for (const c of CAMERA) if (t >= c.t0 - 1e-6) seg = c;
+  const p = eio(prog(t, seg.t0, seg.t1));
+  let { cx, cy, z } = { cx: lerp(seg.de.cx, seg.para.cx, p), cy: lerp(seg.de.cy, seg.para.cy, p), z: lerp(seg.de.z, seg.para.z, p) };
+  const mw = r.w / (2 * z), mh = r.h / (2 * z);
+  cx = 1440 <= 2 * mw ? 720 : clamp(cx, mw, 1440 - mw);
+  cy = 900 <= 2 * mh ? 450 : clamp(cy, mh, 900 - mh);
+  return { cx, cy, z };
+}
+const naTela = (cam, r, sx, sy) => [r.x + r.w / 2 + (sx - cam.cx) * cam.z, r.y + r.h / 2 + (sy - cam.cy) * cam.z];
+function imagemEm(t) {
+  let i = 0;
+  for (let k = 0; k < IMAGENS.length; k++) if (t >= IMAGENS[k].t - 1e-6) i = k;
+  return i;
+}
+
+function render(t) {
+  const W = retangulo(t);
+  const win = $('#win');
+  // janela e câmera
+  if (W) {
+    const r = W.r;
+    win.style.display = 'block';
+    Object.assign(win.style, { left: r.x + 'px', top: r.y + 'px', width: r.w + 'px', height: r.h + 'px', opacity: W.o,
+      transform: `translateX(${W.dx}px) scale(${W.s})` });
+    const cam = cameraEm(t, r);
+    const i = imagemEm(t), atual = IMAGENS[i], ant = IMAGENS[i - 1];
+    for (const im of Object.values(cache)) if (im.parentNode === $('#view')) im.style.display = 'none';
+    const pos = (n, opacidade) => { const im = cache[n]; im.style.display = 'block'; im.style.opacity = opacidade; im.style.width = 1440 * cam.z + 'px';
+      im.style.transform = `translate(${r.w / 2 - cam.cx * cam.z}px, ${r.h / 2 - cam.cy * cam.z}px)`; };
+    // Troca dentro da cena: some a anterior, entra a nova (sem dupla exposição); digitação é corte seco.
+    const dt = t - atual.t, entra = atual.corte ? 1 : eout(prog(dt, 0.08, 0.3));
+    if (ant && !atual.corte && dt < 0.1 && cenaDe(ant.t) === cenaDe(atual.t) && ant.img !== atual.img) pos(ant.img, 1 - prog(dt, 0, 0.08));
+    pos(atual.img, entra);
+    // anéis
+    const view = $('#view');
+    view.querySelectorAll('.anel').forEach((a) => a.remove());
+    for (const a of ANEIS) {
+      if (t < a.t0 || t > a.t1) continue;
+      const pin = eoutq(prog(t, a.t0, a.t0 + 0.3)), pout = 1 - prog(t, a.t1 - 0.2, a.t1);
+      const d = document.createElement('div'); d.className = 'anel';
+      const x = r.w / 2 + (a.x - 8 - cam.cx) * cam.z, y = r.h / 2 + (a.y - 6 - cam.cy) * cam.z;
+      Object.assign(d.style, { left: x + 'px', top: y + 'px', width: (a.w + 16) * cam.z + 'px', height: (a.h + 12) * cam.z + 'px',
+        opacity: Math.min(pin, pout), transform: `scale(${lerp(1.06, 1, pin)})`, transformOrigin: '50% 50%' });
+      view.appendChild(d);
+    }
+    // cursor
+    const cur = $('#cursor'), pulso = $('#pulso');
+    cur.style.opacity = 0; pulso.style.opacity = 0;
+    for (const c of CURSOR) {
+      if (t < c.t0 - 0.25 || t > c.some) continue;
+      const p = eio(prog(t, c.t0, c.t1));
+      const [sx, sy] = [lerp(c.de[0], c.para[0], p), lerp(c.de[1], c.para[1], p)];
+      const [x, y] = naTela(cam, W.r, sx, sy);
+      const aperto = t > c.clique - 0.06 && t < c.clique + 0.1 ? 0.86 : 1;
+      cur.style.opacity = Math.min(prog(t, c.t0 - 0.25, c.t0), 1 - prog(t, c.some - 0.2, c.some)) * W.o;
+      cur.style.transform = `translate(${x - 9}px, ${y - 5}px) scale(${aperto})`;
+      const pc = prog(t, c.clique, c.clique + 0.45);
+      if (pc > 0 && pc < 1) { pulso.style.opacity = (1 - pc) * 0.9; pulso.style.transform = `translate(${x}px, ${y}px) scale(${lerp(0.3, 1.3, eout(pc))})`; }
+    }
+  } else { win.style.display = 'none'; $('#cursor').style.opacity = 0; $('#pulso').style.opacity = 0; }
+
+  // legenda
+  const cena = CENAS.find((c) => t >= c.t0 && t < c.t1);
+  const cap = $('#cap');
+  if (cena) {
+    cap.style.display = 'block';
+    $('#capRot span').textContent = cena.rot; $('#capTit').textContent = cena.tit; $('#capSub').textContent = cena.sub;
+    const parte = (el, atraso) => {
+      const pin = eoutq(prog(t, cena.t0 + atraso, cena.t0 + atraso + 0.45)), pout = ein(prog(t, cena.t1 - 0.32, cena.t1 - 0.05));
+      el.style.opacity = pin * (1 - pout);
+      el.style.transform = `translateY(${22 * (1 - pin) - 16 * pout}px)`;
+    };
+    parte($('#capRot'), 0.12); parte($('#capTit'), 0.22); parte($('#capSub'), 0.36);
+  } else cap.style.display = 'none';
+
+  // revelação
+  const rv = $('#reveal');
+  if (t >= 4.95 && t < 8.45) {
+    rv.style.display = 'block';
+    const sai = ein(prog(t, 8.05, 8.35));
+    const ent = (el, a, dy = 26) => { const p = eoutq(prog(t, a, a + 0.5)); el.style.opacity = p * (1 - sai); el.style.transform = `translateY(${dy * (1 - p) - 20 * sai}px)`; };
+    ent($('#reveal .rot'), 5.0); ent($('#reveal h1'), 5.1, 34); ent($('#reveal p'), 5.35);
+    document.querySelectorAll('.chip').forEach((c, k) => {
+      const a = 5.75 + k * 0.11, p = back(clamp(prog(t, a, a + 0.42)));
+      c.style.opacity = clamp(prog(t, a, a + 0.2)) * (1 - sai);
+      c.style.transform = `translateY(${(1 - p) * 30 - 20 * sai}px) scale(${lerp(0.94, 1, clamp(p))})`;
+    });
+  } else rv.style.display = 'none';
+
+  // celular
+  const ph = $('#phone');
+  if (t >= 37.15 && t < 40.85) {
+    ph.style.display = 'block';
+    const ent = eoutq(prog(t, 37.2, 37.75)), sai = ein(prog(t, 40.55, 40.8));
+    Object.assign(ph.style, { left: '1080px', top: (104 + 70 * (1 - ent)) + 'px', opacity: ent * (1 - sai) });
+    const A = cache['cel-res'], B = cache['cel-juizo'];
+    // A tela não rola (o cabeçalho fixo faz parte da captura): a segunda entra por baixo.
+    const troca = eio(prog(t, 38.95, 39.4));
+    A.style.transform = `translateY(${-160 * troca}px)`; A.style.opacity = 1 - troca;
+    B.style.transform = `translateY(${220 * (1 - troca)}px)`; B.style.opacity = troca;
+  } else ph.style.display = 'none';
+
+  // desfecho: a diagonal varre para o preto
+  const fx = $('#faixa'), ou = $('#outro');
+  if (t >= 40.3) {
+    const p = eio(prog(t, 40.45, 41.15));
+    fx.style.display = 'block';
+    fx.style.left = lerp(-1100, 2200, p) + 'px';
+    fx.style.transform = 'skewX(-45deg)';
+    fx.style.opacity = p >= 1 ? 0 : 1;
+  } else fx.style.display = 'none';
+  if (t >= 40.8) {
+    ou.style.display = 'block';
+    ou.style.clipPath = `polygon(0 0, ${lerp(0, 160, eio(prog(t, 40.8, 41.1)))}% 0, ${lerp(-60, 100, eio(prog(t, 40.8, 41.1)))}% 100%, 0 100%)`;
+    const pl = eoutq(prog(t, 41.15, 41.7));
+    const logo = $('#outro .logo'); logo.style.opacity = pl; logo.style.transform = `translateX(-50%) scale(${lerp(0.92, 1, pl)})`;
+    $('#outro .regua').style.width = 260 * eio(prog(t, 41.45, 41.95)) + 'px';
+    const l1 = eoutq(prog(t, 41.7, 42.15)), l2 = eoutq(prog(t, 42.0, 42.45));
+    $('#outro .l1').style.opacity = l1; $('#outro .l1').style.transform = `translateY(${18 * (1 - l1)}px)`;
+    $('#outro .l2').style.opacity = l2; $('#outro .l2').style.transform = `translateY(${14 * (1 - l2)}px)`;
+  } else ou.style.display = 'none';
+}
+function cenaDe(t) { return CENAS.findIndex((c) => t >= c.t0 && t < c.t1); }
+
+window.render = render;
+Promise.all([...nomes.map(carregar), document.fonts.ready]).then(async () => {
+  await Promise.all(Object.values(cache).map((im) => im.decode().catch(() => {})));
+  // Uma <img> por tela, já decodificada: o quadro só alterna visibilidade e posição.
+  for (const [n, im] of Object.entries(cache)) {
+    im.style.display = 'none';
+    (n.startsWith('cel-') ? $('#phscreen') : $('#view')).appendChild(im);
+  }
+  cache['cel-res'].style.display = 'block'; cache['cel-juizo'].style.display = 'block';
+  render(0); window.pronto = true;
+}).catch((e) => { console.error('falhou ao carregar', e.message); });
+</script>
+</body>
+</html>
